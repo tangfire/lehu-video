@@ -33,3 +33,18 @@ CREATE TABLE `user` (
                         UNIQUE KEY `idx_users_email` (`email`) USING BTREE,
                         UNIQUE KEY `idx_users_mobile` (`mobile`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=7240204103809514232 DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS account (
+                                       `id` BIGINT NOT NULL,
+                                       `mobile` VARCHAR(20) NOT NULL,
+                                       `email` VARCHAR(100) NOT NULL,
+                                       `password` VARCHAR(64) NOT NULL,
+                                       `salt` VARCHAR(64) NOT NULL,
+                                       `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
+                                       `create_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       `update_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                       PRIMARY KEY (`id`),
+                                       INDEX `account_mobile_idx` (`mobile`),
+                                       INDEX `account_email_idx` (`email`)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
