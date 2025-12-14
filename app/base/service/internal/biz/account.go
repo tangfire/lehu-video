@@ -83,11 +83,11 @@ func (a *Account) GenerateId() {
 type AccountRepo interface {
 	CreateAccount(ctx context.Context, account *Account) error
 
-	GetAccountById(ctx context.Context, id int64) (*Account, error)
-	GetAccountByMobile(ctx context.Context, mobile string) (*Account, error)
-	GetAccountByEmail(ctx context.Context, email string) (*Account, error)
-
+	GetAccountById(ctx context.Context, id int64) (bool, *Account, error)
+	GetAccountByMobile(ctx context.Context, mobile string) (bool, *Account, error)
+	GetAccountByEmail(ctx context.Context, email string) (bool, *Account, error)
 	CheckAccountUnique(ctx context.Context, account *Account) error
+	UpdateAccount(ctx context.Context, account *Account) error
 }
 
 type AccountUsecase struct {
@@ -130,7 +130,93 @@ func (uc *AccountUsecase) Register(ctx context.Context, req *pb.RegisterReq) (*p
 }
 
 func (uc *AccountUsecase) CheckAccount(ctx context.Context, req *pb.CheckAccountReq) (*pb.CheckAccountResp, error) {
-	if req.AccountId > 0 {
+	var account *Account
+	var err error
+	var exist bool
 
+	if req.AccountId != 0 {
+		exist, account, err = uc.repo.GetAccountById(ctx, req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		if !exist {
+			return nil, errors.New("account not exist")
+		}
 	}
+	if req.Mobile != "" {
+		exist, account, err = uc.repo.GetAccountByMobile(ctx, req.Mobile)
+		if err != nil {
+			return nil, err
+		}
+		if !exist {
+			return nil, errors.New("account not exist")
+		}
+	}
+
+	if req.Email != "" {
+		exist, account, err = uc.repo.GetAccountByEmail(ctx, req.Email)
+		if err != nil {
+			return nil, err
+		}
+		if !exist {
+			return nil, errors.New("account not exist")
+		}
+	}
+	if account == nil {
+		return nil, errors.New("account not exist")
+	}
+	err = account.CheckPassword(req.Password)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.CheckAccountResp{
+		Meta:      utils.GetSuccessMeta(),
+		AccountId: account.Id,
+	}, nil
+}
+
+func (uc *AccountUsecase) Bind(ctx context.Context, req *pb.BindReq) (*pb.BindResp, error) {
+	exist, account, err := uc.repo.GetAccountById(ctx, req.AccountId)
+	if err != nil {
+		return nil, err
+	}
+	if !exist {
+		return nil, errors.New("account not exist")
+	}
+	switch req.VoucherType {
+	case pb.VoucherType_VOUCHER_EMAIL:
+		account.Email = req.Voucher
+	case pb.VoucherType_VOUCHER_PHONE:
+		account.Mobile = req.Voucher
+	}
+	err = uc.repo.UpdateAccount(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.BindResp{
+		Meta: utils.GetSuccessMeta(),
+	}, nil
+}
+
+func (uc *AccountUsecase) Unbind(ctx context.Context, req *pb.UnbindReq) (*pb.UnbindResp, error) {
+	exist, account, err := uc.repo.GetAccountById(ctx, req.AccountId)
+	if err != nil {
+		return nil, err
+	}
+	if !exist {
+		return nil, errors.New("account not exist")
+	}
+	switch req.VoucherType {
+	case pb.VoucherType_VOUCHER_EMAIL:
+		account.Email = ""
+	case pb.VoucherType_VOUCHER_PHONE:
+		account.Mobile = ""
+	}
+	err = uc.repo.UpdateAccount(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.UnbindResp{
+		Meta: utils.GetSuccessMeta(),
+	}, nil
 }

@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package api.base.service.v1;
+
+option go_package = "lehu-video/api/base/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.base.service.v1";
+
+import "api/base/service/v1/base.proto";
+
+service AuthService {
+	rpc CreateVerificationCode(CreateVerificationCodeReq) returns (CreateVerificationCodeResp);
+	rpc ValidateVerificationCode(ValidateVerificationCodeReq) returns (ValidateVerificationCodeResp);
+}
+
+message CreateVerificationCodeReq {
+	// 验证码的位数
+	int64 bits = 1;
+	// 过期时间戳，毫秒
+	int64 expire_time = 2;
+}
+
+message CreateVerificationCodeResp {
+	Metadata meta = 1;
+	int64 verification_code_id = 2;
+}
+
+message ValidateVerificationCodeReq {
+	int64 verification_code_id = 1;
+	string code = 2;
+}
+
+message ValidateVerificationCodeResp {
+	Metadata meta = 1;
+}
+
+

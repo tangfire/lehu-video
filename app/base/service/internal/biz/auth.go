@@ -87,6 +87,10 @@ func (uc *AuthUsecase) ValidateVerificationCode(ctx context.Context, req *pb.Val
 	if !check {
 		return nil, errors.New("verification code check failed")
 	}
+	err = uc.repo.DelVerificationCode(ctx, code.Id)
+	if err != nil {
+		return nil, err
+	}
 	return &pb.ValidateVerificationCodeResp{
 		Meta: utils.GetSuccessMeta(),
 	}, nil

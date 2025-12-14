@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package api.base.service.v1;
+
+option go_package = "lehu-video/api/base/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.base.service.v1";
+import "api/base/service/v1/base.proto";
+
+service AccountService {
+	rpc Register(RegisterReq) returns (RegisterResp);
+	rpc CheckAccount(CheckAccountReq) returns (CheckAccountResp);
+	rpc Bind(BindReq) returns (BindResp);
+	rpc Unbind(UnbindReq) returns (UnbindResp);
+}
+
+// 手机号和邮箱至少要存在一个
+message RegisterReq{
+	string mobile = 1;
+	string email = 2;
+	string password = 3;
+}
+
+
+message RegisterResp {
+	Metadata meta = 1;
+	int64 account_id = 2; // 账户id，通过此id绑定跨平台账号
+}
+
+// 手机号、邮箱、账户id三者至少要存在一个
+message CheckAccountReq {
+	string mobile = 1;
+	string email = 2;
+	int64 account_id = 3;
+	string password = 4;
+}
+
+message CheckAccountResp {
+	Metadata meta = 1;
+	int64 account_id = 2; // 账户id，通过此id绑定跨平台账号
+}
+
+enum VoucherType {
+	VOUCHER_PHONE = 0;
+	VOUCHER_EMAIL = 1;
+}
+
+message BindReq {
+	int64 account_id = 1;
+	VoucherType voucher_type = 2;
+	string voucher = 3;
+}
+
+message BindResp {
+	Metadata meta = 1;
+}
+
+message UnbindReq {
+	int64 account_id = 1;
+	VoucherType voucher_type = 2;
+	string voucher = 3;
+}
+
+message UnbindResp {
+	Metadata meta = 1;
+}
