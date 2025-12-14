@@ -1,7 +1,6 @@
 package server
 
 import (
-	v1 "lehu-video/app/base/service/api/helloworld/v1"
 	"lehu-video/app/base/service/internal/conf"
 	"lehu-video/app/base/service/internal/service"
 
@@ -11,7 +10,7 @@ import (
 )
 
 // NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, accountService *service.AccountServiceService, authService *service.AuthServiceService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -27,6 +26,5 @@ func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.L
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
-	v1.RegisterGreeterHTTPServer(srv, greeter)
 	return srv
 }

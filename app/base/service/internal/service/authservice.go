@@ -13,8 +13,8 @@ type AuthServiceService struct {
 	uc *biz.AuthUsecase
 }
 
-func NewAuthServiceService() *AuthServiceService {
-	return &AuthServiceService{}
+func NewAuthServiceService(uc *biz.AuthUsecase) *AuthServiceService {
+	return &AuthServiceService{uc: uc}
 }
 
 func (s *AuthServiceService) CreateVerificationCode(ctx context.Context, req *pb.CreateVerificationCodeReq) (*pb.CreateVerificationCodeResp, error) {
