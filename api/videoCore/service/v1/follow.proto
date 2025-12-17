@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package api.videoCore.service.v1;
+
+option go_package = "lehu-video/api/videoCore/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoCore.service.v1";
+
+service Follow {
+	rpc CreateFollow (CreateFollowRequest) returns (CreateFollowReply);
+	rpc UpdateFollow (UpdateFollowRequest) returns (UpdateFollowReply);
+	rpc DeleteFollow (DeleteFollowRequest) returns (DeleteFollowReply);
+	rpc GetFollow (GetFollowRequest) returns (GetFollowReply);
+	rpc ListFollow (ListFollowRequest) returns (ListFollowReply);
+}
+
+message CreateFollowRequest {}
+message CreateFollowReply {}
+
+message UpdateFollowRequest {}
+message UpdateFollowReply {}
+
+message DeleteFollowRequest {}
+message DeleteFollowReply {}
+
+message GetFollowRequest {}
+message GetFollowReply {}
+
+message ListFollowRequest {}
+message ListFollowReply {}
