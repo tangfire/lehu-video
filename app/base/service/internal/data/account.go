@@ -24,13 +24,13 @@ func NewAccountRepo(data *Data, logger log.Logger) biz.AccountRepo {
 
 func (a *accountRepo) CreateAccount(ctx context.Context, in *biz.Account) error {
 	account := model.Account{
-		Id:       in.Id,
-		Mobile:   in.Mobile,
-		Email:    in.Email,
-		Password: in.Password,
-		Salt:     in.Salt,
-		CreateAt: time.Now(),
-		UpdateAt: time.Now(),
+		Id:        in.Id,
+		Mobile:    in.Mobile,
+		Email:     in.Email,
+		Password:  in.Password,
+		Salt:      in.Salt,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	err := a.data.db.Table(model.Account{}.TableName()).Create(&account).Error
 	if err != nil {

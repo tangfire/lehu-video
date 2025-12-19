@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	pb "lehu-video/api/videoCore/service/v1"
+	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/data/model"
 	"lehu-video/app/videoCore/service/internal/pkg/utils"
 )
@@ -14,6 +15,10 @@ import (
 type followRepo struct {
 	data *Data
 	log  *log.Helper
+}
+
+func NewFollowRepo(data *Data, logger log.Logger) biz.FollowRepo {
+	return &followRepo{data: data, log: log.NewHelper(logger)}
 }
 
 func (r *followRepo) AddFollow(ctx context.Context, userId, targetUserId int64) error {

@@ -41,8 +41,8 @@ CREATE TABLE IF NOT EXISTS account (
                                        `password` VARCHAR(64) NOT NULL,
                                        `salt` VARCHAR(64) NOT NULL,
                                        `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
-                                       `create_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                       `update_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                       `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                        PRIMARY KEY (`id`),
                                        INDEX `account_mobile_idx` (`mobile`),
                                        INDEX `account_email_idx` (`email`)
@@ -56,11 +56,39 @@ CREATE TABLE IF NOT EXISTS `follow` (
                                         `user_id` BIGINT NOT NULL,
                                         target_user_id BIGINT NOT NULL COMMENT '被关注的用户id',
                                         is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
-                                        create_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                        update_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                         INDEX `user_id_idx` (`user_id`, `target_user_id`, `is_deleted`),
                                         PRIMARY KEY(`id`)
 );
+
+
+CREATE TABLE IF NOT EXISTS `favorite` (
+                                          id BIGINT PRIMARY KEY COMMENT '主键ID',
+                                          user_id BIGINT NOT NULL COMMENT '用户ID',
+                                          target_type TINYINT NOT NULL COMMENT '点赞对象类型 1-视频 2-评论',
+                                          target_id BIGINT NOT NULL COMMENT '点赞对象ID',
+                                          favorite_type TINYINT NOT NULL COMMENT '点赞类型 1-点赞 2-踩',
+                                          is_deleted BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否删除',
+                                          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+
+    -- 核心：条件唯一索引（仅对未删除的记录建立唯一约束）
+    -- MySQL 8.0+ 支持函数索引
+                                          UNIQUE INDEX `uniq_user_target_active` (
+                                                                                  user_id,
+                                                                                  target_id,
+                                                                                  target_type,
+                                                                                  favorite_type,
+                                              (CASE WHEN is_deleted = FALSE THEN 1 END)
+                                              ),
+
+    -- 查询索引
+                                          INDEX `idx_user_target_type` (user_id, target_type, is_deleted),
+                                          INDEX `idx_target` (target_type, target_id, is_deleted),
+                                          INDEX `idx_created_at` (created_at)
+) COMMENT='用户收藏表';
+
 
 
 
