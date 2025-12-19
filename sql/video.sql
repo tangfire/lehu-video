@@ -48,3 +48,19 @@ CREATE TABLE IF NOT EXISTS account (
                                        INDEX `account_email_idx` (`email`)
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+
+
+
+CREATE TABLE IF NOT EXISTS `follow` (
+                                        id BIGINT NOT NULL,
+                                        `user_id` BIGINT NOT NULL,
+                                        target_user_id BIGINT NOT NULL COMMENT '被关注的用户id',
+                                        is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+                                        create_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                        update_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                        INDEX `user_id_idx` (`user_id`, `target_user_id`, `is_deleted`),
+                                        PRIMARY KEY(`id`)
+);
+
+
+

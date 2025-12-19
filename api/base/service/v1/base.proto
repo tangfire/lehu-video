@@ -20,5 +20,5 @@ message PageStatsReq{
 }
 
 message PageStatsResp{
-	int32 total = 2;
+	int32 total = 1;
 }
