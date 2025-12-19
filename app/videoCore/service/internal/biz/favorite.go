@@ -9,7 +9,7 @@ import (
 
 type FavoriteRepo interface {
 	AddFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) error
-	GetFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) (bool, int64, error)
+	GetFavoriteList(ctx context.Context, userId, targetId int64, targetType, favoriteType int32, pageStats *pb.PageStatsReq) ([]int64, error)
 	DeleteFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) error
 }
 
@@ -40,4 +40,11 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, req *pb.RemoveFav
 	return &pb.RemoveFavoriteResp{
 		Meta: utils.GetSuccessMeta(),
 	}, nil
+}
+
+func (uc *FavoriteUsecase) ListFavorite(ctx context.Context, req *pb.ListFavoriteReq) (*pb.ListFavoriteResp, error) {
+	switch req.AggregateType {
+	case pb.FavoriteAggregateType_BY_USER:
+
+	}
 }

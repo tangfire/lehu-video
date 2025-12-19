@@ -2,13 +2,13 @@ package data
 
 import (
 	"context"
-	"errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	pb "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/data/model"
+	"lehu-video/app/videoCore/service/internal/pkg/utils"
 	"time"
 )
 
@@ -53,21 +53,36 @@ func (r *favoriteRepo) AddFavorite(ctx context.Context, userId, targetId int64, 
 		Create(&favorite).Error
 }
 
-func (r *favoriteRepo) GetFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) (bool, int64, error) {
-	favorite := model.Favorite{}
-	err := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName()).
-		Where("user_id = ?", userId).
-		Where("target_id = ?", targetId).
-		Where("target_type = ?", targetType).
-		Where("favorite_type = ?", favoriteType).
-		Where("is_deleted = ?", false).First(&favorite).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, 0, nil
+func (r *favoriteRepo) GetFavoriteList(ctx context.Context, userId, targetId int64, targetType, favoriteType int32, pageStats *pb.PageStatsReq) ([]int64, error) {
+	db := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName())
+	if userId != 0 {
+		db = db.Where("user_id = ?", userId)
 	}
+	if targetId != 0 {
+		db = db.Where("target_id = ?", targetId)
+	}
+	if targetType != 0 {
+		db = db.Where("target_type = ?", targetType)
+	}
+	if favoriteType != 0 {
+		db = db.Where("favorite_type = ?", favoriteType)
+	}
+	db = db.Where("is_deleted = ?", false).Order("id desc")
+	var total int64
+	err := db.Count(&total).Error
 	if err != nil {
-		return false, 0, err
+		return nil, err
 	}
-	return true, favorite.Id, nil
+	var favoriteList []model.Favorite
+	err = db.Offset(int((pageStats.Page - 1) * pageStats.Size)).Limit(int(pageStats.Size)).Find(&favoriteList).Error
+	if err != nil {
+		return nil, err
+	}
+	targetIdList := make([]int64, 0, len(favoriteList))
+	targetIdList = utils.Slice2Slice(favoriteList, func(favorite model.Favorite) int64 {
+		return favorite.TargetId
+	})
+	return targetIdList, nil
 }
 
 func (r *favoriteRepo) DeleteFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) error {
