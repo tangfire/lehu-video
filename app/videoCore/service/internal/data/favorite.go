@@ -55,16 +55,16 @@ func (r *favoriteRepo) AddFavorite(ctx context.Context, userId, targetId int64, 
 
 func (r *favoriteRepo) GetFavoriteList(ctx context.Context, userId, targetId int64, targetType, favoriteType int32, pageStats *pb.PageStatsReq) ([]int64, error) {
 	db := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName())
-	if userId != 0 {
+	if userId != -1 {
 		db = db.Where("user_id = ?", userId)
 	}
-	if targetId != 0 {
+	if targetId != -1 {
 		db = db.Where("target_id = ?", targetId)
 	}
-	if targetType != 0 {
+	if targetType != -1 {
 		db = db.Where("target_type = ?", targetType)
 	}
-	if favoriteType != 0 {
+	if favoriteType != -1 {
 		db = db.Where("favorite_type = ?", favoriteType)
 	}
 	db = db.Where("is_deleted = ?", false).Order("id desc")

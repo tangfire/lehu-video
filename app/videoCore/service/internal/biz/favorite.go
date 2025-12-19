@@ -42,9 +42,11 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, req *pb.RemoveFav
 	}, nil
 }
 
+// 获取点赞列表
 func (uc *FavoriteUsecase) ListFavorite(ctx context.Context, req *pb.ListFavoriteReq) (*pb.ListFavoriteResp, error) {
 	switch req.AggregateType {
+	// 用户维度的时候，只获取视频的
 	case pb.FavoriteAggregateType_BY_USER:
-
+		uc.repo.GetFavoriteList(ctx, req.Id, 0, pb.FavoriteTarget_VIDEO)
 	}
 }
