@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package api.videoCore.service.v1;
+
+option go_package = "lehu-video/api/videoCore/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoCore.service.v1";
+import "api/videoCore/service/v1/base.proto";
+
+message Comment{
+	int64 id = 1; // 评论id
+	int64 video_id = 2; // 视频id
+	string content = 3; // 评论内容
+	string date = 4; // 评论日期
+	string like_count = 5; // 点赞数
+	string reply_count = 6; // 回复数
+	int64 user_id = 7; // 用户id
+	int64 parent_id = 8; // 父评论id
+	int64 reply_user_id = 9; // 回复用户id
+	repeated Comment comments = 10; // 子评论
+}
+
+service CommentService {
+	rpc CreateComment(CreateCommentReq) returns (CreateCommentResp);
+	rpc RemoveComment(RemoveCommentReq) returns (RemoveCommentResp);
+	rpc ListComment4Video(ListComment4VideoReq) returns (ListComment4VideoResp);
+	rpc ListChildComment4Comment(ListChildComment4CommentReq) returns (ListChildComment4CommentResp);
+	rpc GetCommentById(GetCommentByIdReq) returns(GetCommentByIdResp);
+	rpc CountComment4Video(CountComment4VideoReq) returns(CountComment4VideoResp);
+	rpc CountComment4User(CountComment4UserReq) returns (CountComment4UserResp);
+}
+
+
+
+

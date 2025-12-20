@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
 	"gorm.io/gorm/clause"
@@ -53,7 +54,7 @@ func (r *favoriteRepo) AddFavorite(ctx context.Context, userId, targetId int64, 
 		Create(&favorite).Error
 }
 
-func (r *favoriteRepo) GetFavoriteList(ctx context.Context, userId, targetId int64, targetType, favoriteType int32, pageStats *pb.PageStatsReq) ([]int64, error) {
+func (r *favoriteRepo) GetFavoriteList(ctx context.Context, userId, targetId int64, targetType, favoriteType int32, pageStats *pb.PageStatsReq) (int64, []int64, error) {
 	db := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName())
 	if userId != -1 {
 		db = db.Where("user_id = ?", userId)
@@ -71,18 +72,18 @@ func (r *favoriteRepo) GetFavoriteList(ctx context.Context, userId, targetId int
 	var total int64
 	err := db.Count(&total).Error
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	var favoriteList []model.Favorite
 	err = db.Offset(int((pageStats.Page - 1) * pageStats.Size)).Limit(int(pageStats.Size)).Find(&favoriteList).Error
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	targetIdList := make([]int64, 0, len(favoriteList))
 	targetIdList = utils.Slice2Slice(favoriteList, func(favorite model.Favorite) int64 {
 		return favorite.TargetId
 	})
-	return targetIdList, nil
+	return total, targetIdList, nil
 }
 
 func (r *favoriteRepo) DeleteFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) error {
@@ -96,4 +97,84 @@ func (r *favoriteRepo) DeleteFavorite(ctx context.Context, userId, targetId int6
 		return err
 	}
 	return nil
+}
+
+func (r *favoriteRepo) CountFavorite(ctx context.Context, idList []int64, aggType int32, favoriteType int32) ([]*pb.CountFavoriteRespItem, error) {
+	// 1. 边界检查
+	if len(idList) == 0 {
+		return []*pb.CountFavoriteRespItem{}, nil
+	}
+
+	var countFavoriteItemList []struct {
+		Id    int64 `gorm:"column:id"`
+		Count int64 `gorm:"column:count"`
+	}
+
+	db := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName())
+	db = db.Where("is_deleted = ?", false).
+		Where("favorite_type = ?", favoriteType)
+
+	// 2. 根据聚合类型构建查询
+	switch aggType {
+	case int32(pb.FavoriteAggregateType_BY_USER):
+		db = db.Select("user_id as id, count(user_id) as count").
+			Where("user_id in (?)", idList).
+			Where("target_type = ?", int32(pb.FavoriteTarget_VIDEO)).
+			Group("user_id")
+
+	case int32(pb.FavoriteAggregateType_BY_VIDEO):
+		db = db.Select("target_id as id, count(target_id) as count").
+			Where("target_id in (?)", idList).
+			Where("target_type = ?", int32(pb.FavoriteTarget_VIDEO)).
+			Group("target_id")
+
+	case int32(pb.FavoriteAggregateType_BY_COMMENT):
+		db = db.Select("target_id as id, count(target_id) as count").
+			Where("target_id in (?)", idList).
+			Where("target_type = ?", int32(pb.FavoriteTarget_COMMENT)).
+			Group("target_id")
+
+	default:
+		// 3. 处理未知聚合类型
+		return nil, fmt.Errorf("unknown aggregate type: %d", aggType)
+	}
+
+	// 4. 执行查询
+	err := db.Find(&countFavoriteItemList).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. 转换结果
+	favoriteList := make([]*pb.CountFavoriteRespItem, 0, len(countFavoriteItemList))
+	for _, favoriteItem := range countFavoriteItemList {
+		favoriteList = append(favoriteList, &pb.CountFavoriteRespItem{
+			BizId: favoriteItem.Id,
+			Count: favoriteItem.Count,
+		})
+	}
+
+	return favoriteList, nil
+}
+
+func (r *favoriteRepo) GetFavoriteListByList(ctx context.Context, userIdList, targetIdList []int64, targetType, favoriteType int32) ([]biz.Favorite, error) {
+	var favoriteList []model.Favorite
+	err := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName()).
+		Where("user_id in (?)", userIdList).
+		Where("target_id in (?)", targetIdList).
+		Where("target_type = ?", targetType).
+		Where("favorite_type = ?", favoriteType).
+		Where("is_deleted = ?", false).Find(&favoriteList).Error
+	if err != nil {
+		return nil, err
+	}
+	retList := utils.Slice2Slice(favoriteList, func(favorite model.Favorite) biz.Favorite {
+		return biz.Favorite{
+			UserId:       favorite.UserId,
+			TargetType:   favorite.TargetType,
+			TargetId:     favorite.TargetId,
+			FavoriteType: favorite.FavoriteType,
+		}
+	})
+	return retList, nil
 }

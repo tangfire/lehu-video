@@ -93,15 +93,12 @@ message IsFavoriteReqItem{
 message IsFavoriteReq{
 	FavoriteTarget target = 1;
 	FavoriteType type = 2;
-	int64 biz_id = 3;
-	int64 user_id = 4;
-	repeated IsFavoriteReqItem items = 5;
+	repeated IsFavoriteReqItem items = 3;
 }
 
 message IsFavoriteRespItem{
 	int64 biz_id = 1;
 	int64 user_id = 2;
-	bool is_favorite = 3;
 }
 
 message IsFavoriteResp{

@@ -2,30 +2,32 @@ package service
 
 import (
 	"context"
+	"lehu-video/app/videoCore/service/internal/biz"
 
 	pb "lehu-video/api/videoCore/service/v1"
 )
 
 type FavoriteServiceService struct {
 	pb.UnimplementedFavoriteServiceServer
+	uc *biz.FavoriteUsecase
 }
 
-func NewFavoriteServiceService() *FavoriteServiceService {
-	return &FavoriteServiceService{}
+func NewFavoriteServiceService(uc *biz.FavoriteUsecase) *FavoriteServiceService {
+	return &FavoriteServiceService{uc: uc}
 }
 
 func (s *FavoriteServiceService) AddFavorite(ctx context.Context, req *pb.AddFavoriteReq) (*pb.AddFavoriteResp, error) {
-	return &pb.AddFavoriteResp{}, nil
+	return s.uc.AddFavorite(ctx, req)
 }
 func (s *FavoriteServiceService) RemoveFavorite(ctx context.Context, req *pb.RemoveFavoriteReq) (*pb.RemoveFavoriteResp, error) {
-	return &pb.RemoveFavoriteResp{}, nil
+	return s.uc.RemoveFavorite(ctx, req)
 }
 func (s *FavoriteServiceService) ListFavorite(ctx context.Context, req *pb.ListFavoriteReq) (*pb.ListFavoriteResp, error) {
-	return &pb.ListFavoriteResp{}, nil
+	return s.uc.ListFavorite(ctx, req)
 }
 func (s *FavoriteServiceService) CountFavorite(ctx context.Context, req *pb.CountFavoriteReq) (*pb.CountFavoriteResp, error) {
-	return &pb.CountFavoriteResp{}, nil
+	return s.uc.CountFavorite(ctx, req)
 }
 func (s *FavoriteServiceService) IsFavorite(ctx context.Context, req *pb.IsFavoriteReq) (*pb.IsFavoriteResp, error) {
-	return &pb.IsFavoriteResp{}, nil
+	return s.uc.IsFavorite(ctx, req)
 }
