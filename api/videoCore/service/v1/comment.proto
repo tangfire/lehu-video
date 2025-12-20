@@ -30,6 +30,85 @@ service CommentService {
 	rpc CountComment4User(CountComment4UserReq) returns (CountComment4UserResp);
 }
 
+message CreateCommentReq{
+	int64 video_id = 1; // 视频id
+	int64 user_id = 2; // 用户id
+	string content = 3; // 评论内容
+	int64 parent_id = 4; // 父评论id
+	int64 reply_user_id = 5; // 回复用户id
+}
+
+message CreateCommentResp {
+	Metadata meta = 1;
+}
+
+message RemoveCommentReq{
+	int64 comment_id = 1; // 评论id
+	int64 user_id = 2; // 用户id
+}
+
+message RemoveCommentResp {
+	Metadata meta = 1;
+}
+
+message ListComment4VideoReq{
+	int64 video_id = 1; // 视频id
+	PageStatsReq page_stats = 2;
+}
+
+message ListComment4VideoResp{
+	Metadata meta = 1;
+	repeated Comment comment_list = 2;
+	PageStatsResp page_stats = 3;
+}
+
+
+message ListChildComment4CommentReq{
+	int64 comment_id = 1;
+	PageStatsReq page_stats = 2;
+}
+
+message ListChildComment4CommentResp{
+	Metadata meta = 1;
+	repeated Comment comment_list = 2;
+	PageStatsResp page_stats = 3;
+}
+
+message GetCommentByIdReq{
+	int64 comment_id = 1; // 评论id
+}
+
+message GetCommentByIdResp{
+	Metadata meta = 1;
+	Comment comment = 2;
+}
+
+message CountResult {
+	int64 id = 1;
+	int64 count = 2;
+}
+
+message CountComment4VideoReq {
+	repeated int64 video_id = 1; // 视频id
+}
+
+message CountComment4VideoResp {
+	Metadata meta = 1;
+	repeated CountResult results = 2;
+}
+
+message CountComment4UserReq {
+	repeated int64 user_id = 1; // 用户id
+}
+
+message CountComment4UserResp {
+	Metadata meta = 1;
+	repeated CountResult results = 2;
+}
+
+
+
+
 
 
 
