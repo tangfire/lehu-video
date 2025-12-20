@@ -5,6 +5,7 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/data/model"
+	"lehu-video/app/videoCore/service/internal/pkg/utils"
 	"time"
 )
 
@@ -52,164 +53,114 @@ func (r *commentRepo) RemoveComment(ctx context.Context, in *biz.Comment) error 
 }
 
 func (r *commentRepo) ListCommentByVideoId(ctx context.Context, videoId int64) ([]*biz.Comment, error) {
-	// 1. 获取视频下的所有顶级评论（parent_id = 0）
-	var topComments []model.Comment
-	err := r.data.db.WithContext(ctx).
-		Where("video_id = ? AND parent_id = 0 AND is_deleted = ?", videoId, false).
-		Order("created_at DESC").
-		Find(&topComments).Error
+	var commentList []model.Comment
+	err := r.data.db.WithContext(ctx).Table(model.Comment{}.TableName()).
+		Where("parent_id = ?", 0).
+		Where("video_id = ?", videoId).
+		Where("is_deleted = ?", false).
+		Find(&commentList).Error
 	if err != nil {
 		return nil, err
 	}
+	commentIdList := utils.Slice2Slice(commentList, func(comment model.Comment) int64 {
+		return comment.Id
+	})
 
-	// 如果没有评论，返回空切片
-	if len(topComments) == 0 {
-		return []*biz.Comment{}, nil
+	var commentItemList []struct {
+		ParentId int64 `json:"parent_id"`
+		Count    int64 `json:"count"`
 	}
 
-	// 2. 批量获取每个顶级评论的子评论数量
-	commentCountMap, err := r.getCommentChildCounts(ctx, topComments)
-	if err != nil {
-		r.log.Warnf("failed to get comment counts: %v", err)
-		// 继续执行，不返回错误
-	}
-
-	// 3. 批量获取每个顶级评论的前5条子评论
-	childCommentMap, err := r.getFirstChildComments(ctx, topComments, 5)
-	if err != nil {
-		r.log.Warnf("failed to get first child comments: %v", err)
-		// 继续执行，不返回错误
-	}
-
-	// 4. 转换为业务对象
-	result := make([]*biz.Comment, len(topComments))
-	for i, comment := range topComments {
-		result[i] = r.convertToBizCommentWithChildren(&comment, commentCountMap, childCommentMap)
-	}
-
-	return result, nil
-}
-
-// 批量获取评论的子评论数量
-func (r *commentRepo) getCommentChildCounts(ctx context.Context, comments []model.Comment) (map[int64]int64, error) {
-	if len(comments) == 0 {
-		return make(map[int64]int64), nil
-	}
-
-	var commentIds []int64
-	for _, comment := range comments {
-		commentIds = append(commentIds, comment.Id)
-	}
-
-	var countResults []struct {
-		ParentID int64
-		Count    int64
-	}
-
-	err := r.data.db.WithContext(ctx).
-		Model(&model.Comment{}).
-		Select("parent_id, COUNT(*) as count").
-		Where("parent_id IN (?) AND is_deleted = ?", commentIds, false).
+	err = r.data.db.WithContext(ctx).Table(model.Comment{}.TableName()).
+		Select("parent_id,count(parent_id) as count").
+		Where("parent_id in (?)", commentIdList).
+		Where("is_deleted = ?", false).
 		Group("parent_id").
-		Scan(&countResults).Error
-
+		Find(&commentItemList).Error
 	if err != nil {
 		return nil, err
 	}
-
-	countMap := make(map[int64]int64)
-	for _, result := range countResults {
-		countMap[result.ParentID] = result.Count
+	commentCountMap := make(map[int64]int64)
+	for _, item := range commentItemList {
+		commentCountMap[item.ParentId] = item.Count
 	}
 
-	return countMap, nil
-}
-
-// 批量获取每个评论的前N条子评论
-func (r *commentRepo) getFirstChildComments(ctx context.Context, comments []model.Comment, limit int) (map[int64][]*biz.Comment, error) {
-	if len(comments) == 0 {
-		return make(map[int64][]*biz.Comment), nil
-	}
-
-	var commentIds []int64
-	for _, comment := range comments {
-		commentIds = append(commentIds, comment.Id)
-	}
-
-	// 查询所有相关子评论
-	var childComments []model.Comment
-	err := r.data.db.WithContext(ctx).
-		Where("parent_id IN (?) AND is_deleted = ?", commentIds, false).
-		Order("parent_id, created_at DESC").
-		Find(&childComments).Error
+	var childCommentList []model.Comment
+	err = r.data.db.WithContext(ctx).Table(model.Comment{}.TableName()).
+		Where("parent_id in (?)", commentIdList).
+		Where("is_deleted = ?", false).
+		Find(&childCommentList).Error
 	if err != nil {
 		return nil, err
 	}
-
-	// 按父评论ID分组，并限制每个父评论的数量
-	childMap := make(map[int64][]*biz.Comment)
-	countMap := make(map[int64]int)
-
-	for _, child := range childComments {
-		parentID := child.ParentId
-
-		// 如果已经达到限制数量，跳过
-		if countMap[parentID] >= limit {
-			continue
+	childCommentMap := make(map[int64][]*biz.Comment)
+	for _, comment := range childCommentList {
+		tmp := &biz.Comment{
+			Id:            comment.Id,
+			VideoId:       comment.VideoId,
+			UserId:        comment.UserId,
+			ParentId:      comment.ParentId,
+			ToUserId:      comment.ToUserId,
+			Content:       comment.Content,
+			Date:          comment.CreatedAt.Format(time.DateTime),
+			CreateTime:    comment.CreatedAt,
+			Comments:      nil,
+			ChildNumbers:  0,
+			FirstComments: nil,
 		}
-
-		if childMap[parentID] == nil {
-			childMap[parentID] = make([]*biz.Comment, 0, limit)
+		childCommentMap[comment.ParentId] = append(childCommentMap[comment.ParentId], tmp)
+	}
+	var retCommentList []*biz.Comment
+	for _, comment := range commentList {
+		tmp := &biz.Comment{
+			Id:            comment.Id,
+			VideoId:       comment.VideoId,
+			UserId:        comment.UserId,
+			ParentId:      comment.ParentId,
+			ToUserId:      comment.ToUserId,
+			Content:       comment.Content,
+			Date:          comment.CreatedAt.Format(time.DateTime),
+			CreateTime:    comment.CreatedAt,
+			Comments:      childCommentMap[comment.Id],
+			ChildNumbers:  commentCountMap[comment.Id],
+			FirstComments: nil,
 		}
-
-		childMap[parentID] = append(childMap[parentID], r.convertModelToBiz(&child, 0))
-		countMap[parentID]++
+		retCommentList = append(retCommentList, tmp)
 	}
-
-	return childMap, nil
-}
-
-// 转换评论对象（包含子评论信息）
-func (r *commentRepo) convertToBizCommentWithChildren(comment *model.Comment, countMap map[int64]int64, childMap map[int64][]*biz.Comment) *biz.Comment {
-	bizComment := &biz.Comment{
-		Id:           comment.Id,
-		VideoId:      comment.VideoId,
-		UserId:       comment.UserId,
-		Content:      comment.Content,
-		Date:         comment.CreatedAt.Format(time.DateTime),
-		CreateTime:   comment.CreatedAt,
-		ChildNumbers: countMap[comment.Id], // 子评论总数
-		ParentId:     comment.ParentId,
-		ToUserId:     comment.ToUserId,
-	}
-
-	// 设置前几条子评论
-	if firstComments, exists := childMap[comment.Id]; exists {
-		bizComment.FirstComments = firstComments
-		// 如果子评论数量小于等于5，Comments和FirstComments相同
-		if len(firstComments) <= 5 {
-			bizComment.Comments = firstComments
+	for _, comment := range retCommentList {
+		if comment.Comments != nil && len(comment.Comments) > 0 {
+			commentLen := len(comment.Comments)
+			_len := min(commentLen, 5)
+			comment.FirstComments = comment.Comments[:_len]
 		}
 	}
-	return bizComment
-}
-
-// 基础转换方法
-func (r *commentRepo) convertModelToBiz(comment *model.Comment, childCount int64) *biz.Comment {
-	bizComment := &biz.Comment{
-		Id:           comment.Id,
-		VideoId:      comment.VideoId,
-		UserId:       comment.UserId,
-		Content:      comment.Content,
-		Date:         comment.CreatedAt.Format(time.DateTime),
-		CreateTime:   comment.CreatedAt,
-		ChildNumbers: childCount,
-		ParentId:     comment.ParentId,
-		ToUserId:     comment.ToUserId,
-	}
-	return bizComment
+	return retCommentList, nil
 }
 
 func (r *commentRepo) ListChildCommentById(ctx context.Context, commentId int64) ([]*biz.Comment, error) {
+	var commentList []model.Comment
+	err := r.data.db.WithContext(ctx).Table(model.Comment{}.TableName()).
+		Where("parent_id = ?", commentId).
+		Where("is_deleted = ?", false).
+		Find(&commentList).Error
+	if err != nil {
+		return nil, err
+	}
+	childCommentList := utils.Slice2Slice(commentList, func(comment model.Comment) *biz.Comment {
+		return &biz.Comment{
+			Id:            comment.Id,
+			VideoId:       comment.VideoId,
+			UserId:        comment.UserId,
+			ParentId:      comment.ParentId,
+			ToUserId:      comment.ToUserId,
+			Content:       comment.Content,
+			Date:          comment.CreatedAt.Format(time.DateTime),
+			CreateTime:    comment.CreatedAt,
+			Comments:      nil,
+			ChildNumbers:  0,
+			FirstComments: nil,
+		}
+	})
+	return childCommentList, nil
 
 }

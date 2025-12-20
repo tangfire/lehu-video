@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package api.videoCore.service.v1;
+
+option go_package = "lehu-video/api/videoCore/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoCore.service.v1";
+
+service Collection {
+	rpc CreateCollection (CreateCollectionReq) returns (CreateCollectionResp);
+	rpc UpdateCollection (UpdateCollectionReq) returns (UpdateCollectionResp);
+	rpc RemoveCollection (RemoveCollectionReq) returns (RemoveCollectionResp);
+	rpc GetCollectionById(GetCollectionByIdReq) returns (GetCollectionByIdResp);
+	rpc ListCollection(ListCollectionReq) returns (ListCollectionResp);
+
+
+	rpc AddVideo2Collection(AddVideo2CollectionReq) returns(AddVideo2CollectionResp);
+	rpc RemoveVideoFromCollection(RemoveVideoFromCollectionReq) returns (RemoveVideoFromCollectionResp);
+	rpc ListVideo2Collection(ListVideo2CollectionReq) returns (ListVideo2CollectionResp);
+	rpc IsCollected(IsCollectedReq) returns (IsCollectedResp);
+	rpc CountCollect4Video(CountCollect4VideoReq) returns (CountCollect4VideoResp);
+
+
+}
+
+message CreateCollectionReq {}
+message CreateCollectionResp {}
+
+message UpdateCollectionReq {}
+message UpdateCollectionResp {}
+
+message RemoveCollectionReq {}
+message RemoveCollectionResp {}
+

@@ -3,7 +3,9 @@ package biz
 import (
 	"context"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/google/uuid"
 	pb "lehu-video/api/videoCore/service/v1"
+	"lehu-video/app/videoCore/service/internal/pkg/utils"
 	"time"
 )
 
@@ -41,7 +43,26 @@ func NewCommentUsecase(repo CommentRepo, logger log.Logger) *CommentUsecase {
 }
 
 func (uc *CommentUsecase) CreateComment(ctx context.Context, req *pb.CreateCommentReq) (*pb.CreateCommentResp, error) {
-
+	comment := &Comment{
+		Id:            int64(uuid.New().ID()),
+		VideoId:       req.VideoId,
+		UserId:        req.UserId,
+		ParentId:      req.ParentId,
+		ToUserId:      0,
+		Content:       req.Content,
+		Date:          time.Now().Format(time.DateTime),
+		CreateTime:    time.Now(),
+		Comments:      nil,
+		ChildNumbers:  0,
+		FirstComments: nil,
+	}
+	err := uc.repo.CreateComment(ctx, comment)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.CreateCommentResp{
+		Meta: utils.GetSuccessMeta(),
+	}, nil
 }
 
 func (uc *CommentUsecase) RemoveComment(ctx context.Context, req *pb.RemoveCommentReq) (*pb.RemoveCommentResp, error) {
