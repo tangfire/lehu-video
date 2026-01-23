@@ -3,10 +3,12 @@ package data
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
 	"gorm.io/gorm"
 	"lehu-video/app/base/service/internal/biz"
 	"lehu-video/app/base/service/internal/data/model"
+	"strings"
 	"time"
 )
 
@@ -40,15 +42,54 @@ func (a *accountRepo) CreateAccount(ctx context.Context, in *biz.Account) error 
 }
 
 func (a *accountRepo) CheckAccountUnique(ctx context.Context, in *biz.Account) error {
+	// 判空检查
+	if in.Mobile == "" && in.Email == "" {
+		return errors.New("手机号和邮箱不能同时为空")
+	}
+
 	account := model.Account{}
-	err := a.data.db.Table(model.Account{}.TableName()).Where("mobile = ? or email = ?", in.Mobile, in.Email).First(&account).Error
+	query := a.data.db.Table(model.Account{}.TableName())
+
+	// 构建查询条件
+	var conditions []string
+	var args []interface{}
+
+	if in.Mobile != "" {
+		conditions = append(conditions, "mobile = ?")
+		args = append(args, in.Mobile)
+	}
+
+	if in.Email != "" {
+		conditions = append(conditions, "email = ?")
+		args = append(args, in.Email)
+	}
+
+	// 构建 WHERE 子句
+	if len(conditions) == 0 {
+		return nil
+	}
+
+	whereClause := strings.Join(conditions, " OR ")
+	err := query.Where(whereClause, args...).First(&account).Error
+
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil
 	}
+
 	if err != nil {
-		return err
+		return fmt.Errorf("查询账号时出错: %w", err)
 	}
-	return errors.New("account not unique")
+
+	// 明确告知是手机号还是邮箱重复
+	if in.Mobile != "" && account.Mobile == in.Mobile {
+		return fmt.Errorf("手机号 %s 已被注册", in.Mobile)
+	}
+
+	if in.Email != "" && account.Email == in.Email {
+		return fmt.Errorf("邮箱 %s 已被注册", in.Email)
+	}
+
+	return errors.New("账号已存在")
 }
 
 func (a *accountRepo) GetAccountById(ctx context.Context, id int64) (bool, *biz.Account, error) {

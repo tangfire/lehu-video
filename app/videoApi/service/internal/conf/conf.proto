@@ -36,6 +36,8 @@ message Data {
     string addr = 2;
     google.protobuf.Duration read_timeout = 3;
     google.protobuf.Duration write_timeout = 4;
+    string password = 5;
+    int32 db = 6;
   }
   Database database = 1;
   Redis redis = 2;
@@ -43,4 +45,12 @@ message Data {
 
 message Auth{
   string api_key = 1;
+}
+
+message Registry{
+  message Counsul{
+    string address = 1;
+    string scheme = 2;
+  }
+  Counsul consul = 1;
 }

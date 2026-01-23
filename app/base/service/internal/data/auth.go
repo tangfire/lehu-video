@@ -26,7 +26,7 @@ func (r *authRepo) GetVerificationKey(id int64) string {
 func (r *authRepo) CreateVerificationCode(ctx context.Context, bits, expireTime int64) (*biz.VerificationCode, error) {
 	code := utils.UuCode(bits)
 	id := int64(uuid.New().ID())
-	err := r.data.rds.Set(ctx, r.GetVerificationKey(id), code, time.Duration(expireTime)*time.Millisecond).Err()
+	err := r.data.rds.Set(ctx, r.GetVerificationKey(id), code, time.Duration(expireTime)*time.Second).Err()
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (r *authRepo) CreateVerificationCode(ctx context.Context, bits, expireTime 
 
 func (r *authRepo) GetVerificationCode(ctx context.Context, id int64) (*biz.VerificationCode, error) {
 	code := r.data.rds.Get(ctx, r.GetVerificationKey(id))
-	return biz.NewVerificationCode(id, code.String()), nil
+	return biz.NewVerificationCode(id, code.Val()), nil
 }
 
 func (r *authRepo) DelVerificationCode(ctx context.Context, id int64) error {

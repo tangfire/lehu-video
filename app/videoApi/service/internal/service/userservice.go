@@ -2,26 +2,29 @@ package service
 
 import (
 	"context"
+	"lehu-video/app/videoApi/service/internal/biz"
 
 	pb "lehu-video/api/videoApi/service/v1"
 )
 
 type UserServiceService struct {
 	pb.UnimplementedUserServiceServer
+
+	uc *biz.UserUsecase
 }
 
-func NewUserServiceService() *UserServiceService {
-	return &UserServiceService{}
+func NewUserServiceService(uc *biz.UserUsecase) *UserServiceService {
+	return &UserServiceService{uc: uc}
 }
 
 func (s *UserServiceService) GetVerificationCode(ctx context.Context, req *pb.GetVerificationCodeReq) (*pb.GetVerificationCodeResp, error) {
-	return &pb.GetVerificationCodeResp{}, nil
+	return s.uc.GetVerificationCode(ctx, req)
 }
 func (s *UserServiceService) Register(ctx context.Context, req *pb.RegisterReq) (*pb.RegisterResp, error) {
-	return &pb.RegisterResp{}, nil
+	return s.uc.Register(ctx, req)
 }
 func (s *UserServiceService) Login(ctx context.Context, req *pb.LoginReq) (*pb.LoginResp, error) {
-	return &pb.LoginResp{}, nil
+	return s.uc.Login(ctx, req)
 }
 func (s *UserServiceService) GetUserInfo(ctx context.Context, req *pb.GetUserInfoReq) (*pb.GetUserInfoResp, error) {
 	return &pb.GetUserInfoResp{}, nil

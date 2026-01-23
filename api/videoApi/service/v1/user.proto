@@ -7,6 +7,22 @@ option java_multiple_files = true;
 option java_package = "api.videoApi.service.v1";
 import "google/api/annotations.proto";
 
+message User {
+	int64 id = 1; // 用户id
+	string name = 2; // 用户名称
+	string avatar = 3; // 用户头像Url
+	string background_image = 4; // 用户个人页顶部大图
+	string signature = 5; // 个人简介
+	string mobile = 6; // 手机号
+	string email = 7; // 邮箱
+	int64 follow_count = 8; // 关注总数
+	int64 follower_count = 9; // 粉丝总数
+	int64 total_favorited = 10; // 获赞数量
+	int64 work_count = 11; // 作品数量
+	int64 favorite_count = 12; // 点赞数量
+}
+
+
 service UserService {
 	// 获取验证码
 	rpc GetVerificationCode(GetVerificationCodeReq) returns (GetVerificationCodeResp){
@@ -92,6 +108,7 @@ message LoginReq {
 
 message LoginResp {
 	string token = 1;
+	User user = 2;
 }
 
 message GetUserInfoReq {
@@ -102,20 +119,7 @@ message GetUserInfoResp {
 	User user = 2;
 }
 
-message User {
-	int64 id = 1; // 用户id
-	string name = 2; // 用户名称
-	string avatar = 3; // 用户头像Url
-	string background_image = 4; // 用户个人页顶部大图
-	string signature = 5; // 个人简介
-	string mobile = 6; // 手机号
-	string email = 7; // 邮箱
-	int64 follow_count = 8; // 关注总数
-	int64 follower_count = 9; // 粉丝总数
-	int64 total_favorited = 10; // 获赞数量
-	int64 work_count = 11; // 作品数量
-	int64 favorite_count = 12; // 点赞数量
-}
+
 
 
 message UpdateUserInfoReq {

@@ -1,10 +1,10 @@
 server:
   http:
-    addr: 0.0.0.0:8001
-    timeout: 1s
+    addr: 0.0.0.0:8003
+    timeout: 100s
   grpc:
-    addr: 0.0.0.0:9000
-    timeout: 1s
+    addr: 0.0.0.0:9003
+    timeout: 100s
 data:
   database:
     driver: mysql
@@ -12,5 +12,5 @@ data:
   redis:
     addr: 127.0.0.1:6379
     password: "8888.216"
-    read_timeout: 0.2s
-    write_timeout: 0.2s
+    read_timeout: 20s
+    write_timeout: 20s

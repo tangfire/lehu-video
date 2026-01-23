@@ -6,7 +6,16 @@ option go_package = "lehu-video/api/videoCore/service/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.videoCore.service.v1";
 
-service Collection {
+import "api/videoCore/service/v1/base.proto";
+
+message Collection{
+	int64 id = 1;
+	int64 user_id = 2;
+	string name = 3;
+	string description = 4;
+}
+
+service CollectionService {
 	rpc CreateCollection (CreateCollectionReq) returns (CreateCollectionResp);
 	rpc UpdateCollection (UpdateCollectionReq) returns (UpdateCollectionResp);
 	rpc RemoveCollection (RemoveCollectionReq) returns (RemoveCollectionResp);
@@ -16,19 +25,113 @@ service Collection {
 
 	rpc AddVideo2Collection(AddVideo2CollectionReq) returns(AddVideo2CollectionResp);
 	rpc RemoveVideoFromCollection(RemoveVideoFromCollectionReq) returns (RemoveVideoFromCollectionResp);
-	rpc ListVideo2Collection(ListVideo2CollectionReq) returns (ListVideo2CollectionResp);
+	rpc ListVideo2Collection(ListVideoFromCollectionReq) returns (ListVideoFromCollectionResp);
 	rpc IsCollected(IsCollectedReq) returns (IsCollectedResp);
 	rpc CountCollect4Video(CountCollect4VideoReq) returns (CountCollect4VideoResp);
 
 
 }
 
-message CreateCollectionReq {}
-message CreateCollectionResp {}
+message CreateCollectionReq {
+	string name = 1;
+	string description = 2;
+	int64 user_id = 3;
+}
+message CreateCollectionResp {
+	Metadata meta = 1;
+}
 
-message UpdateCollectionReq {}
-message UpdateCollectionResp {}
+message UpdateCollectionReq {
+	int64 id = 1;
+	string name = 2;
+	string description = 3;
+}
+message UpdateCollectionResp {
+	Metadata meta = 1;
+}
 
-message RemoveCollectionReq {}
-message RemoveCollectionResp {}
+message RemoveCollectionReq {
+	int64 id = 1;
+}
+message RemoveCollectionResp {
+	Metadata meta = 1;
+}
+
+message GetCollectionByIdReq{
+	int64 id = 1;
+}
+
+message GetCollectionByIdResp{
+	Collection collection = 1;
+	Metadata meta = 2;
+}
+
+message ListCollectionReq{
+	int64 user_id = 1;
+	PageStatsReq page_stats = 2;
+}
+
+message ListCollectionResp{
+	repeated Collection collections = 1;
+	Metadata meta = 2;
+	PageStatsResp page_stats = 3;
+}
+
+message AddVideo2CollectionReq{
+	int64 collection_id = 1; // 不传则添加到默认收藏夹
+	int64 video_id = 2;
+	int64 user_id = 3;
+}
+
+message AddVideo2CollectionResp{
+	Metadata meta = 1;
+}
+
+message RemoveVideoFromCollectionReq{
+	int64 collection_id = 1;
+	int64 video_id = 2;
+	int64 user_id = 3;
+}
+
+message RemoveVideoFromCollectionResp{
+	Metadata meta = 1;
+}
+
+message ListVideoFromCollectionReq{
+	int64 collection_id = 1;
+	PageStatsReq page_stats = 2;
+}
+
+message ListVideoFromCollectionResp{
+	repeated int64 video_id_list = 1;
+	Metadata meta = 2;
+	PageStatsResp page_stats = 3;
+}
+
+message IsCollectedReq{
+	int64 user_id = 1;
+	repeated int64 video_id_list = 2;
+}
+
+message IsCollectedResp{
+	repeated int64 video_id_list = 1;
+	Metadata meta = 2;
+}
+
+message CountCollect4VideoResult {
+	int64 id = 1;
+	int64 count = 2;
+}
+
+message CountCollect4VideoReq{
+	repeated int64 video_id_list = 1;
+}
+
+message CountCollect4VideoResp{
+	repeated CountCollect4VideoResult count_result = 1;
+	Metadata meta = 2;
+}
+
+
+
 

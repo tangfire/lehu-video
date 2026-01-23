@@ -52,15 +52,21 @@ func (r *commentRepo) RemoveComment(ctx context.Context, in *biz.Comment) error 
 	return nil
 }
 
-func (r *commentRepo) ListCommentByVideoId(ctx context.Context, videoId int64) ([]*biz.Comment, error) {
+func (r *commentRepo) ListCommentByVideoId(ctx context.Context, videoId int64, page int32, size int32) (int64, []*biz.Comment, error) {
 	var commentList []model.Comment
-	err := r.data.db.WithContext(ctx).Table(model.Comment{}.TableName()).
+	db := r.data.db.WithContext(ctx).Table(model.Comment{}.TableName()).
 		Where("parent_id = ?", 0).
 		Where("video_id = ?", videoId).
-		Where("is_deleted = ?", false).
-		Find(&commentList).Error
+		Where("is_deleted = ?", false)
+
+	var total int64
+	err := db.Count(&total).Error
 	if err != nil {
-		return nil, err
+		return 0, nil, err
+	}
+	err = db.Offset(int((page - 1) * size)).Limit(int(size)).Find(&commentList).Error
+	if err != nil {
+		return 0, nil, err
 	}
 	commentIdList := utils.Slice2Slice(commentList, func(comment model.Comment) int64 {
 		return comment.Id
@@ -78,7 +84,7 @@ func (r *commentRepo) ListCommentByVideoId(ctx context.Context, videoId int64) (
 		Group("parent_id").
 		Find(&commentItemList).Error
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	commentCountMap := make(map[int64]int64)
 	for _, item := range commentItemList {
@@ -91,7 +97,7 @@ func (r *commentRepo) ListCommentByVideoId(ctx context.Context, videoId int64) (
 		Where("is_deleted = ?", false).
 		Find(&childCommentList).Error
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	childCommentMap := make(map[int64][]*biz.Comment)
 	for _, comment := range childCommentList {
@@ -134,17 +140,23 @@ func (r *commentRepo) ListCommentByVideoId(ctx context.Context, videoId int64) (
 			comment.FirstComments = comment.Comments[:_len]
 		}
 	}
-	return retCommentList, nil
+	return total, retCommentList, nil
 }
 
-func (r *commentRepo) ListChildCommentById(ctx context.Context, commentId int64) ([]*biz.Comment, error) {
+func (r *commentRepo) ListChildCommentById(ctx context.Context, commentId int64, page int32, size int32) (int64, []*biz.Comment, error) {
 	var commentList []model.Comment
-	err := r.data.db.WithContext(ctx).Table(model.Comment{}.TableName()).
+	db := r.data.db.WithContext(ctx).Table(model.Comment{}.TableName()).
 		Where("parent_id = ?", commentId).
-		Where("is_deleted = ?", false).
-		Find(&commentList).Error
+		Where("is_deleted = ?", false)
+	var total int64
+	err := db.Count(&total).Error
 	if err != nil {
-		return nil, err
+		return 0, nil, err
+	}
+
+	err = db.Offset(int((page - 1) * size)).Limit(int(size)).Find(&commentList).Error
+	if err != nil {
+		return 0, nil, err
 	}
 	childCommentList := utils.Slice2Slice(commentList, func(comment model.Comment) *biz.Comment {
 		return &biz.Comment{
@@ -161,6 +173,5 @@ func (r *commentRepo) ListChildCommentById(ctx context.Context, commentId int64)
 			FirstComments: nil,
 		}
 	})
-	return childCommentList, nil
-
+	return total, childCommentList, nil
 }

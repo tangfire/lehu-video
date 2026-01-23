@@ -1,6 +1,9 @@
 package server
 
 import (
+	"github.com/go-kratos/kratos/contrib/registry/consul/v2"
+	"github.com/go-kratos/kratos/v2/registry"
+	consulAPI "github.com/hashicorp/consul/api"
 	v1 "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoCore/service/internal/conf"
 	"lehu-video/app/videoCore/service/internal/service"
@@ -11,7 +14,10 @@ import (
 )
 
 // NewGRPCServer new a gRPC server.
-func NewGRPCServer(c *conf.Server, videoService *service.VideoServiceService, logger log.Logger) *grpc.Server {
+func NewGRPCServer(c *conf.Server,
+	videoService *service.VideoServiceService,
+	userService *service.UserServiceService,
+	logger log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
@@ -28,5 +34,18 @@ func NewGRPCServer(c *conf.Server, videoService *service.VideoServiceService, lo
 	}
 	srv := grpc.NewServer(opts...)
 	v1.RegisterVideoServiceServer(srv, videoService)
+	v1.RegisterUserServiceServer(srv, userService)
 	return srv
+}
+
+func NewRegistrar(conf *conf.Registry) registry.Registrar {
+	c := consulAPI.DefaultConfig()
+	c.Address = conf.Consul.Address
+	c.Scheme = conf.Consul.Scheme
+	cli, err := consulAPI.NewClient(c)
+	if err != nil {
+		panic(err)
+	}
+	r := consul.New(cli, consul.WithHealthCheck(false))
+	return r
 }

@@ -26,8 +26,8 @@ type Comment struct {
 type CommentRepo interface {
 	CreateComment(ctx context.Context, comment *Comment) error
 	RemoveComment(ctx context.Context, comment *Comment) error
-	ListCommentByVideoId(ctx context.Context, videoId int64) ([]*Comment, error)
-	ListChildCommentById(ctx context.Context, commentId int64) ([]*Comment, error)
+	ListCommentByVideoId(ctx context.Context, videoId int64, page int32, size int32) (int64, []*Comment, error)
+	ListChildCommentById(ctx context.Context, commentId int64, page int32, size int32) (int64, []*Comment, error)
 }
 
 type CommentUsecase struct {
@@ -66,9 +66,52 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, req *pb.CreateComme
 }
 
 func (uc *CommentUsecase) RemoveComment(ctx context.Context, req *pb.RemoveCommentReq) (*pb.RemoveCommentResp, error) {
-
+	comment := &Comment{
+		Id:     req.CommentId,
+		UserId: req.UserId,
+	}
+	err := uc.repo.RemoveComment(ctx, comment)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.RemoveCommentResp{
+		Meta: utils.GetSuccessMeta(),
+	}, nil
 }
 
 func (uc *CommentUsecase) ListComment4Video(ctx context.Context, req *pb.ListComment4VideoReq) (*pb.ListComment4VideoResp, error) {
-
+	total, commentList, err := uc.repo.ListCommentByVideoId(ctx, req.VideoId, req.PageStats.Page, req.PageStats.Size)
+	if err != nil {
+		return nil, err
+	}
+	var retList []*pb.Comment
+	for _, comment := range commentList {
+		retList = append(retList, &pb.Comment{
+			Id:         comment.Id,
+			VideoId:    comment.VideoId,
+			Content:    comment.Content,
+			Date:       comment.Date,
+			ReplyCount: "",
+			UserId:     comment.UserId,
+			ParentId:   comment.ParentId,
+			Comments:   nil,
+		})
+	}
+	return &pb.ListComment4VideoResp{
+		Meta:        utils.GetSuccessMeta(),
+		CommentList: retList,
+		PageStats:   &pb.PageStatsResp{Total: int32(total)},
+	}, nil
+}
+func (uc *CommentUsecase) ListChildComment4Comment(ctx context.Context, req *pb.ListChildComment4CommentReq) (*pb.ListChildComment4CommentResp, error) {
+	return &pb.ListChildComment4CommentResp{}, nil
+}
+func (uc *CommentUsecase) GetCommentById(ctx context.Context, req *pb.GetCommentByIdReq) (*pb.GetCommentByIdResp, error) {
+	return &pb.GetCommentByIdResp{}, nil
+}
+func (uc *CommentUsecase) CountComment4Video(ctx context.Context, req *pb.CountComment4VideoReq) (*pb.CountComment4VideoResp, error) {
+	return &pb.CountComment4VideoResp{}, nil
+}
+func (uc *CommentUsecase) CountComment4User(ctx context.Context, req *pb.CountComment4UserReq) (*pb.CountComment4UserResp, error) {
+	return &pb.CountComment4UserResp{}, nil
 }

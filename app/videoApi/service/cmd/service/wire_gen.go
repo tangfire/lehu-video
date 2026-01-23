@@ -23,18 +23,25 @@ import (
 // Injectors from wire.go:
 
 // wireApp init kratos application.
-func wireApp(confServer *conf.Server, confData *conf.Data, auth *conf.Auth, logger log.Logger) (*kratos.App, func(), error) {
-	dataData, cleanup, err := data.NewData(confData, logger)
-	if err != nil {
-		return nil, nil, err
-	}
-	greeterRepo := data.NewGreeterRepo(dataData, logger)
-	greeterUsecase := biz.NewGreeterUsecase(greeterRepo, logger)
-	greeterService := service.NewGreeterService(greeterUsecase)
-	grpcServer := server.NewGRPCServer(confServer, greeterService, logger)
-	httpServer := server.NewHTTPServer(confServer, greeterService, logger)
-	app := newApp(logger, grpcServer, httpServer)
+func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Data, auth *conf.Auth, logger log.Logger) (*kratos.App, func(), error) {
+	registrar := data.NewRegistrar(registry)
+	discovery := data.NewDiscovery(registry)
+	accountServiceClient := data.NewAccountServiceClient(discovery)
+	authServiceClient := data.NewAuthServiceClient(discovery)
+	baseAdapterRepo := data.NewBaseAdapterRepo(accountServiceClient, authServiceClient)
+	baseAdapter := biz.NewBaseAdapter(baseAdapterRepo)
+	userServiceClient := data.NewUserServiceClient(discovery)
+	videoServiceClient := data.NewVideoServiceClient(discovery)
+	collectionServiceClient := data.NewCollectionServiceClient(discovery)
+	commentServiceClient := data.NewCommentServiceClient(discovery)
+	favoriteServiceClient := data.NewFavoriteServiceClient(discovery)
+	followServiceClient := data.NewFollowServiceClient(discovery)
+	coreAdapterRepo := data.NewCoreAdapterRepo(userServiceClient, videoServiceClient, collectionServiceClient, commentServiceClient, favoriteServiceClient, followServiceClient)
+	coreAdapter := biz.NewCoreAdapter(coreAdapterRepo)
+	userUsecase := biz.NewUserUsecase(baseAdapter, coreAdapter, logger)
+	userServiceService := service.NewUserServiceService(userUsecase)
+	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, logger)
+	app := newApp(logger, registrar, httpServer)
 	return app, func() {
-		cleanup()
 	}, nil
 }

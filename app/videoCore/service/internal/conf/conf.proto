@@ -40,3 +40,11 @@ message Data {
   Database database = 1;
   Redis redis = 2;
 }
+
+message Registry{
+  message Counsul{
+    string address = 1;
+    string scheme = 2;
+  }
+  Counsul consul = 1;
+}

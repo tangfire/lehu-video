@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/handlers"
 	v1 "lehu-video/api/videoApi/service/v1"
 	"lehu-video/app/videoApi/service/internal/conf"
+	"lehu-video/app/videoApi/service/internal/pkg/resp"
 	"lehu-video/app/videoApi/service/internal/service"
 )
 
@@ -48,6 +49,8 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth, userService *service.UserServi
 			handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "OPTIONS"}),
 			handlers.AllowedOrigins([]string{"*"}),
 		)),
+		http.ResponseEncoder(resp.ResponseEncoder),
+		http.ErrorEncoder(resp.ErrorEncoder),
 	}
 	if c.Http.Network != "" {
 		opts = append(opts, http.Network(c.Http.Network))

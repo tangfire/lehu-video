@@ -8,8 +8,8 @@ type Account struct {
 	Email     string    `gorm:"column:email" db:"email" json:"email" form:"email"`
 	Password  string    `gorm:"column:password" db:"password" json:"password" form:"password"`
 	Salt      string    `gorm:"column:salt" db:"salt" json:"salt" form:"salt"`
-	CreatedAt time.Time `gorm:"column:create_at" db:"create_at" json:"create_at" form:"create_at"`
-	UpdatedAt time.Time `gorm:"column:update_at" db:"update_at" json:"update_at" form:"update_at"`
+	CreatedAt time.Time `gorm:"column:created_at" db:"created_at" json:"created_at" form:"created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at" db:"updated_at" json:"updated_at" form:"updated_at"`
 }
 
 func (Account) TableName() string {

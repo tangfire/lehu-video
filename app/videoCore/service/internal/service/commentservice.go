@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"lehu-video/app/videoCore/service/internal/biz"
 
 	pb "lehu-video/api/videoCore/service/v1"
 )
 
 type CommentServiceService struct {
 	pb.UnimplementedCommentServiceServer
+
+	uc *biz.CommentUsecase
 }
 
 func NewCommentServiceService() *CommentServiceService {

@@ -68,414 +68,6 @@ func (VoucherType) EnumDescriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{0}
 }
 
-type GetVerificationCodeReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Mobile        string                 `protobuf:"bytes,1,opt,name=mobile,proto3" json:"mobile,omitempty"`
-	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetVerificationCodeReq) Reset() {
-	*x = GetVerificationCodeReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetVerificationCodeReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetVerificationCodeReq) ProtoMessage() {}
-
-func (x *GetVerificationCodeReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetVerificationCodeReq.ProtoReflect.Descriptor instead.
-func (*GetVerificationCodeReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *GetVerificationCodeReq) GetMobile() string {
-	if x != nil {
-		return x.Mobile
-	}
-	return ""
-}
-
-func (x *GetVerificationCodeReq) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
-}
-
-type GetVerificationCodeResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CodeId        int64                  `protobuf:"varint,1,opt,name=code_id,json=codeId,proto3" json:"code_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetVerificationCodeResp) Reset() {
-	*x = GetVerificationCodeResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetVerificationCodeResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetVerificationCodeResp) ProtoMessage() {}
-
-func (x *GetVerificationCodeResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetVerificationCodeResp.ProtoReflect.Descriptor instead.
-func (*GetVerificationCodeResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *GetVerificationCodeResp) GetCodeId() int64 {
-	if x != nil {
-		return x.CodeId
-	}
-	return 0
-}
-
-type RegisterReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Mobile        string                 `protobuf:"bytes,1,opt,name=mobile,proto3" json:"mobile,omitempty"`
-	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
-	CodeId        int64                  `protobuf:"varint,4,opt,name=code_id,json=codeId,proto3" json:"code_id,omitempty"`
-	Code          string                 `protobuf:"bytes,5,opt,name=code,proto3" json:"code,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RegisterReq) Reset() {
-	*x = RegisterReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RegisterReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegisterReq) ProtoMessage() {}
-
-func (x *RegisterReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegisterReq.ProtoReflect.Descriptor instead.
-func (*RegisterReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *RegisterReq) GetMobile() string {
-	if x != nil {
-		return x.Mobile
-	}
-	return ""
-}
-
-func (x *RegisterReq) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
-}
-
-func (x *RegisterReq) GetPassword() string {
-	if x != nil {
-		return x.Password
-	}
-	return ""
-}
-
-func (x *RegisterReq) GetCodeId() int64 {
-	if x != nil {
-		return x.CodeId
-	}
-	return 0
-}
-
-func (x *RegisterReq) GetCode() string {
-	if x != nil {
-		return x.Code
-	}
-	return ""
-}
-
-type RegisterResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RegisterResp) Reset() {
-	*x = RegisterResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RegisterResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegisterResp) ProtoMessage() {}
-
-func (x *RegisterResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegisterResp.ProtoReflect.Descriptor instead.
-func (*RegisterResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *RegisterResp) GetUserId() int64 {
-	if x != nil {
-		return x.UserId
-	}
-	return 0
-}
-
-type LoginReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Mobile        string                 `protobuf:"bytes,1,opt,name=mobile,proto3" json:"mobile,omitempty"`
-	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *LoginReq) Reset() {
-	*x = LoginReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LoginReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LoginReq) ProtoMessage() {}
-
-func (x *LoginReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LoginReq.ProtoReflect.Descriptor instead.
-func (*LoginReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *LoginReq) GetMobile() string {
-	if x != nil {
-		return x.Mobile
-	}
-	return ""
-}
-
-func (x *LoginReq) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
-}
-
-func (x *LoginReq) GetPassword() string {
-	if x != nil {
-		return x.Password
-	}
-	return ""
-}
-
-type LoginResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *LoginResp) Reset() {
-	*x = LoginResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LoginResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LoginResp) ProtoMessage() {}
-
-func (x *LoginResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LoginResp.ProtoReflect.Descriptor instead.
-func (*LoginResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *LoginResp) GetToken() string {
-	if x != nil {
-		return x.Token
-	}
-	return ""
-}
-
-type GetUserInfoReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetUserInfoReq) Reset() {
-	*x = GetUserInfoReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetUserInfoReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetUserInfoReq) ProtoMessage() {}
-
-func (x *GetUserInfoReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetUserInfoReq.ProtoReflect.Descriptor instead.
-func (*GetUserInfoReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *GetUserInfoReq) GetUserId() int64 {
-	if x != nil {
-		return x.UserId
-	}
-	return 0
-}
-
-type GetUserInfoResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	User          *User                  `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetUserInfoResp) Reset() {
-	*x = GetUserInfoResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetUserInfoResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetUserInfoResp) ProtoMessage() {}
-
-func (x *GetUserInfoResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetUserInfoResp.ProtoReflect.Descriptor instead.
-func (*GetUserInfoResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *GetUserInfoResp) GetUser() *User {
-	if x != nil {
-		return x.User
-	}
-	return nil
-}
-
 type User struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Id              int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                                 // 用户id
@@ -496,7 +88,7 @@ type User struct {
 
 func (x *User) Reset() {
 	*x = User{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[8]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -508,7 +100,7 @@ func (x *User) String() string {
 func (*User) ProtoMessage() {}
 
 func (x *User) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[8]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -521,7 +113,7 @@ func (x *User) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use User.ProtoReflect.Descriptor instead.
 func (*User) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{8}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *User) GetId() int64 {
@@ -606,6 +198,422 @@ func (x *User) GetFavoriteCount() int64 {
 		return x.FavoriteCount
 	}
 	return 0
+}
+
+type GetVerificationCodeReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mobile        string                 `protobuf:"bytes,1,opt,name=mobile,proto3" json:"mobile,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetVerificationCodeReq) Reset() {
+	*x = GetVerificationCodeReq{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVerificationCodeReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVerificationCodeReq) ProtoMessage() {}
+
+func (x *GetVerificationCodeReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVerificationCodeReq.ProtoReflect.Descriptor instead.
+func (*GetVerificationCodeReq) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetVerificationCodeReq) GetMobile() string {
+	if x != nil {
+		return x.Mobile
+	}
+	return ""
+}
+
+func (x *GetVerificationCodeReq) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+type GetVerificationCodeResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CodeId        int64                  `protobuf:"varint,1,opt,name=code_id,json=codeId,proto3" json:"code_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetVerificationCodeResp) Reset() {
+	*x = GetVerificationCodeResp{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVerificationCodeResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVerificationCodeResp) ProtoMessage() {}
+
+func (x *GetVerificationCodeResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVerificationCodeResp.ProtoReflect.Descriptor instead.
+func (*GetVerificationCodeResp) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetVerificationCodeResp) GetCodeId() int64 {
+	if x != nil {
+		return x.CodeId
+	}
+	return 0
+}
+
+type RegisterReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mobile        string                 `protobuf:"bytes,1,opt,name=mobile,proto3" json:"mobile,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
+	CodeId        int64                  `protobuf:"varint,4,opt,name=code_id,json=codeId,proto3" json:"code_id,omitempty"`
+	Code          string                 `protobuf:"bytes,5,opt,name=code,proto3" json:"code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterReq) Reset() {
+	*x = RegisterReq{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterReq) ProtoMessage() {}
+
+func (x *RegisterReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterReq.ProtoReflect.Descriptor instead.
+func (*RegisterReq) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RegisterReq) GetMobile() string {
+	if x != nil {
+		return x.Mobile
+	}
+	return ""
+}
+
+func (x *RegisterReq) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *RegisterReq) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *RegisterReq) GetCodeId() int64 {
+	if x != nil {
+		return x.CodeId
+	}
+	return 0
+}
+
+func (x *RegisterReq) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+type RegisterResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterResp) Reset() {
+	*x = RegisterResp{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterResp) ProtoMessage() {}
+
+func (x *RegisterResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterResp.ProtoReflect.Descriptor instead.
+func (*RegisterResp) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RegisterResp) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type LoginReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mobile        string                 `protobuf:"bytes,1,opt,name=mobile,proto3" json:"mobile,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LoginReq) Reset() {
+	*x = LoginReq{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LoginReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LoginReq) ProtoMessage() {}
+
+func (x *LoginReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoginReq.ProtoReflect.Descriptor instead.
+func (*LoginReq) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *LoginReq) GetMobile() string {
+	if x != nil {
+		return x.Mobile
+	}
+	return ""
+}
+
+func (x *LoginReq) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *LoginReq) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type LoginResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	User          *User                  `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LoginResp) Reset() {
+	*x = LoginResp{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LoginResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LoginResp) ProtoMessage() {}
+
+func (x *LoginResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoginResp.ProtoReflect.Descriptor instead.
+func (*LoginResp) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *LoginResp) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *LoginResp) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+type GetUserInfoReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserInfoReq) Reset() {
+	*x = GetUserInfoReq{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserInfoReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserInfoReq) ProtoMessage() {}
+
+func (x *GetUserInfoReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserInfoReq.ProtoReflect.Descriptor instead.
+func (*GetUserInfoReq) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetUserInfoReq) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type GetUserInfoResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserInfoResp) Reset() {
+	*x = GetUserInfoResp{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserInfoResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserInfoResp) ProtoMessage() {}
+
+func (x *GetUserInfoResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserInfoResp.ProtoReflect.Descriptor instead.
+func (*GetUserInfoResp) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetUserInfoResp) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
 }
 
 type UpdateUserInfoReq struct {
@@ -900,7 +908,22 @@ var File_api_videoApi_service_v1_user_proto protoreflect.FileDescriptor
 
 const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\n" +
-	"\"api/videoApi/service/v1/user.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\"F\n" +
+	"\"api/videoApi/service/v1/user.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\"\xf2\x02\n" +
+	"\x04User\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
+	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12)\n" +
+	"\x10background_image\x18\x04 \x01(\tR\x0fbackgroundImage\x12\x1c\n" +
+	"\tsignature\x18\x05 \x01(\tR\tsignature\x12\x16\n" +
+	"\x06mobile\x18\x06 \x01(\tR\x06mobile\x12\x14\n" +
+	"\x05email\x18\a \x01(\tR\x05email\x12!\n" +
+	"\ffollow_count\x18\b \x01(\x03R\vfollowCount\x12%\n" +
+	"\x0efollower_count\x18\t \x01(\x03R\rfollowerCount\x12'\n" +
+	"\x0ftotal_favorited\x18\n" +
+	" \x01(\x03R\x0etotalFavorited\x12\x1d\n" +
+	"\n" +
+	"work_count\x18\v \x01(\x03R\tworkCount\x12%\n" +
+	"\x0efavorite_count\x18\f \x01(\x03R\rfavoriteCount\"F\n" +
 	"\x16GetVerificationCodeReq\x12\x16\n" +
 	"\x06mobile\x18\x01 \x01(\tR\x06mobile\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\"2\n" +
@@ -917,28 +940,14 @@ const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\bLoginReq\x12\x16\n" +
 	"\x06mobile\x18\x01 \x01(\tR\x06mobile\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
-	"\bpassword\x18\x03 \x01(\tR\bpassword\"!\n" +
+	"\bpassword\x18\x03 \x01(\tR\bpassword\"T\n" +
 	"\tLoginResp\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\")\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x121\n" +
+	"\x04user\x18\x02 \x01(\v2\x1d.api.videoApi.service.v1.UserR\x04user\")\n" +
 	"\x0eGetUserInfoReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\"D\n" +
 	"\x0fGetUserInfoResp\x121\n" +
-	"\x04user\x18\x02 \x01(\v2\x1d.api.videoApi.service.v1.UserR\x04user\"\xf2\x02\n" +
-	"\x04User\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
-	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12)\n" +
-	"\x10background_image\x18\x04 \x01(\tR\x0fbackgroundImage\x12\x1c\n" +
-	"\tsignature\x18\x05 \x01(\tR\tsignature\x12\x16\n" +
-	"\x06mobile\x18\x06 \x01(\tR\x06mobile\x12\x14\n" +
-	"\x05email\x18\a \x01(\tR\x05email\x12!\n" +
-	"\ffollow_count\x18\b \x01(\x03R\vfollowCount\x12%\n" +
-	"\x0efollower_count\x18\t \x01(\x03R\rfollowerCount\x12'\n" +
-	"\x0ftotal_favorited\x18\n" +
-	" \x01(\x03R\x0etotalFavorited\x12\x1d\n" +
-	"\n" +
-	"work_count\x18\v \x01(\x03R\tworkCount\x12%\n" +
-	"\x0efavorite_count\x18\f \x01(\x03R\rfavoriteCount\"\xa1\x01\n" +
+	"\x04user\x18\x02 \x01(\v2\x1d.api.videoApi.service.v1.UserR\x04user\"\xa1\x01\n" +
 	"\x11UpdateUserInfoReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -985,15 +994,15 @@ var file_api_videoApi_service_v1_user_proto_enumTypes = make([]protoimpl.EnumInf
 var file_api_videoApi_service_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_api_videoApi_service_v1_user_proto_goTypes = []any{
 	(VoucherType)(0),                // 0: api.videoApi.service.v1.VoucherType
-	(*GetVerificationCodeReq)(nil),  // 1: api.videoApi.service.v1.GetVerificationCodeReq
-	(*GetVerificationCodeResp)(nil), // 2: api.videoApi.service.v1.GetVerificationCodeResp
-	(*RegisterReq)(nil),             // 3: api.videoApi.service.v1.RegisterReq
-	(*RegisterResp)(nil),            // 4: api.videoApi.service.v1.RegisterResp
-	(*LoginReq)(nil),                // 5: api.videoApi.service.v1.LoginReq
-	(*LoginResp)(nil),               // 6: api.videoApi.service.v1.LoginResp
-	(*GetUserInfoReq)(nil),          // 7: api.videoApi.service.v1.GetUserInfoReq
-	(*GetUserInfoResp)(nil),         // 8: api.videoApi.service.v1.GetUserInfoResp
-	(*User)(nil),                    // 9: api.videoApi.service.v1.User
+	(*User)(nil),                    // 1: api.videoApi.service.v1.User
+	(*GetVerificationCodeReq)(nil),  // 2: api.videoApi.service.v1.GetVerificationCodeReq
+	(*GetVerificationCodeResp)(nil), // 3: api.videoApi.service.v1.GetVerificationCodeResp
+	(*RegisterReq)(nil),             // 4: api.videoApi.service.v1.RegisterReq
+	(*RegisterResp)(nil),            // 5: api.videoApi.service.v1.RegisterResp
+	(*LoginReq)(nil),                // 6: api.videoApi.service.v1.LoginReq
+	(*LoginResp)(nil),               // 7: api.videoApi.service.v1.LoginResp
+	(*GetUserInfoReq)(nil),          // 8: api.videoApi.service.v1.GetUserInfoReq
+	(*GetUserInfoResp)(nil),         // 9: api.videoApi.service.v1.GetUserInfoResp
 	(*UpdateUserInfoReq)(nil),       // 10: api.videoApi.service.v1.UpdateUserInfoReq
 	(*UpdateUserInfoResp)(nil),      // 11: api.videoApi.service.v1.UpdateUserInfoResp
 	(*BindUserVoucherReq)(nil),      // 12: api.videoApi.service.v1.BindUserVoucherReq
@@ -1002,28 +1011,29 @@ var file_api_videoApi_service_v1_user_proto_goTypes = []any{
 	(*UnbindUserVoucherResp)(nil),   // 15: api.videoApi.service.v1.UnbindUserVoucherResp
 }
 var file_api_videoApi_service_v1_user_proto_depIdxs = []int32{
-	9,  // 0: api.videoApi.service.v1.GetUserInfoResp.user:type_name -> api.videoApi.service.v1.User
-	0,  // 1: api.videoApi.service.v1.BindUserVoucherReq.voucher_type:type_name -> api.videoApi.service.v1.VoucherType
-	0,  // 2: api.videoApi.service.v1.UnbindUserVoucherReq.voucher_type:type_name -> api.videoApi.service.v1.VoucherType
-	1,  // 3: api.videoApi.service.v1.UserService.GetVerificationCode:input_type -> api.videoApi.service.v1.GetVerificationCodeReq
-	3,  // 4: api.videoApi.service.v1.UserService.Register:input_type -> api.videoApi.service.v1.RegisterReq
-	5,  // 5: api.videoApi.service.v1.UserService.Login:input_type -> api.videoApi.service.v1.LoginReq
-	7,  // 6: api.videoApi.service.v1.UserService.GetUserInfo:input_type -> api.videoApi.service.v1.GetUserInfoReq
-	10, // 7: api.videoApi.service.v1.UserService.UpdateUserInfo:input_type -> api.videoApi.service.v1.UpdateUserInfoReq
-	12, // 8: api.videoApi.service.v1.UserService.BindUserVoucher:input_type -> api.videoApi.service.v1.BindUserVoucherReq
-	14, // 9: api.videoApi.service.v1.UserService.UnbindUserVoucher:input_type -> api.videoApi.service.v1.UnbindUserVoucherReq
-	2,  // 10: api.videoApi.service.v1.UserService.GetVerificationCode:output_type -> api.videoApi.service.v1.GetVerificationCodeResp
-	4,  // 11: api.videoApi.service.v1.UserService.Register:output_type -> api.videoApi.service.v1.RegisterResp
-	6,  // 12: api.videoApi.service.v1.UserService.Login:output_type -> api.videoApi.service.v1.LoginResp
-	8,  // 13: api.videoApi.service.v1.UserService.GetUserInfo:output_type -> api.videoApi.service.v1.GetUserInfoResp
-	11, // 14: api.videoApi.service.v1.UserService.UpdateUserInfo:output_type -> api.videoApi.service.v1.UpdateUserInfoResp
-	13, // 15: api.videoApi.service.v1.UserService.BindUserVoucher:output_type -> api.videoApi.service.v1.BindUserVoucherResp
-	15, // 16: api.videoApi.service.v1.UserService.UnbindUserVoucher:output_type -> api.videoApi.service.v1.UnbindUserVoucherResp
-	10, // [10:17] is the sub-list for method output_type
-	3,  // [3:10] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	1,  // 0: api.videoApi.service.v1.LoginResp.user:type_name -> api.videoApi.service.v1.User
+	1,  // 1: api.videoApi.service.v1.GetUserInfoResp.user:type_name -> api.videoApi.service.v1.User
+	0,  // 2: api.videoApi.service.v1.BindUserVoucherReq.voucher_type:type_name -> api.videoApi.service.v1.VoucherType
+	0,  // 3: api.videoApi.service.v1.UnbindUserVoucherReq.voucher_type:type_name -> api.videoApi.service.v1.VoucherType
+	2,  // 4: api.videoApi.service.v1.UserService.GetVerificationCode:input_type -> api.videoApi.service.v1.GetVerificationCodeReq
+	4,  // 5: api.videoApi.service.v1.UserService.Register:input_type -> api.videoApi.service.v1.RegisterReq
+	6,  // 6: api.videoApi.service.v1.UserService.Login:input_type -> api.videoApi.service.v1.LoginReq
+	8,  // 7: api.videoApi.service.v1.UserService.GetUserInfo:input_type -> api.videoApi.service.v1.GetUserInfoReq
+	10, // 8: api.videoApi.service.v1.UserService.UpdateUserInfo:input_type -> api.videoApi.service.v1.UpdateUserInfoReq
+	12, // 9: api.videoApi.service.v1.UserService.BindUserVoucher:input_type -> api.videoApi.service.v1.BindUserVoucherReq
+	14, // 10: api.videoApi.service.v1.UserService.UnbindUserVoucher:input_type -> api.videoApi.service.v1.UnbindUserVoucherReq
+	3,  // 11: api.videoApi.service.v1.UserService.GetVerificationCode:output_type -> api.videoApi.service.v1.GetVerificationCodeResp
+	5,  // 12: api.videoApi.service.v1.UserService.Register:output_type -> api.videoApi.service.v1.RegisterResp
+	7,  // 13: api.videoApi.service.v1.UserService.Login:output_type -> api.videoApi.service.v1.LoginResp
+	9,  // 14: api.videoApi.service.v1.UserService.GetUserInfo:output_type -> api.videoApi.service.v1.GetUserInfoResp
+	11, // 15: api.videoApi.service.v1.UserService.UpdateUserInfo:output_type -> api.videoApi.service.v1.UpdateUserInfoResp
+	13, // 16: api.videoApi.service.v1.UserService.BindUserVoucher:output_type -> api.videoApi.service.v1.BindUserVoucherResp
+	15, // 17: api.videoApi.service.v1.UserService.UnbindUserVoucher:output_type -> api.videoApi.service.v1.UnbindUserVoucherResp
+	11, // [11:18] is the sub-list for method output_type
+	4,  // [4:11] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_api_videoApi_service_v1_user_proto_init() }

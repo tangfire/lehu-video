@@ -8,21 +8,21 @@ import (
 )
 
 type Author struct {
-	Id          int64  `json:"id"`
-	Name        string `json:"name"`
-	Avatar      string `json:"avatar"`
-	IsFollowing int64  `json:"is_following"`
+	Id          int64
+	Name        string
+	Avatar      string
+	IsFollowing int64
 }
 
 type Video struct {
-	Id           int64   `json:"id" gorm:"column:id"`
-	Title        string  `json:"title" gorm:"column:title"`
-	Description  string  `json:"description" gorm:"column:description"`
-	VideoUrl     string  `json:"video_url" gorm:"column:video_url"`
-	CoverUrl     string  `json:"cover_url" gorm:"column:cover_url"`
-	LikeCount    int64   `json:"like_count" gorm:"column:like_count"`
-	CommentCount int64   `json:"comment_count" gorm:"column:comment_count"`
-	Author       *Author `json:"author" gorm:"-"`
+	Id           int64
+	Title        string
+	Description  string
+	VideoUrl     string
+	CoverUrl     string
+	LikeCount    int64
+	CommentCount int64
+	Author       *Author
 	UploadTime   time.Time
 }
 
