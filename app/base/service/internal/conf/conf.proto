@@ -8,6 +8,7 @@ import "google/protobuf/duration.proto";
 message Bootstrap {
   Server server = 1;
   Data data = 2;
+  DataSetting data_setting = 3;
 }
 
 message Server {
@@ -38,8 +39,41 @@ message Data {
     string password = 5;
     int32 db = 6;
   }
+
+  message Minio{
+    string host = 1;
+    string port = 2;
+    string console_port = 3;
+    string access_key = 4;
+    string secret_key = 5;
+  }
+
   Database database = 1;
   Redis redis = 2;
+  Minio minio = 3;
+}
+
+message DataSetting {
+
+  /* ---------- db_sharding_config ---------- */
+  message DBShardingConfigItem {
+    string sharding = 1;
+    int32 sharding_number = 2;
+  }
+
+  map<string, DBShardingConfigItem> db_sharding_config = 1;
+
+  /* ---------- db_sharding_tables ---------- */
+  message BizShardingFieldConfig {
+    repeated string fields = 1;
+  }
+
+  message DBShardingTable {
+    string domain_name = 1;
+    map<string, BizShardingFieldConfig> biz_sharding_field_config = 2;
+  }
+
+  map<string, DBShardingTable> db_sharding_tables = 2;
 }
 
 message Registry{

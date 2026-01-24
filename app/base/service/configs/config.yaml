@@ -15,4 +15,30 @@ data:
     write_timeout: 20s
     password: "8888.216"
     db: 0
+  minio:
+    host: localhost
+    port: 9000
+    console_port: 9001
+    access_key: minioadmin
+    secret_key: minioadmin
 
+data_setting:
+  db_sharding_config:
+    file_shortvideo_short_video:
+      sharding: file_shortvideo_short_video
+      sharding_number: 5
+    file_shortvideo_public:
+      sharding: file_shortvideo_public
+      sharding_number: 5
+  db_sharding_tables:
+    file:
+      domain_name: shortvideo
+      biz_sharding_field_config:
+        short_video:
+          fields:
+            - id
+            - hash
+        public:
+          fields:
+            - id
+            - hash

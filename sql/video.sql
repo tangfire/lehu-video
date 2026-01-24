@@ -107,26 +107,19 @@ CREATE TABLE IF NOT EXISTS `comment` (
 );
 
 
-use lehu_video_db;
--- 创建文件记录表
-CREATE TABLE `file_records` (
-                                `id` varchar(64) NOT NULL COMMENT '文件ID',
-                                `file_key` varchar(512) NOT NULL COMMENT 'OSS文件key',
-                                `original_name` varchar(255) NOT NULL COMMENT '原始文件名',
-                                `file_url` varchar(1024) NOT NULL COMMENT '文件URL',
-                                `upload_type` varchar(32) NOT NULL COMMENT '上传类型',
-                                `user_id` varchar(64) DEFAULT NULL COMMENT '用户ID',
-                                `file_size` bigint(20) NOT NULL DEFAULT '0' COMMENT '文件大小(字节)',
-                                `mime_type` varchar(128) DEFAULT NULL COMMENT '文件类型',
-                                `md5_hash` varchar(32) DEFAULT NULL COMMENT '文件MD5',
-                                `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                                PRIMARY KEY (`id`),
-                                UNIQUE KEY `uk_file_key` (`file_key`),
-                                KEY `idx_user_id` (`user_id`),
-                                KEY `idx_md5_hash` (`md5_hash`),
-                                KEY `idx_upload_type` (`upload_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件记录表';
-
-
+CREATE TABLE IF NOT EXISTS `file` (
+                                    id BIGINT PRIMARY KEY,
+                                    domain_name VARCHAR(100) NOT NULL,
+                                    biz_name VARCHAR(100) NOT NULL,
+                                    hash VARCHAR(255) NOT NULL,
+                                    file_size BIGINT NOT NULL DEFAULT 0,
+                                    file_type VARCHAR(255) NOT NULL,
+                                    uploaded BOOLEAN NOT NULL DEFAULT FALSE,
+                                    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+                                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                    INDEX `create_time_idx` (`created_at`),
+                                    INDEX `update_time_idx` (`updated_at`),
+                                    INDEX `hash_idx` (`hash`)
+);
 

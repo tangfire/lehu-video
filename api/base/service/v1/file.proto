@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package api.base.service.v1;
+
+option go_package = "lehu-video/api/base/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.base.service.v1";
+
+import "api/base/service/v1/base.proto";
+
+service FileService {
+	// pre sign a file url for user get it
+	rpc PreSignGet(PreSignGetReq) returns (PreSignGetResp);
+	// pre sign a file url for user put it
+	rpc PreSignPut(PreSignPutReq) returns (PreSignPutResp);
+	// report a file has been uploaded
+	rpc ReportUploaded(ReportUploadedReq) returns (ReportUploadedResp);
+	// pre sign a file url for user put it with slicing
+	rpc PreSignSlicingPut(PreSignSlicingPutReq) returns (PreSignSlicingPutResp);
+	// get upload progress rate for slicing put
+	rpc GetProgressRate4SlicingPut(GetProgressRate4SlicingPutReq) returns (GetProgressRate4SlicingPutResp);
+	// merge a slicing uploading file
+	rpc MergeFileParts(MergeFilePartsReq) returns (MergeFilePartsResp);
+	// remove a file
+	rpc RemoveFile(RemoveFileReq) returns (RemoveFileResp);
+	rpc GetFileInfoById(GetFileInfoByIdReq) returns (GetFileInfoByIdResp);
+}
+
+message FileContext {
+	// 所属业务领域，用于创建bucket
+	string domain = 1;
+	// 所属业务名称
+	string biz_name = 2;
+	int64 file_id = 3;
+	// 文件md5
+	string hash = 4;
+	// 文件类型
+	string file_type = 5;
+	// 文件大小，单位byte
+	int64 size = 6;
+	// 文件访问链接的过期时间
+	int64 expire_seconds = 7;
+	// 文件名
+	string filename = 8;
+}
+
+message PreSignGetReq {
+	FileContext file_context = 1;
+}
+
+message PreSignGetResp {
+	Metadata meta = 1;
+	string url = 2;
+}
+
+message PreSignPutReq {
+	FileContext file_context = 1;
+}
+
+message PreSignPutResp {
+	Metadata meta = 1;
+	string url = 2;
+	// file_id will be not null if the put request file hash has been uploaded
+	int64 file_id = 3;
+}
+
+message ReportUploadedReq {
+	FileContext file_context = 1;
+}
+
+message ReportUploadedResp {
+	Metadata meta = 1;
+	string url = 2;
+}
+
+message PreSignSlicingPutReq {
+	FileContext file_context = 1;
+}
+
+message PreSignSlicingPutResp {
+	Metadata meta = 1;
+	repeated string urls = 2;
+	string upload_id = 3;
+	int64 parts = 4;
+	int64 file_id = 5;
+	// if a file has been uploaded, this field will be true
+	bool uploaded = 6;
+}
+
+message GetProgressRate4SlicingPutReq {
+	FileContext file_context = 1;
+	string upload_id = 2;
+}
+
+message GetProgressRate4SlicingPutResp {
+	Metadata meta = 1;
+	// 进度百分比
+	float progress_rate = 2;
+	// 分片上传情况
+	map<string, bool> parts = 3;
+}
+
+message ReportUploadedFilePartsReq {
+	string upload_id = 1;
+	int64 file_id = 2;
+	int64 part_number = 3;
+}
+
+message ReportUploadedFilePartsResp {
+	Metadata meta = 1;
+}
+
+message MergeFilePartsReq {
+	FileContext file_context = 1;
+	string upload_id = 2;
+}
+
+message MergeFilePartsResp {
+	Metadata meta = 1;
+}
+
+message RemoveFileReq {
+	FileContext file_context = 1;
+}
+
+message RemoveFileResp {
+	Metadata meta = 1;
+}
+
+message GetFileInfoByIdReq {
+	int64 file_id = 1;
+	string domain_name = 2;
+	string biz_name = 3;
+}
+
+message GetFileInfoByIdResp {
+	Metadata meta = 1;
+	string object_name = 2;
+	string hash = 3;
+}
