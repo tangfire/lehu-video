@@ -965,17 +965,15 @@ const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\x15UnbindUserVoucherResp*#\n" +
 	"\vVoucherType\x12\t\n" +
 	"\x05PHONE\x10\x00\x12\t\n" +
-	"\x05EMAIL\x10\x012\x92\a\n" +
+	"\x05EMAIL\x10\x012\x9e\a\n" +
 	"\vUserService\x12\x92\x01\n" +
 	"\x13GetVerificationCode\x12/.api.videoApi.service.v1.GetVerificationCodeReq\x1a0.api.videoApi.service.v1.GetVerificationCodeResp\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\"\r/v1/user/code\x12u\n" +
 	"\bRegister\x12$.api.videoApi.service.v1.RegisterReq\x1a%.api.videoApi.service.v1.RegisterResp\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/user/register\x12i\n" +
-	"\x05Login\x12!.api.videoApi.service.v1.LoginReq\x1a\".api.videoApi.service.v1.LoginResp\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/user/login\x12t\n" +
-	"\vGetUserInfo\x12'.api.videoApi.service.v1.GetUserInfoReq\x1a(.api.videoApi.service.v1.GetUserInfoResp\"\x12\x82\xd3\xe4\x93\x02\f\x12\n" +
-	"/user/info\x12\x80\x01\n" +
-	"\x0eUpdateUserInfo\x12*.api.videoApi.service.v1.UpdateUserInfoReq\x1a+.api.videoApi.service.v1.UpdateUserInfoResp\"\x15\x82\xd3\xe4\x93\x02\x0f:\x01*\x1a\n" +
-	"/user/info\x12\x86\x01\n" +
-	"\x0fBindUserVoucher\x12+.api.videoApi.service.v1.BindUserVoucherReq\x1a,.api.videoApi.service.v1.BindUserVoucherResp\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\"\r/user/voucher\x12\x89\x01\n" +
-	"\x11UnbindUserVoucher\x12-.api.videoApi.service.v1.UnbindUserVoucherReq\x1a..api.videoApi.service.v1.UnbindUserVoucherResp\"\x15\x82\xd3\xe4\x93\x02\x0f*\r/user/voucherBB\n" +
+	"\x05Login\x12!.api.videoApi.service.v1.LoginReq\x1a\".api.videoApi.service.v1.LoginResp\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/user/login\x12w\n" +
+	"\vGetUserInfo\x12'.api.videoApi.service.v1.GetUserInfoReq\x1a(.api.videoApi.service.v1.GetUserInfoResp\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/user/info\x12\x83\x01\n" +
+	"\x0eUpdateUserInfo\x12*.api.videoApi.service.v1.UpdateUserInfoReq\x1a+.api.videoApi.service.v1.UpdateUserInfoResp\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\x1a\r/v1/user/info\x12\x89\x01\n" +
+	"\x0fBindUserVoucher\x12+.api.videoApi.service.v1.BindUserVoucherReq\x1a,.api.videoApi.service.v1.BindUserVoucherResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/user/voucher\x12\x8c\x01\n" +
+	"\x11UnbindUserVoucher\x12-.api.videoApi.service.v1.UnbindUserVoucherReq\x1a..api.videoApi.service.v1.UnbindUserVoucherResp\"\x18\x82\xd3\xe4\x93\x02\x12*\x10/v1/user/voucherBB\n" +
 	"\x17api.videoApi.service.v1P\x01Z%lehu-video/api/videoApi/service/v1;v1b\x06proto3"
 
 var (

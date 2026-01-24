@@ -51,14 +51,14 @@ service UserService {
 	// 获取用户信息
 	rpc GetUserInfo(GetUserInfoReq) returns (GetUserInfoResp) {
 		option (google.api.http) = {
-			get: "/user/info"
+			get: "/v1/user/info"
 		};
 	};
 
 	// 更新用户信息
 	rpc UpdateUserInfo(UpdateUserInfoReq) returns (UpdateUserInfoResp) {
 		option (google.api.http) = {
-			put: "/user/info"
+			put: "/v1/user/info"
 			body: "*"
 		};
 	};
@@ -66,14 +66,14 @@ service UserService {
 
 	rpc BindUserVoucher(BindUserVoucherReq) returns (BindUserVoucherResp) {
 		option (google.api.http) = {
-			post: "/user/voucher"
+			post: "/v1/user/voucher"
 			body: "*"
 		};
 	};
 
 	rpc UnbindUserVoucher(UnbindUserVoucherReq) returns (UnbindUserVoucherResp) {
 		option (google.api.http) = {
-			delete: "/user/voucher"
+			delete: "/v1/user/voucher"
 		};
 	};
 }

@@ -3,67 +3,19 @@
 
 openapi: 3.0.3
 info:
-    title: UserService API
+    title: FileService API
     version: 0.0.1
 paths:
-    /user/info:
-        get:
-            tags:
-                - UserService
-            description: 获取用户信息
-            operationId: UserService_GetUserInfo
-            parameters:
-                - name: userId
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/GetUserInfoResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-        put:
-            tags:
-                - UserService
-            description: 更新用户信息
-            operationId: UserService_UpdateUserInfo
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/UpdateUserInfoReq'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/UpdateUserInfoResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /user/voucher:
+    /v1/file:
         post:
             tags:
-                - UserService
-            operationId: UserService_BindUserVoucher
+                - FileService
+            operationId: FileService_PreSignUploadingPublicFile
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/BindUserVoucherReq'
+                            $ref: '#/components/schemas/PreSignUploadPublicFileReq'
                 required: true
             responses:
                 "200":
@@ -71,109 +23,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/BindUserVoucherResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-        delete:
-            tags:
-                - UserService
-            operationId: UserService_UnbindUserVoucher
-            parameters:
-                - name: voucherType
-                  in: query
-                  schema:
-                    type: integer
-                    format: enum
-                - name: voucher
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/UnbindUserVoucherResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/user/code:
-        post:
-            tags:
-                - UserService
-            description: 获取验证码
-            operationId: UserService_GetVerificationCode
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GetVerificationCodeReq'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/GetVerificationCodeResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/user/login:
-        post:
-            tags:
-                - UserService
-            description: 登录
-            operationId: UserService_Login
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/LoginReq'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/LoginResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/user/register:
-        post:
-            tags:
-                - UserService
-            description: 注册
-            operationId: UserService_Register
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/RegisterReq'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/RegisterResp'
+                                $ref: '#/components/schemas/PreSignUploadPublicFileResp'
                 default:
                     description: Default error response
                     content:
@@ -182,34 +32,6 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
-        BindUserVoucherReq:
-            type: object
-            properties:
-                voucherType:
-                    type: integer
-                    format: enum
-                voucher:
-                    type: string
-        BindUserVoucherResp:
-            type: object
-            properties: {}
-        GetUserInfoResp:
-            type: object
-            properties:
-                user:
-                    $ref: '#/components/schemas/User'
-        GetVerificationCodeReq:
-            type: object
-            properties:
-                mobile:
-                    type: string
-                email:
-                    type: string
-        GetVerificationCodeResp:
-            type: object
-            properties:
-                codeId:
-                    type: string
         GoogleProtobufAny:
             type: object
             properties:
@@ -218,40 +40,24 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
-        LoginReq:
+        PreSignUploadPublicFileReq:
             type: object
             properties:
-                mobile:
+                hash:
                     type: string
-                email:
+                fileType:
                     type: string
-                password:
+                size:
                     type: string
-        LoginResp:
+                    description: 'gotags: json`size,omitempty,string`'
+        PreSignUploadPublicFileResp:
             type: object
             properties:
-                token:
+                url:
                     type: string
-                user:
-                    $ref: '#/components/schemas/User'
-        RegisterReq:
-            type: object
-            properties:
-                mobile:
+                fileId:
                     type: string
-                email:
-                    type: string
-                password:
-                    type: string
-                codeId:
-                    type: string
-                code:
-                    type: string
-        RegisterResp:
-            type: object
-            properties:
-                userId:
-                    type: string
+                    description: '@gotags: json:"file_id,omitempty,string"'
         Status:
             type: object
             properties:
@@ -268,51 +74,5 @@ components:
                         $ref: '#/components/schemas/GoogleProtobufAny'
                     description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
             description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
-        UnbindUserVoucherResp:
-            type: object
-            properties: {}
-        UpdateUserInfoReq:
-            type: object
-            properties:
-                userId:
-                    type: string
-                name:
-                    type: string
-                avatar:
-                    type: string
-                backgroundImage:
-                    type: string
-                signature:
-                    type: string
-        UpdateUserInfoResp:
-            type: object
-            properties: {}
-        User:
-            type: object
-            properties:
-                id:
-                    type: string
-                name:
-                    type: string
-                avatar:
-                    type: string
-                backgroundImage:
-                    type: string
-                signature:
-                    type: string
-                mobile:
-                    type: string
-                email:
-                    type: string
-                followCount:
-                    type: string
-                followerCount:
-                    type: string
-                totalFavorited:
-                    type: string
-                workCount:
-                    type: string
-                favoriteCount:
-                    type: string
 tags:
-    - name: UserService
+    - name: FileService

@@ -47,10 +47,10 @@ func RegisterUserServiceHTTPServer(s *http.Server, srv UserServiceHTTPServer) {
 	r.POST("/v1/user/code", _UserService_GetVerificationCode0_HTTP_Handler(srv))
 	r.POST("/v1/user/register", _UserService_Register0_HTTP_Handler(srv))
 	r.POST("/v1/user/login", _UserService_Login0_HTTP_Handler(srv))
-	r.GET("/user/info", _UserService_GetUserInfo0_HTTP_Handler(srv))
-	r.PUT("/user/info", _UserService_UpdateUserInfo0_HTTP_Handler(srv))
-	r.POST("/user/voucher", _UserService_BindUserVoucher0_HTTP_Handler(srv))
-	r.DELETE("/user/voucher", _UserService_UnbindUserVoucher0_HTTP_Handler(srv))
+	r.GET("/v1/user/info", _UserService_GetUserInfo0_HTTP_Handler(srv))
+	r.PUT("/v1/user/info", _UserService_UpdateUserInfo0_HTTP_Handler(srv))
+	r.POST("/v1/user/voucher", _UserService_BindUserVoucher0_HTTP_Handler(srv))
+	r.DELETE("/v1/user/voucher", _UserService_UnbindUserVoucher0_HTTP_Handler(srv))
 }
 
 func _UserService_GetVerificationCode0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
@@ -221,7 +221,7 @@ func NewUserServiceHTTPClient(client *http.Client) UserServiceHTTPClient {
 
 func (c *UserServiceHTTPClientImpl) BindUserVoucher(ctx context.Context, in *BindUserVoucherReq, opts ...http.CallOption) (*BindUserVoucherResp, error) {
 	var out BindUserVoucherResp
-	pattern := "/user/voucher"
+	pattern := "/v1/user/voucher"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationUserServiceBindUserVoucher))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -234,7 +234,7 @@ func (c *UserServiceHTTPClientImpl) BindUserVoucher(ctx context.Context, in *Bin
 
 func (c *UserServiceHTTPClientImpl) GetUserInfo(ctx context.Context, in *GetUserInfoReq, opts ...http.CallOption) (*GetUserInfoResp, error) {
 	var out GetUserInfoResp
-	pattern := "/user/info"
+	pattern := "/v1/user/info"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationUserServiceGetUserInfo))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -286,7 +286,7 @@ func (c *UserServiceHTTPClientImpl) Register(ctx context.Context, in *RegisterRe
 
 func (c *UserServiceHTTPClientImpl) UnbindUserVoucher(ctx context.Context, in *UnbindUserVoucherReq, opts ...http.CallOption) (*UnbindUserVoucherResp, error) {
 	var out UnbindUserVoucherResp
-	pattern := "/user/voucher"
+	pattern := "/v1/user/voucher"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationUserServiceUnbindUserVoucher))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -299,7 +299,7 @@ func (c *UserServiceHTTPClientImpl) UnbindUserVoucher(ctx context.Context, in *U
 
 func (c *UserServiceHTTPClientImpl) UpdateUserInfo(ctx context.Context, in *UpdateUserInfoReq, opts ...http.CallOption) (*UpdateUserInfoResp, error) {
 	var out UpdateUserInfoResp
-	pattern := "/user/info"
+	pattern := "/v1/user/info"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationUserServiceUpdateUserInfo))
 	opts = append(opts, http.PathTemplate(pattern))
