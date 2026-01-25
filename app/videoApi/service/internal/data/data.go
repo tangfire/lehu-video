@@ -27,8 +27,9 @@ var ProviderSet = wire.NewSet(
 	NewCommentServiceClient,
 	NewFavoriteServiceClient,
 	NewFollowServiceClient,
-	NewBaseAdapterRepo,
-	NewCoreAdapterRepo,
+	NewBaseAdapter,
+	NewCoreAdapter,
+	NewFileServiceClient,
 )
 
 // Data .
@@ -37,12 +38,12 @@ type Data struct {
 	rds  *redis.Client
 	db   *gorm.DB
 	log  *log.Helper
-	base *baseAdapterRepo
-	core *CoreAdapterRepo
+	base *baseAdapterImpl
+	core *CoreAdapterImpl
 }
 
 // NewData .
-func NewData(db *gorm.DB, rds *redis.Client, base *baseAdapterRepo, core *CoreAdapterRepo, logger log.Logger) (*Data, func(), error) {
+func NewData(db *gorm.DB, rds *redis.Client, base *baseAdapterImpl, core *CoreAdapterImpl, logger log.Logger) (*Data, func(), error) {
 	cleanup := func() {
 		log.NewHelper(logger).Info("closing the data resources")
 	}

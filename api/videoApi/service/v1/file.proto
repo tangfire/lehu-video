@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package api.videoApi.service.v1;
+
+option go_package = "lehu-video/api/videoApi/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoApi.service.v1";
+import "google/api/annotations.proto";
+
+
+service FileService {
+	rpc PreSignUploadingPublicFile(PreSignUploadPublicFileReq) returns (PreSignUploadPublicFileResp) {
+		option (google.api.http) = {
+			post: "/v1/file"
+			body: "*"
+		};
+	};
+
+	rpc ReportPublicFileUploaded(ReportPublicFileUploadedReq) returns (ReportPublicFileUploadedResp) {
+		option (google.api.http) = {
+			post: "/v1/file/report"
+			body: "*"
+		};
+	};
+}
+
+message PreSignUploadPublicFileReq {
+	string hash = 1;
+	string file_type = 2;
+	// gotags: json`size,omitempty,string`
+	int64 size = 3;
+	string filename = 4;
+}
+
+message PreSignUploadPublicFileResp {
+	string url = 1;
+	// @gotags: json:"file_id,omitempty,string"
+	int64 file_id = 2;
+}
+
+message ReportPublicFileUploadedReq {
+	int64 file_id = 1;
+}
+
+message ReportPublicFileUploadedResp {
+	string object_name = 1;
+}

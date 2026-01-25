@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
-	pb "lehu-video/api/base/service/v1"
 	"lehu-video/app/base/service/internal/pkg/utils"
 )
 
@@ -13,6 +12,52 @@ const (
 	AccountPasswordPattern = "^[A-Za-z\\d\\S]{8,}"
 	ErrInvalidPassword     = "密码由大小写字母、数字、符号组成，且至少需要8位"
 )
+
+type VoucherType int32
+
+const (
+	VoucherTypeEmail VoucherType = 0
+	VoucherTypePhone VoucherType = 1
+)
+
+// ✅ 保持Request/Response结构，但移除Success字段
+// （因为err == nil本身就代表success）
+
+type RegisterRequest struct {
+	Mobile   string
+	Email    string
+	Password string
+}
+
+type RegisterResponse struct {
+	AccountId int64
+}
+
+type CheckAccountRequest struct {
+	AccountId int64
+	Mobile    string
+	Email     string
+	Password  string
+}
+
+type CheckAccountResponse struct {
+	AccountId int64
+}
+
+type BindRequest struct {
+	AccountId   int64
+	VoucherType VoucherType
+	Voucher     string
+}
+
+type BindResponse struct{}
+
+type UnbindRequest struct {
+	AccountId   int64
+	VoucherType VoucherType
+}
+
+type UnbindResponse struct{}
 
 type Account struct {
 	Id       int64
@@ -23,13 +68,10 @@ type Account struct {
 }
 
 func (a *Account) IsPasswordValid(patterns ...string) bool {
-	// check with the given pattern
 	if len(patterns) > 0 {
 		pattern := patterns[0]
 		return utils.IsValidWithRegex(pattern, a.Password)
 	}
-
-	// check with the default pattern
 	return utils.IsValidWithRegex(AccountPasswordPattern, a.Password)
 }
 
@@ -72,7 +114,6 @@ func (a *Account) CheckPassword(password string) error {
 	if passwordMd5 != a.Password {
 		return errors.New("wrong password")
 	}
-
 	return nil
 }
 
@@ -82,7 +123,6 @@ func (a *Account) GenerateId() {
 
 type AccountRepo interface {
 	CreateAccount(ctx context.Context, account *Account) error
-
 	GetAccountById(ctx context.Context, id int64) (bool, *Account, error)
 	GetAccountByMobile(ctx context.Context, mobile string) (bool, *Account, error)
 	GetAccountByEmail(ctx context.Context, email string) (bool, *Account, error)
@@ -99,12 +139,13 @@ func NewAccountUsecase(repo AccountRepo, logger log.Logger) *AccountUsecase {
 	return &AccountUsecase{repo: repo, log: log.NewHelper(logger)}
 }
 
-func (uc *AccountUsecase) Register(ctx context.Context, req *pb.RegisterReq) (*pb.RegisterResp, error) {
+func (uc *AccountUsecase) Register(ctx context.Context, req *RegisterRequest) (*RegisterResponse, error) {
 	account := &Account{
 		Mobile:   req.Mobile,
 		Email:    req.Email,
 		Password: req.Password,
 	}
+
 	err := uc.repo.CheckAccountUnique(ctx, account)
 	if err != nil {
 		return nil, err
@@ -114,22 +155,24 @@ func (uc *AccountUsecase) Register(ctx context.Context, req *pb.RegisterReq) (*p
 	if !valid {
 		return nil, errors.New(ErrInvalidPassword)
 	}
+
 	err = account.EncryptPassword()
 	if err != nil {
 		return nil, err
 	}
+
 	account.GenerateId()
 	err = uc.repo.CreateAccount(ctx, account)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.RegisterResp{
-		Meta:      utils.GetSuccessMeta(),
+
+	return &RegisterResponse{
 		AccountId: account.Id,
 	}, nil
 }
 
-func (uc *AccountUsecase) CheckAccount(ctx context.Context, req *pb.CheckAccountReq) (*pb.CheckAccountResp, error) {
+func (uc *AccountUsecase) CheckAccount(ctx context.Context, req *CheckAccountRequest) (*CheckAccountResponse, error) {
 	var account *Account
 	var err error
 	var exist bool
@@ -143,6 +186,7 @@ func (uc *AccountUsecase) CheckAccount(ctx context.Context, req *pb.CheckAccount
 			return nil, errors.New("account not exist")
 		}
 	}
+
 	if req.Mobile != "" {
 		exist, account, err = uc.repo.GetAccountByMobile(ctx, req.Mobile)
 		if err != nil {
@@ -162,20 +206,22 @@ func (uc *AccountUsecase) CheckAccount(ctx context.Context, req *pb.CheckAccount
 			return nil, errors.New("account not exist")
 		}
 	}
+
 	if account == nil {
 		return nil, errors.New("account not exist")
 	}
+
 	err = account.CheckPassword(req.Password)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.CheckAccountResp{
-		Meta:      utils.GetSuccessMeta(),
+
+	return &CheckAccountResponse{
 		AccountId: account.Id,
 	}, nil
 }
 
-func (uc *AccountUsecase) Bind(ctx context.Context, req *pb.BindReq) (*pb.BindResp, error) {
+func (uc *AccountUsecase) Bind(ctx context.Context, req *BindRequest) (*BindResponse, error) {
 	exist, account, err := uc.repo.GetAccountById(ctx, req.AccountId)
 	if err != nil {
 		return nil, err
@@ -183,22 +229,25 @@ func (uc *AccountUsecase) Bind(ctx context.Context, req *pb.BindReq) (*pb.BindRe
 	if !exist {
 		return nil, errors.New("account not exist")
 	}
+
 	switch req.VoucherType {
-	case pb.VoucherType_VOUCHER_EMAIL:
+	case VoucherTypeEmail:
 		account.Email = req.Voucher
-	case pb.VoucherType_VOUCHER_PHONE:
+	case VoucherTypePhone:
 		account.Mobile = req.Voucher
+	default:
+		return nil, errors.New("invalid voucher type")
 	}
+
 	err = uc.repo.UpdateAccount(ctx, account)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.BindResp{
-		Meta: utils.GetSuccessMeta(),
-	}, nil
+
+	return &BindResponse{}, nil
 }
 
-func (uc *AccountUsecase) Unbind(ctx context.Context, req *pb.UnbindReq) (*pb.UnbindResp, error) {
+func (uc *AccountUsecase) Unbind(ctx context.Context, req *UnbindRequest) (*UnbindResponse, error) {
 	exist, account, err := uc.repo.GetAccountById(ctx, req.AccountId)
 	if err != nil {
 		return nil, err
@@ -206,17 +255,20 @@ func (uc *AccountUsecase) Unbind(ctx context.Context, req *pb.UnbindReq) (*pb.Un
 	if !exist {
 		return nil, errors.New("account not exist")
 	}
+
 	switch req.VoucherType {
-	case pb.VoucherType_VOUCHER_EMAIL:
+	case VoucherTypeEmail:
 		account.Email = ""
-	case pb.VoucherType_VOUCHER_PHONE:
+	case VoucherTypePhone:
 		account.Mobile = ""
+	default:
+		return nil, errors.New("invalid voucher type")
 	}
+
 	err = uc.repo.UpdateAccount(ctx, account)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.UnbindResp{
-		Meta: utils.GetSuccessMeta(),
-	}, nil
+
+	return &UnbindResponse{}, nil
 }

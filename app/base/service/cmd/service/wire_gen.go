@@ -23,7 +23,7 @@ import (
 // Injectors from wire.go:
 
 // wireApp init kratos application.
-func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Data, logger log.Logger) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Data, dataSetting *conf.DataSetting, logger log.Logger) (*kratos.App, func(), error) {
 	db := data.NewDB(confData, logger)
 	client := data.NewRedis(confData)
 	dataData, cleanup, err := data.NewData(db, client, logger)
@@ -36,7 +36,16 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	authRepo := data.NewAuthRepo(dataData, logger)
 	authUsecase := biz.NewAuthUsecase(authRepo, logger)
 	authServiceService := service.NewAuthServiceService(authUsecase)
-	grpcServer := server.NewGRPCServer(confServer, accountServiceService, authServiceService, logger)
+	fileRepo := data.NewBizFileRepo(dataData, logger)
+	fileShardingConfig := data.NewFileShardingConfig(dataSetting)
+	dataFileRepo := data.NewFileRepo(dataData, logger)
+	fileRepoHelper := data.NewFileRepoHelper(fileShardingConfig, dataFileRepo)
+	minioClient := data.NewMinioClient(confData)
+	core := data.NewMinioCore(confData)
+	minioRepo := data.NewMinioRepo(minioClient, core)
+	fileUsecase := biz.NewFileUsecase(fileRepo, logger, fileRepoHelper, minioRepo)
+	fileServiceService := service.NewFileServiceService(fileUsecase)
+	grpcServer := server.NewGRPCServer(confServer, accountServiceService, authServiceService, fileServiceService, logger)
 	httpServer := server.NewHTTPServer(confServer, accountServiceService, authServiceService, logger)
 	registrar := server.NewRegistrar(registry)
 	app := newApp(logger, grpcServer, httpServer, registrar)

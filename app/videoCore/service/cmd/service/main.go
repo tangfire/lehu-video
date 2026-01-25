@@ -2,8 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/go-kratos/kratos/v2/registry"
+	"math/rand"
 	"os"
+	"time"
 
 	"lehu-video/app/videoCore/service/internal/conf"
 
@@ -27,8 +30,21 @@ var (
 	// flagconf is the config flag.
 	flagconf string
 
-	id, _ = os.Hostname()
+	id = generateUniqueID()
 )
+
+func generateUniqueID() string {
+	hostname, _ := os.Hostname()
+
+	// 获取进程 ID
+	pid := os.Getpid()
+
+	// 获取当前时间戳
+	timestamp := time.Now().UnixNano()
+
+	// 组合成唯一 ID
+	return fmt.Sprintf("%s-%d-%d-%d", hostname, pid, timestamp, rand.Intn(1000))
+}
 
 func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")

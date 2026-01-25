@@ -5,16 +5,14 @@ import "time"
 const TableNameFile = "file"
 
 type File struct {
-	Id         int64     `gorm:"column:id" db:"id" json:"id" form:"id"`
-	DomainName string    `gorm:"column:domain_name" db:"domain_name" json:"domain_name" form:"domain_name"`
-	BizName    string    `gorm:"column:biz_name" db:"biz_name" json:"biz_name" form:"biz_name"`
-	Hash       string    `gorm:"column:hash" db:"hash" json:"hash" form:"hash"`
-	FileSize   int64     `gorm:"column:file_size" db:"file_size" json:"file_size" form:"file_size"`
-	FileType   string    `gorm:"column:file_type" db:"file_type" json:"file_type" form:"file_type"`
-	CreatedAt  time.Time `gorm:"column:created_at" db:"created_at" json:"created_at" form:"created_at"`
-	UpdatedAt  time.Time `gorm:"column:updated_at" db:"updated_at" json:"updated_at" form:"updated_at"`
-}
-
-func (File) TableName() string {
-	return "file"
+	Id         int64     `gorm:"column:id;primary_key"`
+	DomainName string    `gorm:"column:domain_name;NOT NULL"`
+	BizName    string    `gorm:"column:biz_name;NOT NULL"`
+	Hash       string    `gorm:"column:hash;NOT NULL"`
+	FileSize   int64     `gorm:"column:file_size;default:0;NOT NULL"`
+	FileType   string    `gorm:"column:file_type;NOT NULL"`
+	Uploaded   bool      `gorm:"column:uploaded;default:0;NOT NULL"`
+	IsDeleted  bool      `gorm:"column:is_deleted;default:0;NOT NULL"`
+	CreatedAt  time.Time `gorm:"column:created_at;default:CURRENT_TIMESTAMP;NOT NULL"`
+	UpdatedAt  time.Time `gorm:"column:updated_at;default:CURRENT_TIMESTAMP;NOT NULL"`
 }

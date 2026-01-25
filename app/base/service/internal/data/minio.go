@@ -37,6 +37,7 @@ func NewMinioRepo(client *minio.Client, core *minio.Core) biz.MinioRepo {
 func NewMinioClient(conf *conf.Data) *minio.Client {
 	endPoint := fmt.Sprintf("%s:%s", conf.Minio.Host, conf.Minio.Port)
 
+	// 添加时间差容忍配置
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,

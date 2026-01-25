@@ -1,9 +1,9 @@
 server:
   http:
-    addr: 0.0.0.0:8002
+    addr: 0.0.0.0:8020
     timeout: 100s
   grpc:
-    addr: 0.0.0.0:9002
+    addr: 0.0.0.0:9020
     timeout: 100s
 data:
   database:
@@ -17,8 +17,8 @@ data:
     db: 0
   minio:
     host: localhost
-    port: 9000
-    console_port: 9001
+    port: "9000"
+    console_port: "9001"
     access_key: minioadmin
     secret_key: minioadmin
 

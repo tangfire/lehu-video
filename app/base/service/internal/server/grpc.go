@@ -17,6 +17,7 @@ import (
 func NewGRPCServer(c *conf.Server,
 	accountService *service.AccountServiceService,
 	authService *service.AuthServiceService,
+	fileService *service.FileServiceService,
 	logger log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
@@ -35,6 +36,7 @@ func NewGRPCServer(c *conf.Server,
 	srv := grpc.NewServer(opts...)
 	v1.RegisterAccountServiceServer(srv, accountService)
 	v1.RegisterAuthServiceServer(srv, authService)
+	v1.RegisterFileServiceServer(srv, fileService)
 	return srv
 }
 

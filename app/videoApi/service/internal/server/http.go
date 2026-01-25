@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -30,7 +31,8 @@ func NewWhiteListMatcher() selector.MatchFunc {
 }
 
 // NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, ac *conf.Auth, userService *service.UserServiceService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, ac *conf.Auth, userService *service.UserServiceService, fileService *service.FileServiceService, logger log.Logger) *http.Server {
+	fmt.Println("ac api_key = " + ac.ApiKey)
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -63,5 +65,6 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth, userService *service.UserServi
 	}
 	srv := http.NewServer(opts...)
 	v1.RegisterUserServiceHTTPServer(srv, userService)
+	v1.RegisterFileServiceHTTPServer(srv, fileService)
 	return srv
 }

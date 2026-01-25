@@ -123,3 +123,30 @@ CREATE TABLE IF NOT EXISTS `file` (
                                     INDEX `hash_idx` (`hash`)
 );
 
+
+-- 创建短视频相关的分表（共5个hash分表 + 5个id分表）
+CREATE TABLE `file_shortvideo_short_video_hash_0` LIKE `file`;
+CREATE TABLE `file_shortvideo_short_video_hash_1` LIKE `file`;
+CREATE TABLE `file_shortvideo_short_video_hash_2` LIKE `file`;
+CREATE TABLE `file_shortvideo_short_video_hash_3` LIKE `file`;
+CREATE TABLE `file_shortvideo_short_video_hash_4` LIKE `file`;
+
+CREATE TABLE `file_shortvideo_short_video_id_0` LIKE `file`;
+CREATE TABLE `file_shortvideo_short_video_id_1` LIKE `file`;
+CREATE TABLE `file_shortvideo_short_video_id_2` LIKE `file`;
+CREATE TABLE `file_shortvideo_short_video_id_3` LIKE `file`;
+CREATE TABLE `file_shortvideo_short_video_id_4` LIKE `file`;
+
+-- 创建公共文件相关的分表
+CREATE TABLE `file_shortvideo_public_hash_0` LIKE `file`;
+CREATE TABLE `file_shortvideo_public_hash_1` LIKE `file`;
+CREATE TABLE `file_shortvideo_public_hash_2` LIKE `file`;
+CREATE TABLE `file_shortvideo_public_hash_3` LIKE `file`;
+CREATE TABLE `file_shortvideo_public_hash_4` LIKE `file`;
+
+CREATE TABLE `file_shortvideo_public_id_0` LIKE `file`;
+CREATE TABLE `file_shortvideo_public_id_1` LIKE `file`;
+CREATE TABLE `file_shortvideo_public_id_2` LIKE `file`;
+CREATE TABLE `file_shortvideo_public_id_3` LIKE `file`;
+CREATE TABLE `file_shortvideo_public_id_4` LIKE `file`;
+

@@ -10,7 +10,7 @@ import (
 	"lehu-video/app/videoApi/service/internal/pkg/utils/respcheck"
 )
 
-type CoreAdapterRepo struct {
+type CoreAdapterImpl struct {
 	user       core.UserServiceClient
 	video      core.VideoServiceClient
 	collection core.CollectionServiceClient
@@ -19,14 +19,19 @@ type CoreAdapterRepo struct {
 	follow     core.FollowServiceClient
 }
 
-func NewCoreAdapterRepo(
+func (r *CoreAdapterImpl) UpdateUserInfo(ctx context.Context, userId int64, name, avatar, backgroundImage, signature string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func NewCoreAdapter(
 	user core.UserServiceClient,
 	video core.VideoServiceClient,
 	collection core.CollectionServiceClient,
 	comment core.CommentServiceClient,
 	favorite core.FavoriteServiceClient,
-	follow core.FollowServiceClient) biz.CoreAdapterRepo {
-	return &CoreAdapterRepo{
+	follow core.FollowServiceClient) biz.CoreAdapter {
+	return &CoreAdapterImpl{
 		user:       user,
 		video:      video,
 		collection: collection,
@@ -126,7 +131,7 @@ func NewFollowServiceClient(r registry.Discovery) core.FollowServiceClient {
 	return core.NewFollowServiceClient(conn)
 }
 
-func (r *CoreAdapterRepo) GetUserInfo(ctx context.Context, userId, accountId int64) (*core.User, error) {
+func (r *CoreAdapterImpl) GetUserInfo(ctx context.Context, userId, accountId int64) (*biz.UserInfo, error) {
 	resp, err := r.user.GetUserInfo(ctx, &core.GetUserInfoReq{
 		UserId:    userId,
 		AccountId: accountId,
@@ -139,10 +144,19 @@ func (r *CoreAdapterRepo) GetUserInfo(ctx context.Context, userId, accountId int
 	if err != nil {
 		return nil, err
 	}
-	return resp.User, nil
+	user := resp.User
+	retUser := &biz.UserInfo{
+		Id:              user.Id,
+		Name:            user.Name,
+		Avatar:          user.Avatar,
+		BackgroundImage: user.BackgroundImage,
+		Mobile:          user.Mobile,
+		Email:           user.Email,
+	}
+	return retUser, nil
 }
 
-func (r *CoreAdapterRepo) CountFollow4User(ctx context.Context, userId int64) ([]int64, error) {
+func (r *CoreAdapterImpl) CountFollow4User(ctx context.Context, userId int64) ([]int64, error) {
 	resp, err := r.follow.CountFollow(ctx, &core.CountFollowReq{UserId: userId})
 	if err != nil {
 		return nil, err
@@ -154,7 +168,7 @@ func (r *CoreAdapterRepo) CountFollow4User(ctx context.Context, userId int64) ([
 	return []int64{resp.FollowingCount, resp.FollowerCount}, nil
 }
 
-func (r *CoreAdapterRepo) CountBeFavoriteNumber4User(ctx context.Context, userId int64) (int64, error) {
+func (r *CoreAdapterImpl) CountBeFavoriteNumber4User(ctx context.Context, userId int64) (int64, error) {
 	resp, err := r.favorite.CountFavorite(ctx, &core.CountFavoriteReq{
 		Id:            []int64{userId},
 		AggregateType: core.FavoriteAggregateType_BY_USER,
@@ -170,7 +184,7 @@ func (r *CoreAdapterRepo) CountBeFavoriteNumber4User(ctx context.Context, userId
 	return resp.Items[0].Count, nil
 }
 
-func (r *CoreAdapterRepo) CreateUser(ctx context.Context, mobile, email string, accountId int64) (int64, error) {
+func (r *CoreAdapterImpl) CreateUser(ctx context.Context, mobile, email string, accountId int64) (int64, error) {
 	resp, err := r.user.CreateUser(ctx, &core.CreateUserReq{
 		Mobile:    mobile,
 		Email:     email,

@@ -20,9 +20,10 @@ var ProviderSet = wire.NewSet(
 	NewMinioRepo,
 	NewMinioClient,
 	NewMinioCore,
-	NewFileRepo,
-	NewFileRepoHelper,
+	NewBizFileRepo,
 	NewFileShardingConfig,
+	NewFileRepoHelper,
+	NewFileRepo,
 )
 
 // Data .
@@ -31,6 +32,10 @@ type Data struct {
 	rds *redis.Client
 	db  *gorm.DB
 	log *log.Helper
+}
+
+func (d *Data) Begin() *gorm.DB {
+	return d.db.Begin()
 }
 
 // NewData .
