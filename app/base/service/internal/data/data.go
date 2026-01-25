@@ -18,7 +18,6 @@ var ProviderSet = wire.NewSet(
 	NewDB,
 	NewAccountRepo,
 	NewMinioRepo,
-	NewMinioClient,
 	NewMinioCore,
 	NewBizFileRepo,
 	NewFileShardingConfig,

@@ -140,7 +140,7 @@ func (r *baseAdapterImpl) CheckAccount(ctx context.Context, mobile, email, passw
 func (r *baseAdapterImpl) PreSign4PublicUpload(ctx context.Context, hash, fileType, fileName string, size, expireSeconds int64) (int64, string, error) {
 	fileCtx := &base.FileContext{
 		Domain:        DomainName,
-		BizName:       BizName,
+		BizName:       Public,
 		Hash:          hash,
 		FileType:      fileType,
 		Size:          size,
@@ -163,7 +163,7 @@ func (r *baseAdapterImpl) PreSign4PublicUpload(ctx context.Context, hash, fileTy
 func (r *baseAdapterImpl) ReportPublicUploaded(ctx context.Context, fileId int64) (string, error) {
 	fileCtx := &base.FileContext{
 		Domain:        DomainName,
-		BizName:       BizName,
+		BizName:       Public,
 		FileId:        fileId,
 		ExpireSeconds: 7200,
 	}

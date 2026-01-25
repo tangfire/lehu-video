@@ -2,7 +2,6 @@ package data
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -17,14 +16,12 @@ import (
 )
 
 type minioRepo struct {
-	client *minio.Client
-	core   *minio.Core
+	core *minio.Core
 }
 
-func NewMinioRepo(client *minio.Client, core *minio.Core) biz.MinioRepo {
+func NewMinioRepo(core *minio.Core) biz.MinioRepo {
 	return &minioRepo{
-		client: client,
-		core:   core,
+		core: core,
 	}
 }
 
@@ -34,28 +31,28 @@ func NewMinioRepo(client *minio.Client, core *minio.Core) biz.MinioRepo {
 =====================
 */
 
-func NewMinioClient(conf *conf.Data) *minio.Client {
-	endPoint := fmt.Sprintf("%s:%s", conf.Minio.Host, conf.Minio.Port)
-
-	// 添加时间差容忍配置
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	}
-
-	client, err := minio.New(endPoint, &minio.Options{
-		Creds:     credentials.NewStaticV4(conf.Minio.AccessKey, conf.Minio.SecretKey, ""),
-		Secure:    false,
-		Transport: transport,
-	})
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	return client
-}
+//func NewMinioClient(conf *conf.Data) *minio.Client {
+//	endPoint := fmt.Sprintf("%s:%s", conf.Minio.Host, conf.Minio.Port)
+//
+//	// 添加时间差容忍配置
+//	transport := &http.Transport{
+//		TLSClientConfig: &tls.Config{
+//			InsecureSkipVerify: true,
+//		},
+//	}
+//
+//	client, err := minio.New(endPoint, &minio.Options{
+//		Creds:     credentials.NewStaticV4(conf.Minio.AccessKey, conf.Minio.SecretKey, ""),
+//		Secure:    false,
+//		Transport: transport,
+//	})
+//	if err != nil {
+//		fmt.Println(err)
+//		os.Exit(1)
+//	}
+//
+//	return client
+//}
 
 /*
 =====================
@@ -101,7 +98,7 @@ func (r *minioRepo) PreSignGetUrl(
 		)
 	}
 
-	u, err := r.client.PresignedGetObject(
+	u, err := r.core.PresignedGetObject(
 		ctx,
 		bucketName,
 		objectName,
@@ -128,7 +125,7 @@ func (r *minioRepo) PreSignPutUrl(
 	expireSeconds int64,
 ) (string, error) {
 
-	u, err := r.client.PresignedPutObject(
+	u, err := r.core.PresignedPutObject(
 		ctx,
 		bucketName,
 		objectName,
@@ -202,7 +199,7 @@ func (r *minioRepo) PreSignSlicingPutUrl(
 		"partNumber": {strconv.FormatInt(partNumber, 10)},
 	}
 
-	u, err := r.client.Presign(
+	u, err := r.core.Presign(
 		ctx,
 		http.MethodPut,
 		bucketName,
@@ -254,7 +251,7 @@ func (r *minioRepo) GetObjectHash(
 	objectName string,
 ) (string, error) {
 
-	stat, err := r.client.StatObject(
+	stat, err := r.core.StatObject(
 		ctx,
 		bucketName,
 		objectName,

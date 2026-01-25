@@ -116,7 +116,7 @@ func (uc *FileUsecase) PreSignGet(ctx context.Context, file *File) (string, erro
 	if !exist {
 		return "", nil
 	}
-	url, err := uc.minio.PreSignGetUrl(ctx, retFile.DomainName, retFile.GetObjectName(), retFile.FileName, retFile.ExpireSeconds)
+	url, err := uc.minio.PreSignGetUrl(ctx, retFile.DomainName, retFile.GetObjectName(), file.FileName, file.ExpireSeconds)
 	if err != nil {
 		return "", err
 	}
@@ -166,8 +166,8 @@ func (uc *FileUsecase) ReportUploaded(ctx context.Context, file *File) error {
 		log.Context(ctx).Errorf("failed to validate hash of uploaded file, hash: %s, expected: %s", hash, retFile.Hash)
 		return errors.New("failed to validate hash of uploaded file")
 	}
-	file.SetUploaded()
-	err = uc.frh.UpdateFile(ctx, file)
+	retFile.SetUploaded()
+	err = uc.frh.UpdateFile(ctx, retFile)
 	if err != nil {
 		return err
 	}

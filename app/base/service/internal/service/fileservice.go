@@ -180,7 +180,9 @@ func (s *FileServiceService) RemoveFile(ctx context.Context, req *pb.RemoveFileR
 		Meta: utils.GetSuccessMeta(),
 	}, nil
 }
+
 func (s *FileServiceService) GetFileInfoById(ctx context.Context, req *pb.GetFileInfoByIdReq) (*pb.GetFileInfoByIdResp, error) {
+	// todo 没有判断文件是否存在,有空指针异常的情况
 	file, err := s.uc.GetFileInfoById(ctx, req.DomainName, req.BizName, req.FileId)
 	if err != nil {
 		return &pb.GetFileInfoByIdResp{
