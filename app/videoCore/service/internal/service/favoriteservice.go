@@ -134,8 +134,9 @@ func (s *FavoriteServiceService) IsFavorite(ctx context.Context, req *pb.IsFavor
 	var pbItems []*pb.IsFavoriteRespItem
 	for _, item := range result.Items {
 		pbItems = append(pbItems, &pb.IsFavoriteRespItem{
-			BizId:  item.BizId,
-			UserId: item.UserId,
+			BizId:      item.BizId,
+			UserId:     item.UserId,
+			IsFavorite: item.IsFavorite,
 		})
 	}
 

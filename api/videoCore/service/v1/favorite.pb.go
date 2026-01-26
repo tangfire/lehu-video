@@ -794,6 +794,7 @@ type IsFavoriteRespItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BizId         int64                  `protobuf:"varint,1,opt,name=biz_id,json=bizId,proto3" json:"biz_id,omitempty"`
 	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	IsFavorite    bool                   `protobuf:"varint,3,opt,name=is_favorite,json=isFavorite,proto3" json:"is_favorite,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -840,6 +841,13 @@ func (x *IsFavoriteRespItem) GetUserId() int64 {
 		return x.UserId
 	}
 	return 0
+}
+
+func (x *IsFavoriteRespItem) GetIsFavorite() bool {
+	if x != nil {
+		return x.IsFavorite
+	}
+	return false
 }
 
 type IsFavoriteResp struct {
@@ -940,10 +948,12 @@ const file_api_videoCore_service_v1_favorite_proto_rawDesc = "" +
 	"\rIsFavoriteReq\x12@\n" +
 	"\x06target\x18\x01 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\x12:\n" +
 	"\x04type\x18\x02 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\x12A\n" +
-	"\x05items\x18\x03 \x03(\v2+.api.videoCore.service.v1.IsFavoriteReqItemR\x05items\"D\n" +
+	"\x05items\x18\x03 \x03(\v2+.api.videoCore.service.v1.IsFavoriteReqItemR\x05items\"e\n" +
 	"\x12IsFavoriteRespItem\x12\x15\n" +
 	"\x06biz_id\x18\x01 \x01(\x03R\x05bizId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\"\x8c\x01\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x1f\n" +
+	"\vis_favorite\x18\x03 \x01(\bR\n" +
+	"isFavorite\"\x8c\x01\n" +
 	"\x0eIsFavoriteResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12B\n" +
 	"\x05items\x18\x02 \x03(\v2,.api.videoCore.service.v1.IsFavoriteRespItemR\x05items*(\n" +

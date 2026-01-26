@@ -8,3 +8,8 @@ var ProviderSet = wire.NewSet(
 	NewFileUsecase,
 	NewVideoUsecase,
 )
+
+type PageStats struct {
+	Page     int32
+	PageSize int32
+}

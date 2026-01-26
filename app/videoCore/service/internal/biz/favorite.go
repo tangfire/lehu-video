@@ -82,8 +82,9 @@ type IsFavoriteQuery struct {
 }
 
 type IsFavoriteResultItem struct {
-	BizId  int64
-	UserId int64
+	BizId      int64
+	UserId     int64
+	IsFavorite bool
 }
 
 type IsFavoriteResult struct {
@@ -350,7 +351,16 @@ func (uc *FavoriteUsecase) IsFavorite(ctx context.Context, query *IsFavoriteQuer
 	}
 
 	if userId <= 0 || len(targetIds) == 0 {
-		return &IsFavoriteResult{Items: []IsFavoriteResultItem{}}, nil
+		// 返回所有项，但都设置为未点赞
+		items := make([]IsFavoriteResultItem, 0, len(query.Items))
+		for _, item := range query.Items {
+			items = append(items, IsFavoriteResultItem{
+				BizId:      item.BizId,
+				UserId:     item.UserId,
+				IsFavorite: false, // 明确设置为 false
+			})
+		}
+		return &IsFavoriteResult{Items: items}, nil
 	}
 
 	// 查询点赞记录
@@ -366,15 +376,18 @@ func (uc *FavoriteUsecase) IsFavorite(ctx context.Context, query *IsFavoriteQuer
 		favoritedMap[fav.TargetId] = true
 	}
 
-	// 构建结果
-	items := make([]IsFavoriteResultItem, 0, len(favorites))
+	// 构建结果 - 为每个查询项都创建结果
+	items := make([]IsFavoriteResultItem, 0, len(query.Items))
 	for _, item := range query.Items {
+		isFavorite := false
 		if favoritedMap[item.BizId] {
-			items = append(items, IsFavoriteResultItem{
-				BizId:  item.BizId,
-				UserId: item.UserId,
-			})
+			isFavorite = true
 		}
+		items = append(items, IsFavoriteResultItem{
+			BizId:      item.BizId,
+			UserId:     item.UserId,
+			IsFavorite: isFavorite, // 设置点赞状态
+		})
 	}
 
 	return &IsFavoriteResult{

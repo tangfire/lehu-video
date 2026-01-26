@@ -248,3 +248,236 @@ func (r *CoreAdapterImpl) GetVideoById(ctx context.Context, videoId int64) (*biz
 	}
 	return retVideo, nil
 }
+
+func (r *CoreAdapterImpl) ListPublishedVideo(ctx context.Context, userId int64, pageStats *biz.PageStats) (int64, []*biz.Video, error) {
+	resp, err := r.video.ListPublishedVideo(ctx, &core.ListPublishedVideoReq{
+		UserId: userId,
+		PageStats: &core.PageStatsReq{
+			Page: pageStats.Page,
+			Size: pageStats.PageSize,
+		},
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	var retVideos []*biz.Video
+	for _, video := range resp.Videos {
+		retVideos = append(retVideos, &biz.Video{
+			ID: video.Id,
+			Author: &biz.VideoAuthor{
+				ID:          video.Author.Id,
+				Name:        video.Author.Name,
+				Avatar:      video.Author.Avatar,
+				IsFollowing: video.Author.IsFollowing != 0,
+			},
+			PlayUrl:       video.PlayUrl,
+			CoverUrl:      video.CoverUrl,
+			FavoriteCount: video.IsFavorite,
+			CommentCount:  video.CommentCount,
+			IsFavorite:    video.IsFavorite != 0,
+			Title:         video.Title,
+		})
+	}
+	return int64(resp.PageStats.Total), retVideos, nil
+}
+
+func (r *CoreAdapterImpl) GetUserInfoByIdList(ctx context.Context, userIdList []int64) ([]*biz.UserInfo, error) {
+	resp, err := r.user.GetUserByIdList(ctx, &core.GetUserByIdListReq{
+		UserIdList: userIdList,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	var retUserInfos []*biz.UserInfo
+	for _, user := range resp.UserList {
+		retUserInfos = append(retUserInfos, &biz.UserInfo{
+			Id:              user.Id,
+			Name:            user.Name,
+			Avatar:          user.Avatar,
+			BackgroundImage: user.BackgroundImage,
+			Mobile:          user.Mobile,
+			Email:           user.Email,
+		})
+	}
+	return retUserInfos, nil
+}
+
+func (r *CoreAdapterImpl) IsUserFavoriteVideo(ctx context.Context, userId int64, videoIdList []int64) (map[int64]bool, error) {
+
+	var items []*core.IsFavoriteReqItem
+	for _, id := range videoIdList {
+		items = append(items, &core.IsFavoriteReqItem{
+			BizId:  id,
+			UserId: userId,
+		})
+	}
+
+	resp, err := r.favorite.IsFavorite(ctx, &core.IsFavoriteReq{
+		Items: items,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]bool)
+	if len(resp.Items) == 0 {
+		return result, nil
+	}
+
+	for _, item := range resp.Items {
+		result[item.BizId] = item.IsFavorite
+	}
+	return result, nil
+}
+
+func (r *CoreAdapterImpl) IsFollowing(ctx context.Context, userId int64, targetUserIdList []int64) (map[int64]bool, error) {
+	resp, err := r.follow.IsFollowing(ctx, &core.IsFollowingReq{
+		UserId:           userId,
+		TargetUserIdList: targetUserIdList,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]bool)
+	if len(resp.FollowingList) == 0 {
+		return result, nil
+	}
+
+	for _, item := range resp.FollowingList {
+		result[item] = true
+	}
+	return result, nil
+}
+
+func (r *CoreAdapterImpl) IsCollected(ctx context.Context, userId int64, videoIdList []int64) (map[int64]bool, error) {
+	resp, err := r.collection.IsCollected(ctx, &core.IsCollectedReq{
+		UserId:      userId,
+		VideoIdList: videoIdList,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]bool)
+	if len(resp.VideoIdList) == 0 {
+		return result, nil
+	}
+
+	for _, item := range resp.VideoIdList {
+		result[item] = true
+	}
+
+	return result, nil
+}
+
+func (r *CoreAdapterImpl) CountComments4Video(ctx context.Context, videoIdList []int64) (map[int64]int64, error) {
+	resp, err := r.comment.CountComment4Video(ctx, &core.CountComment4VideoReq{
+		VideoId: videoIdList,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]int64)
+	for _, item := range resp.Results {
+		result[item.Id] = item.Count
+	}
+
+	return result, nil
+}
+
+func (r *CoreAdapterImpl) CountFavorite4Video(ctx context.Context, videoIdList []int64) (map[int64]int64, error) {
+	resp, err := r.favorite.CountFavorite(ctx, &core.CountFavoriteReq{
+		AggregateType: core.FavoriteAggregateType_BY_VIDEO,
+		Id:            videoIdList,
+		FavoriteType:  core.FavoriteType_FAVORITE,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]int64)
+	for _, item := range resp.Items {
+		result[item.BizId] = item.Count
+	}
+	return result, nil
+}
+
+func (r *CoreAdapterImpl) CountCollected4Video(ctx context.Context, videoIdList []int64) (map[int64]int64, error) {
+	resp, err := r.collection.CountCollect4Video(ctx, &core.CountCollect4VideoReq{
+		VideoIdList: videoIdList,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]int64)
+	for _, item := range resp.CountResult {
+		result[item.Id] = item.Count
+	}
+
+	return result, nil
+}
+
+func (r *CoreAdapterImpl) Feed(ctx context.Context, userId int64, num int64, latestTime int64) ([]*biz.Video, error) {
+	req := &core.FeedShortVideoReq{
+		LatestTime: latestTime,
+		UserId:     userId,
+		FeedNum:    num,
+	}
+
+	resp, err := r.video.FeedShortVideo(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	var videos []*biz.Video
+	for _, video := range resp.Videos {
+		videos = append(videos, &biz.Video{
+			ID: video.Id,
+			Author: &biz.VideoAuthor{
+				ID:          video.Author.Id,
+				Name:        video.Author.Name,
+				Avatar:      video.Author.Avatar,
+				IsFollowing: video.Author.IsFollowing != 0,
+			},
+			PlayUrl:       video.PlayUrl,
+			CoverUrl:      video.CoverUrl,
+			FavoriteCount: video.FavoriteCount,
+			CommentCount:  video.CommentCount,
+			IsFavorite:    video.IsFavorite != 0,
+			Title:         video.Title,
+		})
+	}
+	return videos, nil
+}
