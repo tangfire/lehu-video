@@ -20,44 +20,45 @@ const (
 	VoucherTypePhone VoucherType = 1
 )
 
-// ✅ 保持Request/Response结构，但移除Success字段
-// （因为err == nil本身就代表success）
-
-type RegisterRequest struct {
+// ✅ 使用Command/Result模式，更符合业务语义
+type RegisterCommand struct {
 	Mobile   string
 	Email    string
 	Password string
 }
 
-type RegisterResponse struct {
+type RegisterResult struct {
 	AccountId int64
 }
 
-type CheckAccountRequest struct {
+// ✅ 这是查询操作，使用Query/Result
+type CheckAccountQuery struct {
 	AccountId int64
 	Mobile    string
 	Email     string
 	Password  string
 }
 
-type CheckAccountResponse struct {
+type CheckAccountResult struct {
 	AccountId int64
 }
 
-type BindRequest struct {
+// ✅ 绑定是命令操作
+type BindCommand struct {
 	AccountId   int64
 	VoucherType VoucherType
 	Voucher     string
 }
 
-type BindResponse struct{}
+type BindResult struct{}
 
-type UnbindRequest struct {
+// ✅ 解绑也是命令操作
+type UnbindCommand struct {
 	AccountId   int64
 	VoucherType VoucherType
 }
 
-type UnbindResponse struct{}
+type UnbindResult struct{}
 
 type Account struct {
 	Id       int64
@@ -139,11 +140,12 @@ func NewAccountUsecase(repo AccountRepo, logger log.Logger) *AccountUsecase {
 	return &AccountUsecase{repo: repo, log: log.NewHelper(logger)}
 }
 
-func (uc *AccountUsecase) Register(ctx context.Context, req *RegisterRequest) (*RegisterResponse, error) {
+// ✅ 方法签名改为使用Command/Result
+func (uc *AccountUsecase) Register(ctx context.Context, cmd *RegisterCommand) (*RegisterResult, error) {
 	account := &Account{
-		Mobile:   req.Mobile,
-		Email:    req.Email,
-		Password: req.Password,
+		Mobile:   cmd.Mobile,
+		Email:    cmd.Email,
+		Password: cmd.Password,
 	}
 
 	err := uc.repo.CheckAccountUnique(ctx, account)
@@ -167,18 +169,19 @@ func (uc *AccountUsecase) Register(ctx context.Context, req *RegisterRequest) (*
 		return nil, err
 	}
 
-	return &RegisterResponse{
+	return &RegisterResult{
 		AccountId: account.Id,
 	}, nil
 }
 
-func (uc *AccountUsecase) CheckAccount(ctx context.Context, req *CheckAccountRequest) (*CheckAccountResponse, error) {
+// ✅ 查询方法使用Query/Result
+func (uc *AccountUsecase) CheckAccount(ctx context.Context, query *CheckAccountQuery) (*CheckAccountResult, error) {
 	var account *Account
 	var err error
 	var exist bool
 
-	if req.AccountId != 0 {
-		exist, account, err = uc.repo.GetAccountById(ctx, req.AccountId)
+	if query.AccountId != 0 {
+		exist, account, err = uc.repo.GetAccountById(ctx, query.AccountId)
 		if err != nil {
 			return nil, err
 		}
@@ -187,8 +190,8 @@ func (uc *AccountUsecase) CheckAccount(ctx context.Context, req *CheckAccountReq
 		}
 	}
 
-	if req.Mobile != "" {
-		exist, account, err = uc.repo.GetAccountByMobile(ctx, req.Mobile)
+	if query.Mobile != "" {
+		exist, account, err = uc.repo.GetAccountByMobile(ctx, query.Mobile)
 		if err != nil {
 			return nil, err
 		}
@@ -197,8 +200,8 @@ func (uc *AccountUsecase) CheckAccount(ctx context.Context, req *CheckAccountReq
 		}
 	}
 
-	if req.Email != "" {
-		exist, account, err = uc.repo.GetAccountByEmail(ctx, req.Email)
+	if query.Email != "" {
+		exist, account, err = uc.repo.GetAccountByEmail(ctx, query.Email)
 		if err != nil {
 			return nil, err
 		}
@@ -211,18 +214,19 @@ func (uc *AccountUsecase) CheckAccount(ctx context.Context, req *CheckAccountReq
 		return nil, errors.New("account not exist")
 	}
 
-	err = account.CheckPassword(req.Password)
+	err = account.CheckPassword(query.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	return &CheckAccountResponse{
+	return &CheckAccountResult{
 		AccountId: account.Id,
 	}, nil
 }
 
-func (uc *AccountUsecase) Bind(ctx context.Context, req *BindRequest) (*BindResponse, error) {
-	exist, account, err := uc.repo.GetAccountById(ctx, req.AccountId)
+// ✅ 命令方法使用Command/Result
+func (uc *AccountUsecase) Bind(ctx context.Context, cmd *BindCommand) (*BindResult, error) {
+	exist, account, err := uc.repo.GetAccountById(ctx, cmd.AccountId)
 	if err != nil {
 		return nil, err
 	}
@@ -230,11 +234,11 @@ func (uc *AccountUsecase) Bind(ctx context.Context, req *BindRequest) (*BindResp
 		return nil, errors.New("account not exist")
 	}
 
-	switch req.VoucherType {
+	switch cmd.VoucherType {
 	case VoucherTypeEmail:
-		account.Email = req.Voucher
+		account.Email = cmd.Voucher
 	case VoucherTypePhone:
-		account.Mobile = req.Voucher
+		account.Mobile = cmd.Voucher
 	default:
 		return nil, errors.New("invalid voucher type")
 	}
@@ -244,11 +248,12 @@ func (uc *AccountUsecase) Bind(ctx context.Context, req *BindRequest) (*BindResp
 		return nil, err
 	}
 
-	return &BindResponse{}, nil
+	return &BindResult{}, nil
 }
 
-func (uc *AccountUsecase) Unbind(ctx context.Context, req *UnbindRequest) (*UnbindResponse, error) {
-	exist, account, err := uc.repo.GetAccountById(ctx, req.AccountId)
+// ✅ 命令方法使用Command/Result
+func (uc *AccountUsecase) Unbind(ctx context.Context, cmd *UnbindCommand) (*UnbindResult, error) {
+	exist, account, err := uc.repo.GetAccountById(ctx, cmd.AccountId)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +261,7 @@ func (uc *AccountUsecase) Unbind(ctx context.Context, req *UnbindRequest) (*Unbi
 		return nil, errors.New("account not exist")
 	}
 
-	switch req.VoucherType {
+	switch cmd.VoucherType {
 	case VoucherTypeEmail:
 		account.Email = ""
 	case VoucherTypePhone:
@@ -270,5 +275,5 @@ func (uc *AccountUsecase) Unbind(ctx context.Context, req *UnbindRequest) (*Unbi
 		return nil, err
 	}
 
-	return &UnbindResponse{}, nil
+	return &UnbindResult{}, nil
 }

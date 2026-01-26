@@ -9,4 +9,10 @@ var ProviderSet = wire.NewSet(
 	NewFavoriteUsecase,
 	NewCommentUsecase,
 	NewFollowUsecase,
+	NewCollectionUsecase,
 )
+
+type PageStats struct {
+	Page     int32
+	PageSize int32
+}

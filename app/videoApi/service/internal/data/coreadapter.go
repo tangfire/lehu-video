@@ -199,3 +199,52 @@ func (r *CoreAdapterImpl) CreateUser(ctx context.Context, mobile, email string, 
 	}
 	return resp.UserId, nil
 }
+
+func (r *CoreAdapterImpl) SaveVideoInfo(ctx context.Context, title, videoUrl, coverUrl, desc string, userId int64) (int64, error) {
+	resp, err := r.video.PublishVideo(ctx, &core.PublishVideoReq{
+		Title:       title,
+		CoverUrl:    coverUrl,
+		PlayUrl:     videoUrl,
+		Description: desc,
+		UserId:      userId,
+	})
+	if err != nil {
+		return 0, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return 0, err
+	}
+	return resp.VideoId, nil
+}
+
+func (r *CoreAdapterImpl) GetVideoById(ctx context.Context, videoId int64) (*biz.Video, error) {
+	resp, err := r.video.GetVideoById(ctx, &core.GetVideoByIdReq{
+		VideoId: videoId,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	video := resp.Video
+	author := video.Author
+	retVideo := &biz.Video{
+		ID: video.Id,
+		Author: &biz.VideoAuthor{
+			ID:          author.Id,
+			Name:        author.Name,
+			Avatar:      author.Avatar,
+			IsFollowing: author.IsFollowing != 0,
+		},
+		PlayUrl:       video.PlayUrl,
+		CoverUrl:      video.CoverUrl,
+		FavoriteCount: video.FavoriteCount,
+		CommentCount:  video.CommentCount,
+		IsFavorite:    video.IsFavorite != 0,
+		Title:         video.Title,
+	}
+	return retVideo, nil
+}

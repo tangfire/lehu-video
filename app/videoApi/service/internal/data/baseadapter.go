@@ -160,6 +160,29 @@ func (r *baseAdapterImpl) PreSign4PublicUpload(ctx context.Context, hash, fileTy
 	return resp.FileId, resp.Url, nil
 }
 
+func (r *baseAdapterImpl) PreSign4Upload(ctx context.Context, hash, fileType, fileName string, size, expireSeconds int64) (int64, string, error) {
+	fileCtx := &base.FileContext{
+		Domain:        DomainName,
+		BizName:       BizName,
+		Hash:          hash,
+		FileType:      fileType,
+		Size:          size,
+		ExpireSeconds: expireSeconds,
+		Filename:      fileName,
+	}
+	resp, err := r.file.PreSignPut(ctx, &base.PreSignPutReq{
+		FileContext: fileCtx,
+	})
+	if err != nil {
+		return 0, "", err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return 0, "", err
+	}
+	return resp.FileId, resp.Url, nil
+}
+
 func (r *baseAdapterImpl) ReportPublicUploaded(ctx context.Context, fileId int64) (string, error) {
 	fileCtx := &base.FileContext{
 		Domain:        DomainName,
@@ -180,6 +203,28 @@ func (r *baseAdapterImpl) ReportPublicUploaded(ctx context.Context, fileId int64
 	}
 	return resp.Url, nil
 }
+
+func (r *baseAdapterImpl) ReportUploaded(ctx context.Context, fileId int64) (string, error) {
+	fileCtx := &base.FileContext{
+		Domain:        DomainName,
+		BizName:       BizName,
+		FileId:        fileId,
+		ExpireSeconds: 7200,
+	}
+	resp, err := r.file.ReportUploaded(ctx, &base.ReportUploadedReq{
+		FileContext: fileCtx,
+	})
+
+	if err != nil {
+		return "", err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return "", err
+	}
+	return resp.Url, nil
+}
+
 func (r *baseAdapterImpl) GetFileInfoById(ctx context.Context, fileId int64) (*biz.FileInfo, error) {
 	resp, err := r.file.GetFileInfoById(ctx, &base.GetFileInfoByIdReq{
 		FileId:     fileId,
@@ -198,5 +243,4 @@ func (r *baseAdapterImpl) GetFileInfoById(ctx context.Context, fileId int64) (*b
 		Hash:       resp.Hash,
 	}
 	return ret, nil
-
 }

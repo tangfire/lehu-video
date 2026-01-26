@@ -2,34 +2,135 @@ package biz
 
 import (
 	"context"
+	"errors"
+	"time"
+
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
-	pb "lehu-video/api/videoCore/service/v1"
-	"lehu-video/app/videoCore/service/internal/pkg/utils"
-	"time"
 )
 
+// ============ Command/Query 结构体定义 ============
+
+// CreateCommentCommand 创建评论命令
+type CreateCommentCommand struct {
+	VideoID     int64
+	UserID      int64
+	ParentID    int64
+	ReplyUserID int64
+	Content     string
+}
+
+// CreateCommentResult 创建评论结果
+type CreateCommentResult struct {
+	CommentID int64
+	CreatedAt time.Time
+}
+
+// RemoveCommentCommand 删除评论命令
+type RemoveCommentCommand struct {
+	CommentID int64
+	UserID    int64
+}
+
+// RemoveCommentResult 删除评论结果
+type RemoveCommentResult struct{}
+
+// ListVideoCommentsQuery 查询视频评论列表
+type ListVideoCommentsQuery struct {
+	VideoID      int64
+	PageStats    PageStats
+	WithChildren bool // 是否加载子评论
+}
+
+// ListVideoCommentsResult 视频评论列表结果
+type ListVideoCommentsResult struct {
+	Comments []*Comment
+	Total    int64
+}
+
+// ListChildCommentsQuery 查询子评论列表
+type ListChildCommentsQuery struct {
+	ParentID  int64
+	PageStats PageStats
+}
+
+// ListChildCommentsResult 子评论列表结果
+type ListChildCommentsResult struct {
+	Comments []*Comment
+	Total    int64
+}
+
+// GetCommentQuery 获取评论详情查询
+type GetCommentQuery struct {
+	CommentID int64
+}
+
+// GetCommentResult 获取评论详情结果
+type GetCommentResult struct {
+	Comment *Comment
+}
+
+// CountVideoCommentsQuery 统计视频评论数查询
+type CountVideoCommentsQuery struct {
+	VideoIDs []int64
+}
+
+// CountVideoCommentsResult 统计视频评论数结果
+type CountVideoCommentsResult struct {
+	Counts map[int64]int64
+}
+
+// CountUserCommentsQuery 统计用户评论数查询
+type CountUserCommentsQuery struct {
+	UserIDs []int64
+}
+
+// CountUserCommentsResult 统计用户评论数结果
+type CountUserCommentsResult struct {
+	Counts map[int64]int64
+}
+
+// ============ 业务模型 ============
+
+// Comment 业务层评论模型
 type Comment struct {
-	Id            int64
-	VideoId       int64
-	UserId        int64
-	ParentId      int64
-	ToUserId      int64
-	Content       string
-	Date          string
-	CreateTime    time.Time
-	Comments      []*Comment // 子评论
-	ChildNumbers  int64      // 子评论个数
-	FirstComments []*Comment // 最初的x条子评论
+	ID          int64
+	VideoID     int64
+	UserID      int64
+	ParentID    int64
+	ReplyUserID int64
+	Content     string
+	CreateTime  time.Time
+	IsDeleted   bool
+
+	// 嵌套的子评论（根据需要加载）
+	ChildComments []*Comment
+	ChildCount    int64
 }
 
+// CommentRepo 数据层接口
 type CommentRepo interface {
-	CreateComment(ctx context.Context, comment *Comment) error
-	RemoveComment(ctx context.Context, comment *Comment) error
-	ListCommentByVideoId(ctx context.Context, videoId int64, page int32, size int32) (int64, []*Comment, error)
-	ListChildCommentById(ctx context.Context, commentId int64, page int32, size int32) (int64, []*Comment, error)
+	// 基础CRUD
+	Create(ctx context.Context, comment *Comment) error
+	GetByID(ctx context.Context, id int64) (*Comment, error)
+	Update(ctx context.Context, comment *Comment) error
+	Delete(ctx context.Context, id int64, userID int64) error
+	SoftDelete(ctx context.Context, id int64, userID int64) error
+
+	// 简单查询
+	FindByCondition(ctx context.Context, condition map[string]interface{}) ([]*Comment, error)
+	CountByCondition(ctx context.Context, condition map[string]interface{}) (int64, error)
+
+	// 批量查询
+	FindByIDs(ctx context.Context, ids []int64) ([]*Comment, error)
+	CountByVideoIDs(ctx context.Context, videoIDs []int64) (map[int64]int64, error)
+	CountByUserIDs(ctx context.Context, userIDs []int64) (map[int64]int64, error)
+
+	// 新增：按父评论ID分组计数
+	CountGroupByParentID(ctx context.Context, parentIDs []int64) (map[int64]int64, error)
 }
 
+// CommentUsecase 业务逻辑层
 type CommentUsecase struct {
 	repo CommentRepo
 	log  *log.Helper
@@ -42,76 +143,287 @@ func NewCommentUsecase(repo CommentRepo, logger log.Logger) *CommentUsecase {
 	}
 }
 
-func (uc *CommentUsecase) CreateComment(ctx context.Context, req *pb.CreateCommentReq) (*pb.CreateCommentResp, error) {
-	comment := &Comment{
-		Id:            int64(uuid.New().ID()),
-		VideoId:       req.VideoId,
-		UserId:        req.UserId,
-		ParentId:      req.ParentId,
-		ToUserId:      0,
-		Content:       req.Content,
-		Date:          time.Now().Format(time.DateTime),
-		CreateTime:    time.Now(),
-		Comments:      nil,
-		ChildNumbers:  0,
-		FirstComments: nil,
+// CreateComment 创建评论
+func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentCommand) (*CreateCommentResult, error) {
+	// 1. 参数验证
+	if cmd.VideoID <= 0 || cmd.UserID <= 0 || cmd.Content == "" {
+		return nil, ErrInvalidParams
 	}
-	err := uc.repo.CreateComment(ctx, comment)
+
+	// 2. 构建评论对象
+	commentID := int64(uuid.New().ID())
+	now := time.Now()
+	comment := &Comment{
+		ID:          commentID,
+		VideoID:     cmd.VideoID,
+		UserID:      cmd.UserID,
+		ParentID:    cmd.ParentID,
+		ReplyUserID: cmd.ReplyUserID,
+		Content:     cmd.Content,
+		CreateTime:  now,
+		IsDeleted:   false,
+	}
+
+	// 3. 如果parentID > 0，验证父评论是否存在
+	if cmd.ParentID > 0 {
+		parentComment, err := uc.repo.GetByID(ctx, cmd.ParentID)
+		if err != nil {
+			return nil, err
+		}
+		if parentComment == nil || parentComment.IsDeleted {
+			return nil, ErrParentCommentNotFound
+		}
+	}
+
+	// 4. 保存评论
+	err := uc.repo.Create(ctx, comment)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.CreateCommentResp{
-		Meta: utils.GetSuccessMeta(),
+
+	return &CreateCommentResult{
+		CommentID: commentID,
+		CreatedAt: now,
 	}, nil
 }
 
-func (uc *CommentUsecase) RemoveComment(ctx context.Context, req *pb.RemoveCommentReq) (*pb.RemoveCommentResp, error) {
-	comment := &Comment{
-		Id:     req.CommentId,
-		UserId: req.UserId,
-	}
-	err := uc.repo.RemoveComment(ctx, comment)
+// RemoveComment 删除评论
+func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentCommand) (*RemoveCommentResult, error) {
+	// 1. 验证评论是否存在且属于该用户
+	comment, err := uc.repo.GetByID(ctx, cmd.CommentID)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.RemoveCommentResp{
-		Meta: utils.GetSuccessMeta(),
+	if comment == nil {
+		return nil, ErrCommentNotFound
+	}
+
+	// 2. 验证权限（只能删除自己的评论）
+	if comment.UserID != cmd.UserID {
+		return nil, ErrNoPermission
+	}
+
+	// 3. 删除评论（软删除）
+	err = uc.repo.SoftDelete(ctx, cmd.CommentID, cmd.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RemoveCommentResult{}, nil
+}
+
+// ListVideoComments 获取视频评论列表
+func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVideoCommentsQuery) (*ListVideoCommentsResult, error) {
+	// 1. 参数验证
+	if query.VideoID <= 0 {
+		return nil, ErrInvalidParams
+	}
+
+	// 2. 构建查询条件（一级评论）
+	condition := map[string]interface{}{
+		"video_id":   query.VideoID,
+		"parent_id":  0,
+		"is_deleted": false,
+		"limit":      query.PageStats.PageSize,
+		"offset":     (query.PageStats.Page - 1) * query.PageStats.PageSize,
+		"order_by":   "created_at DESC",
+	}
+
+	// 3. 查询一级评论
+	comments, err := uc.repo.FindByCondition(ctx, condition)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. 查询总数
+	countCondition := map[string]interface{}{
+		"video_id":   query.VideoID,
+		"parent_id":  0,
+		"is_deleted": false,
+	}
+	total, err := uc.repo.CountByCondition(ctx, countCondition)
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. 如果需要子评论，批量加载
+	if query.WithChildren && len(comments) > 0 {
+		err = uc.loadChildComments(ctx, comments)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ListVideoCommentsResult{
+		Comments: comments,
+		Total:    total,
 	}, nil
 }
 
-func (uc *CommentUsecase) ListComment4Video(ctx context.Context, req *pb.ListComment4VideoReq) (*pb.ListComment4VideoResp, error) {
-	total, commentList, err := uc.repo.ListCommentByVideoId(ctx, req.VideoId, req.PageStats.Page, req.PageStats.Size)
+// ListChildComments 获取子评论列表
+func (uc *CommentUsecase) ListChildComments(ctx context.Context, query *ListChildCommentsQuery) (*ListChildCommentsResult, error) {
+	// 1. 参数验证
+	if query.ParentID <= 0 {
+		return nil, ErrInvalidParams
+	}
+
+	// 2. 验证父评论是否存在
+	parent, err := uc.repo.GetByID(ctx, query.ParentID)
 	if err != nil {
 		return nil, err
 	}
-	var retList []*pb.Comment
-	for _, comment := range commentList {
-		retList = append(retList, &pb.Comment{
-			Id:         comment.Id,
-			VideoId:    comment.VideoId,
-			Content:    comment.Content,
-			Date:       comment.Date,
-			ReplyCount: "",
-			UserId:     comment.UserId,
-			ParentId:   comment.ParentId,
-			Comments:   nil,
-		})
+	if parent == nil || parent.IsDeleted {
+		return nil, ErrParentCommentNotFound
 	}
-	return &pb.ListComment4VideoResp{
-		Meta:        utils.GetSuccessMeta(),
-		CommentList: retList,
-		PageStats:   &pb.PageStatsResp{Total: int32(total)},
+
+	// 3. 构建查询条件
+	condition := map[string]interface{}{
+		"parent_id":  query.ParentID,
+		"is_deleted": false,
+		"limit":      query.PageStats.PageSize,
+		"offset":     (query.PageStats.Page - 1) * query.PageStats.PageSize,
+		"order_by":   "created_at ASC",
+	}
+
+	// 4. 查询子评论
+	comments, err := uc.repo.FindByCondition(ctx, condition)
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. 查询总数
+	countCondition := map[string]interface{}{
+		"parent_id":  query.ParentID,
+		"is_deleted": false,
+	}
+	total, err := uc.repo.CountByCondition(ctx, countCondition)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ListChildCommentsResult{
+		Comments: comments,
+		Total:    total,
 	}, nil
 }
-func (uc *CommentUsecase) ListChildComment4Comment(ctx context.Context, req *pb.ListChildComment4CommentReq) (*pb.ListChildComment4CommentResp, error) {
-	return &pb.ListChildComment4CommentResp{}, nil
+
+// GetCommentByID 根据ID获取评论
+func (uc *CommentUsecase) GetCommentByID(ctx context.Context, query *GetCommentQuery) (*GetCommentResult, error) {
+	// 1. 参数验证
+	if query.CommentID <= 0 {
+		return nil, ErrInvalidParams
+	}
+
+	// 2. 查询评论
+	comment, err := uc.repo.GetByID(ctx, query.CommentID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. 如果评论已删除，返回特定错误
+	if comment != nil && comment.IsDeleted {
+		return nil, ErrCommentNotFound
+	}
+
+	return &GetCommentResult{
+		Comment: comment,
+	}, nil
 }
-func (uc *CommentUsecase) GetCommentById(ctx context.Context, req *pb.GetCommentByIdReq) (*pb.GetCommentByIdResp, error) {
-	return &pb.GetCommentByIdResp{}, nil
+
+// CountVideoComments 统计视频评论数
+func (uc *CommentUsecase) CountVideoComments(ctx context.Context, query *CountVideoCommentsQuery) (*CountVideoCommentsResult, error) {
+	if len(query.VideoIDs) == 0 {
+		return &CountVideoCommentsResult{
+			Counts: map[int64]int64{},
+		}, nil
+	}
+
+	// 批量统计
+	counts, err := uc.repo.CountByVideoIDs(ctx, query.VideoIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CountVideoCommentsResult{
+		Counts: counts,
+	}, nil
 }
-func (uc *CommentUsecase) CountComment4Video(ctx context.Context, req *pb.CountComment4VideoReq) (*pb.CountComment4VideoResp, error) {
-	return &pb.CountComment4VideoResp{}, nil
+
+// CountUserComments 统计用户评论数
+func (uc *CommentUsecase) CountUserComments(ctx context.Context, query *CountUserCommentsQuery) (*CountUserCommentsResult, error) {
+	if len(query.UserIDs) == 0 {
+		return &CountUserCommentsResult{
+			Counts: map[int64]int64{},
+		}, nil
+	}
+
+	// 批量统计
+	counts, err := uc.repo.CountByUserIDs(ctx, query.UserIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CountUserCommentsResult{
+		Counts: counts,
+	}, nil
 }
-func (uc *CommentUsecase) CountComment4User(ctx context.Context, req *pb.CountComment4UserReq) (*pb.CountComment4UserResp, error) {
-	return &pb.CountComment4UserResp{}, nil
+
+// loadChildComments 批量加载子评论
+func (uc *CommentUsecase) loadChildComments(ctx context.Context, parentComments []*Comment) error {
+	if len(parentComments) == 0 {
+		return nil
+	}
+
+	// 1. 收集父评论ID
+	parentIDs := make([]int64, len(parentComments))
+	for i, comment := range parentComments {
+		parentIDs[i] = comment.ID
+	}
+
+	// 2. 批量查询子评论数量
+	childCounts, err := uc.repo.CountGroupByParentID(ctx, parentIDs)
+	if err != nil {
+		return err
+	}
+
+	// 3. 批量查询子评论
+	childComments, err := uc.repo.FindByCondition(ctx, map[string]interface{}{
+		"parent_id":  parentIDs,
+		"is_deleted": false,
+		"order_by":   "created_at ASC",
+	})
+	if err != nil {
+		return err
+	}
+
+	// 4. 按父评论ID分组
+	childCommentsMap := make(map[int64][]*Comment)
+	for _, child := range childComments {
+		childCommentsMap[child.ParentID] = append(childCommentsMap[child.ParentID], child)
+	}
+
+	// 5. 组装数据
+	for _, parent := range parentComments {
+		if count, exists := childCounts[parent.ID]; exists {
+			parent.ChildCount = count
+		}
+		if children, exists := childCommentsMap[parent.ID]; exists {
+			// 限制每个父评论只显示前5条子评论
+			limit := 5
+			if len(children) < limit {
+				limit = len(children)
+			}
+			parent.ChildComments = children[:limit]
+		}
+	}
+
+	return nil
 }
+
+// 错误定义
+var (
+	ErrInvalidParams         = errors.New("invalid parameters")
+	ErrCommentNotFound       = errors.New("comment not found")
+	ErrParentCommentNotFound = errors.New("parent comment not found")
+	ErrNoPermission          = errors.New("no permission")
+)

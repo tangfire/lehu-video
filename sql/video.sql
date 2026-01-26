@@ -150,3 +150,29 @@ CREATE TABLE `file_shortvideo_public_id_2` LIKE `file`;
 CREATE TABLE `file_shortvideo_public_id_3` LIKE `file`;
 CREATE TABLE `file_shortvideo_public_id_4` LIKE `file`;
 
+
+
+CREATE TABLE IF NOT EXISTS `collection` (
+                                            id BIGINT PRIMARY KEY,
+                                            `user_id` BIGINT NOT NULL,
+                                            title VARCHAR(255) NOT NULL,
+                                            description TEXT NOT NULL,
+                                            is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+                                            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                            INDEX `user_id_idx` (`user_id`, `is_deleted`),
+                                            INDEX `create_time_idx` (`created_at`),
+                                            INDEX `update_time_idx` (`updated_at`)
+);
+
+
+CREATE TABLE IF NOT EXISTS `collection_video` (
+                                                  id BIGINT PRIMARY KEY,
+                                                  collection_id BIGINT NOT NULL,
+                                                  user_id BIGINT NOT NULL,
+                                                  video_id BIGINT NOT NULL,
+                                                  is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+                                                  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                                  INDEX `collection_id_idx` (`collection_id`, `is_deleted`)
+);

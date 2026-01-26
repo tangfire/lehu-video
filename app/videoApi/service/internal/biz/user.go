@@ -11,7 +11,10 @@ import (
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
-type RegisterReq struct {
+// ✅ API层协调服务使用更通用的Input/Output模式
+// 因为这些方法通常是协调多个下游服务的，不是简单的命令或查询
+
+type RegisterInput struct {
 	Mobile   string
 	Email    string
 	Password string
@@ -19,30 +22,30 @@ type RegisterReq struct {
 	Code     string
 }
 
-type RegisterResp struct {
+type RegisterOutput struct {
 	UserId int64
 }
 
-type LoginReq struct {
+type LoginInput struct {
 	Mobile   string
 	Email    string
 	Password string
 }
 
-type LoginResp struct {
+type LoginOutput struct {
 	Token string
 	User  *UserInfo
 }
 
-type GetUserInfoReq struct {
+type GetUserInfoInput struct {
 	UserId int64
 }
 
-type GetUserInfoResp struct {
+type GetUserInfoOutput struct {
 	User *UserInfo
 }
 
-type UpdateUserInfoReq struct {
+type UpdateUserInfoInput struct {
 	UserId          int64
 	Name            string
 	Avatar          string
@@ -50,11 +53,11 @@ type UpdateUserInfoReq struct {
 	Signature       string
 }
 
-type UpdateUserInfoResp struct {
+type UpdateUserInfoOutput struct {
 	// 更新成功不需要额外数据
 }
 
-type BindUserVoucherReq struct {
+type BindUserVoucherInput struct {
 	UserId      int64
 	VoucherType string // email or phone
 	Voucher     string // 具体的邮箱或手机号
@@ -62,14 +65,14 @@ type BindUserVoucherReq struct {
 	Code        string
 }
 
-type BindUserVoucherResp struct{}
+type BindUserVoucherOutput struct{}
 
-type UnbindUserVoucherReq struct {
+type UnbindUserVoucherInput struct {
 	UserId      int64
 	VoucherType string // email or phone
 }
 
-type UnbindUserVoucherResp struct{}
+type UnbindUserVoucherOutput struct{}
 
 // 用户信息结构体
 type UserInfo struct {
@@ -91,7 +94,8 @@ func NewUserUsecase(base BaseAdapter, core CoreAdapter, logger log.Logger) *User
 	return &UserUsecase{base: base, core: core, log: log.NewHelper(logger)}
 }
 
-func (uc *UserUsecase) GetVerificationCode(ctx context.Context) (int64, error) {
+// ✅ API层方法通常以名词+动词或动名词形式命名
+func (uc *UserUsecase) GenerateVerificationCode(ctx context.Context) (int64, error) {
 	// 默认生成6位数字验证码，10分钟过期
 	codeId, err := uc.base.CreateVerificationCode(ctx, 6, 60*10)
 	if err != nil {
@@ -100,15 +104,15 @@ func (uc *UserUsecase) GetVerificationCode(ctx context.Context) (int64, error) {
 	return codeId, nil
 }
 
-func (uc *UserUsecase) Register(ctx context.Context, req *RegisterReq) (*RegisterResp, error) {
+func (uc *UserUsecase) ProcessRegistration(ctx context.Context, input *RegisterInput) (*RegisterOutput, error) {
 	// 1. 验证验证码
-	err := uc.base.ValidateVerificationCode(ctx, req.CodeId, req.Code)
+	err := uc.base.ValidateVerificationCode(ctx, input.CodeId, input.Code)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2. 注册账户
-	accountId, err := uc.base.Register(ctx, req.Mobile, req.Email, req.Password)
+	accountId, err := uc.base.Register(ctx, input.Mobile, input.Email, input.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -116,26 +120,26 @@ func (uc *UserUsecase) Register(ctx context.Context, req *RegisterReq) (*Registe
 	// 3. 创建用户信息
 	// TODO: 这里存在分布式事务问题，需要处理注册成功但创建用户失败的情况
 	// 可以考虑引入Saga模式或本地消息表等方式解决
-	userId, err := uc.core.CreateUser(ctx, req.Mobile, req.Email, accountId)
+	userId, err := uc.core.CreateUser(ctx, input.Mobile, input.Email, accountId)
 	if err != nil {
 		// 如果创建用户失败，可能需要回滚账户注册
 		// 这里需要根据具体业务需求处理
 		uc.log.Error("注册成功但创建用户失败",
 			"accountId", accountId,
 			"error", err,
-			"mobile", req.Mobile,
-			"email", req.Email)
+			"mobile", input.Mobile,
+			"email", input.Email)
 		return nil, err
 	}
 
-	return &RegisterResp{
+	return &RegisterOutput{
 		UserId: userId,
 	}, nil
 }
 
-func (uc *UserUsecase) Login(ctx context.Context, req *LoginReq) (*LoginResp, error) {
+func (uc *UserUsecase) AuthenticateUser(ctx context.Context, input *LoginInput) (*LoginOutput, error) {
 	// 1. 验证账户
-	accountId, err := uc.base.CheckAccount(ctx, req.Mobile, req.Email, req.Password)
+	accountId, err := uc.base.CheckAccount(ctx, input.Mobile, input.Email, input.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +157,7 @@ func (uc *UserUsecase) Login(ctx context.Context, req *LoginReq) (*LoginResp, er
 		return nil, err
 	}
 
-	return &LoginResp{
+	return &LoginOutput{
 		Token: token,
 		User:  user,
 	}, nil
@@ -174,26 +178,26 @@ func (uc *UserUsecase) setToken2Header(ctx context.Context, claim *claims.Claims
 	return "", jwt.ErrWrongContext
 }
 
-func (uc *UserUsecase) GetUserInfo(ctx context.Context, req *GetUserInfoReq) (*GetUserInfoResp, error) {
+func (uc *UserUsecase) RetrieveUserInfo(ctx context.Context, input *GetUserInfoInput) (*GetUserInfoOutput, error) {
 	// TODO: 这里需要获取当前登录用户的ID
 	// 通常从context中获取jwt claims
 	// 暂时返回未实现错误
 	return nil, errors.New("not implemented")
 }
 
-func (uc *UserUsecase) UpdateUserInfo(ctx context.Context, req *UpdateUserInfoReq) (*UpdateUserInfoResp, error) {
+func (uc *UserUsecase) UpdateUserProfile(ctx context.Context, input *UpdateUserInfoInput) (*UpdateUserInfoOutput, error) {
 	// 调用核心服务更新用户信息
-	err := uc.core.UpdateUserInfo(ctx, req.UserId, req.Name, req.Avatar, req.BackgroundImage, req.Signature)
+	err := uc.core.UpdateUserInfo(ctx, input.UserId, input.Name, input.Avatar, input.BackgroundImage, input.Signature)
 	if err != nil {
 		return nil, err
 	}
 
-	return &UpdateUserInfoResp{}, nil
+	return &UpdateUserInfoOutput{}, nil
 }
 
-func (uc *UserUsecase) BindUserVoucher(ctx context.Context, req *BindUserVoucherReq) (*BindUserVoucherResp, error) {
+func (uc *UserUsecase) BindUserVoucher(ctx context.Context, input *BindUserVoucherInput) (*BindUserVoucherOutput, error) {
 	// 1. 验证验证码
-	err := uc.base.ValidateVerificationCode(ctx, req.CodeId, req.Code)
+	err := uc.base.ValidateVerificationCode(ctx, input.CodeId, input.Code)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +207,7 @@ func (uc *UserUsecase) BindUserVoucher(ctx context.Context, req *BindUserVoucher
 	return nil, errors.New("not implemented")
 }
 
-func (uc *UserUsecase) UnbindUserVoucher(ctx context.Context, req *UnbindUserVoucherReq) (*UnbindUserVoucherResp, error) {
+func (uc *UserUsecase) UnbindUserVoucher(ctx context.Context, input *UnbindUserVoucherInput) (*UnbindUserVoucherOutput, error) {
 	// 调用基础服务解绑凭证
 	// TODO: 需要实现基础服务的解绑接口
 	return nil, errors.New("not implemented")

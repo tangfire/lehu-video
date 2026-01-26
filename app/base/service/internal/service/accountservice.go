@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"errors" // ✅ 补充缺失的errors导入
+	"errors"
 	pb "lehu-video/api/base/service/v1"
 	"lehu-video/app/base/service/internal/biz"
 	"lehu-video/app/base/service/internal/pkg/utils"
@@ -18,15 +18,15 @@ func NewAccountServiceService(uc *biz.AccountUsecase) *AccountServiceService {
 }
 
 func (s *AccountServiceService) Register(ctx context.Context, req *pb.RegisterReq) (*pb.RegisterResp, error) {
-	bizReq := &biz.RegisterRequest{
+	// ✅ 改为Command
+	cmd := &biz.RegisterCommand{
 		Mobile:   req.Mobile,
 		Email:    req.Email,
 		Password: req.Password,
 	}
 
-	resp, err := s.uc.Register(ctx, bizReq)
+	result, err := s.uc.Register(ctx, cmd)
 	if err != nil {
-		// ✅ 重要：返回带有错误信息的Meta，而不是直接返回err
 		return &pb.RegisterResp{
 			Meta: utils.GetMetaWithError(err),
 		}, nil
@@ -34,21 +34,21 @@ func (s *AccountServiceService) Register(ctx context.Context, req *pb.RegisterRe
 
 	return &pb.RegisterResp{
 		Meta:      utils.GetSuccessMeta(),
-		AccountId: resp.AccountId,
+		AccountId: result.AccountId,
 	}, nil
 }
 
 func (s *AccountServiceService) CheckAccount(ctx context.Context, req *pb.CheckAccountReq) (*pb.CheckAccountResp, error) {
-	bizReq := &biz.CheckAccountRequest{
+	// ✅ 改为Query
+	query := &biz.CheckAccountQuery{
 		AccountId: req.AccountId,
 		Mobile:    req.Mobile,
 		Email:     req.Email,
 		Password:  req.Password,
 	}
 
-	resp, err := s.uc.CheckAccount(ctx, bizReq)
+	result, err := s.uc.CheckAccount(ctx, query)
 	if err != nil {
-		// ✅ 重要：返回带有错误信息的Meta，而不是直接返回err
 		return &pb.CheckAccountResp{
 			Meta: utils.GetMetaWithError(err),
 		}, nil
@@ -56,7 +56,7 @@ func (s *AccountServiceService) CheckAccount(ctx context.Context, req *pb.CheckA
 
 	return &pb.CheckAccountResp{
 		Meta:      utils.GetSuccessMeta(),
-		AccountId: resp.AccountId,
+		AccountId: result.AccountId,
 	}, nil
 }
 
@@ -68,21 +68,20 @@ func (s *AccountServiceService) Bind(ctx context.Context, req *pb.BindReq) (*pb.
 	case pb.VoucherType_VOUCHER_PHONE:
 		voucherType = biz.VoucherTypePhone
 	default:
-		// ✅ 返回错误Meta而不是直接返回error
 		return &pb.BindResp{
 			Meta: utils.GetMetaWithError(errors.New("invalid voucher type")),
 		}, nil
 	}
 
-	bizReq := &biz.BindRequest{
+	// ✅ 改为Command
+	cmd := &biz.BindCommand{
 		AccountId:   req.AccountId,
 		VoucherType: voucherType,
 		Voucher:     req.Voucher,
 	}
 
-	_, err := s.uc.Bind(ctx, bizReq)
+	_, err := s.uc.Bind(ctx, cmd)
 	if err != nil {
-		// ✅ 返回错误Meta而不是直接返回error
 		return &pb.BindResp{
 			Meta: utils.GetMetaWithError(err),
 		}, nil
@@ -101,20 +100,19 @@ func (s *AccountServiceService) Unbind(ctx context.Context, req *pb.UnbindReq) (
 	case pb.VoucherType_VOUCHER_PHONE:
 		voucherType = biz.VoucherTypePhone
 	default:
-		// ✅ 返回错误Meta而不是直接返回error
 		return &pb.UnbindResp{
 			Meta: utils.GetMetaWithError(errors.New("invalid voucher type")),
 		}, nil
 	}
 
-	bizReq := &biz.UnbindRequest{
+	// ✅ 改为Command
+	cmd := &biz.UnbindCommand{
 		AccountId:   req.AccountId,
 		VoucherType: voucherType,
 	}
 
-	_, err := s.uc.Unbind(ctx, bizReq)
+	_, err := s.uc.Unbind(ctx, cmd)
 	if err != nil {
-		// ✅ 返回错误Meta而不是直接返回error
 		return &pb.UnbindResp{
 			Meta: utils.GetMetaWithError(err),
 		}, nil

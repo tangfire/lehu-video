@@ -75,6 +75,84 @@ func (f *SlicingFile) SetTotalParts() *SlicingFile {
 	return f
 }
 
+// ✅ 查询操作使用Query/Result
+type CheckFileQuery struct {
+	File *File
+}
+
+type CheckFileResult struct {
+	Exists bool
+	FileId int64
+}
+
+// ✅ 命令操作使用Command/Result
+type PreSignGetQuery struct {
+	File *File
+}
+
+type PreSignGetResult struct {
+	Url string
+}
+
+type PreSignPutCommand struct {
+	File *File
+}
+
+type PreSignPutResult struct {
+	Url    string
+	FileId int64
+}
+
+type ReportUploadedCommand struct {
+	File *File
+}
+
+type ReportUploadedResult struct {
+	Url string
+}
+
+type PreSignSlicingPutCommand struct {
+	File *File
+}
+
+type PreSignSlicingPutResult struct {
+	SlicingFile *SlicingFile
+	Exists      bool
+	FileId      int64
+}
+
+type GetProgressRate4SlicingPutQuery struct {
+	UploadId string
+	File     *File
+}
+
+type GetProgressRate4SlicingPutResult struct {
+	Progress map[string]bool
+}
+
+type MergeFilePartsCommand struct {
+	UploadId string
+	File     *File
+}
+
+type MergeFilePartsResult struct{}
+
+type RemoveFileCommand struct {
+	File *File
+}
+
+type RemoveFileResult struct{}
+
+type GetFileInfoByIdQuery struct {
+	DomainName string
+	BizName    string
+	FileId     int64
+}
+
+type GetFileInfoByIdResult struct {
+	File *File
+}
+
 type FileRepo interface {
 	GetUploadedFileById(ctx context.Context, tableName string, id int64) (bool, *File, error)
 	GetUploadedFileByHash(ctx context.Context, tableName string, hash string) (bool, *File, error)
@@ -95,130 +173,148 @@ func NewFileUsecase(repo FileRepo, logger log.Logger, frh FileRepoHelper, minio 
 	return &FileUsecase{repo: repo, frh: frh, minio: minio, log: log.NewHelper(logger)}
 }
 
-func (uc *FileUsecase) CheckFileExistedAndGetFile(ctx context.Context, file *File) (bool, int64, error) {
-	tableName := uc.frh.GetTableNameByHash(file)
-	exist, retFile, err := uc.repo.GetUploadedFileByHash(ctx, tableName, file.Hash)
+func (uc *FileUsecase) CheckFileExistedAndGetFile(ctx context.Context, query *CheckFileQuery) (*CheckFileResult, error) {
+	tableName := uc.frh.GetTableNameByHash(query.File)
+	exist, retFile, err := uc.repo.GetUploadedFileByHash(ctx, tableName, query.File.Hash)
 	if err != nil {
-		return false, 0, err
+		return nil, err
 	}
 	if !exist {
-		return false, 0, nil
+		return &CheckFileResult{Exists: false, FileId: 0}, nil
 	}
-	return true, retFile.Id, nil
+	return &CheckFileResult{Exists: true, FileId: retFile.Id}, nil
 }
 
-func (uc *FileUsecase) PreSignGet(ctx context.Context, file *File) (string, error) {
-	tableName := uc.frh.GetTableNameById(file)
-	exist, retFile, err := uc.repo.GetUploadedFileById(ctx, tableName, file.Id)
+func (uc *FileUsecase) PreSignGet(ctx context.Context, query *PreSignGetQuery) (*PreSignGetResult, error) {
+	tableName := uc.frh.GetTableNameById(query.File)
+	exist, retFile, err := uc.repo.GetUploadedFileById(ctx, tableName, query.File.Id)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if !exist {
-		return "", nil
+		return &PreSignGetResult{Url: ""}, nil
 	}
-	url, err := uc.minio.PreSignGetUrl(ctx, retFile.DomainName, retFile.GetObjectName(), file.FileName, file.ExpireSeconds)
+	url, err := uc.minio.PreSignGetUrl(ctx, retFile.DomainName, retFile.GetObjectName(), query.File.FileName, query.File.ExpireSeconds)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return url, nil
+	return &PreSignGetResult{Url: url}, nil
 }
-func (uc *FileUsecase) PreSignPut(ctx context.Context, file *File) (string, int64, error) {
-	var err error
-	exist, fileId, err := uc.CheckFileExistedAndGetFile(ctx, file)
+
+func (uc *FileUsecase) PreSignPut(ctx context.Context, cmd *PreSignPutCommand) (*PreSignPutResult, error) {
+	checkQuery := &CheckFileQuery{File: cmd.File}
+	checkResult, err := uc.CheckFileExistedAndGetFile(ctx, checkQuery)
 	if err != nil {
-		return "", 0, err
+		return nil, err
 	}
-	if exist {
-		return "", fileId, nil
+	if checkResult.Exists {
+		return &PreSignPutResult{Url: "", FileId: checkResult.FileId}, nil
 	}
 
-	file.SetId()
-	err = uc.frh.AddFile(ctx, file)
+	cmd.File.SetId()
+	err = uc.frh.AddFile(ctx, cmd.File)
 	if err != nil {
-		return "", 0, err
+		return nil, err
 	}
 
-	url, err := uc.minio.PreSignPutUrl(ctx, file.DomainName, file.GetObjectName(), file.ExpireSeconds)
+	url, err := uc.minio.PreSignPutUrl(ctx, cmd.File.DomainName, cmd.File.GetObjectName(), cmd.File.ExpireSeconds)
 	if err != nil {
-		return "", 0, err
+		return nil, err
 	}
 
-	return url, file.Id, nil
+	return &PreSignPutResult{Url: url, FileId: cmd.File.Id}, nil
 }
-func (uc *FileUsecase) ReportUploaded(ctx context.Context, file *File) error {
 
-	tableName := uc.frh.GetTableNameById(file)
-	exist, retFile, err := uc.repo.GetFileById(ctx, tableName, file.Id)
+func (uc *FileUsecase) ReportUploaded(ctx context.Context, cmd *ReportUploadedCommand) (*ReportUploadedResult, error) {
+	tableName := uc.frh.GetTableNameById(cmd.File)
+	exist, retFile, err := uc.repo.GetFileById(ctx, tableName, cmd.File.Id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !exist {
-		return nil
+		return &ReportUploadedResult{Url: ""}, nil
 	}
 
 	hash, err := uc.minio.GetObjectHash(ctx, retFile.DomainName, retFile.GetObjectName())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	equals := retFile.CheckHash(hash)
 	if !equals && !strings.Contains(hash, "-") {
 		log.Context(ctx).Errorf("failed to validate hash of uploaded file, hash: %s, expected: %s", hash, retFile.Hash)
-		return errors.New("failed to validate hash of uploaded file")
+		return nil, errors.New("failed to validate hash of uploaded file")
 	}
 	retFile.SetUploaded()
 	err = uc.frh.UpdateFile(ctx, retFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+
+	// 生成获取文件的URL
+	getQuery := &PreSignGetQuery{File: cmd.File}
+	getResult, err := uc.PreSignGet(ctx, getQuery)
+	if err != nil {
+		return &ReportUploadedResult{Url: ""}, nil
+	}
+
+	return &ReportUploadedResult{Url: getResult.Url}, nil
 }
-func (uc *FileUsecase) PreSignSlicingPut(ctx context.Context, file *File) (*SlicingFile, error) {
-	exist, fileId, err := uc.CheckFileExistedAndGetFile(ctx, file)
+
+func (uc *FileUsecase) PreSignSlicingPut(ctx context.Context, cmd *PreSignSlicingPutCommand) (*PreSignSlicingPutResult, error) {
+	checkQuery := &CheckFileQuery{File: cmd.File}
+	checkResult, err := uc.CheckFileExistedAndGetFile(ctx, checkQuery)
 	if err != nil {
 		return nil, err
 	}
-	if exist {
-		return &SlicingFile{
-			File: &File{Id: fileId},
+	if checkResult.Exists {
+		return &PreSignSlicingPutResult{
+			Exists: true,
+			FileId: checkResult.FileId,
 		}, nil
 	}
 
-	file.SetId()
-	err = uc.frh.AddFile(ctx, file)
+	cmd.File.SetId()
+	err = uc.frh.AddFile(ctx, cmd.File)
 	if err != nil {
 		return nil, err
 	}
 
-	uploadId, err := uc.minio.CreateSlicingUpload(ctx, file.DomainName, file.GetObjectName(), minio.PutObjectOptions{})
+	uploadId, err := uc.minio.CreateSlicingUpload(ctx, cmd.File.DomainName, cmd.File.GetObjectName(), minio.PutObjectOptions{})
 	if err != nil {
 		return nil, err
 	}
-	slicingFile := NewSlicingFile(file)
+	slicingFile := NewSlicingFile(cmd.File)
 	slicingFile.UploadId = uploadId
 	slicingFile.SetTotalParts()
 	urlList := make([]string, slicingFile.TotalParts)
 	for i := 1; i <= int(slicingFile.TotalParts); i++ {
-		url, err := uc.minio.PreSignSlicingPutUrl(ctx, file.DomainName, file.GetObjectName(), uploadId, int64(i))
+		url, err := uc.minio.PreSignSlicingPutUrl(ctx, cmd.File.DomainName, cmd.File.GetObjectName(), uploadId, int64(i))
 		if err != nil {
 			return nil, err
 		}
 		urlList[i-1] = url
 	}
 	slicingFile.UploadUrl = urlList
-	return slicingFile, nil
+
+	return &PreSignSlicingPutResult{
+		SlicingFile: slicingFile,
+		Exists:      false,
+		FileId:      cmd.File.Id,
+	}, nil
 }
-func (uc *FileUsecase) GetProgressRate4SlicingPut(ctx context.Context, uploadId string, file *File) (map[string]bool, error) {
-	tableName := uc.frh.GetTableNameById(file)
-	exist, retFile, err := uc.repo.GetFileById(ctx, tableName, file.Id)
+
+func (uc *FileUsecase) GetProgressRate4SlicingPut(ctx context.Context, query *GetProgressRate4SlicingPutQuery) (*GetProgressRate4SlicingPutResult, error) {
+	tableName := uc.frh.GetTableNameById(query.File)
+	exist, retFile, err := uc.repo.GetFileById(ctx, tableName, query.File.Id)
 	if err != nil {
 		return nil, err
 	}
 	if !exist {
-		return nil, nil
+		return &GetProgressRate4SlicingPutResult{Progress: nil}, nil
 	}
 	sf := NewSlicingFile(retFile).SetTotalParts()
-	result, err := uc.minio.ListSlicingFileParts(ctx, retFile.DomainName, retFile.GetObjectName(), uploadId, sf.TotalParts)
+	result, err := uc.minio.ListSlicingFileParts(ctx, retFile.DomainName, retFile.GetObjectName(), query.UploadId, sf.TotalParts)
 	if err != nil {
 		return nil, err
 	}
@@ -232,29 +328,34 @@ func (uc *FileUsecase) GetProgressRate4SlicingPut(ctx context.Context, uploadId 
 		}
 	}
 
-	return res, nil
+	return &GetProgressRate4SlicingPutResult{Progress: res}, nil
 }
-func (uc *FileUsecase) MergeFileParts(ctx context.Context, uploadId string, file *File) error {
-	uploadResult, err := uc.GetProgressRate4SlicingPut(ctx, uploadId, file)
-	if err != nil {
-		return err
+
+func (uc *FileUsecase) MergeFileParts(ctx context.Context, cmd *MergeFilePartsCommand) (*MergeFilePartsResult, error) {
+	progressQuery := &GetProgressRate4SlicingPutQuery{
+		UploadId: cmd.UploadId,
+		File:     cmd.File,
 	}
-	if ok, _ := uc.checkSlicingFileUploaded(uploadResult); !ok {
-		return errors.New("not all parts uploaded")
+	progressResult, err := uc.GetProgressRate4SlicingPut(ctx, progressQuery)
+	if err != nil {
+		return nil, err
+	}
+	if ok, _ := uc.checkSlicingFileUploaded(progressResult.Progress); !ok {
+		return nil, errors.New("not all parts uploaded")
 	}
 
-	tableName := uc.frh.GetTableNameById(file)
-	exist, retFile, err := uc.repo.GetFileById(ctx, tableName, file.Id)
+	tableName := uc.frh.GetTableNameById(cmd.File)
+	exist, retFile, err := uc.repo.GetFileById(ctx, tableName, cmd.File.Id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !exist {
-		return nil
+		return &MergeFilePartsResult{}, nil
 	}
 	sf := NewSlicingFile(retFile).SetTotalParts()
-	result, err := uc.minio.ListSlicingFileParts(ctx, retFile.DomainName, retFile.GetObjectName(), uploadId, sf.TotalParts)
+	result, err := uc.minio.ListSlicingFileParts(ctx, retFile.DomainName, retFile.GetObjectName(), cmd.UploadId, sf.TotalParts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	parts := make([]minio.CompletePart, 0)
@@ -264,11 +365,19 @@ func (uc *FileUsecase) MergeFileParts(ctx context.Context, uploadId string, file
 			ETag:       result.ObjectParts[i].ETag,
 		})
 	}
-	err = uc.minio.MergeSlices(ctx, retFile.DomainName, retFile.GetObjectName(), uploadId, parts)
+	err = uc.minio.MergeSlices(ctx, retFile.DomainName, retFile.GetObjectName(), cmd.UploadId, parts)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+
+	// 报告上传完成
+	reportCmd := &ReportUploadedCommand{File: cmd.File}
+	_, err = uc.ReportUploaded(ctx, reportCmd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MergeFilePartsResult{}, nil
 }
 
 func (uc *FileUsecase) checkSlicingFileUploaded(res map[string]bool) (bool, string) {
@@ -287,19 +396,19 @@ func (uc *FileUsecase) checkSlicingFileUploaded(res map[string]bool) (bool, stri
 
 }
 
-func (uc *FileUsecase) RemoveFile(ctx context.Context, file *File) error {
-	err := uc.frh.RemoveFile(ctx, file)
+func (uc *FileUsecase) RemoveFile(ctx context.Context, cmd *RemoveFileCommand) (*RemoveFileResult, error) {
+	err := uc.frh.RemoveFile(ctx, cmd.File)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return &RemoveFileResult{}, nil
 }
 
-func (uc *FileUsecase) GetFileInfoById(ctx context.Context, domainName, bizName string, fileId int64) (*File, error) {
+func (uc *FileUsecase) GetFileInfoById(ctx context.Context, query *GetFileInfoByIdQuery) (*GetFileInfoByIdResult, error) {
 	file := &File{
-		Id:         fileId,
-		DomainName: domainName,
-		BizName:    bizName,
+		Id:         query.FileId,
+		DomainName: query.DomainName,
+		BizName:    query.BizName,
 	}
 	tableName := uc.frh.GetTableNameById(file)
 	exist, retFile, err := uc.repo.GetFileById(ctx, tableName, file.Id)
@@ -307,7 +416,7 @@ func (uc *FileUsecase) GetFileInfoById(ctx context.Context, domainName, bizName 
 		return nil, err
 	}
 	if !exist {
-		return nil, nil
+		return &GetFileInfoByIdResult{File: nil}, nil
 	}
-	return retFile, nil
+	return &GetFileInfoByIdResult{File: retFile}, nil
 }

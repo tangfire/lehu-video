@@ -801,7 +801,7 @@ func (x *RemoveVideoFromCollectionResp) GetMeta() *Metadata {
 	return nil
 }
 
-type ListVideoFromCollectionReq struct {
+type ListVideo4CollectionReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CollectionId  int64                  `protobuf:"varint,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
 	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
@@ -809,20 +809,20 @@ type ListVideoFromCollectionReq struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListVideoFromCollectionReq) Reset() {
-	*x = ListVideoFromCollectionReq{}
+func (x *ListVideo4CollectionReq) Reset() {
+	*x = ListVideo4CollectionReq{}
 	mi := &file_api_videoCore_service_v1_collection_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListVideoFromCollectionReq) String() string {
+func (x *ListVideo4CollectionReq) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListVideoFromCollectionReq) ProtoMessage() {}
+func (*ListVideo4CollectionReq) ProtoMessage() {}
 
-func (x *ListVideoFromCollectionReq) ProtoReflect() protoreflect.Message {
+func (x *ListVideo4CollectionReq) ProtoReflect() protoreflect.Message {
 	mi := &file_api_videoCore_service_v1_collection_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -834,26 +834,26 @@ func (x *ListVideoFromCollectionReq) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListVideoFromCollectionReq.ProtoReflect.Descriptor instead.
-func (*ListVideoFromCollectionReq) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListVideo4CollectionReq.ProtoReflect.Descriptor instead.
+func (*ListVideo4CollectionReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *ListVideoFromCollectionReq) GetCollectionId() int64 {
+func (x *ListVideo4CollectionReq) GetCollectionId() int64 {
 	if x != nil {
 		return x.CollectionId
 	}
 	return 0
 }
 
-func (x *ListVideoFromCollectionReq) GetPageStats() *PageStatsReq {
+func (x *ListVideo4CollectionReq) GetPageStats() *PageStatsReq {
 	if x != nil {
 		return x.PageStats
 	}
 	return nil
 }
 
-type ListVideoFromCollectionResp struct {
+type ListVideo4CollectionResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	VideoIdList   []int64                `protobuf:"varint,1,rep,packed,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
 	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
@@ -862,20 +862,20 @@ type ListVideoFromCollectionResp struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListVideoFromCollectionResp) Reset() {
-	*x = ListVideoFromCollectionResp{}
+func (x *ListVideo4CollectionResp) Reset() {
+	*x = ListVideo4CollectionResp{}
 	mi := &file_api_videoCore_service_v1_collection_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListVideoFromCollectionResp) String() string {
+func (x *ListVideo4CollectionResp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListVideoFromCollectionResp) ProtoMessage() {}
+func (*ListVideo4CollectionResp) ProtoMessage() {}
 
-func (x *ListVideoFromCollectionResp) ProtoReflect() protoreflect.Message {
+func (x *ListVideo4CollectionResp) ProtoReflect() protoreflect.Message {
 	mi := &file_api_videoCore_service_v1_collection_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -887,26 +887,26 @@ func (x *ListVideoFromCollectionResp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListVideoFromCollectionResp.ProtoReflect.Descriptor instead.
-func (*ListVideoFromCollectionResp) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListVideo4CollectionResp.ProtoReflect.Descriptor instead.
+func (*ListVideo4CollectionResp) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *ListVideoFromCollectionResp) GetVideoIdList() []int64 {
+func (x *ListVideo4CollectionResp) GetVideoIdList() []int64 {
 	if x != nil {
 		return x.VideoIdList
 	}
 	return nil
 }
 
-func (x *ListVideoFromCollectionResp) GetMeta() *Metadata {
+func (x *ListVideo4CollectionResp) GetMeta() *Metadata {
 	if x != nil {
 		return x.Meta
 	}
 	return nil
 }
 
-func (x *ListVideoFromCollectionResp) GetPageStats() *PageStatsResp {
+func (x *ListVideo4CollectionResp) GetPageStats() *PageStatsResp {
 	if x != nil {
 		return x.PageStats
 	}
@@ -1219,12 +1219,12 @@ const file_api_videoCore_service_v1_collection_proto_rawDesc = "" +
 	"\bvideo_id\x18\x02 \x01(\x03R\avideoId\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\x03R\x06userId\"W\n" +
 	"\x1dRemoveVideoFromCollectionResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\x88\x01\n" +
-	"\x1aListVideoFromCollectionReq\x12#\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\x85\x01\n" +
+	"\x17ListVideo4CollectionReq\x12#\n" +
 	"\rcollection_id\x18\x01 \x01(\x03R\fcollectionId\x12E\n" +
 	"\n" +
-	"page_stats\x18\x02 \x01(\v2&.api.videoCore.service.v1.PageStatsReqR\tpageStats\"\xc1\x01\n" +
-	"\x1bListVideoFromCollectionResp\x12\"\n" +
+	"page_stats\x18\x02 \x01(\v2&.api.videoCore.service.v1.PageStatsReqR\tpageStats\"\xbe\x01\n" +
+	"\x18ListVideo4CollectionResp\x12\"\n" +
 	"\rvideo_id_list\x18\x01 \x03(\x03R\vvideoIdList\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12F\n" +
 	"\n" +
@@ -1242,7 +1242,7 @@ const file_api_videoCore_service_v1_collection_proto_rawDesc = "" +
 	"\rvideo_id_list\x18\x01 \x03(\x03R\vvideoIdList\"\xa7\x01\n" +
 	"\x16CountCollect4VideoResp\x12U\n" +
 	"\fcount_result\x18\x01 \x03(\v22.api.videoCore.service.v1.CountCollect4VideoResultR\vcountResult\x126\n" +
-	"\x04meta\x18\x02 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta2\xbd\t\n" +
+	"\x04meta\x18\x02 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta2\xb6\t\n" +
 	"\x11CollectionService\x12q\n" +
 	"\x10CreateCollection\x12-.api.videoCore.service.v1.CreateCollectionReq\x1a..api.videoCore.service.v1.CreateCollectionResp\x12q\n" +
 	"\x10UpdateCollection\x12-.api.videoCore.service.v1.UpdateCollectionReq\x1a..api.videoCore.service.v1.UpdateCollectionResp\x12q\n" +
@@ -1250,8 +1250,8 @@ const file_api_videoCore_service_v1_collection_proto_rawDesc = "" +
 	"\x11GetCollectionById\x12..api.videoCore.service.v1.GetCollectionByIdReq\x1a/.api.videoCore.service.v1.GetCollectionByIdResp\x12k\n" +
 	"\x0eListCollection\x12+.api.videoCore.service.v1.ListCollectionReq\x1a,.api.videoCore.service.v1.ListCollectionResp\x12z\n" +
 	"\x13AddVideo2Collection\x120.api.videoCore.service.v1.AddVideo2CollectionReq\x1a1.api.videoCore.service.v1.AddVideo2CollectionResp\x12\x8c\x01\n" +
-	"\x19RemoveVideoFromCollection\x126.api.videoCore.service.v1.RemoveVideoFromCollectionReq\x1a7.api.videoCore.service.v1.RemoveVideoFromCollectionResp\x12\x83\x01\n" +
-	"\x14ListVideo2Collection\x124.api.videoCore.service.v1.ListVideoFromCollectionReq\x1a5.api.videoCore.service.v1.ListVideoFromCollectionResp\x12b\n" +
+	"\x19RemoveVideoFromCollection\x126.api.videoCore.service.v1.RemoveVideoFromCollectionReq\x1a7.api.videoCore.service.v1.RemoveVideoFromCollectionResp\x12}\n" +
+	"\x14ListVideo4Collection\x121.api.videoCore.service.v1.ListVideo4CollectionReq\x1a2.api.videoCore.service.v1.ListVideo4CollectionResp\x12b\n" +
 	"\vIsCollected\x12(.api.videoCore.service.v1.IsCollectedReq\x1a).api.videoCore.service.v1.IsCollectedResp\x12w\n" +
 	"\x12CountCollect4Video\x12/.api.videoCore.service.v1.CountCollect4VideoReq\x1a0.api.videoCore.service.v1.CountCollect4VideoRespBD\n" +
 	"\x18api.videoCore.service.v1P\x01Z&lehu-video/api/videoCore/service/v1;v1b\x06proto3"
@@ -1285,8 +1285,8 @@ var file_api_videoCore_service_v1_collection_proto_goTypes = []any{
 	(*AddVideo2CollectionResp)(nil),       // 12: api.videoCore.service.v1.AddVideo2CollectionResp
 	(*RemoveVideoFromCollectionReq)(nil),  // 13: api.videoCore.service.v1.RemoveVideoFromCollectionReq
 	(*RemoveVideoFromCollectionResp)(nil), // 14: api.videoCore.service.v1.RemoveVideoFromCollectionResp
-	(*ListVideoFromCollectionReq)(nil),    // 15: api.videoCore.service.v1.ListVideoFromCollectionReq
-	(*ListVideoFromCollectionResp)(nil),   // 16: api.videoCore.service.v1.ListVideoFromCollectionResp
+	(*ListVideo4CollectionReq)(nil),       // 15: api.videoCore.service.v1.ListVideo4CollectionReq
+	(*ListVideo4CollectionResp)(nil),      // 16: api.videoCore.service.v1.ListVideo4CollectionResp
 	(*IsCollectedReq)(nil),                // 17: api.videoCore.service.v1.IsCollectedReq
 	(*IsCollectedResp)(nil),               // 18: api.videoCore.service.v1.IsCollectedResp
 	(*CountCollect4VideoResult)(nil),      // 19: api.videoCore.service.v1.CountCollect4VideoResult
@@ -1308,9 +1308,9 @@ var file_api_videoCore_service_v1_collection_proto_depIdxs = []int32{
 	24, // 8: api.videoCore.service.v1.ListCollectionResp.page_stats:type_name -> api.videoCore.service.v1.PageStatsResp
 	22, // 9: api.videoCore.service.v1.AddVideo2CollectionResp.meta:type_name -> api.videoCore.service.v1.Metadata
 	22, // 10: api.videoCore.service.v1.RemoveVideoFromCollectionResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	23, // 11: api.videoCore.service.v1.ListVideoFromCollectionReq.page_stats:type_name -> api.videoCore.service.v1.PageStatsReq
-	22, // 12: api.videoCore.service.v1.ListVideoFromCollectionResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	24, // 13: api.videoCore.service.v1.ListVideoFromCollectionResp.page_stats:type_name -> api.videoCore.service.v1.PageStatsResp
+	23, // 11: api.videoCore.service.v1.ListVideo4CollectionReq.page_stats:type_name -> api.videoCore.service.v1.PageStatsReq
+	22, // 12: api.videoCore.service.v1.ListVideo4CollectionResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	24, // 13: api.videoCore.service.v1.ListVideo4CollectionResp.page_stats:type_name -> api.videoCore.service.v1.PageStatsResp
 	22, // 14: api.videoCore.service.v1.IsCollectedResp.meta:type_name -> api.videoCore.service.v1.Metadata
 	19, // 15: api.videoCore.service.v1.CountCollect4VideoResp.count_result:type_name -> api.videoCore.service.v1.CountCollect4VideoResult
 	22, // 16: api.videoCore.service.v1.CountCollect4VideoResp.meta:type_name -> api.videoCore.service.v1.Metadata
@@ -1321,7 +1321,7 @@ var file_api_videoCore_service_v1_collection_proto_depIdxs = []int32{
 	9,  // 21: api.videoCore.service.v1.CollectionService.ListCollection:input_type -> api.videoCore.service.v1.ListCollectionReq
 	11, // 22: api.videoCore.service.v1.CollectionService.AddVideo2Collection:input_type -> api.videoCore.service.v1.AddVideo2CollectionReq
 	13, // 23: api.videoCore.service.v1.CollectionService.RemoveVideoFromCollection:input_type -> api.videoCore.service.v1.RemoveVideoFromCollectionReq
-	15, // 24: api.videoCore.service.v1.CollectionService.ListVideo2Collection:input_type -> api.videoCore.service.v1.ListVideoFromCollectionReq
+	15, // 24: api.videoCore.service.v1.CollectionService.ListVideo4Collection:input_type -> api.videoCore.service.v1.ListVideo4CollectionReq
 	17, // 25: api.videoCore.service.v1.CollectionService.IsCollected:input_type -> api.videoCore.service.v1.IsCollectedReq
 	20, // 26: api.videoCore.service.v1.CollectionService.CountCollect4Video:input_type -> api.videoCore.service.v1.CountCollect4VideoReq
 	2,  // 27: api.videoCore.service.v1.CollectionService.CreateCollection:output_type -> api.videoCore.service.v1.CreateCollectionResp
@@ -1331,7 +1331,7 @@ var file_api_videoCore_service_v1_collection_proto_depIdxs = []int32{
 	10, // 31: api.videoCore.service.v1.CollectionService.ListCollection:output_type -> api.videoCore.service.v1.ListCollectionResp
 	12, // 32: api.videoCore.service.v1.CollectionService.AddVideo2Collection:output_type -> api.videoCore.service.v1.AddVideo2CollectionResp
 	14, // 33: api.videoCore.service.v1.CollectionService.RemoveVideoFromCollection:output_type -> api.videoCore.service.v1.RemoveVideoFromCollectionResp
-	16, // 34: api.videoCore.service.v1.CollectionService.ListVideo2Collection:output_type -> api.videoCore.service.v1.ListVideoFromCollectionResp
+	16, // 34: api.videoCore.service.v1.CollectionService.ListVideo4Collection:output_type -> api.videoCore.service.v1.ListVideo4CollectionResp
 	18, // 35: api.videoCore.service.v1.CollectionService.IsCollected:output_type -> api.videoCore.service.v1.IsCollectedResp
 	21, // 36: api.videoCore.service.v1.CollectionService.CountCollect4Video:output_type -> api.videoCore.service.v1.CountCollect4VideoResp
 	27, // [27:37] is the sub-list for method output_type

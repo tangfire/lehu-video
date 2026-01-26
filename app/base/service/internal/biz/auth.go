@@ -42,22 +42,22 @@ func (v *VerificationCode) Check(another *VerificationCode) (bool, error) {
 	return true, nil
 }
 
-// ✅ biz层自己的请求/响应结构体
-type CreateVerificationCodeRequest struct {
+// ✅ 使用Command/Result模式
+type CreateVerificationCodeCommand struct {
 	Bits       int64
 	ExpireTime int64
 }
 
-type CreateVerificationCodeResponse struct {
+type CreateVerificationCodeResult struct {
 	VerificationCodeId int64
 }
 
-type ValidateVerificationCodeRequest struct {
+type ValidateVerificationCodeCommand struct {
 	VerificationCodeId int64
 	Code               string
 }
 
-type ValidateVerificationCodeResponse struct {
+type ValidateVerificationCodeResult struct {
 	// 验证成功不需要额外数据，空结构体即可
 }
 
@@ -76,19 +76,21 @@ func NewAuthUsecase(repo AuthRepo, logger log.Logger) *AuthUsecase {
 	return &AuthUsecase{repo: repo, log: log.NewHelper(logger)}
 }
 
-func (uc *AuthUsecase) CreateVerificationCode(ctx context.Context, req *CreateVerificationCodeRequest) (*CreateVerificationCodeResponse, error) {
-	code, err := uc.repo.CreateVerificationCode(ctx, req.Bits, req.ExpireTime)
+// ✅ 方法签名改为Command/Result
+func (uc *AuthUsecase) CreateVerificationCode(ctx context.Context, cmd *CreateVerificationCodeCommand) (*CreateVerificationCodeResult, error) {
+	code, err := uc.repo.CreateVerificationCode(ctx, cmd.Bits, cmd.ExpireTime)
 	if err != nil {
 		return nil, err
 	}
 
-	return &CreateVerificationCodeResponse{
+	return &CreateVerificationCodeResult{
 		VerificationCodeId: code.Id,
 	}, nil
 }
 
-func (uc *AuthUsecase) ValidateVerificationCode(ctx context.Context, req *ValidateVerificationCodeRequest) (*ValidateVerificationCodeResponse, error) {
-	code := NewVerificationCode(req.VerificationCodeId, req.Code)
+// ✅ 方法签名改为Command/Result
+func (uc *AuthUsecase) ValidateVerificationCode(ctx context.Context, cmd *ValidateVerificationCodeCommand) (*ValidateVerificationCodeResult, error) {
+	code := NewVerificationCode(cmd.VerificationCodeId, cmd.Code)
 	err := code.IsReady()
 	if err != nil {
 		return nil, err
@@ -113,5 +115,5 @@ func (uc *AuthUsecase) ValidateVerificationCode(ctx context.Context, req *Valida
 		return nil, err
 	}
 
-	return &ValidateVerificationCodeResponse{}, nil
+	return &ValidateVerificationCodeResult{}, nil
 }

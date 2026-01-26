@@ -1,0 +1,200 @@
+syntax = "proto3";
+
+package api.videoApi.service.v1;
+
+option go_package = "lehu-video/api/videoApi/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoApi.service.v1";
+import "google/api/annotations.proto";
+import "api/videoApi/service/v1/base.proto";
+
+
+message Video {
+	// @gotags: json:"id,omitempty,string"
+	int64 id = 1; // 视频唯一标识
+	VideoAuthor author = 2; // 视频作者信息
+	string play_url = 3; // 视频播放地址
+	string cover_url = 4; // 视频封面地址
+	// @gotags: json:"favoriteCount,omitempty,string"
+	int64 favoriteCount = 5; // 视频的点赞总数
+	// @gotags: json:"commentCount,omitempty,string"
+	int64 commentCount = 6; // 视频的评论总数
+	bool isFavorite = 7; // true-已点赞，false-未点赞
+	string title = 8; // 视频标题
+	bool isCollected = 9; // 是否已收藏
+	// @gotags: json:"collectedCount,omitempty,string"
+	int64 collectedCount = 10; // 收藏数
+}
+
+message VideoAuthor {
+	// @gotags: json:"id,omitempty,string"
+	int64 id = 1;
+	string name = 2;
+	string avatar = 3;
+	bool isFollowing = 4;
+}
+
+service VideoService {
+	// 预注册上传视频
+	rpc PreSign4UploadVideo(PreSign4UploadVideoReq) returns(PreSign4UploadVideoResp){
+		option (google.api.http) = {
+			post: "/v1/video/upload"
+			body: "*"
+		};
+	};
+
+	// 预注册上传封面
+	rpc PreSign4UploadCover(PreSign4UploadCoverReq) returns (PreSign4UploadCoverResp){
+		option(google.api.http) = {
+			post: "/v1/cover/upload"
+			body: "*"
+		};
+	};
+
+	// 通用确认上传完成
+	rpc ReportFinishUpload(ReportFinishUploadReq) returns (ReportFinishUploadResp){
+		option (google.api.http) = {
+			post: "/v1/file/{file_id}/finish"
+			body: "*"
+		};
+	};
+
+	// 确认视频上传完成
+	rpc ReportVideoFinishUpload(ReportVideoFinishUploadReq) returns (ReportVideoFinishUploadResp){
+		option (google.api.http) = {
+			post: "/v1/video/finish"
+			body: "*"
+		};
+	};
+
+	// 刷视频
+	rpc FeedShortVideo(FeedShortVideoReq) returns (FeedShortVideoResp){
+		option(google.api.http) = {
+			post: "/v1/video/feed"
+			body: "*"
+		};
+	};
+
+	// 获取视频信息
+	rpc GetVideoById(GetVideoByIdReq) returns (GetVideoByIdResp){
+		option(google.api.http) = {
+			get:"/v1/video/{video_id}"
+		};
+	};
+
+	// 获取当前用户的发布视频列表
+	rpc ListPublishedVideo(ListPublishedVideoReq) returns (ListPublishedVideoResp){
+		option (google.api.http) = {
+			post: "/v1/video/list"
+			body:"*"
+		};
+	};
+}
+
+message PreSign4UploadVideoReq{
+	// md5 hash
+	string hash = 1;
+	// 文件类型，默认mp4
+	string file_type = 2;
+	// 文件大小，单位byte
+	// @gotags: json:"size,omitempty,string"
+	int64 size = 3;
+	// 文件名
+	string filename = 4;
+}
+
+message PreSign4UploadVideoResp{
+	// minio上传地址
+	string url = 1;
+	// 文件id
+	// @gotags: json:"file_id,omitempty,string"
+	int64 file_id = 2;
+}
+
+message PreSign4UploadCoverReq{
+	// md5 hash
+	string hash = 1;
+	// 文件类型，默认png
+	string file_type = 2;
+	// 文件大小，单位byte
+	// @gotags: json:"size,omitempty,string"
+	int64 size = 3;
+	// 文件名
+	string filename = 4;
+}
+
+message PreSign4UploadCoverResp{
+	// minio上传地址
+	string url = 1;
+	// 文件id
+	// @gotags: json:"file_id,omitempty,string"
+	int64 file_id = 2;
+}
+
+message ReportFinishUploadReq{
+	// 文件id
+	// @gotags: json:"file_id,omitempty,string"
+	int64 file_id = 1;
+}
+
+message ReportFinishUploadResp{
+	// url
+	string url = 1;
+}
+
+message ReportVideoFinishUploadReq{
+	// 文件id
+	// @gotags: json:"file_id,omitempty,string"
+	int64 file_id = 1;
+	// 视频标题
+	string title = 3;
+	// 视频封面地址
+	string cover_url = 4;
+	// 视频描述
+	string description = 5;
+	// 视频地址
+	string video_url = 6;
+}
+
+message ReportVideoFinishUploadResp{
+	// 视频id
+	// @gotags: json:"video_id,omitempty,string"
+	int64 video_id = 1;
+}
+
+message FeedShortVideoReq{
+	// @gotags: json:"latest_time,omitempty,string"
+	int64 latest_time = 1;  // 可选参数，限制返回视频的最新投稿时间戳，精确到秒，不填表示当前时间
+	// @gotags: json:"user_id,omitempty,string"
+	int64 user_id = 2 ;
+	// @gotags: json:"feed_num,omitempty,string"
+	int64 feed_num = 3 ; // 返回视频的数量
+}
+
+message FeedShortVideoResp{
+	repeated Video videos = 1;
+	// @gotags: json:"next_time,omitempty,string"
+	int64 next_time = 2; // 本次返回的视频中，发布最早的时间，作为下次请求时的latest_time
+}
+
+message GetVideoByIdReq{
+	// @gotags: json:"video_id,omitempty,string"
+	int64 video_id = 1 ;
+}
+
+message GetVideoByIdResp{
+	Video video = 1;
+}
+
+message ListPublishedVideoReq{
+	// @gotags: json:"user_id,omitempty,string"
+	int64 user_id = 1 ;
+	PageStatsReq pagination = 2;
+}
+
+message ListPublishedVideoResp{
+	repeated Video video_list = 1;
+	PageStatsResp pagination = 2;
+}
+
+

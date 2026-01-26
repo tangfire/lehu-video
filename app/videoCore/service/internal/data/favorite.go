@@ -2,14 +2,10 @@ package data
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/google/uuid"
-	"gorm.io/gorm/clause"
-	pb "lehu-video/api/videoCore/service/v1"
+	"gorm.io/gorm"
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/data/model"
-	"lehu-video/app/videoCore/service/internal/pkg/utils"
 	"time"
 )
 
@@ -25,156 +21,245 @@ func NewFavoriteRepo(data *Data, logger log.Logger) biz.FavoriteRepo {
 	}
 }
 
-func (r *favoriteRepo) AddFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) error {
-	favorite := model.Favorite{
-		Id:           int64(uuid.New().ID()),
-		UserId:       userId,
-		TargetType:   int64(targetType),
-		TargetId:     targetId,
-		FavoriteType: int64(favoriteType),
-		IsDeleted:    false,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+func (r *favoriteRepo) CreateFavorite(ctx context.Context, favorite *biz.Favorite) error {
+	dbFavorite := model.Favorite{
+		Id:           favorite.Id,
+		UserId:       favorite.UserId,
+		TargetType:   int64(favorite.TargetType),
+		TargetId:     favorite.TargetId,
+		FavoriteType: int64(favorite.FavoriteType),
+		IsDeleted:    favorite.IsDeleted,
+		CreatedAt:    favorite.CreatedAt,
+		UpdatedAt:    favorite.UpdatedAt,
 	}
 
-	// 使用 clause.OnConflict 的正确写法
+	return r.data.db.WithContext(ctx).Create(&dbFavorite).Error
+}
+
+func (r *favoriteRepo) UpdateFavorite(ctx context.Context, favorite *biz.Favorite) error {
+	dbFavorite := model.Favorite{
+		Id:        favorite.Id,
+		IsDeleted: favorite.IsDeleted,
+		UpdatedAt: favorite.UpdatedAt,
+	}
+
 	return r.data.db.WithContext(ctx).
-		Clauses(clause.OnConflict{
-			Columns: []clause.Column{
-				{Name: "user_id"},
-				{Name: "target_id"},
-				{Name: "target_type"},
-				{Name: "favorite_type"},
-			},
-			Where: clause.Where{Exprs: []clause.Expression{
-				clause.Eq{Column: "is_deleted", Value: false},
-			}},
-			DoUpdates: clause.AssignmentColumns([]string{"updated_at"}),
-		}).
-		Create(&favorite).Error
+		Model(&model.Favorite{}).
+		Where("id = ?", favorite.Id).
+		Updates(&dbFavorite).Error
 }
 
-func (r *favoriteRepo) GetFavoriteList(ctx context.Context, userId, targetId int64, targetType, favoriteType int32, pageStats *pb.PageStatsReq) (int64, []int64, error) {
-	db := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName())
-	if userId != -1 {
-		db = db.Where("user_id = ?", userId)
-	}
-	if targetId != -1 {
-		db = db.Where("target_id = ?", targetId)
-	}
-	if targetType != -1 {
-		db = db.Where("target_type = ?", targetType)
-	}
-	if favoriteType != -1 {
-		db = db.Where("favorite_type = ?", favoriteType)
-	}
-	db = db.Where("is_deleted = ?", false).Order("id desc")
-	var total int64
-	err := db.Count(&total).Error
-	if err != nil {
-		return 0, nil, err
-	}
-	var favoriteList []model.Favorite
-	err = db.Offset(int((pageStats.Page - 1) * pageStats.Size)).Limit(int(pageStats.Size)).Find(&favoriteList).Error
-	if err != nil {
-		return 0, nil, err
-	}
-	targetIdList := make([]int64, 0, len(favoriteList))
-	targetIdList = utils.Slice2Slice(favoriteList, func(favorite model.Favorite) int64 {
-		return favorite.TargetId
-	})
-	return total, targetIdList, nil
-}
+func (r *favoriteRepo) GetFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) (*biz.Favorite, error) {
+	var dbFavorite model.Favorite
 
-func (r *favoriteRepo) DeleteFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) error {
-	err := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName()).
+	err := r.data.db.WithContext(ctx).
 		Where("user_id = ?", userId).
 		Where("target_id = ?", targetId).
-		UpdateColumns(map[string]interface{}{
-			"is_deleted": true,
-		}).Error
-	if err != nil {
-		return err
+		Where("target_type = ?", targetType).
+		Where("favorite_type = ?", favoriteType).
+		First(&dbFavorite).Error
+
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
 	}
-	return nil
-}
-
-func (r *favoriteRepo) CountFavorite(ctx context.Context, idList []int64, aggType int32, favoriteType int32) ([]*pb.CountFavoriteRespItem, error) {
-	// 1. 边界检查
-	if len(idList) == 0 {
-		return []*pb.CountFavoriteRespItem{}, nil
-	}
-
-	var countFavoriteItemList []struct {
-		Id    int64 `gorm:"column:id"`
-		Count int64 `gorm:"column:count"`
-	}
-
-	db := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName())
-	db = db.Where("is_deleted = ?", false).
-		Where("favorite_type = ?", favoriteType)
-
-	// 2. 根据聚合类型构建查询
-	switch aggType {
-	case int32(pb.FavoriteAggregateType_BY_USER):
-		db = db.Select("user_id as id, count(user_id) as count").
-			Where("user_id in (?)", idList).
-			Where("target_type = ?", int32(pb.FavoriteTarget_VIDEO)).
-			Group("user_id")
-
-	case int32(pb.FavoriteAggregateType_BY_VIDEO):
-		db = db.Select("target_id as id, count(target_id) as count").
-			Where("target_id in (?)", idList).
-			Where("target_type = ?", int32(pb.FavoriteTarget_VIDEO)).
-			Group("target_id")
-
-	case int32(pb.FavoriteAggregateType_BY_COMMENT):
-		db = db.Select("target_id as id, count(target_id) as count").
-			Where("target_id in (?)", idList).
-			Where("target_type = ?", int32(pb.FavoriteTarget_COMMENT)).
-			Group("target_id")
-
-	default:
-		// 3. 处理未知聚合类型
-		return nil, fmt.Errorf("unknown aggregate type: %d", aggType)
-	}
-
-	// 4. 执行查询
-	err := db.Find(&countFavoriteItemList).Error
 	if err != nil {
 		return nil, err
 	}
 
-	// 5. 转换结果
-	favoriteList := make([]*pb.CountFavoriteRespItem, 0, len(countFavoriteItemList))
-	for _, favoriteItem := range countFavoriteItemList {
-		favoriteList = append(favoriteList, &pb.CountFavoriteRespItem{
-			BizId: favoriteItem.Id,
-			Count: favoriteItem.Count,
+	return &biz.Favorite{
+		Id:           dbFavorite.Id,
+		UserId:       dbFavorite.UserId,
+		TargetType:   int32(dbFavorite.TargetType),
+		TargetId:     dbFavorite.TargetId,
+		FavoriteType: int32(dbFavorite.FavoriteType),
+		IsDeleted:    dbFavorite.IsDeleted,
+		CreatedAt:    dbFavorite.CreatedAt,
+		UpdatedAt:    dbFavorite.UpdatedAt,
+	}, nil
+}
+
+func (r *favoriteRepo) SoftDeleteFavorite(ctx context.Context, favoriteId int64) error {
+	return r.data.db.WithContext(ctx).
+		Model(&model.Favorite{}).
+		Where("id = ?", favoriteId).
+		Updates(map[string]interface{}{
+			"is_deleted": true,
+			"updated_at": time.Now(),
+		}).Error
+}
+
+func (r *favoriteRepo) ListFavorites(ctx context.Context, userId, targetId int64, targetType, favoriteType int32, offset, limit int) ([]*biz.Favorite, error) {
+	var dbFavorites []*model.Favorite
+
+	query := r.data.db.WithContext(ctx).
+		Where("is_deleted = ?", false)
+
+	if userId != -1 {
+		query = query.Where("user_id = ?", userId)
+	}
+	if targetId != -1 {
+		query = query.Where("target_id = ?", targetId)
+	}
+	if targetType != -1 {
+		query = query.Where("target_type = ?", targetType)
+	}
+	if favoriteType != -1 {
+		query = query.Where("favorite_type = ?", favoriteType)
+	}
+
+	err := query.
+		Offset(offset).
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&dbFavorites).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	favorites := make([]*biz.Favorite, 0, len(dbFavorites))
+	for _, dbFavorite := range dbFavorites {
+		favorites = append(favorites, &biz.Favorite{
+			Id:           dbFavorite.Id,
+			UserId:       dbFavorite.UserId,
+			TargetType:   int32(dbFavorite.TargetType),
+			TargetId:     dbFavorite.TargetId,
+			FavoriteType: int32(dbFavorite.FavoriteType),
+			IsDeleted:    dbFavorite.IsDeleted,
+			CreatedAt:    dbFavorite.CreatedAt,
+			UpdatedAt:    dbFavorite.UpdatedAt,
 		})
 	}
 
-	return favoriteList, nil
+	return favorites, nil
 }
 
-func (r *favoriteRepo) GetFavoriteListByList(ctx context.Context, userIdList, targetIdList []int64, targetType, favoriteType int32) ([]biz.Favorite, error) {
-	var favoriteList []model.Favorite
-	err := r.data.db.WithContext(ctx).Table(model.Favorite{}.TableName()).
-		Where("user_id in (?)", userIdList).
-		Where("target_id in (?)", targetIdList).
+func (r *favoriteRepo) CountFavorites(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) (int64, error) {
+	var count int64
+
+	query := r.data.db.WithContext(ctx).
+		Model(&model.Favorite{}).
+		Where("is_deleted = ?", false)
+
+	if userId != -1 {
+		query = query.Where("user_id = ?", userId)
+	}
+	if targetId != -1 {
+		query = query.Where("target_id = ?", targetId)
+	}
+	if targetType != -1 {
+		query = query.Where("target_type = ?", targetType)
+	}
+	if favoriteType != -1 {
+		query = query.Where("favorite_type = ?", favoriteType)
+	}
+
+	err := query.Count(&count).Error
+	return count, err
+}
+
+func (r *favoriteRepo) CountFavoritesByTargetIds(ctx context.Context, targetIds []int64, targetType, favoriteType int32) (map[int64]int64, error) {
+	type Result struct {
+		TargetId int64 `gorm:"column:target_id"`
+		Count    int64 `gorm:"column:count"`
+	}
+
+	var results []Result
+
+	err := r.data.db.WithContext(ctx).
+		Model(&model.Favorite{}).
+		Select("target_id, COUNT(*) as count").
+		Where("target_id IN (?)", targetIds).
 		Where("target_type = ?", targetType).
 		Where("favorite_type = ?", favoriteType).
-		Where("is_deleted = ?", false).Find(&favoriteList).Error
+		Where("is_deleted = ?", false).
+		Group("target_id").
+		Find(&results).Error
+
 	if err != nil {
 		return nil, err
 	}
-	retList := utils.Slice2Slice(favoriteList, func(favorite model.Favorite) biz.Favorite {
-		return biz.Favorite{
-			UserId:       favorite.UserId,
-			TargetType:   favorite.TargetType,
-			TargetId:     favorite.TargetId,
-			FavoriteType: favorite.FavoriteType,
+
+	resultMap := make(map[int64]int64)
+	for _, res := range results {
+		resultMap[res.TargetId] = res.Count
+	}
+
+	// 为没有点赞的目标设置0
+	for _, targetId := range targetIds {
+		if _, exists := resultMap[targetId]; !exists {
+			resultMap[targetId] = 0
 		}
-	})
-	return retList, nil
+	}
+
+	return resultMap, nil
+}
+
+func (r *favoriteRepo) CountFavoritesByUserIds(ctx context.Context, userIds []int64, targetType, favoriteType int32) (map[int64]int64, error) {
+	type Result struct {
+		UserId int64 `gorm:"column:user_id"`
+		Count  int64 `gorm:"column:count"`
+	}
+
+	var results []Result
+
+	err := r.data.db.WithContext(ctx).
+		Model(&model.Favorite{}).
+		Select("user_id, COUNT(*) as count").
+		Where("user_id IN (?)", userIds).
+		Where("target_type = ?", targetType).
+		Where("favorite_type = ?", favoriteType).
+		Where("is_deleted = ?", false).
+		Group("user_id").
+		Find(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	resultMap := make(map[int64]int64)
+	for _, res := range results {
+		resultMap[res.UserId] = res.Count
+	}
+
+	// 为没有点赞的用户设置0
+	for _, userId := range userIds {
+		if _, exists := resultMap[userId]; !exists {
+			resultMap[userId] = 0
+		}
+	}
+
+	return resultMap, nil
+}
+
+func (r *favoriteRepo) GetFavoritesByUserAndTargets(ctx context.Context, userId int64, targetIds []int64, targetType, favoriteType int32) ([]*biz.Favorite, error) {
+	var dbFavorites []*model.Favorite
+
+	err := r.data.db.WithContext(ctx).
+		Where("user_id = ?", userId).
+		Where("target_id IN (?)", targetIds).
+		Where("target_type = ?", targetType).
+		Where("favorite_type = ?", favoriteType).
+		Where("is_deleted = ?", false).
+		Find(&dbFavorites).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	favorites := make([]*biz.Favorite, 0, len(dbFavorites))
+	for _, dbFavorite := range dbFavorites {
+		favorites = append(favorites, &biz.Favorite{
+			Id:           dbFavorite.Id,
+			UserId:       dbFavorite.UserId,
+			TargetType:   int32(dbFavorite.TargetType),
+			TargetId:     dbFavorite.TargetId,
+			FavoriteType: int32(dbFavorite.FavoriteType),
+			IsDeleted:    dbFavorite.IsDeleted,
+			CreatedAt:    dbFavorite.CreatedAt,
+			UpdatedAt:    dbFavorite.UpdatedAt,
+		})
+	}
+
+	return favorites, nil
 }

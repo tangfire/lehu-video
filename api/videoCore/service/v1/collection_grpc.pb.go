@@ -26,7 +26,7 @@ const (
 	CollectionService_ListCollection_FullMethodName            = "/api.videoCore.service.v1.CollectionService/ListCollection"
 	CollectionService_AddVideo2Collection_FullMethodName       = "/api.videoCore.service.v1.CollectionService/AddVideo2Collection"
 	CollectionService_RemoveVideoFromCollection_FullMethodName = "/api.videoCore.service.v1.CollectionService/RemoveVideoFromCollection"
-	CollectionService_ListVideo2Collection_FullMethodName      = "/api.videoCore.service.v1.CollectionService/ListVideo2Collection"
+	CollectionService_ListVideo4Collection_FullMethodName      = "/api.videoCore.service.v1.CollectionService/ListVideo4Collection"
 	CollectionService_IsCollected_FullMethodName               = "/api.videoCore.service.v1.CollectionService/IsCollected"
 	CollectionService_CountCollect4Video_FullMethodName        = "/api.videoCore.service.v1.CollectionService/CountCollect4Video"
 )
@@ -42,7 +42,7 @@ type CollectionServiceClient interface {
 	ListCollection(ctx context.Context, in *ListCollectionReq, opts ...grpc.CallOption) (*ListCollectionResp, error)
 	AddVideo2Collection(ctx context.Context, in *AddVideo2CollectionReq, opts ...grpc.CallOption) (*AddVideo2CollectionResp, error)
 	RemoveVideoFromCollection(ctx context.Context, in *RemoveVideoFromCollectionReq, opts ...grpc.CallOption) (*RemoveVideoFromCollectionResp, error)
-	ListVideo2Collection(ctx context.Context, in *ListVideoFromCollectionReq, opts ...grpc.CallOption) (*ListVideoFromCollectionResp, error)
+	ListVideo4Collection(ctx context.Context, in *ListVideo4CollectionReq, opts ...grpc.CallOption) (*ListVideo4CollectionResp, error)
 	IsCollected(ctx context.Context, in *IsCollectedReq, opts ...grpc.CallOption) (*IsCollectedResp, error)
 	CountCollect4Video(ctx context.Context, in *CountCollect4VideoReq, opts ...grpc.CallOption) (*CountCollect4VideoResp, error)
 }
@@ -125,10 +125,10 @@ func (c *collectionServiceClient) RemoveVideoFromCollection(ctx context.Context,
 	return out, nil
 }
 
-func (c *collectionServiceClient) ListVideo2Collection(ctx context.Context, in *ListVideoFromCollectionReq, opts ...grpc.CallOption) (*ListVideoFromCollectionResp, error) {
+func (c *collectionServiceClient) ListVideo4Collection(ctx context.Context, in *ListVideo4CollectionReq, opts ...grpc.CallOption) (*ListVideo4CollectionResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListVideoFromCollectionResp)
-	err := c.cc.Invoke(ctx, CollectionService_ListVideo2Collection_FullMethodName, in, out, cOpts...)
+	out := new(ListVideo4CollectionResp)
+	err := c.cc.Invoke(ctx, CollectionService_ListVideo4Collection_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ type CollectionServiceServer interface {
 	ListCollection(context.Context, *ListCollectionReq) (*ListCollectionResp, error)
 	AddVideo2Collection(context.Context, *AddVideo2CollectionReq) (*AddVideo2CollectionResp, error)
 	RemoveVideoFromCollection(context.Context, *RemoveVideoFromCollectionReq) (*RemoveVideoFromCollectionResp, error)
-	ListVideo2Collection(context.Context, *ListVideoFromCollectionReq) (*ListVideoFromCollectionResp, error)
+	ListVideo4Collection(context.Context, *ListVideo4CollectionReq) (*ListVideo4CollectionResp, error)
 	IsCollected(context.Context, *IsCollectedReq) (*IsCollectedResp, error)
 	CountCollect4Video(context.Context, *CountCollect4VideoReq) (*CountCollect4VideoResp, error)
 	mustEmbedUnimplementedCollectionServiceServer()
@@ -200,8 +200,8 @@ func (UnimplementedCollectionServiceServer) AddVideo2Collection(context.Context,
 func (UnimplementedCollectionServiceServer) RemoveVideoFromCollection(context.Context, *RemoveVideoFromCollectionReq) (*RemoveVideoFromCollectionResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveVideoFromCollection not implemented")
 }
-func (UnimplementedCollectionServiceServer) ListVideo2Collection(context.Context, *ListVideoFromCollectionReq) (*ListVideoFromCollectionResp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListVideo2Collection not implemented")
+func (UnimplementedCollectionServiceServer) ListVideo4Collection(context.Context, *ListVideo4CollectionReq) (*ListVideo4CollectionResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListVideo4Collection not implemented")
 }
 func (UnimplementedCollectionServiceServer) IsCollected(context.Context, *IsCollectedReq) (*IsCollectedResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IsCollected not implemented")
@@ -356,20 +356,20 @@ func _CollectionService_RemoveVideoFromCollection_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CollectionService_ListVideo2Collection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListVideoFromCollectionReq)
+func _CollectionService_ListVideo4Collection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVideo4CollectionReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(CollectionServiceServer).ListVideo2Collection(ctx, in)
+		return srv.(CollectionServiceServer).ListVideo4Collection(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: CollectionService_ListVideo2Collection_FullMethodName,
+		FullMethod: CollectionService_ListVideo4Collection_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CollectionServiceServer).ListVideo2Collection(ctx, req.(*ListVideoFromCollectionReq))
+		return srv.(CollectionServiceServer).ListVideo4Collection(ctx, req.(*ListVideo4CollectionReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -446,8 +446,8 @@ var CollectionService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _CollectionService_RemoveVideoFromCollection_Handler,
 		},
 		{
-			MethodName: "ListVideo2Collection",
-			Handler:    _CollectionService_ListVideo2Collection_Handler,
+			MethodName: "ListVideo4Collection",
+			Handler:    _CollectionService_ListVideo4Collection_Handler,
 		},
 		{
 			MethodName: "IsCollected",

@@ -17,13 +17,14 @@ func NewUserServiceService(uc *biz.UserUsecase) *UserServiceService {
 }
 
 func (s *UserServiceService) CreateUser(ctx context.Context, req *pb.CreateUserReq) (*pb.CreateUserResp, error) {
-	bizReq := &biz.CreateUserRequest{
+	// ✅ 改为Command
+	cmd := &biz.CreateUserCommand{
 		AccountId: req.AccountId,
 		Mobile:    req.Mobile,
 		Email:     req.Email,
 	}
 
-	resp, err := s.uc.CreateUser(ctx, bizReq)
+	result, err := s.uc.CreateUser(ctx, cmd)
 	if err != nil {
 		return &pb.CreateUserResp{
 			Meta: utils.GetMetaWithError(err),
@@ -32,12 +33,13 @@ func (s *UserServiceService) CreateUser(ctx context.Context, req *pb.CreateUserR
 
 	return &pb.CreateUserResp{
 		Meta:   utils.GetSuccessMeta(),
-		UserId: resp.UserId,
+		UserId: result.UserId,
 	}, nil
 }
 
 func (s *UserServiceService) UpdateUser(ctx context.Context, req *pb.UpdateUserInfoReq) (*pb.UpdateUserInfoResp, error) {
-	bizReq := &biz.UpdateUserInfoRequest{
+	// ✅ 改为Command
+	cmd := &biz.UpdateUserInfoCommand{
 		UserId:          req.UserId,
 		Name:            req.Name,
 		Avatar:          req.Avatar,
@@ -45,7 +47,7 @@ func (s *UserServiceService) UpdateUser(ctx context.Context, req *pb.UpdateUserI
 		Signature:       req.Signature,
 	}
 
-	_, err := s.uc.UpdateUser(ctx, bizReq)
+	_, err := s.uc.UpdateUser(ctx, cmd)
 	if err != nil {
 		return &pb.UpdateUserInfoResp{
 			Meta: utils.GetMetaWithError(err),
@@ -58,12 +60,13 @@ func (s *UserServiceService) UpdateUser(ctx context.Context, req *pb.UpdateUserI
 }
 
 func (s *UserServiceService) GetUserInfo(ctx context.Context, req *pb.GetUserInfoReq) (*pb.GetUserInfoResp, error) {
-	bizReq := &biz.GetUserInfoRequest{
+	// ✅ 改为Query
+	query := &biz.GetUserInfoQuery{
 		UserId:    req.UserId,
 		AccountId: req.AccountId,
 	}
 
-	resp, err := s.uc.GetUserInfo(ctx, bizReq)
+	result, err := s.uc.GetUserInfo(ctx, query)
 	if err != nil {
 		return &pb.GetUserInfoResp{
 			Meta: utils.GetMetaWithError(err),
@@ -72,13 +75,13 @@ func (s *UserServiceService) GetUserInfo(ctx context.Context, req *pb.GetUserInf
 
 	// 转换biz.User到pb.User
 	user := &pb.User{
-		Id:              resp.User.Id,
-		Name:            resp.User.Name,
-		Avatar:          resp.User.Avatar,
-		BackgroundImage: resp.User.BackgroundImage,
-		Signature:       resp.User.Signature,
-		Mobile:          resp.User.Mobile,
-		Email:           resp.User.Email,
+		Id:              result.User.Id,
+		Name:            result.User.Name,
+		Avatar:          result.User.Avatar,
+		BackgroundImage: result.User.BackgroundImage,
+		Signature:       result.User.Signature,
+		Mobile:          result.User.Mobile,
+		Email:           result.User.Email,
 	}
 
 	return &pb.GetUserInfoResp{
@@ -88,11 +91,12 @@ func (s *UserServiceService) GetUserInfo(ctx context.Context, req *pb.GetUserInf
 }
 
 func (s *UserServiceService) GetUserByIdList(ctx context.Context, req *pb.GetUserByIdListReq) (*pb.GetUserByIdListResp, error) {
-	bizReq := &biz.GetUserByIdListRequest{
+	// ✅ 改为Query
+	query := &biz.GetUserByIdListQuery{
 		UserIdList: req.UserIdList,
 	}
 
-	resp, err := s.uc.GetUserByIdList(ctx, bizReq)
+	result, err := s.uc.GetUserByIdList(ctx, query)
 	if err != nil {
 		return &pb.GetUserByIdListResp{
 			Meta: utils.GetMetaWithError(err),
@@ -101,7 +105,7 @@ func (s *UserServiceService) GetUserByIdList(ctx context.Context, req *pb.GetUse
 
 	// 转换[]*biz.User到[]*pb.User
 	var retList []*pb.User
-	for _, user := range resp.UserList {
+	for _, user := range result.UserList {
 		retList = append(retList, &pb.User{
 			Id:              user.Id,
 			Name:            user.Name,

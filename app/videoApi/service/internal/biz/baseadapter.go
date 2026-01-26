@@ -17,6 +17,8 @@ type BaseAdapter interface {
 	CheckAccount(ctx context.Context, mobile, email, password string) (int64, error)
 
 	PreSign4PublicUpload(ctx context.Context, hash, fileType, fileName string, size, expireSeconds int64) (int64, string, error)
+	PreSign4Upload(ctx context.Context, hash, fileType, fileName string, size, expireSeconds int64) (int64, string, error)
 	ReportPublicUploaded(ctx context.Context, fileId int64) (string, error)
+	ReportUploaded(ctx context.Context, fileId int64) (string, error)
 	GetFileInfoById(ctx context.Context, fileId int64) (*FileInfo, error)
 }

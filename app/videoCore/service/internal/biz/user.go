@@ -25,18 +25,18 @@ func (u *User) GenerateId() {
 	u.Id = int64(uuid.New().ID())
 }
 
-// ✅ biz层自己的请求/响应结构体
-type CreateUserRequest struct {
+// ✅ 使用Command/Result模式
+type CreateUserCommand struct {
 	AccountId int64
 	Mobile    string
 	Email     string
 }
 
-type CreateUserResponse struct {
+type CreateUserResult struct {
 	UserId int64
 }
 
-type UpdateUserInfoRequest struct {
+type UpdateUserInfoCommand struct {
 	UserId          int64
 	Name            string
 	Avatar          string
@@ -44,24 +44,25 @@ type UpdateUserInfoRequest struct {
 	Signature       string
 }
 
-type UpdateUserInfoResponse struct {
+type UpdateUserInfoResult struct {
 	// 更新成功不需要额外数据
 }
 
-type GetUserInfoRequest struct {
+// ✅ 查询操作使用Query/Result
+type GetUserInfoQuery struct {
 	UserId    int64
 	AccountId int64
 }
 
-type GetUserInfoResponse struct {
+type GetUserInfoResult struct {
 	User *User
 }
 
-type GetUserByIdListRequest struct {
+type GetUserByIdListQuery struct {
 	UserIdList []int64
 }
 
-type GetUserByIdListResponse struct {
+type GetUserByIdListResult struct {
 	UserList []*User
 }
 
@@ -82,12 +83,12 @@ func NewUserUsecase(repo UserRepo, logger log.Logger) *UserUsecase {
 	return &UserUsecase{repo: repo, log: log.NewHelper(logger)}
 }
 
-func (uc *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*CreateUserResponse, error) {
+func (uc *UserUsecase) CreateUser(ctx context.Context, cmd *CreateUserCommand) (*CreateUserResult, error) {
 	user := &User{
 		Id:              0,
-		AccountId:       req.AccountId,
-		Mobile:          req.Mobile,
-		Email:           req.Email,
+		AccountId:       cmd.AccountId,
+		Mobile:          cmd.Mobile,
+		Email:           cmd.Email,
 		Name:            "",
 		Avatar:          "",
 		BackgroundImage: "",
@@ -100,13 +101,13 @@ func (uc *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (
 	if err != nil {
 		return nil, err
 	}
-	return &CreateUserResponse{
+	return &CreateUserResult{
 		UserId: user.Id,
 	}, nil
 }
 
-func (uc *UserUsecase) UpdateUser(ctx context.Context, req *UpdateUserInfoRequest) (*UpdateUserInfoResponse, error) {
-	exist, oldUser, err := uc.repo.GetUserById(ctx, req.UserId)
+func (uc *UserUsecase) UpdateUser(ctx context.Context, cmd *UpdateUserInfoCommand) (*UpdateUserInfoResult, error) {
+	exist, oldUser, err := uc.repo.GetUserById(ctx, cmd.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -115,14 +116,14 @@ func (uc *UserUsecase) UpdateUser(ctx context.Context, req *UpdateUserInfoReques
 	}
 
 	newUser := &User{
-		Id:              req.UserId,
+		Id:              cmd.UserId,
 		AccountId:       oldUser.AccountId,
 		Mobile:          oldUser.Mobile,
 		Email:           oldUser.Email,
-		Name:            req.Name,
-		Avatar:          req.Avatar,
-		BackgroundImage: req.BackgroundImage,
-		Signature:       req.Signature,
+		Name:            cmd.Name,
+		Avatar:          cmd.Avatar,
+		BackgroundImage: cmd.BackgroundImage,
+		Signature:       cmd.Signature,
 		CreatedAt:       oldUser.CreatedAt,
 		UpdatedAt:       time.Now(),
 	}
@@ -131,12 +132,12 @@ func (uc *UserUsecase) UpdateUser(ctx context.Context, req *UpdateUserInfoReques
 	if err != nil {
 		return nil, err
 	}
-	return &UpdateUserInfoResponse{}, nil
+	return &UpdateUserInfoResult{}, nil
 }
 
-func (uc *UserUsecase) GetUserInfo(ctx context.Context, req *GetUserInfoRequest) (*GetUserInfoResponse, error) {
+func (uc *UserUsecase) GetUserInfo(ctx context.Context, query *GetUserInfoQuery) (*GetUserInfoResult, error) {
 	// 参数验证
-	if req.UserId == 0 && req.AccountId == 0 {
+	if query.UserId == 0 && query.AccountId == 0 {
 		return nil, errors.New("参数错误：必须提供UserId或AccountId")
 	}
 
@@ -145,17 +146,17 @@ func (uc *UserUsecase) GetUserInfo(ctx context.Context, req *GetUserInfoRequest)
 	var err error
 
 	// 优先通过UserId查找
-	if req.UserId != 0 {
-		exist, existUser, err = uc.repo.GetUserById(ctx, req.UserId)
+	if query.UserId != 0 {
+		exist, existUser, err = uc.repo.GetUserById(ctx, query.UserId)
 	} else {
 		// 通过AccountId查找
-		exist, existUser, err = uc.repo.GetUserByAccountId(ctx, req.AccountId)
+		exist, existUser, err = uc.repo.GetUserByAccountId(ctx, query.AccountId)
 	}
 
 	// 处理错误
 	if err != nil {
 		// 记录错误日志
-		uc.log.Error("获取用户信息失败", "error", err, "userId", req.UserId, "accountId", req.AccountId)
+		uc.log.Error("获取用户信息失败", "error", err, "userId", query.UserId, "accountId", query.AccountId)
 		return nil, err
 	}
 
@@ -164,18 +165,18 @@ func (uc *UserUsecase) GetUserInfo(ctx context.Context, req *GetUserInfoRequest)
 		return nil, errors.New("用户不存在")
 	}
 
-	return &GetUserInfoResponse{
+	return &GetUserInfoResult{
 		User: existUser,
 	}, nil
 }
 
-func (uc *UserUsecase) GetUserByIdList(ctx context.Context, req *GetUserByIdListRequest) (*GetUserByIdListResponse, error) {
-	userList, err := uc.repo.GetUserByIdList(ctx, req.UserIdList)
+func (uc *UserUsecase) GetUserByIdList(ctx context.Context, query *GetUserByIdListQuery) (*GetUserByIdListResult, error) {
+	userList, err := uc.repo.GetUserByIdList(ctx, query.UserIdList)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GetUserByIdListResponse{
+	return &GetUserByIdListResult{
 		UserList: userList,
 	}, nil
 }

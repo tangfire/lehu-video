@@ -17,12 +17,13 @@ func NewAuthServiceService(uc *biz.AuthUsecase) *AuthServiceService {
 }
 
 func (s *AuthServiceService) CreateVerificationCode(ctx context.Context, req *pb.CreateVerificationCodeReq) (*pb.CreateVerificationCodeResp, error) {
-	bizReq := &biz.CreateVerificationCodeRequest{
+	// ✅ 改为Command
+	cmd := &biz.CreateVerificationCodeCommand{
 		Bits:       req.Bits,
 		ExpireTime: req.ExpireTime,
 	}
 
-	resp, err := s.uc.CreateVerificationCode(ctx, bizReq)
+	result, err := s.uc.CreateVerificationCode(ctx, cmd)
 	if err != nil {
 		return &pb.CreateVerificationCodeResp{
 			Meta: utils.GetMetaWithError(err),
@@ -30,18 +31,19 @@ func (s *AuthServiceService) CreateVerificationCode(ctx context.Context, req *pb
 	}
 
 	return &pb.CreateVerificationCodeResp{
-		VerificationCodeId: resp.VerificationCodeId,
+		VerificationCodeId: result.VerificationCodeId,
 		Meta:               utils.GetSuccessMeta(),
 	}, nil
 }
 
 func (s *AuthServiceService) ValidateVerificationCode(ctx context.Context, req *pb.ValidateVerificationCodeReq) (*pb.ValidateVerificationCodeResp, error) {
-	bizReq := &biz.ValidateVerificationCodeRequest{
+	// ✅ 改为Command
+	cmd := &biz.ValidateVerificationCodeCommand{
 		VerificationCodeId: req.VerificationCodeId,
 		Code:               req.Code,
 	}
 
-	_, err := s.uc.ValidateVerificationCode(ctx, bizReq)
+	_, err := s.uc.ValidateVerificationCode(ctx, cmd)
 	if err != nil {
 		return &pb.ValidateVerificationCodeResp{
 			Meta: utils.GetMetaWithError(err),

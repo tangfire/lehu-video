@@ -25,13 +25,8 @@ type Video struct {
 	UploadTime   time.Time
 }
 
-type PageStats struct {
-	Page     int32
-	PageSize int32
-}
-
-// ✅ biz层自己的请求/响应结构体
-type PublishVideoReq struct {
+// ✅ 使用Command/Query/Result模式
+type PublishVideoCommand struct {
 	UserId      int64
 	Title       string
 	Description string
@@ -39,43 +34,43 @@ type PublishVideoReq struct {
 	CoverUrl    string
 }
 
-type PublishVideoResp struct {
+type PublishVideoResult struct {
 	VideoId int64
 }
 
-type GetVideoByIdReq struct {
+type GetVideoByIdQuery struct {
 	VideoId int64
 }
 
-type GetVideoByIdResp struct {
+type GetVideoByIdResult struct {
 	Video *Video
 }
 
-type ListPublishedVideoReq struct {
+type ListPublishedVideoQuery struct {
 	UserId     int64
 	LatestTime int64 // Unix时间戳
 	PageStats  PageStats
 }
 
-type ListPublishedVideoResp struct {
+type ListPublishedVideoResult struct {
 	Videos []*Video
 }
 
-// 新增的请求/响应
-type FeedShortVideoReq struct {
+// Feed流查询
+type FeedShortVideoQuery struct {
 	LatestTime int64 // Unix时间戳
 	PageStats  PageStats
 }
 
-type FeedShortVideoResp struct {
+type FeedShortVideoResult struct {
 	Videos []*Video
 }
 
-type GetVideoByIdListReq struct {
+type GetVideoByIdListQuery struct {
 	VideoIdList []int64
 }
 
-type GetVideoByIdListResp struct {
+type GetVideoByIdListResult struct {
 	Videos []*Video
 }
 
@@ -96,13 +91,13 @@ func NewVideoUsecase(repo VideoRepo, logger log.Logger) *VideoUsecase {
 	return &VideoUsecase{repo: repo, log: log.NewHelper(logger)}
 }
 
-func (uc *VideoUsecase) PublishVideo(ctx context.Context, req *PublishVideoReq) (*PublishVideoResp, error) {
+func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoCommand) (*PublishVideoResult, error) {
 	video := &Video{
-		Title:       req.Title,
-		Description: req.Description,
-		VideoUrl:    req.PlayUrl,
-		CoverUrl:    req.CoverUrl,
-		Author:      &Author{Id: req.UserId},
+		Title:       cmd.Title,
+		Description: cmd.Description,
+		VideoUrl:    cmd.PlayUrl,
+		CoverUrl:    cmd.CoverUrl,
+		Author:      &Author{Id: cmd.UserId},
 		UploadTime:  time.Now(),
 	}
 
@@ -111,13 +106,13 @@ func (uc *VideoUsecase) PublishVideo(ctx context.Context, req *PublishVideoReq) 
 		return nil, err
 	}
 
-	return &PublishVideoResp{
+	return &PublishVideoResult{
 		VideoId: videoId,
 	}, nil
 }
 
-func (uc *VideoUsecase) GetVideoById(ctx context.Context, req *GetVideoByIdReq) (*GetVideoByIdResp, error) {
-	exist, video, err := uc.repo.GetVideoById(ctx, req.VideoId)
+func (uc *VideoUsecase) GetVideoById(ctx context.Context, query *GetVideoByIdQuery) (*GetVideoByIdResult, error) {
+	exist, video, err := uc.repo.GetVideoById(ctx, query.VideoId)
 	if err != nil {
 		return nil, err
 	}
@@ -126,50 +121,50 @@ func (uc *VideoUsecase) GetVideoById(ctx context.Context, req *GetVideoByIdReq) 
 		return nil, nil // 或者返回特定错误
 	}
 
-	return &GetVideoByIdResp{
+	return &GetVideoByIdResult{
 		Video: video,
 	}, nil
 }
 
-func (uc *VideoUsecase) ListPublishedVideo(ctx context.Context, req *ListPublishedVideoReq) (*ListPublishedVideoResp, error) {
+func (uc *VideoUsecase) ListPublishedVideo(ctx context.Context, query *ListPublishedVideoQuery) (*ListPublishedVideoResult, error) {
 	latestTime := time.Now()
-	if req.LatestTime > 0 {
-		latestTime = time.Unix(req.LatestTime, 0)
+	if query.LatestTime > 0 {
+		latestTime = time.Unix(query.LatestTime, 0)
 	}
 
-	videos, err := uc.repo.GetVideoListByUid(ctx, req.UserId, latestTime, req.PageStats)
+	videos, err := uc.repo.GetVideoListByUid(ctx, query.UserId, latestTime, query.PageStats)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ListPublishedVideoResp{
+	return &ListPublishedVideoResult{
 		Videos: videos,
 	}, nil
 }
 
-func (uc *VideoUsecase) FeedShortVideo(ctx context.Context, req *FeedShortVideoReq) (*FeedShortVideoResp, error) {
+func (uc *VideoUsecase) FeedShortVideo(ctx context.Context, query *FeedShortVideoQuery) (*FeedShortVideoResult, error) {
 	latestTime := time.Now()
-	if req.LatestTime > 0 {
-		latestTime = time.Unix(req.LatestTime, 0)
+	if query.LatestTime > 0 {
+		latestTime = time.Unix(query.LatestTime, 0)
 	}
 
-	videos, err := uc.repo.GetFeedVideos(ctx, latestTime, req.PageStats)
+	videos, err := uc.repo.GetFeedVideos(ctx, latestTime, query.PageStats)
 	if err != nil {
 		return nil, err
 	}
 
-	return &FeedShortVideoResp{
+	return &FeedShortVideoResult{
 		Videos: videos,
 	}, nil
 }
 
-func (uc *VideoUsecase) GetVideoByIdList(ctx context.Context, req *GetVideoByIdListReq) (*GetVideoByIdListResp, error) {
-	videos, err := uc.repo.GetVideoByIdList(ctx, req.VideoIdList)
+func (uc *VideoUsecase) GetVideoByIdList(ctx context.Context, query *GetVideoByIdListQuery) (*GetVideoByIdListResult, error) {
+	videos, err := uc.repo.GetVideoByIdList(ctx, query.VideoIdList)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GetVideoByIdListResp{
+	return &GetVideoByIdListResult{
 		Videos: videos,
 	}, nil
 }
