@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"errors"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"gorm.io/gorm"
@@ -39,7 +40,7 @@ func (r *commentRepo) GetByID(ctx context.Context, id int64) (*biz.Comment, erro
 	var dbComment model.Comment
 	err := r.data.db.WithContext(ctx).Where("id = ?", id).First(&dbComment).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err

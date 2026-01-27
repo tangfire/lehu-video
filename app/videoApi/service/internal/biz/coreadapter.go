@@ -20,4 +20,9 @@ type CoreAdapter interface {
 	CountFavorite4Video(ctx context.Context, videoIdList []int64) (map[int64]int64, error)
 	CountCollected4Video(ctx context.Context, videoIdList []int64) (map[int64]int64, error)
 	Feed(ctx context.Context, userId int64, num int64, latestTime int64) ([]*Video, error)
+	CreateComment(ctx context.Context, userId int64, content string, videoId int64, parentId int64, replyUserId int64) (*Comment, error)
+	GetCommentById(ctx context.Context, commentId int64) (*Comment, error)
+	RemoveComment(ctx context.Context, commentId, userId int64) error
+	ListChildComments(ctx context.Context, commentId int64, pageStats *PageStats) (int64, []*Comment, error)
+	ListComment4Video(ctx context.Context, videoId int64, pageStats *PageStats) (int64, []*Comment, error)
 }

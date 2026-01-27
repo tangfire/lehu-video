@@ -481,3 +481,182 @@ func (r *CoreAdapterImpl) Feed(ctx context.Context, userId int64, num int64, lat
 	}
 	return videos, nil
 }
+
+func (r *CoreAdapterImpl) CreateComment(ctx context.Context, userId int64, content string, videoId int64, parentId int64, replyUserId int64) (*biz.Comment, error) {
+	resp, err := r.comment.CreateComment(ctx, &core.CreateCommentReq{
+		VideoId:     videoId,
+		UserId:      userId,
+		Content:     content,
+		ParentId:    parentId,
+		ReplyUserId: replyUserId,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	comment := resp.Comment
+	childComments := comment.Comments
+	var retChildComments []*biz.Comment
+	for _, childComment := range childComments {
+		retChildComments = append(retChildComments, &biz.Comment{
+			Id:         childComment.Id,
+			VideoId:    childComment.VideoId,
+			ParentId:   childComment.ParentId,
+			User:       nil,
+			ReplyUser:  nil,
+			Content:    childComment.Content,
+			Date:       childComment.Date,
+			LikeCount:  childComment.LikeCount,
+			ReplyCount: childComment.ReplyCount,
+			Comments:   nil,
+		})
+	}
+	retComment := &biz.Comment{
+		Id:       comment.Id,
+		VideoId:  comment.VideoId,
+		ParentId: comment.ParentId,
+		User: &biz.CommentUser{
+			Id:          comment.UserId,
+			Name:        "",
+			Avatar:      "",
+			IsFollowing: false,
+		},
+		ReplyUser: &biz.CommentUser{
+			Id:          comment.ReplyUserId,
+			Name:        "",
+			Avatar:      "",
+			IsFollowing: false,
+		},
+		Content:    comment.Content,
+		Date:       comment.Date,
+		LikeCount:  comment.LikeCount,
+		ReplyCount: comment.ReplyCount,
+		Comments:   retChildComments,
+	}
+	return retComment, nil
+}
+
+func (r *CoreAdapterImpl) GetCommentById(ctx context.Context, commentId int64) (*biz.Comment, error) {
+	resp, err := r.comment.GetCommentById(ctx, &core.GetCommentByIdReq{
+		CommentId: commentId,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	comment := resp.Comment
+	retComment := &biz.Comment{
+		Id:         comment.Id,
+		VideoId:    comment.VideoId,
+		ParentId:   comment.ParentId,
+		Content:    comment.Content,
+		Date:       comment.Date,
+		LikeCount:  comment.LikeCount,
+		ReplyCount: comment.ReplyCount,
+		Comments:   nil,
+	}
+	return retComment, nil
+}
+
+func (r *CoreAdapterImpl) RemoveComment(ctx context.Context, commentId, userId int64) error {
+	resp, err := r.comment.RemoveComment(ctx, &core.RemoveCommentReq{
+		CommentId: commentId,
+		UserId:    userId,
+	})
+	if err != nil {
+		return err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *CoreAdapterImpl) ListChildComments(ctx context.Context, commentId int64, pageStats *biz.PageStats) (int64, []*biz.Comment, error) {
+	resp, err := r.comment.ListChildComment4Comment(ctx, &core.ListChildComment4CommentReq{
+		CommentId: commentId,
+		PageStats: &core.PageStatsReq{
+			Page: pageStats.Page,
+			Size: pageStats.PageSize,
+		},
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	var childComments []*biz.Comment
+	for _, comment := range resp.CommentList {
+		childComments = append(childComments, &biz.Comment{
+			Id:         comment.Id,
+			VideoId:    comment.VideoId,
+			ParentId:   comment.ParentId,
+			User:       &biz.CommentUser{Id: comment.UserId},
+			ReplyUser:  &biz.CommentUser{Id: comment.ReplyUserId},
+			Content:    comment.Content,
+			Date:       comment.Date,
+			LikeCount:  comment.LikeCount,
+			ReplyCount: comment.ReplyCount,
+			Comments:   nil,
+		})
+	}
+	return int64(resp.PageStats.Total), childComments, nil
+}
+
+func (r *CoreAdapterImpl) ListComment4Video(ctx context.Context, videoId int64, pageStats *biz.PageStats) (int64, []*biz.Comment, error) {
+	resp, err := r.comment.ListComment4Video(ctx, &core.ListComment4VideoReq{
+		VideoId: videoId,
+		PageStats: &core.PageStatsReq{
+			Page: pageStats.Page,
+			Size: pageStats.PageSize,
+		},
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	var Comments []*biz.Comment
+	for _, comment := range resp.CommentList {
+		childComments := comment.Comments
+		var retChildComments []*biz.Comment
+		for _, childComment := range childComments {
+			retChildComments = append(retChildComments, &biz.Comment{
+				Id:         childComment.Id,
+				VideoId:    childComment.VideoId,
+				ParentId:   childComment.ParentId,
+				User:       &biz.CommentUser{Id: childComment.Id},
+				ReplyUser:  &biz.CommentUser{Id: childComment.ReplyUserId},
+				Content:    childComment.Content,
+				Date:       childComment.Date,
+				LikeCount:  childComment.LikeCount,
+				ReplyCount: childComment.ReplyCount,
+				Comments:   nil,
+			})
+		}
+		Comments = append(Comments, &biz.Comment{
+			Id:         comment.Id,
+			VideoId:    comment.VideoId,
+			ParentId:   comment.ParentId,
+			User:       &biz.CommentUser{Id: comment.UserId},
+			ReplyUser:  &biz.CommentUser{Id: comment.ReplyUserId},
+			Content:    comment.Content,
+			Date:       comment.Date,
+			LikeCount:  comment.LikeCount,
+			ReplyCount: comment.ReplyCount,
+			Comments:   retChildComments,
+		})
+	}
+	return int64(resp.PageStats.Total), Comments, nil
+}

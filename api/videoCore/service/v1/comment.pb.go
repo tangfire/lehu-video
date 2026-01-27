@@ -27,8 +27,8 @@ type Comment struct {
 	VideoId       int64                  `protobuf:"varint,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`               // 视频id
 	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`                               // 评论内容
 	Date          string                 `protobuf:"bytes,4,opt,name=date,proto3" json:"date,omitempty"`                                     // 评论日期
-	LikeCount     string                 `protobuf:"bytes,5,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`          // 点赞数
-	ReplyCount    string                 `protobuf:"bytes,6,opt,name=reply_count,json=replyCount,proto3" json:"reply_count,omitempty"`       // 回复数
+	LikeCount     int64                  `protobuf:"varint,5,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`         // 点赞数
+	ReplyCount    int64                  `protobuf:"varint,6,opt,name=reply_count,json=replyCount,proto3" json:"reply_count,omitempty"`      // 回复数
 	UserId        int64                  `protobuf:"varint,7,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                  // 用户id
 	ParentId      int64                  `protobuf:"varint,8,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`            // 父评论id
 	ReplyUserId   int64                  `protobuf:"varint,9,opt,name=reply_user_id,json=replyUserId,proto3" json:"reply_user_id,omitempty"` // 回复用户id
@@ -95,18 +95,18 @@ func (x *Comment) GetDate() string {
 	return ""
 }
 
-func (x *Comment) GetLikeCount() string {
+func (x *Comment) GetLikeCount() int64 {
 	if x != nil {
 		return x.LikeCount
 	}
-	return ""
+	return 0
 }
 
-func (x *Comment) GetReplyCount() string {
+func (x *Comment) GetReplyCount() int64 {
 	if x != nil {
 		return x.ReplyCount
 	}
-	return ""
+	return 0
 }
 
 func (x *Comment) GetUserId() int64 {
@@ -216,6 +216,7 @@ func (x *CreateCommentReq) GetReplyUserId() int64 {
 type CreateCommentResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	Comment       *Comment               `protobuf:"bytes,2,opt,name=comment,proto3" json:"comment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -253,6 +254,13 @@ func (*CreateCommentResp) Descriptor() ([]byte, []int) {
 func (x *CreateCommentResp) GetMeta() *Metadata {
 	if x != nil {
 		return x.Meta
+	}
+	return nil
+}
+
+func (x *CreateCommentResp) GetComment() *Comment {
+	if x != nil {
+		return x.Comment
 	}
 	return nil
 }
@@ -928,8 +936,8 @@ const file_api_videoCore_service_v1_comment_proto_rawDesc = "" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x12\x12\n" +
 	"\x04date\x18\x04 \x01(\tR\x04date\x12\x1d\n" +
 	"\n" +
-	"like_count\x18\x05 \x01(\tR\tlikeCount\x12\x1f\n" +
-	"\vreply_count\x18\x06 \x01(\tR\n" +
+	"like_count\x18\x05 \x01(\x03R\tlikeCount\x12\x1f\n" +
+	"\vreply_count\x18\x06 \x01(\x03R\n" +
 	"replyCount\x12\x17\n" +
 	"\auser_id\x18\a \x01(\x03R\x06userId\x12\x1b\n" +
 	"\tparent_id\x18\b \x01(\x03R\bparentId\x12\"\n" +
@@ -941,9 +949,10 @@ const file_api_videoCore_service_v1_comment_proto_rawDesc = "" +
 	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x18\n" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x12\x1b\n" +
 	"\tparent_id\x18\x04 \x01(\x03R\bparentId\x12\"\n" +
-	"\rreply_user_id\x18\x05 \x01(\x03R\vreplyUserId\"K\n" +
+	"\rreply_user_id\x18\x05 \x01(\x03R\vreplyUserId\"\x88\x01\n" +
 	"\x11CreateCommentResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"J\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12;\n" +
+	"\acomment\x18\x02 \x01(\v2!.api.videoCore.service.v1.CommentR\acomment\"J\n" +
 	"\x10RemoveCommentReq\x12\x1d\n" +
 	"\n" +
 	"comment_id\x18\x01 \x01(\x03R\tcommentId\x12\x17\n" +
@@ -1035,40 +1044,41 @@ var file_api_videoCore_service_v1_comment_proto_goTypes = []any{
 var file_api_videoCore_service_v1_comment_proto_depIdxs = []int32{
 	0,  // 0: api.videoCore.service.v1.Comment.comments:type_name -> api.videoCore.service.v1.Comment
 	16, // 1: api.videoCore.service.v1.CreateCommentResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	16, // 2: api.videoCore.service.v1.RemoveCommentResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	17, // 3: api.videoCore.service.v1.ListComment4VideoReq.page_stats:type_name -> api.videoCore.service.v1.PageStatsReq
-	16, // 4: api.videoCore.service.v1.ListComment4VideoResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	0,  // 5: api.videoCore.service.v1.ListComment4VideoResp.comment_list:type_name -> api.videoCore.service.v1.Comment
-	18, // 6: api.videoCore.service.v1.ListComment4VideoResp.page_stats:type_name -> api.videoCore.service.v1.PageStatsResp
-	17, // 7: api.videoCore.service.v1.ListChildComment4CommentReq.page_stats:type_name -> api.videoCore.service.v1.PageStatsReq
-	16, // 8: api.videoCore.service.v1.ListChildComment4CommentResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	0,  // 9: api.videoCore.service.v1.ListChildComment4CommentResp.comment_list:type_name -> api.videoCore.service.v1.Comment
-	18, // 10: api.videoCore.service.v1.ListChildComment4CommentResp.page_stats:type_name -> api.videoCore.service.v1.PageStatsResp
-	16, // 11: api.videoCore.service.v1.GetCommentByIdResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	0,  // 12: api.videoCore.service.v1.GetCommentByIdResp.comment:type_name -> api.videoCore.service.v1.Comment
-	16, // 13: api.videoCore.service.v1.CountComment4VideoResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	11, // 14: api.videoCore.service.v1.CountComment4VideoResp.results:type_name -> api.videoCore.service.v1.CountResult
-	16, // 15: api.videoCore.service.v1.CountComment4UserResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	11, // 16: api.videoCore.service.v1.CountComment4UserResp.results:type_name -> api.videoCore.service.v1.CountResult
-	1,  // 17: api.videoCore.service.v1.CommentService.CreateComment:input_type -> api.videoCore.service.v1.CreateCommentReq
-	3,  // 18: api.videoCore.service.v1.CommentService.RemoveComment:input_type -> api.videoCore.service.v1.RemoveCommentReq
-	5,  // 19: api.videoCore.service.v1.CommentService.ListComment4Video:input_type -> api.videoCore.service.v1.ListComment4VideoReq
-	7,  // 20: api.videoCore.service.v1.CommentService.ListChildComment4Comment:input_type -> api.videoCore.service.v1.ListChildComment4CommentReq
-	9,  // 21: api.videoCore.service.v1.CommentService.GetCommentById:input_type -> api.videoCore.service.v1.GetCommentByIdReq
-	12, // 22: api.videoCore.service.v1.CommentService.CountComment4Video:input_type -> api.videoCore.service.v1.CountComment4VideoReq
-	14, // 23: api.videoCore.service.v1.CommentService.CountComment4User:input_type -> api.videoCore.service.v1.CountComment4UserReq
-	2,  // 24: api.videoCore.service.v1.CommentService.CreateComment:output_type -> api.videoCore.service.v1.CreateCommentResp
-	4,  // 25: api.videoCore.service.v1.CommentService.RemoveComment:output_type -> api.videoCore.service.v1.RemoveCommentResp
-	6,  // 26: api.videoCore.service.v1.CommentService.ListComment4Video:output_type -> api.videoCore.service.v1.ListComment4VideoResp
-	8,  // 27: api.videoCore.service.v1.CommentService.ListChildComment4Comment:output_type -> api.videoCore.service.v1.ListChildComment4CommentResp
-	10, // 28: api.videoCore.service.v1.CommentService.GetCommentById:output_type -> api.videoCore.service.v1.GetCommentByIdResp
-	13, // 29: api.videoCore.service.v1.CommentService.CountComment4Video:output_type -> api.videoCore.service.v1.CountComment4VideoResp
-	15, // 30: api.videoCore.service.v1.CommentService.CountComment4User:output_type -> api.videoCore.service.v1.CountComment4UserResp
-	24, // [24:31] is the sub-list for method output_type
-	17, // [17:24] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	0,  // 2: api.videoCore.service.v1.CreateCommentResp.comment:type_name -> api.videoCore.service.v1.Comment
+	16, // 3: api.videoCore.service.v1.RemoveCommentResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	17, // 4: api.videoCore.service.v1.ListComment4VideoReq.page_stats:type_name -> api.videoCore.service.v1.PageStatsReq
+	16, // 5: api.videoCore.service.v1.ListComment4VideoResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	0,  // 6: api.videoCore.service.v1.ListComment4VideoResp.comment_list:type_name -> api.videoCore.service.v1.Comment
+	18, // 7: api.videoCore.service.v1.ListComment4VideoResp.page_stats:type_name -> api.videoCore.service.v1.PageStatsResp
+	17, // 8: api.videoCore.service.v1.ListChildComment4CommentReq.page_stats:type_name -> api.videoCore.service.v1.PageStatsReq
+	16, // 9: api.videoCore.service.v1.ListChildComment4CommentResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	0,  // 10: api.videoCore.service.v1.ListChildComment4CommentResp.comment_list:type_name -> api.videoCore.service.v1.Comment
+	18, // 11: api.videoCore.service.v1.ListChildComment4CommentResp.page_stats:type_name -> api.videoCore.service.v1.PageStatsResp
+	16, // 12: api.videoCore.service.v1.GetCommentByIdResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	0,  // 13: api.videoCore.service.v1.GetCommentByIdResp.comment:type_name -> api.videoCore.service.v1.Comment
+	16, // 14: api.videoCore.service.v1.CountComment4VideoResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	11, // 15: api.videoCore.service.v1.CountComment4VideoResp.results:type_name -> api.videoCore.service.v1.CountResult
+	16, // 16: api.videoCore.service.v1.CountComment4UserResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	11, // 17: api.videoCore.service.v1.CountComment4UserResp.results:type_name -> api.videoCore.service.v1.CountResult
+	1,  // 18: api.videoCore.service.v1.CommentService.CreateComment:input_type -> api.videoCore.service.v1.CreateCommentReq
+	3,  // 19: api.videoCore.service.v1.CommentService.RemoveComment:input_type -> api.videoCore.service.v1.RemoveCommentReq
+	5,  // 20: api.videoCore.service.v1.CommentService.ListComment4Video:input_type -> api.videoCore.service.v1.ListComment4VideoReq
+	7,  // 21: api.videoCore.service.v1.CommentService.ListChildComment4Comment:input_type -> api.videoCore.service.v1.ListChildComment4CommentReq
+	9,  // 22: api.videoCore.service.v1.CommentService.GetCommentById:input_type -> api.videoCore.service.v1.GetCommentByIdReq
+	12, // 23: api.videoCore.service.v1.CommentService.CountComment4Video:input_type -> api.videoCore.service.v1.CountComment4VideoReq
+	14, // 24: api.videoCore.service.v1.CommentService.CountComment4User:input_type -> api.videoCore.service.v1.CountComment4UserReq
+	2,  // 25: api.videoCore.service.v1.CommentService.CreateComment:output_type -> api.videoCore.service.v1.CreateCommentResp
+	4,  // 26: api.videoCore.service.v1.CommentService.RemoveComment:output_type -> api.videoCore.service.v1.RemoveCommentResp
+	6,  // 27: api.videoCore.service.v1.CommentService.ListComment4Video:output_type -> api.videoCore.service.v1.ListComment4VideoResp
+	8,  // 28: api.videoCore.service.v1.CommentService.ListChildComment4Comment:output_type -> api.videoCore.service.v1.ListChildComment4CommentResp
+	10, // 29: api.videoCore.service.v1.CommentService.GetCommentById:output_type -> api.videoCore.service.v1.GetCommentByIdResp
+	13, // 30: api.videoCore.service.v1.CommentService.CountComment4Video:output_type -> api.videoCore.service.v1.CountComment4VideoResp
+	15, // 31: api.videoCore.service.v1.CommentService.CountComment4User:output_type -> api.videoCore.service.v1.CountComment4UserResp
+	25, // [25:32] is the sub-list for method output_type
+	18, // [18:25] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_api_videoCore_service_v1_comment_proto_init() }

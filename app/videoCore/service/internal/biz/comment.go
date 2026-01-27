@@ -22,8 +22,7 @@ type CreateCommentCommand struct {
 
 // CreateCommentResult 创建评论结果
 type CreateCommentResult struct {
-	CommentID int64
-	CreatedAt time.Time
+	Comment *Comment
 }
 
 // RemoveCommentCommand 删除评论命令
@@ -108,6 +107,10 @@ type Comment struct {
 	ChildCount    int64
 }
 
+func (c *Comment) GenerateId() {
+	c.ID = int64(uuid.New().ID())
+}
+
 // CommentRepo 数据层接口
 type CommentRepo interface {
 	// 基础CRUD
@@ -151,10 +154,9 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 	}
 
 	// 2. 构建评论对象
-	commentID := int64(uuid.New().ID())
 	now := time.Now()
 	comment := &Comment{
-		ID:          commentID,
+		ID:          0,
 		VideoID:     cmd.VideoID,
 		UserID:      cmd.UserID,
 		ParentID:    cmd.ParentID,
@@ -163,6 +165,7 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 		CreateTime:  now,
 		IsDeleted:   false,
 	}
+	comment.GenerateId()
 
 	// 3. 如果parentID > 0，验证父评论是否存在
 	if cmd.ParentID > 0 {
@@ -182,8 +185,7 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 	}
 
 	return &CreateCommentResult{
-		CommentID: commentID,
-		CreatedAt: now,
+		Comment: comment,
 	}, nil
 }
 

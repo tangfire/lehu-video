@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	pb "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoCore/service/internal/biz"
@@ -30,16 +31,45 @@ func (s *CommentServiceService) CreateComment(ctx context.Context, req *pb.Creat
 	}
 
 	// 调用业务层
-	_, err := s.uc.CreateComment(ctx, cmd)
+	res, err := s.uc.CreateComment(ctx, cmd)
 	if err != nil {
 		return &pb.CreateCommentResp{
 			Meta: utils.GetMetaWithError(err),
 		}, nil
 	}
 
+	comment := res.Comment
+	childComments := res.Comment.ChildComments
+	var retChildComments []*pb.Comment
+	for _, childComment := range childComments {
+		retChildComments = append(retChildComments, &pb.Comment{
+			Id:          childComment.ID,
+			VideoId:     childComment.VideoID,
+			Content:     childComment.Content,
+			Date:        childComment.CreateTime.Format(time.DateTime),
+			LikeCount:   0,
+			ReplyCount:  0,
+			UserId:      childComment.UserID,
+			ParentId:    childComment.ParentID,
+			ReplyUserId: childComment.ReplyUserID,
+			Comments:    nil,
+		})
+	}
 	// 可以在这里返回创建的评论信息，根据需求调整
 	return &pb.CreateCommentResp{
 		Meta: utils.GetSuccessMeta(),
+		Comment: &pb.Comment{
+			Id:          comment.ID,
+			VideoId:     comment.VideoID,
+			Content:     comment.Content,
+			Date:        comment.CreateTime.Format(time.DateTime),
+			LikeCount:   0,
+			ReplyCount:  0,
+			UserId:      comment.UserID,
+			ParentId:    comment.ParentID,
+			ReplyUserId: comment.ReplyUserID,
+			Comments:    retChildComments,
+		},
 	}, nil
 }
 
@@ -220,9 +250,9 @@ func (s *CommentServiceService) toPBComment(comment *biz.Comment) *pb.Comment {
 		Id:          comment.ID,
 		VideoId:     comment.VideoID,
 		Content:     comment.Content,
-		Date:        comment.CreateTime.Format("2006-01-02 15:04:05"),
-		LikeCount:   "0", // 根据实际需求实现
-		ReplyCount:  "",  // 根据实际需求实现
+		Date:        comment.CreateTime.Format(time.DateTime),
+		LikeCount:   0,
+		ReplyCount:  0,
 		UserId:      comment.UserID,
 		ParentId:    comment.ParentID,
 		ReplyUserId: comment.ReplyUserID,
