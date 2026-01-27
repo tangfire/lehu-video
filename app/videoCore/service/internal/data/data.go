@@ -18,6 +18,7 @@ var ProviderSet = wire.NewSet(
 	NewFollowRepo,
 	NewFavoriteRepo,
 	NewCommentRepo,
+	NewCollectionRepo,
 )
 
 // Data .

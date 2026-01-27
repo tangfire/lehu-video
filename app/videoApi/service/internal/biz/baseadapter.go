@@ -4,11 +4,6 @@ import (
 	"context"
 )
 
-type FileInfo struct {
-	ObjectName string `json:"object_name"`
-	Hash       string `json:"hash"`
-}
-
 // BaseAdapter 基础服务适配器接口
 type BaseAdapter interface {
 	CreateVerificationCode(ctx context.Context, bits, expireTime int64) (int64, error)

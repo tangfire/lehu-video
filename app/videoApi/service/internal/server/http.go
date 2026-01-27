@@ -31,7 +31,11 @@ func NewWhiteListMatcher() selector.MatchFunc {
 }
 
 // NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, ac *conf.Auth, userService *service.UserServiceService, fileService *service.FileServiceService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, ac *conf.Auth,
+	userService *service.UserServiceService,
+	fileService *service.FileServiceService,
+	videoService *service.VideoServiceService,
+	logger log.Logger) *http.Server {
 	fmt.Println("ac api_key = " + ac.ApiKey)
 	var opts = []http.ServerOption{
 		http.Middleware(
@@ -66,5 +70,6 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth, userService *service.UserServi
 	srv := http.NewServer(opts...)
 	v1.RegisterUserServiceHTTPServer(srv, userService)
 	v1.RegisterFileServiceHTTPServer(srv, fileService)
+	v1.RegisterVideoServiceHTTPServer(srv, videoService)
 	return srv
 }

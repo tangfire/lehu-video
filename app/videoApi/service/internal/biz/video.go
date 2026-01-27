@@ -2,78 +2,99 @@ package biz
 
 import (
 	"context"
+	"errors"
+	"time"
+
 	"github.com/go-kratos/kratos/v2/log"
-	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
-type UploadVideoInput struct {
+// ============ Input/Output 结构体 ============
+
+// PageInput 分页输入
+type PageInput struct {
+	Page     int64
+	PageSize int64
+}
+
+// PreSignUploadInput 预签名上传输入
+type PreSignUploadInput struct {
 	Hash     string
 	FileType string
 	Size     int64
 	Filename string
 }
 
-type UploadVideoOutput struct {
-	Url    string
-	FileId int64
+// PreSignUploadOutput 预签名上传输出
+type PreSignUploadOutput struct {
+	URL    string
+	FileID int64
 }
 
-type UploadCoverInput struct {
-	Hash     string
-	FileType string
-	Size     int64
-	Filename string
-}
-
-type UploadCoverOutput struct {
-	Url    string
-	FileId int64
-}
-
+// ReportFinishUploadInput 报告上传完成输入
 type ReportFinishUploadInput struct {
-	FileId int64
+	FileID int64
 }
 
+// ReportFinishUploadOutput 报告上传完成输出
 type ReportFinishUploadOutput struct {
-	Url string
+	URL string
 }
 
+// ReportVideoFinishUploadInput 报告视频上传完成输入
 type ReportVideoFinishUploadInput struct {
-	FileId      int64
+	FileID      int64
 	Title       string
-	CoverUrl    string
+	CoverURL    string
 	Description string
-	VideoUrl    string
+	VideoURL    string
+	UserID      int64
 }
 
+// ReportVideoFinishUploadOutput 报告视频上传完成输出
 type ReportVideoFinishUploadOutput struct {
-	VideoId int64
+	VideoID int64
 }
 
-type GetVideoByIdInput struct {
-	VideoId int64
+// GetVideoInput 获取视频输入
+type GetVideoInput struct {
+	VideoID int64
+	UserID  int64 // 当前用户ID，用于判断是否点赞、关注等
 }
 
-type FeedShortVideoInput struct {
+// GetVideoOutput 获取视频输出
+type GetVideoOutput struct {
+	Video *Video
+}
+
+// FeedVideoInput 视频流输入
+type FeedVideoInput struct {
 	LatestTime int64
-	UserId     int64
+	UserID     int64
 	FeedNum    int64
 }
 
-type FeedShortVideoOutput struct {
+// FeedVideoOutput 视频流输出
+type FeedVideoOutput struct {
 	Videos   []*Video
 	NextTime int64
 }
 
+// ListPublishedVideoInput 获取已发布视频列表输入
 type ListPublishedVideoInput struct {
-	UserId    int64
-	PageStats *PageStats
-}
-type ListPublishedVideoOutput struct {
-	VideoList []*Video
-	Total     int64
+	UserID   int64 // 要查询的用户ID
+	Page     int64
+	PageSize int64
 }
 
+// ListPublishedVideoOutput 获取已发布视频列表输出
+type ListPublishedVideoOutput struct {
+	Videos []*Video
+	Total  int64
+}
+
+// ============ 业务模型 ============
+
+// VideoAuthor 视频作者
 type VideoAuthor struct {
 	ID          int64
 	Name        string
@@ -81,11 +102,12 @@ type VideoAuthor struct {
 	IsFollowing bool
 }
 
+// Video 视频
 type Video struct {
 	ID             int64
 	Author         *VideoAuthor
-	PlayUrl        string
-	CoverUrl       string
+	PlayURL        string
+	CoverURL       string
 	FavoriteCount  int64
 	CommentCount   int64
 	IsFavorite     bool
@@ -94,252 +116,433 @@ type Video struct {
 	CollectedCount int64
 }
 
-type VideoRepo interface {
+// FileInfo 文件信息
+type FileInfo struct {
+	ObjectName string `json:"object_name"`
+	Hash       string `json:"hash"`
 }
 
-type VideoUsecase struct {
-	base BaseAdapter
+// ============ VideoAssembler 视频组装器 ============
+
+// VideoAssembler 视频组装器，负责组装视频的完整信息
+type VideoAssembler struct {
 	core CoreAdapter
-	repo VideoRepo
 	log  *log.Helper
 }
 
-func NewVideoUsecase(base BaseAdapter, core CoreAdapter, repo VideoRepo, logger log.Logger) *VideoUsecase {
-	return &VideoUsecase{
-		base: base,
+// NewVideoAssembler 创建视频组装器
+func NewVideoAssembler(
+	core CoreAdapter,
+	logger log.Logger,
+) *VideoAssembler {
+	return &VideoAssembler{
 		core: core,
-		repo: repo,
 		log:  log.NewHelper(logger),
 	}
 }
 
-func (uc *VideoUsecase) AssembleVideo(ctx context.Context, userId int64, data []*Video) ([]*Video, error) {
-	videoList, _ := uc.AssembleVideoList(ctx, userId, data)
-	uc.AssembleAuthorInfo(ctx, videoList)
-	uc.AssembleUserIsFollowing(ctx, videoList, userId)
-	uc.AssembleVideoCountInfo(ctx, videoList)
-	return videoList, nil
-}
-
-func (uc *VideoUsecase) AssembleAuthorInfo(ctx context.Context, data []*Video) {
-	var userIdList []int64
-	for _, video := range data {
-		userIdList = append(userIdList, video.Author.ID)
+// AssembleVideo 组装单个视频信息
+func (a *VideoAssembler) AssembleVideo(ctx context.Context, video *Video, currentUserID int64) (*Video, error) {
+	if video == nil {
+		return nil, nil
 	}
 
-	userList, err := uc.core.GetUserInfoByIdList(ctx, userIdList)
+	videos := []*Video{video}
+	assembledVideos, err := a.AssembleVideos(ctx, videos, currentUserID)
 	if err != nil {
-		uc.log.WithContext(ctx).Warnf("failed to get user info: %v", err)
+		return nil, err
+	}
+
+	if len(assembledVideos) == 0 {
+		return nil, nil
+	}
+
+	return assembledVideos[0], nil
+}
+
+// AssembleVideos 批量组装视频信息
+func (a *VideoAssembler) AssembleVideos(ctx context.Context, videos []*Video, currentUserID int64) ([]*Video, error) {
+	if len(videos) == 0 {
+		return videos, nil
+	}
+
+	// 收集需要查询的ID
+	videoIDs := make([]int64, 0, len(videos))
+	authorIDs := make([]int64, 0, len(videos))
+
+	for _, video := range videos {
+		videoIDs = append(videoIDs, video.ID)
+		if video.Author != nil {
+			authorIDs = append(authorIDs, video.Author.ID)
+		}
+	}
+
+	// 并行获取所有需要的信息
+	userInfos, err := a.getUserInfos(ctx, authorIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	counts, err := a.getVideoCounts(ctx, videoIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	interactions, err := a.getUserInteractions(ctx, currentUserID, videoIDs, authorIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// 组装视频信息
+	return a.doAssembleVideos(videos, userInfos, counts, interactions), nil
+}
+
+// getUserInfos 批量获取用户信息
+func (a *VideoAssembler) getUserInfos(ctx context.Context, userIDs []int64) (map[int64]*UserInfo, error) {
+	if len(userIDs) == 0 {
+		return map[int64]*UserInfo{}, nil
+	}
+
+	userInfoList, err := a.core.GetUserInfoByIdList(ctx, userIDs)
+	if err != nil {
+		return nil, err
 	}
 
 	userMap := make(map[int64]*UserInfo)
-	for _, user := range userList {
+	for _, user := range userInfoList {
 		userMap[user.Id] = user
 	}
 
-	for _, video := range data {
-		if video.Author == nil {
-			continue
-		}
-
-		author, ok := userMap[video.Author.ID]
-		if !ok {
-			continue
-		}
-		video.Author.Name = author.Name
-		video.Author.Avatar = author.Avatar
-	}
-
+	return userMap, nil
 }
 
-func (uc *VideoUsecase) AssembleVideoList(ctx context.Context, userId int64, data []*Video) ([]*Video, error) {
-	var result []*Video
-	var videoIdList []int64
-	for _, video := range data {
-		videoIdList = append(videoIdList, video.ID)
-	}
-	isFavoriteMap, err := uc.core.IsUserFavoriteVideo(ctx, userId, videoIdList)
-	if err != nil {
-		log.Context(ctx).Warnf("failed to check favorite video: %v", err)
+// getVideoCounts 批量获取视频计数信息
+func (a *VideoAssembler) getVideoCounts(ctx context.Context, videoIDs []int64) (*VideoCountInfo, error) {
+	if len(videoIDs) == 0 {
+		return &VideoCountInfo{}, nil
 	}
 
-	for _, video := range data {
-		isFavorite, ok := isFavoriteMap[video.ID]
+	var commentCounts, favoriteCounts, collectCounts map[int64]int64
+	var commentErr, favoriteErr, collectErr error
 
-		result = append(result, &Video{
-			ID:            video.ID,
-			Title:         video.Title,
-			PlayUrl:       video.PlayUrl,
-			CoverUrl:      video.CoverUrl,
-			FavoriteCount: video.FavoriteCount,
-			CommentCount:  video.CommentCount,
-			IsFavorite:    isFavorite && ok,
-			Author: &VideoAuthor{
-				ID:          video.Author.ID,
-				Name:        video.Author.Name,
-				Avatar:      video.Author.Avatar,
-				IsFollowing: video.Author.IsFollowing,
-			},
-		})
+	// 并行查询各种计数
+	commentCounts, commentErr = a.core.CountComments4Video(ctx, videoIDs)
+	favoriteCounts, favoriteErr = a.core.CountFavorite4Video(ctx, videoIDs)
+	collectCounts, collectErr = a.core.CountCollected4Video(ctx, videoIDs)
+
+	// 记录错误但不中断流程
+	if commentErr != nil {
+		a.log.WithContext(ctx).Warnf("failed to count comments: %v", commentErr)
 	}
-	return result, nil
-}
-
-func (uc *VideoUsecase) AssembleUserIsFollowing(ctx context.Context, list []*Video, userId int64) {
-	var targetUserId []int64
-	var targetVideoId []int64
-	for _, video := range list {
-		targetUserId = append(targetUserId, video.Author.ID)
-		targetVideoId = append(targetVideoId, video.ID)
+	if favoriteErr != nil {
+		a.log.WithContext(ctx).Warnf("failed to count favorites: %v", favoriteErr)
+	}
+	if collectErr != nil {
+		a.log.WithContext(ctx).Warnf("failed to count collects: %v", collectErr)
 	}
 
-	isFollowingMap, err := uc.core.IsFollowing(ctx, userId, targetUserId)
-	if err != nil {
-		log.Context(ctx).Errorf("failed to check is following: %v", err)
-	}
-
-	isCollectedMap, err := uc.core.IsCollected(ctx, userId, targetVideoId)
-	if err != nil {
-		log.Context(ctx).Errorf("failed to check is collected: %v", err)
-	}
-
-	isFavoriteMap, err := uc.core.IsUserFavoriteVideo(ctx, userId, targetVideoId)
-	if err != nil {
-		log.Context(ctx).Errorf("failed to check is favorite: %v", err)
-	}
-
-	for _, video := range list {
-		author := video.Author
-		author.IsFollowing = isFollowingMap[author.ID]
-		video.IsCollected = isCollectedMap[video.ID]
-		video.IsFavorite = isFavoriteMap[video.ID]
-	}
-
-}
-
-func (uc *VideoUsecase) AssembleVideoCountInfo(ctx context.Context, list []*Video) {
-	var videoIdList []int64
-	for _, video := range list {
-		videoIdList = append(videoIdList, video.ID)
-	}
-
-	commentCountMap, err := uc.core.CountComments4Video(ctx, videoIdList)
-	if err != nil {
-		log.Context(ctx).Errorf("failed to count comments: %v", err)
-	}
-
-	favoriteCountMap, err := uc.core.CountFavorite4Video(ctx, videoIdList)
-	if err != nil {
-		log.Context(ctx).Errorf("failed to count favorite: %v", err)
-	}
-
-	collectedCountMap, err := uc.core.CountCollected4Video(ctx, videoIdList)
-	if err != nil {
-		log.Context(ctx).Errorf("failed to count collected: %v", err)
-	}
-
-	for _, video := range list {
-		video.CommentCount = commentCountMap[video.ID]
-		video.FavoriteCount = favoriteCountMap[video.ID]
-		video.CollectedCount = collectedCountMap[video.ID]
-	}
-}
-
-func (uc *VideoUsecase) UploadVideo(ctx context.Context, in *UploadVideoInput) (out *UploadVideoOutput, err error) {
-	fileId, url, err := uc.base.PreSign4Upload(ctx, in.Hash, in.FileType, in.Filename, in.Size, 3600)
-	if err != nil {
-		return
-	}
-	return &UploadVideoOutput{
-		Url:    url,
-		FileId: fileId,
+	return &VideoCountInfo{
+		CommentCounts:  commentCounts,
+		FavoriteCounts: favoriteCounts,
+		CollectCounts:  collectCounts,
 	}, nil
 }
 
-func (uc *VideoUsecase) UploadCover(ctx context.Context, in *UploadCoverInput) (out *UploadCoverOutput, err error) {
-	fileId, url, err := uc.base.PreSign4Upload(ctx, in.Hash, in.FileType, in.Filename, in.Size, 3600)
-	if err != nil {
-		return
+// getUserInteractions 批量获取用户互动信息
+func (a *VideoAssembler) getUserInteractions(ctx context.Context, userID int64, videoIDs, authorIDs []int64) (*UserInteractionInfo, error) {
+	// 如果是未登录用户，不查询互动信息
+	if userID <= 0 {
+		return &UserInteractionInfo{}, nil
 	}
-	return &UploadCoverOutput{
-		Url:    url,
-		FileId: fileId,
+
+	var isFavoriteMap, isCollectMap, isFollowingMap map[int64]bool
+	var favoriteErr, collectErr, followErr error
+
+	// 并行查询用户互动状态
+	if len(videoIDs) > 0 {
+		isFavoriteMap, favoriteErr = a.core.IsUserFavoriteVideo(ctx, userID, videoIDs)
+		isCollectMap, collectErr = a.core.IsCollected(ctx, userID, videoIDs)
+	}
+
+	if len(authorIDs) > 0 {
+		isFollowingMap, followErr = a.core.IsFollowing(ctx, userID, authorIDs)
+	}
+
+	// 记录错误但不中断流程
+	if favoriteErr != nil {
+		a.log.WithContext(ctx).Warnf("failed to check favorites: %v", favoriteErr)
+	}
+	if collectErr != nil {
+		a.log.WithContext(ctx).Warnf("failed to check collects: %v", collectErr)
+	}
+	if followErr != nil {
+		a.log.WithContext(ctx).Warnf("failed to check follows: %v", followErr)
+	}
+
+	return &UserInteractionInfo{
+		IsFavoriteMap:  isFavoriteMap,
+		IsCollectMap:   isCollectMap,
+		IsFollowingMap: isFollowingMap,
 	}, nil
 }
 
-func (uc *VideoUsecase) ReportFinishUpload(ctx context.Context, in *ReportFinishUploadInput) (out *ReportFinishUploadOutput, err error) {
-	url, err := uc.base.ReportUploaded(ctx, in.FileId)
+// doAssembleVideos 执行视频组装
+func (a *VideoAssembler) doAssembleVideos(
+	videos []*Video,
+	userInfos map[int64]*UserInfo,
+	counts *VideoCountInfo,
+	interactions *UserInteractionInfo,
+) []*Video {
+	result := make([]*Video, 0, len(videos))
+
+	for _, video := range videos {
+		assembledVideo := a.assembleSingleVideo(video, userInfos, counts, interactions)
+		result = append(result, assembledVideo)
+	}
+
+	return result
+}
+
+// assembleSingleVideo 组装单个视频
+func (a *VideoAssembler) assembleSingleVideo(
+	video *Video,
+	userInfos map[int64]*UserInfo,
+	counts *VideoCountInfo,
+	interactions *UserInteractionInfo,
+) *Video {
+	// 组装作者信息
+	if video.Author != nil {
+		if userInfo, exists := userInfos[video.Author.ID]; exists {
+			video.Author.Name = userInfo.Name
+			video.Author.Avatar = userInfo.Avatar
+		}
+		if interactions.IsFollowingMap != nil {
+			video.Author.IsFollowing = interactions.IsFollowingMap[video.Author.ID]
+		}
+	}
+
+	// 组装计数信息
+	if counts.CommentCounts != nil {
+		video.CommentCount = counts.CommentCounts[video.ID]
+	}
+	if counts.FavoriteCounts != nil {
+		video.FavoriteCount = counts.FavoriteCounts[video.ID]
+	}
+	if counts.CollectCounts != nil {
+		video.CollectedCount = counts.CollectCounts[video.ID]
+	}
+
+	// 组装互动状态
+	if interactions.IsFavoriteMap != nil {
+		video.IsFavorite = interactions.IsFavoriteMap[video.ID]
+	}
+	if interactions.IsCollectMap != nil {
+		video.IsCollected = interactions.IsCollectMap[video.ID]
+	}
+
+	return video
+}
+
+// ============ VideoUsecase 视频用例 ============
+
+// VideoUsecase 视频业务用例
+type VideoUsecase struct {
+	base      BaseAdapter
+	core      CoreAdapter
+	assembler *VideoAssembler
+	log       *log.Helper
+}
+
+// NewVideoUsecase 创建视频用例
+func NewVideoUsecase(
+	base BaseAdapter,
+	core CoreAdapter,
+	assembler *VideoAssembler,
+	logger log.Logger,
+) *VideoUsecase {
+	return &VideoUsecase{
+		base:      base,
+		core:      core,
+		assembler: assembler,
+		log:       log.NewHelper(logger),
+	}
+}
+
+// PreSignUpload 预签名上传
+func (uc *VideoUsecase) PreSignUpload(ctx context.Context, input *PreSignUploadInput) (*PreSignUploadOutput, error) {
+	// 参数验证
+	if input.Hash == "" || input.Filename == "" || input.Size <= 0 {
+		return nil, ErrInvalidParams
+	}
+
+	// 调用存储服务获取预签名URL
+	fileID, url, err := uc.base.PreSign4Upload(ctx, input.Hash, input.FileType, input.Filename, input.Size, 3600)
 	if err != nil {
 		return nil, err
 	}
+
+	return &PreSignUploadOutput{
+		URL:    url,
+		FileID: fileID,
+	}, nil
+}
+
+// ReportFinishUpload 报告上传完成
+func (uc *VideoUsecase) ReportFinishUpload(ctx context.Context, input *ReportFinishUploadInput) (*ReportFinishUploadOutput, error) {
+	if input.FileID <= 0 {
+		return nil, ErrInvalidParams
+	}
+
+	url, err := uc.base.ReportUploaded(ctx, input.FileID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ReportFinishUploadOutput{
-		Url: url,
+		URL: url,
 	}, nil
 }
 
-func (uc *VideoUsecase) ReportVideoFinishUpload(ctx context.Context, in *ReportVideoFinishUploadInput) (out *ReportVideoFinishUploadOutput, err error) {
-	userId, err := claims.GetUserId(ctx)
-	if err != nil {
-		return nil, err
+// ReportVideoFinishUpload 报告视频上传完成
+func (uc *VideoUsecase) ReportVideoFinishUpload(ctx context.Context, input *ReportVideoFinishUploadInput) (*ReportVideoFinishUploadOutput, error) {
+	// 参数验证
+	if input.FileID <= 0 || input.Title == "" || input.VideoURL == "" || input.CoverURL == "" {
+		return nil, ErrInvalidParams
 	}
-	// todo 跟DouTok不一样，待定
-	_, err = uc.base.ReportUploaded(ctx, in.FileId)
+	if input.UserID <= 0 {
+		return nil, ErrUnauthorized
+	}
+
+	// 1. 报告文件上传完成
+	_, err := uc.base.ReportUploaded(ctx, input.FileID)
 	if err != nil {
 		return nil, err
 	}
 
-	videoId, err := uc.core.SaveVideoInfo(ctx, in.Title, in.VideoUrl, in.CoverUrl, in.Description, userId)
+	// 2. 创建视频记录
+	videoID, err := uc.core.SaveVideoInfo(ctx, input.Title, input.VideoURL, input.CoverURL, input.Description, input.UserID)
 	if err != nil {
 		return nil, err
 	}
+
 	return &ReportVideoFinishUploadOutput{
-		VideoId: videoId,
+		VideoID: videoID,
 	}, nil
 }
 
-func (uc *VideoUsecase) GetVideoById(ctx context.Context, in *GetVideoByIdInput) (out *Video, err error) {
-	video, err := uc.core.GetVideoById(ctx, in.VideoId)
+// GetVideo 获取视频
+func (uc *VideoUsecase) GetVideo(ctx context.Context, input *GetVideoInput) (*GetVideoOutput, error) {
+	if input.VideoID <= 0 {
+		return nil, ErrInvalidParams
+	}
+
+	// 获取视频基本信息
+	video, err := uc.core.GetVideoById(ctx, input.VideoID)
 	if err != nil {
 		return nil, err
 	}
-	return video, nil
+	if video == nil {
+		return nil, ErrVideoNotFound
+	}
+
+	// 组装完整的视频信息
+	video, err = uc.assembler.AssembleVideo(ctx, video, input.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GetVideoOutput{
+		Video: video,
+	}, nil
 }
 
-func (uc *VideoUsecase) FeedShortVideo(ctx context.Context, in *FeedShortVideoInput) (*FeedShortVideoOutput, error) {
-	userId, err := claims.GetUserId(ctx)
-	if err != nil {
-		return nil, err
+// FeedVideo 视频流
+func (uc *VideoUsecase) FeedVideo(ctx context.Context, input *FeedVideoInput) (*FeedVideoOutput, error) {
+	// 设置默认值
+	if input.FeedNum <= 0 {
+		input.FeedNum = 30
 	}
-	videos, err := uc.core.Feed(ctx, in.UserId, in.FeedNum, in.LatestTime)
-	if err != nil {
-		return nil, err
-	}
-	uc.AssembleUserIsFollowing(ctx, videos, userId)
-	uc.AssembleVideoCountInfo(ctx, videos)
 
-	return &FeedShortVideoOutput{
+	// 获取视频列表
+	videos, err := uc.core.Feed(ctx, input.UserID, input.FeedNum, input.LatestTime)
+	if err != nil {
+		return nil, err
+	}
+
+	// 组装完整的视频信息
+	videos, err = uc.assembler.AssembleVideos(ctx, videos, input.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 计算下次请求的时间（这里简化处理，实际可能需要根据视频创建时间计算）
+	var nextTime int64
+	if len(videos) > 0 {
+		// 使用最后一个视频的时间作为下次请求的latest_time
+		nextTime = time.Now().Unix()
+	}
+
+	return &FeedVideoOutput{
 		Videos:   videos,
-		NextTime: 0,
+		NextTime: nextTime,
 	}, nil
 }
 
-func (uc *VideoUsecase) ListPublishedVideo(ctx context.Context, in *ListPublishedVideoInput) (*ListPublishedVideoOutput, error) {
-	userId, err := claims.GetUserId(ctx)
+// ListPublishedVideo 获取已发布视频列表
+func (uc *VideoUsecase) ListPublishedVideo(ctx context.Context, input *ListPublishedVideoInput) (*ListPublishedVideoOutput, error) {
+	if input.UserID <= 0 {
+		return nil, ErrInvalidParams
+	}
+
+	// 设置默认分页
+	if input.Page <= 0 {
+		input.Page = 1
+	}
+	if input.PageSize <= 0 {
+		input.PageSize = 20
+	}
+
+	// 获取用户发布的视频
+	total, videos, err := uc.core.ListPublishedVideo(ctx, input.UserID, &PageStats{
+		Page:     int32(input.Page),
+		PageSize: int32(input.PageSize),
+	})
 	if err != nil {
 		return nil, err
 	}
-	total, videos, err := uc.core.ListPublishedVideo(ctx, userId, in.PageStats)
+
+	// 组装完整的视频信息
+	videos, err = uc.assembler.AssembleVideos(ctx, videos, input.UserID)
 	if err != nil {
 		return nil, err
 	}
-	videoList, err := uc.AssembleVideoList(ctx, userId, videos)
-	if err != nil {
-		return nil, err
-	}
-	uc.AssembleUserIsFollowing(ctx, videoList, userId)
-	uc.AssembleVideoCountInfo(ctx, videoList)
+
 	return &ListPublishedVideoOutput{
-		VideoList: videoList,
-		Total:     total,
+		Videos: videos,
+		Total:  total,
 	}, nil
 }
+
+// ============ 辅助结构体 ============
+
+// VideoCountInfo 视频计数信息
+type VideoCountInfo struct {
+	CommentCounts  map[int64]int64
+	FavoriteCounts map[int64]int64
+	CollectCounts  map[int64]int64
+}
+
+// UserInteractionInfo 用户互动信息
+type UserInteractionInfo struct {
+	IsFavoriteMap  map[int64]bool
+	IsCollectMap   map[int64]bool
+	IsFollowingMap map[int64]bool
+}
+
+// ============ 错误定义 ============
+
+var (
+	ErrInvalidParams = errors.New("invalid parameters")
+	ErrUnauthorized  = errors.New("unauthorized")
+	ErrVideoNotFound = errors.New("video not found")
+)

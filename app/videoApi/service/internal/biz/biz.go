@@ -7,6 +7,7 @@ var ProviderSet = wire.NewSet(
 	NewUserUsecase,
 	NewFileUsecase,
 	NewVideoUsecase,
+	NewVideoAssembler,
 )
 
 type PageStats struct {
