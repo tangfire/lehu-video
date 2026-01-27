@@ -87,29 +87,43 @@ func (r *videoRepo) GetVideoById(ctx context.Context, id int64) (bool, *biz.Vide
 	}, nil
 }
 
-func (r *videoRepo) GetVideoListByUid(ctx context.Context, uid int64, latestTime time.Time, pageStats biz.PageStats) ([]*biz.Video, error) {
+func (r *videoRepo) GetVideoListByUid(ctx context.Context, uid int64, latestTime time.Time, pageStats biz.PageStats) (int64, []*biz.Video, error) {
 	// 首先检查用户是否存在
 	user := model.User{}
 	err := r.data.db.Table(model.User{}.TableName()).Where("id = ?", uid).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// 用户不存在，返回空列表
-		return []*biz.Video{}, nil
+		// 用户不存在，返回0和空列表
+		return 0, []*biz.Video{}, nil
 	}
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
+	// 1. 先查询总数
+	var total int64
+	query := r.data.db.Table(model.Video{}.TableName()).
+		Where("user_id = ?", uid).
+		Where("created_at <= ?", latestTime)
+
+	if err := query.Count(&total).Error; err != nil {
+		return 0, nil, err
+	}
+
+	// 如果总数为0，直接返回
+	if total == 0 {
+		return 0, []*biz.Video{}, nil
+	}
+
+	// 2. 查询分页数据
 	var videoList []*model.Video
 	offset := (pageStats.Page - 1) * pageStats.PageSize
-	err = r.data.db.Table(model.Video{}.TableName()).
-		Where("user_id = ?", uid).
-		Where("created_at <= ?", latestTime).
+	err = query.
 		Limit(int(pageStats.PageSize)).
 		Offset(int(offset)).
 		Order("created_at desc").
 		Find(&videoList).Error
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	var videoBizList []*biz.Video
@@ -130,7 +144,8 @@ func (r *videoRepo) GetVideoListByUid(ctx context.Context, uid int64, latestTime
 			UploadTime: video.CreatedAt,
 		})
 	}
-	return videoBizList, nil
+
+	return total, videoBizList, nil
 }
 
 func (r *videoRepo) GetVideoByIdList(ctx context.Context, idList []int64) ([]*biz.Video, error) {

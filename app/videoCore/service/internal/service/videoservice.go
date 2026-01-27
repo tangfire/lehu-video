@@ -129,8 +129,9 @@ func (s *VideoServiceService) ListPublishedVideo(ctx context.Context, req *pb.Li
 	}
 
 	return &pb.ListPublishedVideoResp{
-		Meta:   utils.GetSuccessMeta(),
-		Videos: pbVideos,
+		Meta:      utils.GetSuccessMeta(),
+		Videos:    pbVideos,
+		PageStats: &pb.PageStatsResp{Total: int32(result.Total)},
 	}, nil
 }
 

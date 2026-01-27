@@ -188,13 +188,12 @@ message GetVideoByIdResp{
 
 message ListPublishedVideoReq{
 	// @gotags: json:"user_id,omitempty,string"
-	int64 user_id = 1 ;
-	PageStatsReq pagination = 2;
+	PageStatsReq page_stats = 1;
 }
 
 message ListPublishedVideoResp{
 	repeated Video video_list = 1;
-	PageStatsResp pagination = 2;
+	PageStatsResp page_stats = 2;
 }
 
 

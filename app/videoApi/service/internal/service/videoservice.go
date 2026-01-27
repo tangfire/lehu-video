@@ -181,8 +181,8 @@ func (s *VideoServiceService) ListPublishedVideo(ctx context.Context, req *pb.Li
 	// 构建输入
 	input := &biz.ListPublishedVideoInput{
 		UserID:   currentUserID,
-		Page:     int64(req.Pagination.Page),
-		PageSize: int64(req.Pagination.Size),
+		Page:     int64(req.PageStats.Page),
+		PageSize: int64(req.PageStats.Size),
 	}
 
 	// 调用业务层
@@ -199,7 +199,7 @@ func (s *VideoServiceService) ListPublishedVideo(ctx context.Context, req *pb.Li
 
 	return &pb.ListPublishedVideoResp{
 		VideoList: pbVideos,
-		Pagination: &pb.PageStatsResp{
+		PageStats: &pb.PageStatsResp{
 			Total: int32(output.Total),
 		},
 	}, nil

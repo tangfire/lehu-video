@@ -33,7 +33,30 @@ func (f *File) SetId() {
 }
 
 func (f *File) GetObjectName() string {
-	return fmt.Sprintf("%s/%d", f.BizName, f.Id)
+	// 确保有文件类型
+	fileType := f.FileType
+
+	// 如果file_type为空，尝试从FileName提取
+	if fileType == "" && f.FileName != "" {
+		// 从原始文件名提取后缀
+		if idx := strings.LastIndex(f.FileName, "."); idx != -1 {
+			fileType = strings.ToLower(f.FileName[idx+1:])
+		}
+	}
+
+	// 默认后缀
+	if fileType == "" {
+		// 根据业务类型设置默认后缀
+		if f.BizName == "video" {
+			fileType = "mp4"
+		} else if f.BizName == "cover" {
+			fileType = "jpg"
+		} else {
+			fileType = "bin"
+		}
+	}
+
+	return fmt.Sprintf("%s/%d.%s", f.BizName, f.Id, fileType)
 }
 
 func (f *File) CheckHash(hash string) bool {

@@ -13,6 +13,7 @@ import (
 	v1 "lehu-video/api/videoApi/service/v1"
 	"lehu-video/app/videoApi/service/internal/conf"
 	"lehu-video/app/videoApi/service/internal/pkg/resp"
+	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 	"lehu-video/app/videoApi/service/internal/service"
 )
 
@@ -44,7 +45,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 				jwt.Server(func(token *jwt2.Token) (interface{}, error) {
 					return []byte(ac.ApiKey), nil
 				}, jwt.WithSigningMethod(jwt2.SigningMethodHS256), jwt.WithClaims(func() jwt2.Claims {
-					return &jwt2.MapClaims{}
+					return &claims.Claims{}
 				})),
 			).
 				Match(NewWhiteListMatcher()).

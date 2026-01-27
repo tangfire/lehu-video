@@ -54,6 +54,7 @@ type ListPublishedVideoQuery struct {
 
 type ListPublishedVideoResult struct {
 	Videos []*Video
+	Total  int64
 }
 
 // Feed流查询
@@ -77,7 +78,7 @@ type GetVideoByIdListResult struct {
 type VideoRepo interface {
 	PublishVideo(ctx context.Context, video *Video) (int64, error)
 	GetVideoById(ctx context.Context, id int64) (bool, *Video, error)
-	GetVideoListByUid(ctx context.Context, uid int64, latestTime time.Time, pageStats PageStats) ([]*Video, error)
+	GetVideoListByUid(ctx context.Context, uid int64, latestTime time.Time, pageStats PageStats) (int64, []*Video, error)
 	GetVideoByIdList(ctx context.Context, idList []int64) ([]*Video, error)
 	GetFeedVideos(ctx context.Context, latestTime time.Time, pageStats PageStats) ([]*Video, error)
 }
@@ -132,13 +133,14 @@ func (uc *VideoUsecase) ListPublishedVideo(ctx context.Context, query *ListPubli
 		latestTime = time.Unix(query.LatestTime, 0)
 	}
 
-	videos, err := uc.repo.GetVideoListByUid(ctx, query.UserId, latestTime, query.PageStats)
+	total, videos, err := uc.repo.GetVideoListByUid(ctx, query.UserId, latestTime, query.PageStats)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ListPublishedVideoResult{
 		Videos: videos,
+		Total:  total,
 	}, nil
 }
 

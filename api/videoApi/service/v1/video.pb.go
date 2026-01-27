@@ -894,8 +894,7 @@ func (x *GetVideoByIdResp) GetVideo() *Video {
 type ListPublishedVideoReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"user_id,omitempty,string"
-	UserId        int64         `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Pagination    *PageStatsReq `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	PageStats     *PageStatsReq `protobuf:"bytes,1,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -930,16 +929,9 @@ func (*ListPublishedVideoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_video_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *ListPublishedVideoReq) GetUserId() int64 {
+func (x *ListPublishedVideoReq) GetPageStats() *PageStatsReq {
 	if x != nil {
-		return x.UserId
-	}
-	return 0
-}
-
-func (x *ListPublishedVideoReq) GetPagination() *PageStatsReq {
-	if x != nil {
-		return x.Pagination
+		return x.PageStats
 	}
 	return nil
 }
@@ -947,7 +939,7 @@ func (x *ListPublishedVideoReq) GetPagination() *PageStatsReq {
 type ListPublishedVideoResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	VideoList     []*Video               `protobuf:"bytes,1,rep,name=video_list,json=videoList,proto3" json:"video_list,omitempty"`
-	Pagination    *PageStatsResp         `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	PageStats     *PageStatsResp         `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -989,9 +981,9 @@ func (x *ListPublishedVideoResp) GetVideoList() []*Video {
 	return nil
 }
 
-func (x *ListPublishedVideoResp) GetPagination() *PageStatsResp {
+func (x *ListPublishedVideoResp) GetPageStats() *PageStatsResp {
 	if x != nil {
-		return x.Pagination
+		return x.PageStats
 	}
 	return nil
 }
@@ -1059,18 +1051,15 @@ const file_api_videoApi_service_v1_video_proto_rawDesc = "" +
 	"\x0fGetVideoByIdReq\x12\x19\n" +
 	"\bvideo_id\x18\x01 \x01(\x03R\avideoId\"H\n" +
 	"\x10GetVideoByIdResp\x124\n" +
-	"\x05video\x18\x01 \x01(\v2\x1e.api.videoApi.service.v1.VideoR\x05video\"w\n" +
-	"\x15ListPublishedVideoReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12E\n" +
+	"\x05video\x18\x01 \x01(\v2\x1e.api.videoApi.service.v1.VideoR\x05video\"]\n" +
+	"\x15ListPublishedVideoReq\x12D\n" +
 	"\n" +
-	"pagination\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\n" +
-	"pagination\"\x9f\x01\n" +
+	"page_stats\x18\x01 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x9e\x01\n" +
 	"\x16ListPublishedVideoResp\x12=\n" +
 	"\n" +
-	"video_list\x18\x01 \x03(\v2\x1e.api.videoApi.service.v1.VideoR\tvideoList\x12F\n" +
+	"video_list\x18\x01 \x03(\v2\x1e.api.videoApi.service.v1.VideoR\tvideoList\x12E\n" +
 	"\n" +
-	"pagination\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\n" +
-	"pagination2\x9e\b\n" +
+	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats2\x9e\b\n" +
 	"\fVideoService\x12\x95\x01\n" +
 	"\x13PreSign4UploadVideo\x12/.api.videoApi.service.v1.PreSign4UploadVideoReq\x1a0.api.videoApi.service.v1.PreSign4UploadVideoResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/video/upload\x12\x95\x01\n" +
 	"\x13PreSign4UploadCover\x12/.api.videoApi.service.v1.PreSign4UploadCoverReq\x1a0.api.videoApi.service.v1.PreSign4UploadCoverResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/cover/upload\x12\x9b\x01\n" +
@@ -1118,9 +1107,9 @@ var file_api_videoApi_service_v1_video_proto_depIdxs = []int32{
 	1,  // 0: api.videoApi.service.v1.Video.author:type_name -> api.videoApi.service.v1.VideoAuthor
 	0,  // 1: api.videoApi.service.v1.FeedShortVideoResp.videos:type_name -> api.videoApi.service.v1.Video
 	0,  // 2: api.videoApi.service.v1.GetVideoByIdResp.video:type_name -> api.videoApi.service.v1.Video
-	16, // 3: api.videoApi.service.v1.ListPublishedVideoReq.pagination:type_name -> api.videoApi.service.v1.PageStatsReq
+	16, // 3: api.videoApi.service.v1.ListPublishedVideoReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
 	0,  // 4: api.videoApi.service.v1.ListPublishedVideoResp.video_list:type_name -> api.videoApi.service.v1.Video
-	17, // 5: api.videoApi.service.v1.ListPublishedVideoResp.pagination:type_name -> api.videoApi.service.v1.PageStatsResp
+	17, // 5: api.videoApi.service.v1.ListPublishedVideoResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
 	2,  // 6: api.videoApi.service.v1.VideoService.PreSign4UploadVideo:input_type -> api.videoApi.service.v1.PreSign4UploadVideoReq
 	4,  // 7: api.videoApi.service.v1.VideoService.PreSign4UploadCover:input_type -> api.videoApi.service.v1.PreSign4UploadCoverReq
 	6,  // 8: api.videoApi.service.v1.VideoService.ReportFinishUpload:input_type -> api.videoApi.service.v1.ReportFinishUploadReq
