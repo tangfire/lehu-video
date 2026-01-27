@@ -3,7 +3,6 @@ package data
 import (
 	"context"
 	"errors"
-
 	"github.com/go-kratos/kratos/v2/log"
 	"gorm.io/gorm"
 
@@ -23,17 +22,23 @@ func NewCommentRepo(data *Data, logger log.Logger) biz.CommentRepo {
 	}
 }
 
-func (r *commentRepo) Create(ctx context.Context, comment *biz.Comment) error {
+func (r *commentRepo) Create(ctx context.Context, comment *biz.Comment) (int64, error) {
 	dbComment := &model.Comment{
-		Id:       comment.ID,
-		VideoId:  comment.VideoID,
-		UserId:   comment.UserID,
-		ParentId: comment.ParentID,
-		ToUserId: comment.ReplyUserID,
-		Content:  comment.Content,
+		Id:        comment.ID,
+		VideoId:   comment.VideoID,
+		UserId:    comment.UserID,
+		ParentId:  comment.ParentID,
+		ToUserId:  comment.ReplyUserID,
+		Content:   comment.Content,
+		IsDeleted: false,
 	}
 
-	return r.data.db.WithContext(ctx).Create(dbComment).Error
+	err := r.data.db.WithContext(ctx).Create(dbComment).Error
+	if err != nil {
+		return 0, err
+	}
+
+	return dbComment.Id, nil
 }
 
 func (r *commentRepo) GetByID(ctx context.Context, id int64) (*biz.Comment, error) {
@@ -51,12 +56,13 @@ func (r *commentRepo) GetByID(ctx context.Context, id int64) (*biz.Comment, erro
 
 func (r *commentRepo) Update(ctx context.Context, comment *biz.Comment) error {
 	dbComment := &model.Comment{
-		Id:       comment.ID,
-		VideoId:  comment.VideoID,
-		UserId:   comment.UserID,
-		ParentId: comment.ParentID,
-		ToUserId: comment.ReplyUserID,
-		Content:  comment.Content,
+		Id:        comment.ID,
+		VideoId:   comment.VideoID,
+		UserId:    comment.UserID,
+		ParentId:  comment.ParentID,
+		ToUserId:  comment.ReplyUserID,
+		Content:   comment.Content,
+		IsDeleted: comment.IsDeleted,
 	}
 
 	return r.data.db.WithContext(ctx).Save(dbComment).Error
@@ -69,7 +75,7 @@ func (r *commentRepo) Delete(ctx context.Context, id int64, userID int64) error 
 }
 
 func (r *commentRepo) SoftDelete(ctx context.Context, id int64, userID int64) error {
-	// 这里假设有is_deleted字段，如果没有需要修改
+	// 更新is_deleted字段为true
 	return r.data.db.WithContext(ctx).
 		Model(&model.Comment{}).
 		Where("id = ? AND user_id = ?", id, userID).
@@ -115,7 +121,7 @@ func (r *commentRepo) FindByIDs(ctx context.Context, ids []int64) ([]*biz.Commen
 
 	var dbComments []*model.Comment
 	err := r.data.db.WithContext(ctx).
-		Where("id IN (?)", ids).
+		Where("id IN (?) AND is_deleted = ?", ids, false).
 		Find(&dbComments).Error
 	if err != nil {
 		return nil, err
@@ -140,6 +146,7 @@ func (r *commentRepo) CountByVideoIDs(ctx context.Context, videoIDs []int64) (ma
 	}
 
 	var results []Result
+	// 注意：这里要去除已删除的评论，is_deleted = false
 	err := r.data.db.WithContext(ctx).
 		Model(&model.Comment{}).
 		Select("video_id, COUNT(*) as count").
@@ -241,6 +248,42 @@ func (r *commentRepo) CountGroupByParentID(ctx context.Context, parentIDs []int6
 	return counts, nil
 }
 
+// GetLikeCounts 获取评论点赞数统计
+func (r *commentRepo) GetLikeCounts(ctx context.Context, commentIDs []int64) (map[int64]int64, error) {
+	if len(commentIDs) == 0 {
+		return map[int64]int64{}, nil
+	}
+
+	// 这里需要根据实际的点赞表结构来查询
+	// 假设有一个comment_likes表，包含comment_id字段
+	type LikeResult struct {
+		CommentID int64
+		Count     int64
+	}
+
+	var results []LikeResult
+	// 示例查询，需要根据实际表结构调整
+	err := r.data.db.WithContext(ctx).
+		Table("comment_likes").
+		Select("comment_id, COUNT(*) as count").
+		Where("comment_id IN (?)", commentIDs).
+		Group("comment_id").
+		Find(&results).Error
+
+	if err != nil {
+		// 如果表不存在或其他错误，返回空map
+		r.log.Warnf("查询点赞数失败: %v", err)
+		return map[int64]int64{}, nil
+	}
+
+	counts := make(map[int64]int64)
+	for _, result := range results {
+		counts[result.CommentID] = result.Count
+	}
+
+	return counts, nil
+}
+
 // applyConditions 应用查询条件
 func (r *commentRepo) applyConditions(db *gorm.DB, condition map[string]interface{}) *gorm.DB {
 	for key, value := range condition {
@@ -251,16 +294,32 @@ func (r *commentRepo) applyConditions(db *gorm.DB, condition map[string]interfac
 			db = db.Where("user_id = ?", value)
 		case "parent_id":
 			if ids, ok := value.([]int64); ok {
-				db = db.Where("parent_id IN (?)", ids)
+				if len(ids) == 0 {
+					db = db.Where("1 = 0") // 如果传入空数组，返回空结果
+				} else {
+					db = db.Where("parent_id IN (?)", ids)
+				}
 			} else {
 				db = db.Where("parent_id = ?", value)
 			}
 		case "is_deleted":
 			db = db.Where("is_deleted = ?", value)
 		case "limit":
-			db = db.Limit(int(value.(int64)))
+			if limit, ok := value.(int64); ok {
+				db = db.Limit(int(limit))
+			} else if limit, ok := value.(int32); ok {
+				db = db.Limit(int(limit))
+			} else if limit, ok := value.(int); ok {
+				db = db.Limit(limit)
+			}
 		case "offset":
-			db = db.Offset(int(value.(int64)))
+			if offset, ok := value.(int64); ok {
+				db = db.Offset(int(offset))
+			} else if offset, ok := value.(int32); ok {
+				db = db.Offset(int(offset))
+			} else if offset, ok := value.(int); ok {
+				db = db.Offset(offset)
+			}
 		case "order_by":
 			db = db.Order(value.(string))
 		case "group_by":
@@ -269,6 +328,12 @@ func (r *commentRepo) applyConditions(db *gorm.DB, condition map[string]interfac
 			r.log.Warnf("Unknown condition key: %s", key)
 		}
 	}
+
+	// 默认只查询未删除的记录，除非显式指定
+	if _, hasIsDeleted := condition["is_deleted"]; !hasIsDeleted {
+		db = db.Where("is_deleted = ?", false)
+	}
+
 	return db
 }
 
@@ -282,6 +347,8 @@ func (r *commentRepo) toBizComment(dbComment *model.Comment) *biz.Comment {
 		ReplyUserID: dbComment.ToUserId,
 		Content:     dbComment.Content,
 		CreateTime:  dbComment.CreatedAt,
-		IsDeleted:   false, // 根据实际表结构调整
+		LikeCount:   0, // 默认值，需要单独查询
+		ReplyCount:  0, // 默认值，需要单独查询
+		IsDeleted:   dbComment.IsDeleted,
 	}
 }

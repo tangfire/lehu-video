@@ -29,14 +29,14 @@ type Comment struct {
 	// @gotags: json:"videoId,omitempty,string"
 	VideoId int64 `protobuf:"varint,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"` // 视频id
 	// @gotags: json:"parentId,omitempty,string"
-	ParentId      int64        `protobuf:"varint,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`      // 父评论id
-	User          *CommentUser `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`                               // 评论用户
-	ReplyUser     *CommentUser `protobuf:"bytes,5,opt,name=reply_user,json=replyUser,proto3" json:"reply_user,omitempty"`    // 回复用户
-	Content       string       `protobuf:"bytes,6,opt,name=content,proto3" json:"content,omitempty"`                         // 评论内容
-	Date          string       `protobuf:"bytes,7,opt,name=date,proto3" json:"date,omitempty"`                               // 评论日期
-	LikeCount     string       `protobuf:"bytes,8,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`    // 点赞数
-	ReplyCount    string       `protobuf:"bytes,9,opt,name=reply_count,json=replyCount,proto3" json:"reply_count,omitempty"` // 回复数
-	Comments      []*Comment   `protobuf:"bytes,10,rep,name=comments,proto3" json:"comments,omitempty"`                      // 子评论
+	ParentId      int64        `protobuf:"varint,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`       // 父评论id
+	User          *CommentUser `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`                                // 评论用户
+	ReplyUser     *CommentUser `protobuf:"bytes,5,opt,name=reply_user,json=replyUser,proto3" json:"reply_user,omitempty"`     // 回复用户
+	Content       string       `protobuf:"bytes,6,opt,name=content,proto3" json:"content,omitempty"`                          // 评论内容
+	Date          string       `protobuf:"bytes,7,opt,name=date,proto3" json:"date,omitempty"`                                // 评论日期
+	LikeCount     int64        `protobuf:"varint,8,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`    // 点赞数
+	ReplyCount    int64        `protobuf:"varint,9,opt,name=reply_count,json=replyCount,proto3" json:"reply_count,omitempty"` // 回复数
+	Comments      []*Comment   `protobuf:"bytes,10,rep,name=comments,proto3" json:"comments,omitempty"`                       // 子评论
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -120,18 +120,18 @@ func (x *Comment) GetDate() string {
 	return ""
 }
 
-func (x *Comment) GetLikeCount() string {
+func (x *Comment) GetLikeCount() int64 {
 	if x != nil {
 		return x.LikeCount
 	}
-	return ""
+	return 0
 }
 
-func (x *Comment) GetReplyCount() string {
+func (x *Comment) GetReplyCount() int64 {
 	if x != nil {
 		return x.ReplyCount
 	}
-	return ""
+	return 0
 }
 
 func (x *Comment) GetComments() []*Comment {
@@ -631,8 +631,8 @@ const file_api_videoApi_service_v1_comment_proto_rawDesc = "" +
 	"\acontent\x18\x06 \x01(\tR\acontent\x12\x12\n" +
 	"\x04date\x18\a \x01(\tR\x04date\x12\x1d\n" +
 	"\n" +
-	"like_count\x18\b \x01(\tR\tlikeCount\x12\x1f\n" +
-	"\vreply_count\x18\t \x01(\tR\n" +
+	"like_count\x18\b \x01(\x03R\tlikeCount\x12\x1f\n" +
+	"\vreply_count\x18\t \x01(\x03R\n" +
 	"replyCount\x12<\n" +
 	"\bcomments\x18\n" +
 	" \x03(\v2 .api.videoApi.service.v1.CommentR\bcomments\"l\n" +

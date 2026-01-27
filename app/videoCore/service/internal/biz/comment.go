@@ -3,10 +3,10 @@ package biz
 import (
 	"context"
 	"errors"
+	"github.com/google/uuid"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/google/uuid"
 )
 
 // ============ Command/Query 结构体定义 ============
@@ -100,11 +100,13 @@ type Comment struct {
 	ReplyUserID int64
 	Content     string
 	CreateTime  time.Time
+	LikeCount   int64
+	ReplyCount  int64
+	ChildCount  int64
 	IsDeleted   bool
 
 	// 嵌套的子评论（根据需要加载）
 	ChildComments []*Comment
-	ChildCount    int64
 }
 
 func (c *Comment) GenerateId() {
@@ -114,7 +116,7 @@ func (c *Comment) GenerateId() {
 // CommentRepo 数据层接口
 type CommentRepo interface {
 	// 基础CRUD
-	Create(ctx context.Context, comment *Comment) error
+	Create(ctx context.Context, comment *Comment) (int64, error)
 	GetByID(ctx context.Context, id int64) (*Comment, error)
 	Update(ctx context.Context, comment *Comment) error
 	Delete(ctx context.Context, id int64, userID int64) error
@@ -131,6 +133,9 @@ type CommentRepo interface {
 
 	// 新增：按父评论ID分组计数
 	CountGroupByParentID(ctx context.Context, parentIDs []int64) (map[int64]int64, error)
+
+	// 获取点赞数统计
+	GetLikeCounts(ctx context.Context, commentIDs []int64) (map[int64]int64, error)
 }
 
 // CommentUsecase 业务逻辑层
@@ -153,7 +158,7 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 		return nil, ErrInvalidParams
 	}
 
-	// 2. 构建评论对象
+	// 3. 构建评论对象
 	now := time.Now()
 	comment := &Comment{
 		ID:          0,
@@ -163,11 +168,14 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 		ReplyUserID: cmd.ReplyUserID,
 		Content:     cmd.Content,
 		CreateTime:  now,
+		LikeCount:   0,
+		ReplyCount:  0,
 		IsDeleted:   false,
 	}
+
 	comment.GenerateId()
 
-	// 3. 如果parentID > 0，验证父评论是否存在
+	// 4. 如果parentID > 0，验证父评论是否存在
 	if cmd.ParentID > 0 {
 		parentComment, err := uc.repo.GetByID(ctx, cmd.ParentID)
 		if err != nil {
@@ -178,8 +186,8 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 		}
 	}
 
-	// 4. 保存评论
-	err := uc.repo.Create(ctx, comment)
+	// 5. 保存评论
+	_, err := uc.repo.Create(ctx, comment)
 	if err != nil {
 		return nil, err
 	}
@@ -239,9 +247,8 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 
 	// 4. 查询总数
 	countCondition := map[string]interface{}{
-		"video_id":   query.VideoID,
-		"parent_id":  0,
-		"is_deleted": false,
+		"video_id":  query.VideoID,
+		"parent_id": 0,
 	}
 	total, err := uc.repo.CountByCondition(ctx, countCondition)
 	if err != nil {
@@ -253,6 +260,22 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 		err = uc.loadChildComments(ctx, comments)
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// 6. 获取点赞数统计
+	commentIDs := make([]int64, len(comments))
+	for i, comment := range comments {
+		commentIDs[i] = comment.ID
+	}
+	likeCounts, err := uc.repo.GetLikeCounts(ctx, commentIDs)
+	if err != nil {
+		uc.log.Warnf("获取点赞数失败: %v", err)
+	} else {
+		for _, comment := range comments {
+			if count, ok := likeCounts[comment.ID]; ok {
+				comment.LikeCount = count
+			}
 		}
 	}
 
@@ -280,11 +303,10 @@ func (uc *CommentUsecase) ListChildComments(ctx context.Context, query *ListChil
 
 	// 3. 构建查询条件
 	condition := map[string]interface{}{
-		"parent_id":  query.ParentID,
-		"is_deleted": false,
-		"limit":      query.PageStats.PageSize,
-		"offset":     (query.PageStats.Page - 1) * query.PageStats.PageSize,
-		"order_by":   "created_at ASC",
+		"parent_id": query.ParentID,
+		"limit":     query.PageStats.PageSize,
+		"offset":    (query.PageStats.Page - 1) * query.PageStats.PageSize,
+		"order_by":  "created_at ASC",
 	}
 
 	// 4. 查询子评论
@@ -295,12 +317,27 @@ func (uc *CommentUsecase) ListChildComments(ctx context.Context, query *ListChil
 
 	// 5. 查询总数
 	countCondition := map[string]interface{}{
-		"parent_id":  query.ParentID,
-		"is_deleted": false,
+		"parent_id": query.ParentID,
 	}
 	total, err := uc.repo.CountByCondition(ctx, countCondition)
 	if err != nil {
 		return nil, err
+	}
+
+	// 6. 获取点赞数统计
+	commentIDs := make([]int64, len(comments))
+	for i, comment := range comments {
+		commentIDs[i] = comment.ID
+	}
+	likeCounts, err := uc.repo.GetLikeCounts(ctx, commentIDs)
+	if err != nil {
+		uc.log.Warnf("获取点赞数失败: %v", err)
+	} else {
+		for _, comment := range comments {
+			if count, ok := likeCounts[comment.ID]; ok {
+				comment.LikeCount = count
+			}
+		}
 	}
 
 	return &ListChildCommentsResult{
@@ -388,34 +425,47 @@ func (uc *CommentUsecase) loadChildComments(ctx context.Context, parentComments 
 		return err
 	}
 
-	// 3. 批量查询子评论
+	// 3. 批量查询子评论（只查前5条）
 	childComments, err := uc.repo.FindByCondition(ctx, map[string]interface{}{
 		"parent_id":  parentIDs,
-		"is_deleted": false,
+		"is_deleted": false, // 明确指定不查询已删除的
+		"limit":      5,
 		"order_by":   "created_at ASC",
 	})
 	if err != nil {
 		return err
 	}
 
-	// 4. 按父评论ID分组
+	// 4. 获取子评论点赞数
+	childCommentIDs := make([]int64, len(childComments))
+	for i, child := range childComments {
+		childCommentIDs[i] = child.ID
+	}
+	likeCounts, err := uc.repo.GetLikeCounts(ctx, childCommentIDs)
+	if err != nil {
+		uc.log.Warnf("获取子评论点赞数失败: %v", err)
+	} else {
+		for _, child := range childComments {
+			if count, ok := likeCounts[child.ID]; ok {
+				child.LikeCount = count
+			}
+		}
+	}
+
+	// 5. 按父评论ID分组
 	childCommentsMap := make(map[int64][]*Comment)
 	for _, child := range childComments {
 		childCommentsMap[child.ParentID] = append(childCommentsMap[child.ParentID], child)
 	}
 
-	// 5. 组装数据
+	// 6. 组装数据
 	for _, parent := range parentComments {
 		if count, exists := childCounts[parent.ID]; exists {
+			parent.ReplyCount = count
 			parent.ChildCount = count
 		}
 		if children, exists := childCommentsMap[parent.ID]; exists {
-			// 限制每个父评论只显示前5条子评论
-			limit := 5
-			if len(children) < limit {
-				limit = len(children)
-			}
-			parent.ChildComments = children[:limit]
+			parent.ChildComments = children
 		}
 	}
 

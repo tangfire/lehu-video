@@ -20,8 +20,8 @@ message Comment {
 	CommentUser reply_user = 5; // 回复用户
 	string content = 6; // 评论内容
 	string date = 7; // 评论日期
-	string like_count = 8; // 点赞数
-	string reply_count = 9; // 回复数
+	int64 like_count = 8; // 点赞数
+	int64 reply_count = 9; // 回复数
 	repeated Comment comments = 10; // 子评论
 }
 

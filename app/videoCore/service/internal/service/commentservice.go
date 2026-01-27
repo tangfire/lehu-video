@@ -39,37 +39,10 @@ func (s *CommentServiceService) CreateComment(ctx context.Context, req *pb.Creat
 	}
 
 	comment := res.Comment
-	childComments := res.Comment.ChildComments
-	var retChildComments []*pb.Comment
-	for _, childComment := range childComments {
-		retChildComments = append(retChildComments, &pb.Comment{
-			Id:          childComment.ID,
-			VideoId:     childComment.VideoID,
-			Content:     childComment.Content,
-			Date:        childComment.CreateTime.Format(time.DateTime),
-			LikeCount:   0,
-			ReplyCount:  0,
-			UserId:      childComment.UserID,
-			ParentId:    childComment.ParentID,
-			ReplyUserId: childComment.ReplyUserID,
-			Comments:    nil,
-		})
-	}
-	// 可以在这里返回创建的评论信息，根据需求调整
+
 	return &pb.CreateCommentResp{
-		Meta: utils.GetSuccessMeta(),
-		Comment: &pb.Comment{
-			Id:          comment.ID,
-			VideoId:     comment.VideoID,
-			Content:     comment.Content,
-			Date:        comment.CreateTime.Format(time.DateTime),
-			LikeCount:   0,
-			ReplyCount:  0,
-			UserId:      comment.UserID,
-			ParentId:    comment.ParentID,
-			ReplyUserId: comment.ReplyUserID,
-			Comments:    retChildComments,
-		},
+		Meta:    utils.GetSuccessMeta(),
+		Comment: s.toPBComment(comment),
 	}, nil
 }
 
@@ -246,13 +219,17 @@ func (s *CommentServiceService) CountComment4User(ctx context.Context, req *pb.C
 
 // toPBComment 将业务层Comment转换为proto Comment
 func (s *CommentServiceService) toPBComment(comment *biz.Comment) *pb.Comment {
+	if comment == nil {
+		return nil
+	}
+
 	pbComment := &pb.Comment{
 		Id:          comment.ID,
 		VideoId:     comment.VideoID,
 		Content:     comment.Content,
 		Date:        comment.CreateTime.Format(time.DateTime),
-		LikeCount:   0,
-		ReplyCount:  0,
+		LikeCount:   comment.LikeCount,
+		ReplyCount:  comment.ReplyCount,
 		UserId:      comment.UserID,
 		ParentId:    comment.ParentID,
 		ReplyUserId: comment.ReplyUserID,

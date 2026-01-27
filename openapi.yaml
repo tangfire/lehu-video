@@ -3,8 +3,245 @@
 
 openapi: 3.0.3
 info:
-    title: ""
+    title: CommentService API
     version: 0.0.1
-paths: {}
+paths:
+    /v1/comment:
+        post:
+            tags:
+                - CommentService
+            description: 创建评论
+            operationId: CommentService_CreateComment
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateCommentReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateCommentResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        delete:
+            tags:
+                - CommentService
+            description: 删除评论
+            operationId: CommentService_RemoveComment
+            parameters:
+                - name: id
+                  in: query
+                  description: '@gotags: json:"id,omitempty,string"'
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RemoveCommentResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/comment/child:
+        post:
+            tags:
+                - CommentService
+            operationId: CommentService_ListChildComment
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListChildCommentReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListChildCommentResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/comment/video:
+        post:
+            tags:
+                - CommentService
+            description: 列出视频的评论
+            operationId: CommentService_ListComment4Video
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListComment4VideoReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListComment4VideoResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
 components:
-    schemas: {}
+    schemas:
+        Comment:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: '@gotags: json:"id,omitempty,string"'
+                videoId:
+                    type: string
+                    description: '@gotags: json:"videoId,omitempty,string"'
+                parentId:
+                    type: string
+                    description: '@gotags: json:"parentId,omitempty,string"'
+                user:
+                    $ref: '#/components/schemas/CommentUser'
+                replyUser:
+                    $ref: '#/components/schemas/CommentUser'
+                content:
+                    type: string
+                date:
+                    type: string
+                likeCount:
+                    type: string
+                replyCount:
+                    type: string
+                comments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Comment'
+        CommentUser:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: '@gotags: json:"id,omitempty,string"'
+                name:
+                    type: string
+                avatar:
+                    type: string
+                isFollowing:
+                    type: boolean
+        CreateCommentReq:
+            type: object
+            properties:
+                videoId:
+                    type: string
+                    description: '@gotags: json:"videoId,omitempty,string"'
+                content:
+                    type: string
+                parentId:
+                    type: string
+                    description: '@gotags: json:"parentId,omitempty,string"'
+                replyUserId:
+                    type: string
+                    description: '@gotags: json:"replyUserId,omitempty,string"'
+        CreateCommentResp:
+            type: object
+            properties:
+                comment:
+                    $ref: '#/components/schemas/Comment'
+        GoogleProtobufAny:
+            type: object
+            properties:
+                '@type':
+                    type: string
+                    description: The type of the serialized message.
+            additionalProperties: true
+            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        ListChildCommentReq:
+            type: object
+            properties:
+                commentId:
+                    type: string
+                    description: '@gotags: json:"commentId,omitempty,string"'
+                pagination:
+                    $ref: '#/components/schemas/PageStatsReq'
+        ListChildCommentResp:
+            type: object
+            properties:
+                comments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Comment'
+                pagination:
+                    $ref: '#/components/schemas/PageStatsResp'
+        ListComment4VideoReq:
+            type: object
+            properties:
+                videoId:
+                    type: string
+                    description: '@gotags: json:"videoId,omitempty,string"'
+                pagination:
+                    $ref: '#/components/schemas/PageStatsReq'
+        ListComment4VideoResp:
+            type: object
+            properties:
+                comments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Comment'
+                pagination:
+                    $ref: '#/components/schemas/PageStatsResp'
+        PageStatsReq:
+            type: object
+            properties:
+                page:
+                    type: integer
+                    format: int32
+                size:
+                    type: integer
+                    format: int32
+                sort:
+                    type: string
+        PageStatsResp:
+            type: object
+            properties:
+                total:
+                    type: integer
+                    format: int32
+        RemoveCommentResp:
+            type: object
+            properties: {}
+        Status:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+                    format: int32
+                message:
+                    type: string
+                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+                details:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GoogleProtobufAny'
+                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
+            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+tags:
+    - name: CommentService
