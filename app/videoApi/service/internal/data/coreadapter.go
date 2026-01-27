@@ -579,7 +579,7 @@ func (r *CoreAdapterImpl) RemoveComment(ctx context.Context, commentId, userId i
 	return nil
 }
 
-func (r *CoreAdapterImpl) ListChildComments(ctx context.Context, commentId int64, pageStats *biz.PageStats) (int64, []*biz.Comment, error) {
+func (r *CoreAdapterImpl) ListChildComment(ctx context.Context, commentId int64, pageStats *biz.PageStats) (int64, []*biz.Comment, error) {
 	resp, err := r.comment.ListChildComment4Comment(ctx, &core.ListChildComment4CommentReq{
 		CommentId: commentId,
 		PageStats: &core.PageStatsReq{

@@ -27,7 +27,7 @@ type ListChildCommentInput struct {
 	PageStats *PageStats
 }
 
-type ListChildCommentsOutput struct {
+type ListChildCommentOutput struct {
 	comments []*Comment
 	Total    int64
 }
@@ -141,4 +141,100 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, input *RemoveCommen
 		return errors.New("删除评论失败")
 	}
 	return nil
+}
+
+func (uc *CommentUsecase) ListChildComment(ctx context.Context, input *ListChildCommentInput) (*ListChildCommentOutput, error) {
+	total, childComments, err := uc.core.ListChildComment(ctx, input.CommentId, input.PageStats)
+	if err != nil {
+		return nil, err
+	}
+
+	result := uc.assembleCommentListResult(ctx, childComments, nil)
+
+	return &ListChildCommentOutput{
+		comments: result,
+		Total:    total,
+	}, nil
+
+}
+
+func (uc *CommentUsecase) ListComment4Video(ctx context.Context, input *ListComment4VideoInput) (*ListComment4VideoOutput, error) {
+	total, comments, err := uc.core.ListComment4Video(ctx, input.VideoId, input.PageStats)
+	if err != nil {
+		return nil, errors.New("获取评论失败")
+	}
+
+	result := uc.assembleCommentListResult(ctx, comments, nil)
+
+	return &ListComment4VideoOutput{
+		comments: result,
+		Total:    total,
+	}, nil
+}
+
+func (uc *CommentUsecase) assembleCommentListResult(ctx context.Context, commentList []*Comment, userInfoMap map[int64]*UserInfo) []*Comment {
+	if userInfoMap == nil {
+		var userIdList []int64
+		for _, comment := range commentList {
+			userIdList = append(userIdList, comment.User.Id)
+			if comment.ReplyUser.Id != 0 {
+				userIdList = append(userIdList, comment.ReplyUser.Id)
+			}
+
+			for _, childCommentList := range comment.Comments {
+				userIdList = append(userIdList, childCommentList.User.Id)
+				if childCommentList.ReplyUser.Id != 0 {
+					userIdList = append(userIdList, childCommentList.ReplyUser.Id)
+				}
+			}
+		}
+
+		userInfoMap = uc.getUserInfoMap(ctx, userIdList)
+	}
+
+	var result []*Comment
+	for _, comment := range commentList {
+		var userResp *CommentUser
+		userInfo, ok := userInfoMap[comment.User.Id]
+		if ok {
+			userResp = uc.generateCommentUserInfo(userInfo)
+		}
+		var replyUserResp *CommentUser
+		if comment.ReplyUser.Id != 0 {
+			userInfo, ok := userInfoMap[comment.ReplyUser.Id]
+			if ok {
+				replyUserResp = uc.generateCommentUserInfo(userInfo)
+			}
+		}
+
+		result = append(result, &Comment{
+			Id:         comment.Id,
+			VideoId:    comment.VideoId,
+			ParentId:   comment.ParentId,
+			User:       userResp,
+			ReplyUser:  replyUserResp,
+			Content:    comment.Content,
+			Date:       comment.Date,
+			LikeCount:  comment.LikeCount,
+			ReplyCount: comment.ReplyCount,
+			Comments:   uc.assembleCommentListResult(ctx, comment.Comments, userInfoMap),
+		})
+	}
+	return result
+
+}
+
+func (uc *CommentUsecase) getUserInfoMap(ctx context.Context, userIdList []int64) map[int64]*UserInfo {
+	userInfoList, err := uc.core.GetUserInfoByIdList(ctx, userIdList)
+	if err != nil {
+		// 弱依赖
+		log.Context(ctx).Warnf("failed to get user info list: %v", err)
+	}
+
+	userInfoMap := make(map[int64]*UserInfo)
+	for _, user := range userInfoList {
+		userInfoMap[user.Id] = user
+	}
+
+	return userInfoMap
 }
