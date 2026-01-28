@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package api.videoApi.service.v1;
+
+option go_package = "lehu-video/api/videoApi/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoApi.service.v1";
+import "google/api/annotations.proto";
+import "api/videoApi/service/v1/base.proto";
+import "api/videoApi/service/v1/video.proto";
+
+service FavoriteService {
+	rpc AddFavorite(AddFavoriteReq) returns (AddFavoriteResp) {
+		option (google.api.http) = {
+			post: "/v1/favorite"
+			body: "*"
+		};
+	};
+
+	rpc RemoveFavorite(RemoveFavoriteReq) returns (RemoveFavoriteResp) {
+		option (google.api.http) = {
+			delete: "/v1/favorite"
+		};
+	};
+
+	rpc ListFavoriteVideo(ListFavoriteVideoReq) returns (ListFavoriteVideoResp) {
+		option (google.api.http) = {
+			post: "/v1/favorite/video/list"
+			body: "*"
+		};
+	};
+}
+
+enum FavoriteTarget {
+	VIDEO = 0;
+	COMMENT = 1;
+}
+
+enum FavoriteType {
+	FAVORITE = 0; // 点赞
+	UNLIKE = 1; // 点踩
+}
+
+message AddFavoriteReq {
+	FavoriteTarget target = 1;
+	FavoriteType type = 2;
+	// @gotags: json:"id,omitempty,string"
+	int64 id = 3;
+}
+
+message AddFavoriteResp {}
+
+message RemoveFavoriteReq {
+	FavoriteTarget target = 1;
+	FavoriteType type = 2;
+	// @gotags: json:"id,omitempty,string"
+	int64 id = 3;
+}
+
+message RemoveFavoriteResp {}
+
+message ListFavoriteVideoReq {
+	int64 userId = 1; // 可传可不传,传0就是查自己
+	PageStatsReq page_stats = 2;
+}
+
+message ListFavoriteVideoResp {
+	repeated Video videos = 1;
+	PageStatsResp page_stats = 2;
+}

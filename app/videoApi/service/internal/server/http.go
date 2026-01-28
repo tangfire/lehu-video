@@ -37,6 +37,8 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	fileService *service.FileServiceService,
 	videoService *service.VideoServiceService,
 	commentService *service.CommentServiceService,
+	favoriteService *service.FavoriteServiceService,
+	followService *service.FollowServiceService,
 	logger log.Logger) *http.Server {
 	fmt.Println("ac api_key = " + ac.ApiKey)
 	var opts = []http.ServerOption{
@@ -54,7 +56,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 		),
 		http.Filter(handlers.CORS(
 			handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}),
-			handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "OPTIONS"}),
+			handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"}),
 			handlers.AllowedOrigins([]string{"*"}),
 		)),
 		http.ResponseEncoder(resp.ResponseEncoder),
@@ -74,5 +76,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	v1.RegisterFileServiceHTTPServer(srv, fileService)
 	v1.RegisterVideoServiceHTTPServer(srv, videoService)
 	v1.RegisterCommentServiceHTTPServer(srv, commentService)
+	v1.RegisterFavoriteServiceHTTPServer(srv, favoriteService)
+	v1.RegisterFollowServiceHTTPServer(srv, followService)
 	return srv
 }

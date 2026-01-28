@@ -457,7 +457,7 @@ func (x *ListFavoriteReq) GetPageStats() *PageStatsReq {
 type ListFavoriteResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	Id            []int64                `protobuf:"varint,2,rep,packed,name=id,proto3" json:"id,omitempty"`
+	Ids           []int64                `protobuf:"varint,2,rep,packed,name=ids,proto3" json:"ids,omitempty"`
 	PageStats     *PageStatsResp         `protobuf:"bytes,3,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -500,9 +500,9 @@ func (x *ListFavoriteResp) GetMeta() *Metadata {
 	return nil
 }
 
-func (x *ListFavoriteResp) GetId() []int64 {
+func (x *ListFavoriteResp) GetIds() []int64 {
 	if x != nil {
-		return x.Id
+		return x.Ids
 	}
 	return nil
 }
@@ -926,10 +926,10 @@ const file_api_videoCore_service_v1_favorite_proto_rawDesc = "" +
 	"\x0eaggregate_type\x18\x02 \x01(\x0e2/.api.videoCore.service.v1.FavoriteAggregateTypeR\raggregateType\x12K\n" +
 	"\rfavorite_type\x18\x03 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\ffavoriteType\x12E\n" +
 	"\n" +
-	"page_stats\x18\x04 \x01(\v2&.api.videoCore.service.v1.PageStatsReqR\tpageStats\"\xa2\x01\n" +
+	"page_stats\x18\x04 \x01(\v2&.api.videoCore.service.v1.PageStatsReqR\tpageStats\"\xa4\x01\n" +
 	"\x10ListFavoriteResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12\x0e\n" +
-	"\x02id\x18\x02 \x03(\x03R\x02id\x12F\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12\x10\n" +
+	"\x03ids\x18\x02 \x03(\x03R\x03ids\x12F\n" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoCore.service.v1.PageStatsRespR\tpageStats\"\xc7\x01\n" +
 	"\x10CountFavoriteReq\x12V\n" +

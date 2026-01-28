@@ -112,9 +112,9 @@ func (r *followRepo) applyConditions(db *gorm.DB, condition map[string]interface
 			// 查询这些人中哪些也关注了用户
 			db = db.Where("user_id IN (?) AND target_user_id = ? AND is_deleted = ?", subquery, userId, false)
 		case "limit":
-			db = db.Limit(int(value.(int64)))
+			db = db.Limit(int(value.(int32)))
 		case "offset":
-			db = db.Offset(int(value.(int64)))
+			db = db.Offset(int(value.(int32)))
 		default:
 			r.log.Warnf("Unknown condition key: %s", key)
 		}

@@ -3,20 +3,53 @@
 
 openapi: 3.0.3
 info:
-    title: CommentService API
+    title: CollectionService API
     version: 0.0.1
 paths:
-    /v1/comment:
-        post:
+    /v1/collection:
+        get:
             tags:
-                - CommentService
-            description: 创建评论
-            operationId: CommentService_CreateComment
+                - CollectionService
+            description: 列出用户的收藏夹
+            operationId: CollectionService_ListCollection
+            parameters:
+                - name: pageStats.page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageStats.size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageStats.sort
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListCollectionResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        put:
+            tags:
+                - CollectionService
+            description: 更新收藏夹信息
+            operationId: CollectionService_UpdateCollection
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/CreateCommentReq'
+                            $ref: '#/components/schemas/UpdateCollectionReq'
                 required: true
             responses:
                 "200":
@@ -24,23 +57,23 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/CreateCommentResp'
+                                $ref: '#/components/schemas/UpdateCollectionResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/comment/child:
         post:
             tags:
-                - CommentService
-            operationId: CommentService_ListChildComment
+                - CollectionService
+            description: 创建收藏夹
+            operationId: CollectionService_CreateCollection
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/ListChildCommentReq'
+                            $ref: '#/components/schemas/CreateCollectionReq'
                 required: true
             responses:
                 "200":
@@ -48,24 +81,62 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ListChildCommentResp'
+                                $ref: '#/components/schemas/CreateCollectionResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/comment/video:
+    /v1/collection/video:
+        get:
+            tags:
+                - CollectionService
+            description: 列出收藏夹中的视频
+            operationId: CollectionService_ListVideo4Collection
+            parameters:
+                - name: collectionId
+                  in: query
+                  description: '@gotags: json:"collectionId,omitempty,string"'
+                  schema:
+                    type: string
+                - name: pageStats.page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageStats.size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageStats.sort
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListVideo4CollectionResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
         post:
             tags:
-                - CommentService
-            description: 列出视频的评论
-            operationId: CommentService_ListComment4Video
+                - CollectionService
+            description: 将视频添加到收藏夹
+            operationId: CollectionService_AddVideo2Collection
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/ListComment4VideoReq'
+                            $ref: '#/components/schemas/AddVideo2CollectionReq'
                 required: true
             responses:
                 "200":
@@ -73,19 +144,51 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ListComment4VideoResp'
+                                $ref: '#/components/schemas/AddVideo2CollectionResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/comment/{id}:
+    /v1/collection/{collectionId}/video/{videoId}:
         delete:
             tags:
-                - CommentService
-            description: 删除评论
-            operationId: CommentService_RemoveComment
+                - CollectionService
+            description: 从收藏夹中移除视频
+            operationId: CollectionService_RemoveVideoFromCollection
+            parameters:
+                - name: collectionId
+                  in: path
+                  description: '@gotags: json:"collectionId,omitempty,string"'
+                  required: true
+                  schema:
+                    type: string
+                - name: videoId
+                  in: path
+                  description: '@gotags: json:"videoId,omitempty,string"'
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RemoveVideoFromCollectionResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/collection/{id}:
+        delete:
+            tags:
+                - CollectionService
+            description: 删除收藏夹
+            operationId: CollectionService_RemoveCollection
             parameters:
                 - name: id
                   in: path
@@ -99,7 +202,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/RemoveCommentResp'
+                                $ref: '#/components/schemas/RemoveCollectionResp'
                 default:
                     description: Default error response
                     content:
@@ -108,65 +211,43 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
-        Comment:
+        AddVideo2CollectionReq:
             type: object
             properties:
-                id:
+                collectionId:
                     type: string
-                    description: '@gotags: json:"id,omitempty,string"'
+                    description: '@gotags: json:"collectionId,omitempty,string"'
                 videoId:
                     type: string
                     description: '@gotags: json:"videoId,omitempty,string"'
-                parentId:
-                    type: string
-                    description: '@gotags: json:"parentId,omitempty,string"'
-                user:
-                    $ref: '#/components/schemas/CommentUser'
-                replyUser:
-                    $ref: '#/components/schemas/CommentUser'
-                content:
-                    type: string
-                date:
-                    type: string
-                likeCount:
-                    type: string
-                replyCount:
-                    type: string
-                comments:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/Comment'
-        CommentUser:
+        AddVideo2CollectionResp:
+            type: object
+            properties: {}
+        Collection:
             type: object
             properties:
                 id:
                     type: string
                     description: '@gotags: json:"id,omitempty,string"'
+                userId:
+                    type: string
+                    description: '@gotags: json:"userId,omitempty,string"'
                 name:
                     type: string
-                avatar:
+                description:
                     type: string
-                isFollowing:
-                    type: boolean
-        CreateCommentReq:
+        CreateCollectionReq:
             type: object
             properties:
-                videoId:
+                name:
                     type: string
-                    description: '@gotags: json:"videoId,omitempty,string"'
-                content:
+                description:
                     type: string
-                parentId:
-                    type: string
-                    description: '@gotags: json:"parentId,omitempty,string"'
-                replyUserId:
-                    type: string
-                    description: '@gotags: json:"replyUserId,omitempty,string"'
-        CreateCommentResp:
+        CreateCollectionResp:
             type: object
             properties:
-                comment:
-                    $ref: '#/components/schemas/Comment'
+                collection:
+                    $ref: '#/components/schemas/Collection'
         GoogleProtobufAny:
             type: object
             properties:
@@ -175,58 +256,34 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
-        ListChildCommentReq:
+        ListCollectionResp:
             type: object
             properties:
-                commentId:
-                    type: string
-                    description: '@gotags: json:"commentId,omitempty,string"'
-                pageStats:
-                    $ref: '#/components/schemas/PageStatsReq'
-        ListChildCommentResp:
-            type: object
-            properties:
-                comments:
+                collections:
                     type: array
                     items:
-                        $ref: '#/components/schemas/Comment'
+                        $ref: '#/components/schemas/Collection'
                 pageStats:
                     $ref: '#/components/schemas/PageStatsResp'
-        ListComment4VideoReq:
+        ListVideo4CollectionResp:
             type: object
             properties:
-                videoId:
-                    type: string
-                    description: '@gotags: json:"videoId,omitempty,string"'
-                pageStats:
-                    $ref: '#/components/schemas/PageStatsReq'
-        ListComment4VideoResp:
-            type: object
-            properties:
-                comments:
+                videos:
                     type: array
                     items:
-                        $ref: '#/components/schemas/Comment'
+                        $ref: '#/components/schemas/Video'
                 pageStats:
                     $ref: '#/components/schemas/PageStatsResp'
-        PageStatsReq:
-            type: object
-            properties:
-                page:
-                    type: integer
-                    format: int32
-                size:
-                    type: integer
-                    format: int32
-                sort:
-                    type: string
         PageStatsResp:
             type: object
             properties:
                 total:
                     type: integer
                     format: int32
-        RemoveCommentResp:
+        RemoveCollectionResp:
+            type: object
+            properties: {}
+        RemoveVideoFromCollectionResp:
             type: object
             properties: {}
         Status:
@@ -245,5 +302,59 @@ components:
                         $ref: '#/components/schemas/GoogleProtobufAny'
                     description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
             description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        UpdateCollectionReq:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: '@gotags: json:"id,omitempty,string"'
+                name:
+                    type: string
+                description:
+                    type: string
+        UpdateCollectionResp:
+            type: object
+            properties:
+                collection:
+                    $ref: '#/components/schemas/Collection'
+        Video:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: '@gotags: json:"id,omitempty,string"'
+                author:
+                    $ref: '#/components/schemas/VideoAuthor'
+                playUrl:
+                    type: string
+                coverUrl:
+                    type: string
+                favoriteCount:
+                    type: string
+                    description: '@gotags: json:"favoriteCount,omitempty,string"'
+                commentCount:
+                    type: string
+                    description: '@gotags: json:"commentCount,omitempty,string"'
+                isFavorite:
+                    type: boolean
+                title:
+                    type: string
+                isCollected:
+                    type: boolean
+                collectedCount:
+                    type: string
+                    description: '@gotags: json:"collectedCount,omitempty,string"'
+        VideoAuthor:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: '@gotags: json:"id,omitempty,string"'
+                name:
+                    type: string
+                avatar:
+                    type: string
+                isFollowing:
+                    type: boolean
 tags:
-    - name: CommentService
+    - name: CollectionService

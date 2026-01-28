@@ -663,3 +663,140 @@ func (r *CoreAdapterImpl) ListComment4Video(ctx context.Context, videoId int64, 
 	}
 	return int64(resp.PageStats.Total), Comments, nil
 }
+
+func (r *CoreAdapterImpl) AddFavorite(ctx context.Context, id, userId int64, target *biz.FavoriteTarget, _type *biz.FavoriteType) error {
+
+	resp, err := r.favorite.AddFavorite(ctx, &core.AddFavoriteReq{
+		Target: core.FavoriteTarget(*target), // 类型转换
+		Type:   core.FavoriteType(*_type),    // 类型转换
+		Id:     id,
+		UserId: userId,
+	})
+	if err != nil {
+		return err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *CoreAdapterImpl) RemoveFavorite(ctx context.Context, id, userId int64, target *biz.FavoriteTarget, _type *biz.FavoriteType) error {
+	resp, err := r.favorite.RemoveFavorite(ctx, &core.RemoveFavoriteReq{
+		Target: core.FavoriteTarget(*target), // 类型转换
+		Type:   core.FavoriteType(*_type),    // 类型转换
+		Id:     id,
+		UserId: userId,
+	})
+	if err != nil {
+		return err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *CoreAdapterImpl) ListUserFavoriteVideo(ctx context.Context, userId int64, pageStats *biz.PageStats) (int64, []int64, error) {
+	resp, err := r.favorite.ListFavorite(ctx, &core.ListFavoriteReq{
+		Id:            userId,
+		AggregateType: core.FavoriteAggregateType_BY_USER,
+		FavoriteType:  core.FavoriteType_FAVORITE,
+		PageStats: &core.PageStatsReq{
+			Page: pageStats.Page,
+			Size: pageStats.PageSize,
+		},
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	return int64(resp.PageStats.Total), resp.Ids, nil
+}
+
+func (r *CoreAdapterImpl) GetVideoByIdList(ctx context.Context, videoIdList []int64) ([]*biz.Video, error) {
+	resp, err := r.video.GetVideoByIdList(ctx, &core.GetVideoByIdListReq{
+		VideoIdList: videoIdList,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+	videos := resp.Videos
+	var retVideos []*biz.Video
+	for _, video := range videos {
+		retVideos = append(retVideos, &biz.Video{
+			ID: video.Id,
+			Author: &biz.VideoAuthor{
+				ID:          video.Author.Id,
+				Name:        video.Author.Name,
+				Avatar:      video.Author.Avatar,
+				IsFollowing: video.Author.IsFollowing != 0,
+			},
+			PlayURL:       video.PlayUrl,
+			CoverURL:      video.CoverUrl,
+			FavoriteCount: video.FavoriteCount,
+			CommentCount:  video.CommentCount,
+			IsFavorite:    video.IsFavorite != 0,
+			Title:         video.Title,
+		})
+	}
+	return retVideos, nil
+}
+
+func (r *CoreAdapterImpl) AddFollow(ctx context.Context, userId, targetUserId int64) error {
+	resp, err := r.follow.AddFollow(ctx, &core.AddFollowReq{
+		UserId:       userId,
+		TargetUserId: targetUserId,
+	})
+	if err != nil {
+		return err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (r *CoreAdapterImpl) RemoveFollow(ctx context.Context, userId, targetUserId int64) error {
+	resp, err := r.follow.RemoveFollow(ctx, &core.RemoveFollowReq{
+		UserId:       userId,
+		TargetUserId: targetUserId,
+	})
+	if err != nil {
+		return err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *CoreAdapterImpl) ListFollow(ctx context.Context, userId int64, _type *biz.FollowType, pageStats *biz.PageStats) (int64, []int64, error) {
+	followType := core.FollowType(*_type)
+	resp, err := r.follow.ListFollowing(ctx, &core.ListFollowingReq{
+		UserId:     userId,
+		FollowType: followType,
+		PageStats: &core.PageStatsReq{
+			Page: pageStats.Page,
+			Size: pageStats.PageSize,
+		},
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	return int64(resp.PageStats.Total), resp.UserIdList, nil
+}

@@ -66,9 +66,9 @@ CREATE TABLE IF NOT EXISTS `follow` (
 CREATE TABLE IF NOT EXISTS `favorite` (
                                           id BIGINT PRIMARY KEY COMMENT '主键ID',
                                           user_id BIGINT NOT NULL COMMENT '用户ID',
-                                          target_type TINYINT NOT NULL COMMENT '点赞对象类型 1-视频 2-评论',
+                                          target_type TINYINT NOT NULL COMMENT '点赞对象类型 0-视频 1-评论',
                                           target_id BIGINT NOT NULL COMMENT '点赞对象ID',
-                                          favorite_type TINYINT NOT NULL COMMENT '点赞类型 1-点赞 2-踩',
+                                          favorite_type TINYINT NOT NULL COMMENT '点赞类型 0-点赞 1-踩',
                                           is_deleted BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否删除',
                                           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                                           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

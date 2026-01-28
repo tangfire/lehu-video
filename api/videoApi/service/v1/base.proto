@@ -15,3 +15,4 @@ message PageStatsReq{
 message PageStatsResp{
 	int32 total = 1;
 }
+

@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package api.videoApi.service.v1;
+
+option go_package = "lehu-video/api/videoApi/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoApi.service.v1";
+import "google/api/annotations.proto";
+import "api/videoApi/service/v1/base.proto";
+
+message FollowUser {
+	// @gotags: json:"id,omitempty,string"
+	int64 id = 1; // 用户id
+	string name = 2; // 用户名称
+	string avatar = 3; // 用户头像
+	bool is_following = 4; // 当前用户是否关注  
+}
+
+
+service FollowService {
+	rpc AddFollow(AddFollowReq) returns (AddFollowResp) {
+		option (google.api.http) = {
+			post: "/v1/follow"
+			body: "*"
+		};
+	};
+
+	rpc RemoveFollow(RemoveFollowReq) returns (RemoveFollowResp) {
+		option (google.api.http) = {
+			delete: "/v1/follow/{user_id}"
+		};
+	};
+
+	rpc ListFollowing(ListFollowingReq) returns (ListFollowingResp) {
+		option (google.api.http) = {
+			post: "/v1/follow/list"
+			body: "*"
+		};
+	};
+}
+
+message AddFollowReq {
+	// @gotags: json:"userId,omitempty,string"
+	int64 user_id = 1; // 用户id
+}
+
+message AddFollowResp {}
+
+message RemoveFollowReq {
+	// @gotags: json:"userId,omitempty,string"
+	int64 user_id = 1; // 用户id
+}
+
+message RemoveFollowResp {}
+
+enum FollowType {
+	FOLLOWING = 0;
+	FOLLOWER = 1;
+	BOTH = 2;
+}
+
+message ListFollowingReq {
+	// @gotags: json:"userId,omitempty,string"
+	int64 user_id = 1; // 用户id
+	FollowType type = 2;
+	PageStatsReq page_stats = 3;
+}
+
+message ListFollowingResp {
+	repeated FollowUser users = 1;
+	PageStatsResp page_stats = 2;
+}

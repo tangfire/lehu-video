@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"gorm.io/gorm"
 	"lehu-video/app/videoCore/service/internal/biz"
@@ -59,7 +60,7 @@ func (r *favoriteRepo) GetFavorite(ctx context.Context, userId, targetId int64, 
 		Where("favorite_type = ?", favoriteType).
 		First(&dbFavorite).Error
 
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {

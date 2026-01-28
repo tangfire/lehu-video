@@ -76,7 +76,7 @@ func (s *FavoriteServiceService) ListFavorite(ctx context.Context, req *pb.ListF
 
 	return &pb.ListFavoriteResp{
 		Meta:      utils.GetSuccessMeta(),
-		Id:        result.TargetIds,
+		Ids:       result.TargetIds,
 		PageStats: &pb.PageStatsResp{Total: int32(result.Total)},
 	}, nil
 }
