@@ -560,6 +560,9 @@ func (r *CoreAdapterImpl) GetCommentById(ctx context.Context, commentId int64) (
 		LikeCount:  comment.LikeCount,
 		ReplyCount: comment.ReplyCount,
 		Comments:   nil,
+		User: &biz.CommentUser{
+			Id: comment.UserId,
+		},
 	}
 	return retComment, nil
 }

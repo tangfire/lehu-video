@@ -31,30 +31,6 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-        delete:
-            tags:
-                - CommentService
-            description: 删除评论
-            operationId: CommentService_RemoveComment
-            parameters:
-                - name: id
-                  in: query
-                  description: '@gotags: json:"id,omitempty,string"'
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/RemoveCommentResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
     /v1/comment/child:
         post:
             tags:
@@ -98,6 +74,32 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListComment4VideoResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/comment/{id}:
+        delete:
+            tags:
+                - CommentService
+            description: 删除评论
+            operationId: CommentService_RemoveComment
+            parameters:
+                - name: id
+                  in: path
+                  description: '@gotags: json:"id,omitempty,string"'
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RemoveCommentResp'
                 default:
                     description: Default error response
                     content:
@@ -179,7 +181,7 @@ components:
                 commentId:
                     type: string
                     description: '@gotags: json:"commentId,omitempty,string"'
-                pagination:
+                pageStats:
                     $ref: '#/components/schemas/PageStatsReq'
         ListChildCommentResp:
             type: object
@@ -188,7 +190,7 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Comment'
-                pagination:
+                pageStats:
                     $ref: '#/components/schemas/PageStatsResp'
         ListComment4VideoReq:
             type: object
@@ -196,7 +198,7 @@ components:
                 videoId:
                     type: string
                     description: '@gotags: json:"videoId,omitempty,string"'
-                pagination:
+                pageStats:
                     $ref: '#/components/schemas/PageStatsReq'
         ListComment4VideoResp:
             type: object
@@ -205,7 +207,7 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Comment'
-                pagination:
+                pageStats:
                     $ref: '#/components/schemas/PageStatsResp'
         PageStatsReq:
             type: object

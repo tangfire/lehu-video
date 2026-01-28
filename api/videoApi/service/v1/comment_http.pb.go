@@ -37,7 +37,7 @@ type CommentServiceHTTPServer interface {
 func RegisterCommentServiceHTTPServer(s *http.Server, srv CommentServiceHTTPServer) {
 	r := s.Route("/")
 	r.POST("/v1/comment", _CommentService_CreateComment0_HTTP_Handler(srv))
-	r.DELETE("/v1/comment", _CommentService_RemoveComment0_HTTP_Handler(srv))
+	r.DELETE("/v1/comment/{id}", _CommentService_RemoveComment0_HTTP_Handler(srv))
 	r.POST("/v1/comment/video", _CommentService_ListComment4Video0_HTTP_Handler(srv))
 	r.POST("/v1/comment/child", _CommentService_ListChildComment0_HTTP_Handler(srv))
 }
@@ -68,6 +68,9 @@ func _CommentService_RemoveComment0_HTTP_Handler(srv CommentServiceHTTPServer) f
 	return func(ctx http.Context) error {
 		var in RemoveCommentReq
 		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationCommentServiceRemoveComment)
@@ -183,7 +186,7 @@ func (c *CommentServiceHTTPClientImpl) ListComment4Video(ctx context.Context, in
 
 func (c *CommentServiceHTTPClientImpl) RemoveComment(ctx context.Context, in *RemoveCommentReq, opts ...http.CallOption) (*RemoveCommentResp, error) {
 	var out RemoveCommentResp
-	pattern := "/v1/comment"
+	pattern := "/v1/comment/{id}"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationCommentServiceRemoveComment))
 	opts = append(opts, http.PathTemplate(pattern))

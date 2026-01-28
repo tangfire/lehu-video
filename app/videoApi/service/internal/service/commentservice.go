@@ -48,8 +48,8 @@ func (s *CommentServiceService) RemoveComment(ctx context.Context, req *pb.Remov
 
 func (s *CommentServiceService) ListComment4Video(ctx context.Context, req *pb.ListComment4VideoReq) (*pb.ListComment4VideoResp, error) {
 	pageStats := &biz.PageStats{
-		Page:     req.Pagination.Page,
-		PageSize: req.Pagination.Size,
+		Page:     req.PageStats.Page,
+		PageSize: req.PageStats.Size,
 	}
 
 	input := &biz.ListComment4VideoInput{
@@ -69,7 +69,7 @@ func (s *CommentServiceService) ListComment4Video(ctx context.Context, req *pb.L
 
 	return &pb.ListComment4VideoResp{
 		Comments: pbComments,
-		Pagination: &pb.PageStatsResp{
+		PageStats: &pb.PageStatsResp{
 			Total: int32(output.Total),
 		},
 	}, nil
@@ -77,8 +77,8 @@ func (s *CommentServiceService) ListComment4Video(ctx context.Context, req *pb.L
 
 func (s *CommentServiceService) ListChildComment(ctx context.Context, req *pb.ListChildCommentReq) (*pb.ListChildCommentResp, error) {
 	pageStats := &biz.PageStats{
-		Page:     req.Pagination.Page,
-		PageSize: req.Pagination.Size,
+		Page:     req.PageStats.Page,
+		PageSize: req.PageStats.Size,
 	}
 
 	input := &biz.ListChildCommentInput{
@@ -98,7 +98,7 @@ func (s *CommentServiceService) ListChildComment(ctx context.Context, req *pb.Li
 
 	return &pb.ListChildCommentResp{
 		Comments: pbComments,
-		Pagination: &pb.PageStatsResp{
+		PageStats: &pb.PageStatsResp{
 			Total: int32(output.Total),
 		},
 	}, nil

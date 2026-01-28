@@ -36,6 +36,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	userService *service.UserServiceService,
 	fileService *service.FileServiceService,
 	videoService *service.VideoServiceService,
+	commentService *service.CommentServiceService,
 	logger log.Logger) *http.Server {
 	fmt.Println("ac api_key = " + ac.ApiKey)
 	var opts = []http.ServerOption{
@@ -72,5 +73,6 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	v1.RegisterUserServiceHTTPServer(srv, userService)
 	v1.RegisterFileServiceHTTPServer(srv, fileService)
 	v1.RegisterVideoServiceHTTPServer(srv, videoService)
+	v1.RegisterCommentServiceHTTPServer(srv, commentService)
 	return srv
 }

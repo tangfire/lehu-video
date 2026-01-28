@@ -45,7 +45,7 @@ service CommentService {
 	// 删除评论
 	rpc RemoveComment(RemoveCommentReq) returns (RemoveCommentResp) {
 		option (google.api.http) = {
-			delete: "/v1/comment"
+			delete: "/v1/comment/{id}"
 		};
 	};
 
@@ -57,7 +57,7 @@ service CommentService {
 		};
 	};
 
-
+	// 列出该评论的子评论
 	rpc ListChildComment(ListChildCommentReq) returns (ListChildCommentResp) {
 		option (google.api.http) = {
 			post: "/v1/comment/child"
@@ -90,21 +90,21 @@ message RemoveCommentResp {}
 message ListComment4VideoReq {
 	// @gotags: json:"videoId,omitempty,string"
 	int64 video_id = 1; // 视频id
-	PageStatsReq pagination = 2;
+	PageStatsReq page_stats = 2;
 }
 
 message ListComment4VideoResp {
 	repeated Comment comments = 1;
-	PageStatsResp pagination = 2;
+	PageStatsResp page_stats = 2;
 }
 
 message ListChildCommentReq {
 	// @gotags: json:"commentId,omitempty,string"
 	int64 comment_id = 1; // 评论id
-	PageStatsReq pagination = 2;
+	PageStatsReq page_stats = 2;
 }
 
 message ListChildCommentResp {
 	repeated Comment comments = 1;
-	PageStatsResp pagination = 2;
+	PageStatsResp page_stats = 2;
 }

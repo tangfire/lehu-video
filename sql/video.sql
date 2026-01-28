@@ -98,12 +98,11 @@ CREATE TABLE IF NOT EXISTS `comment` (
                                          parent_id BIGINT DEFAULT NULL COMMENT '父评论id',
                                          to_user_id BIGINT DEFAULT NULL COMMENT '评论所回复的用户id',
                                          content varchar(512) NOT NULL COMMENT '评论内容',
-                                         first_comments json NOT NULL COMMENT '最开始的x条子评论',
                                          is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
                                          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                          INDEX `video_id_idx` (video_id, is_deleted),
-                                         INDEX `user_id_idx` (user_id, is_deleted)
+                                         INDEX `user_id_idx` (`user_id`, is_deleted)
 );
 
 

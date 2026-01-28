@@ -44,7 +44,9 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	videoAssembler := biz.NewVideoAssembler(coreAdapter, logger)
 	videoUsecase := biz.NewVideoUsecase(baseAdapter, coreAdapter, videoAssembler, logger)
 	videoServiceService := service.NewVideoServiceService(videoUsecase)
-	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, logger)
+	commentUsecase := biz.NewCommentUsecase(coreAdapter, logger)
+	commentServiceService := service.NewCommentServiceService(commentUsecase)
+	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, logger)
 	app := newApp(logger, registrar, httpServer)
 	return app, func() {
 	}, nil

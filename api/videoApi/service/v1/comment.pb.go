@@ -410,7 +410,7 @@ type ListComment4VideoReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"videoId,omitempty,string"
 	VideoId       int64         `protobuf:"varint,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"` // 视频id
-	Pagination    *PageStatsReq `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	PageStats     *PageStatsReq `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -452,9 +452,9 @@ func (x *ListComment4VideoReq) GetVideoId() int64 {
 	return 0
 }
 
-func (x *ListComment4VideoReq) GetPagination() *PageStatsReq {
+func (x *ListComment4VideoReq) GetPageStats() *PageStatsReq {
 	if x != nil {
-		return x.Pagination
+		return x.PageStats
 	}
 	return nil
 }
@@ -462,7 +462,7 @@ func (x *ListComment4VideoReq) GetPagination() *PageStatsReq {
 type ListComment4VideoResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Comments      []*Comment             `protobuf:"bytes,1,rep,name=comments,proto3" json:"comments,omitempty"`
-	Pagination    *PageStatsResp         `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	PageStats     *PageStatsResp         `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -504,9 +504,9 @@ func (x *ListComment4VideoResp) GetComments() []*Comment {
 	return nil
 }
 
-func (x *ListComment4VideoResp) GetPagination() *PageStatsResp {
+func (x *ListComment4VideoResp) GetPageStats() *PageStatsResp {
 	if x != nil {
-		return x.Pagination
+		return x.PageStats
 	}
 	return nil
 }
@@ -515,7 +515,7 @@ type ListChildCommentReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"commentId,omitempty,string"
 	CommentId     int64         `protobuf:"varint,1,opt,name=comment_id,json=commentId,proto3" json:"comment_id,omitempty"` // 评论id
-	Pagination    *PageStatsReq `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	PageStats     *PageStatsReq `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -557,9 +557,9 @@ func (x *ListChildCommentReq) GetCommentId() int64 {
 	return 0
 }
 
-func (x *ListChildCommentReq) GetPagination() *PageStatsReq {
+func (x *ListChildCommentReq) GetPageStats() *PageStatsReq {
 	if x != nil {
-		return x.Pagination
+		return x.PageStats
 	}
 	return nil
 }
@@ -567,7 +567,7 @@ func (x *ListChildCommentReq) GetPagination() *PageStatsReq {
 type ListChildCommentResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Comments      []*Comment             `protobuf:"bytes,1,rep,name=comments,proto3" json:"comments,omitempty"`
-	Pagination    *PageStatsResp         `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	PageStats     *PageStatsResp         `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -609,9 +609,9 @@ func (x *ListChildCommentResp) GetComments() []*Comment {
 	return nil
 }
 
-func (x *ListChildCommentResp) GetPagination() *PageStatsResp {
+func (x *ListChildCommentResp) GetPageStats() *PageStatsResp {
 	if x != nil {
-		return x.Pagination
+		return x.PageStats
 	}
 	return nil
 }
@@ -650,31 +650,27 @@ const file_api_videoApi_service_v1_comment_proto_rawDesc = "" +
 	"\acomment\x18\x01 \x01(\v2 .api.videoApi.service.v1.CommentR\acomment\"\"\n" +
 	"\x10RemoveCommentReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"\x13\n" +
-	"\x11RemoveCommentResp\"x\n" +
+	"\x11RemoveCommentResp\"w\n" +
 	"\x14ListComment4VideoReq\x12\x19\n" +
-	"\bvideo_id\x18\x01 \x01(\x03R\avideoId\x12E\n" +
+	"\bvideo_id\x18\x01 \x01(\x03R\avideoId\x12D\n" +
 	"\n" +
-	"pagination\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\n" +
-	"pagination\"\x9d\x01\n" +
+	"page_stats\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x9c\x01\n" +
 	"\x15ListComment4VideoResp\x12<\n" +
-	"\bcomments\x18\x01 \x03(\v2 .api.videoApi.service.v1.CommentR\bcomments\x12F\n" +
+	"\bcomments\x18\x01 \x03(\v2 .api.videoApi.service.v1.CommentR\bcomments\x12E\n" +
 	"\n" +
-	"pagination\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\n" +
-	"pagination\"{\n" +
+	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats\"z\n" +
 	"\x13ListChildCommentReq\x12\x1d\n" +
 	"\n" +
-	"comment_id\x18\x01 \x01(\x03R\tcommentId\x12E\n" +
+	"comment_id\x18\x01 \x01(\x03R\tcommentId\x12D\n" +
 	"\n" +
-	"pagination\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\n" +
-	"pagination\"\x9c\x01\n" +
+	"page_stats\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x9b\x01\n" +
 	"\x14ListChildCommentResp\x12<\n" +
-	"\bcomments\x18\x01 \x03(\v2 .api.videoApi.service.v1.CommentR\bcomments\x12F\n" +
+	"\bcomments\x18\x01 \x03(\v2 .api.videoApi.service.v1.CommentR\bcomments\x12E\n" +
 	"\n" +
-	"pagination\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\n" +
-	"pagination2\xb0\x04\n" +
+	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats2\xb6\x04\n" +
 	"\x0eCommentService\x12~\n" +
-	"\rCreateComment\x12).api.videoApi.service.v1.CreateCommentReq\x1a*.api.videoApi.service.v1.CreateCommentResp\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/comment\x12{\n" +
-	"\rRemoveComment\x12).api.videoApi.service.v1.RemoveCommentReq\x1a*.api.videoApi.service.v1.RemoveCommentResp\"\x13\x82\xd3\xe4\x93\x02\r*\v/v1/comment\x12\x90\x01\n" +
+	"\rCreateComment\x12).api.videoApi.service.v1.CreateCommentReq\x1a*.api.videoApi.service.v1.CreateCommentResp\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/comment\x12\x80\x01\n" +
+	"\rRemoveComment\x12).api.videoApi.service.v1.RemoveCommentReq\x1a*.api.videoApi.service.v1.RemoveCommentResp\"\x18\x82\xd3\xe4\x93\x02\x12*\x10/v1/comment/{id}\x12\x90\x01\n" +
 	"\x11ListComment4Video\x12-.api.videoApi.service.v1.ListComment4VideoReq\x1a..api.videoApi.service.v1.ListComment4VideoResp\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/comment/video\x12\x8d\x01\n" +
 	"\x10ListChildComment\x12,.api.videoApi.service.v1.ListChildCommentReq\x1a-.api.videoApi.service.v1.ListChildCommentResp\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/comment/childBB\n" +
 	"\x17api.videoApi.service.v1P\x01Z%lehu-video/api/videoApi/service/v1;v1b\x06proto3"
@@ -711,12 +707,12 @@ var file_api_videoApi_service_v1_comment_proto_depIdxs = []int32{
 	1,  // 1: api.videoApi.service.v1.Comment.reply_user:type_name -> api.videoApi.service.v1.CommentUser
 	0,  // 2: api.videoApi.service.v1.Comment.comments:type_name -> api.videoApi.service.v1.Comment
 	0,  // 3: api.videoApi.service.v1.CreateCommentResp.comment:type_name -> api.videoApi.service.v1.Comment
-	10, // 4: api.videoApi.service.v1.ListComment4VideoReq.pagination:type_name -> api.videoApi.service.v1.PageStatsReq
+	10, // 4: api.videoApi.service.v1.ListComment4VideoReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
 	0,  // 5: api.videoApi.service.v1.ListComment4VideoResp.comments:type_name -> api.videoApi.service.v1.Comment
-	11, // 6: api.videoApi.service.v1.ListComment4VideoResp.pagination:type_name -> api.videoApi.service.v1.PageStatsResp
-	10, // 7: api.videoApi.service.v1.ListChildCommentReq.pagination:type_name -> api.videoApi.service.v1.PageStatsReq
+	11, // 6: api.videoApi.service.v1.ListComment4VideoResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
+	10, // 7: api.videoApi.service.v1.ListChildCommentReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
 	0,  // 8: api.videoApi.service.v1.ListChildCommentResp.comments:type_name -> api.videoApi.service.v1.Comment
-	11, // 9: api.videoApi.service.v1.ListChildCommentResp.pagination:type_name -> api.videoApi.service.v1.PageStatsResp
+	11, // 9: api.videoApi.service.v1.ListChildCommentResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
 	2,  // 10: api.videoApi.service.v1.CommentService.CreateComment:input_type -> api.videoApi.service.v1.CreateCommentReq
 	4,  // 11: api.videoApi.service.v1.CommentService.RemoveComment:input_type -> api.videoApi.service.v1.RemoveCommentReq
 	6,  // 12: api.videoApi.service.v1.CommentService.ListComment4Video:input_type -> api.videoApi.service.v1.ListComment4VideoReq
