@@ -30,6 +30,9 @@ var ProviderSet = wire.NewSet(
 	NewBaseAdapter,
 	NewCoreAdapter,
 	NewFileServiceClient,
+	NewGroupServiceClient,
+	NewChatAdapter,
+	NewMessageServiceClient,
 )
 
 // Data .

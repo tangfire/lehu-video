@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -23,6 +22,7 @@ func NewWhiteListMatcher() selector.MatchFunc {
 	whiteList["/api.videoApi.service.v1.UserService/Login"] = struct{}{}
 	whiteList["/api.videoApi.service.v1.UserService/Register"] = struct{}{}
 	whiteList["/api.videoApi.service.v1.UserService/GetVerificationCode"] = struct{}{}
+	whiteList["/ws"] = struct{}{} // 添加WebSocket路径到白名单
 	return func(ctx context.Context, operation string) bool {
 		if _, ok := whiteList[operation]; ok {
 			return false
@@ -40,8 +40,10 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	favoriteService *service.FavoriteServiceService,
 	followService *service.FollowServiceService,
 	collectionService *service.CollectionServiceService,
+	groupService *service.GroupServiceService,
+	messageService *service.MessageServiceService,
+	wsService *service.WebSocketService,
 	logger log.Logger) *http.Server {
-	fmt.Println("ac api_key = " + ac.ApiKey)
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -80,5 +82,64 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	v1.RegisterFavoriteServiceHTTPServer(srv, favoriteService)
 	v1.RegisterFollowServiceHTTPServer(srv, followService)
 	v1.RegisterCollectionServiceHTTPServer(srv, collectionService)
+	v1.RegisterGroupServiceHTTPServer(srv, groupService)
+	v1.RegisterMessageServiceHTTPServer(srv, messageService)
+
+	// 注册WebSocket路由 - 使用标准HTTP处理器
+	// 注意：WebSocket需要绕过Kratos的中间件，所以直接使用原始HTTP处理器
+	srv.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		wsService.GetHandler().ServeHTTP(w, r)
+	})
+
+	// 可选的WebSocket连接测试页面
+	srv.HandleFunc("/ws-test", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>WebSocket测试</title>
+            </head>
+            <body>
+                <h1>WebSocket连接测试</h1>
+                <div>
+                    <input type="text" id="userId" placeholder="用户ID" value="1001">
+                    <button onclick="connect()">连接</button>
+                    <button onclick="disconnect()">断开</button>
+                    <span id="status">未连接</span>
+                </div>
+                <div id="messages"></div>
+                <script>
+                    let ws = null;
+                    function connect() {
+                        const userId = document.getElementById('userId').value;
+                        const url = 'ws://' + window.location.host + '/ws?token=' + userId;
+                        ws = new WebSocket(url);
+                        ws.onopen = () => {
+                            document.getElementById('status').innerText = '已连接';
+                            console.log('WebSocket连接成功');
+                        };
+                        ws.onmessage = (event) => {
+                            console.log('收到消息:', event.data);
+                            const msgDiv = document.createElement('div');
+                            msgDiv.innerText = '收到: ' + event.data;
+                            document.getElementById('messages').appendChild(msgDiv);
+                        };
+                        ws.onclose = () => {
+                            document.getElementById('status').innerText = '已断开';
+                        };
+                    }
+                    function disconnect() {
+                        if (ws) {
+                            ws.close();
+                            ws = null;
+                        }
+                    }
+                </script>
+            </body>
+            </html>
+        `))
+	})
+
 	return srv
 }

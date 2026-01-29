@@ -1,0 +1,186 @@
+syntax = "proto3";
+
+package api.videoApi.service.v1;
+
+option go_package = "lehu-video/api/videoApi/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoApi.service.v1";
+
+import "google/api/annotations.proto";
+import "api/videoApi/service/v1/base.proto";
+
+// 消息服务
+service MessageService {
+  // 发送消息
+  rpc SendMessage(SendMessageReq) returns (SendMessageResp) {
+    option (google.api.http) = {
+      post: "/v1/message"
+      body: "*"
+    };
+  };
+
+  // 获取消息列表
+  rpc ListMessages(ListMessagesReq) returns (ListMessagesResp) {
+    option (google.api.http) = {
+      get: "/v1/messages"
+    };
+  };
+
+  // 撤回消息
+  rpc RecallMessage(RecallMessageReq) returns (RecallMessageResp) {
+    option (google.api.http) = {
+      delete: "/v1/message/{message_id}"
+    };
+  };
+
+  // 标记消息已读
+  rpc MarkMessagesRead(MarkMessagesReadReq) returns (MarkMessagesReadResp) {
+    option (google.api.http) = {
+      post: "/v1/messages/read"
+      body: "*"
+    };
+  };
+
+  // 获取会话列表
+  rpc ListConversations(ListConversationsReq) returns (ListConversationsResp) {
+    option (google.api.http) = {
+      get: "/v1/conversations"
+    };
+  };
+
+  // 删除会话
+  rpc DeleteConversation(DeleteConversationReq) returns (DeleteConversationResp) {
+    option (google.api.http) = {
+      delete: "/v1/conversation/{conversation_id}"
+    };
+  };
+}
+
+// 消息类型
+enum MessageType {
+  TEXT = 0;
+  IMAGE = 1;
+  VOICE = 2;
+  VIDEOTYPE = 3;
+  FILE = 4;
+  SYSTEM = 99;
+}
+
+// 会话类型
+enum ConversationType {
+  SINGLE = 0;
+  GROUP = 1;
+}
+
+// 消息状态
+enum MessageStatus {
+  SENDING = 0;
+  SENT = 1;
+  DELIVERED = 2;
+  READ = 3;
+  RECALLED = 4;
+  FAILED = 99;
+}
+
+// 消息内容
+message MessageContent {
+  string text = 1;
+  string image_url = 2;
+  int64 image_width = 3;
+  int64 image_height = 4;
+  string voice_url = 5;
+  int64 voice_duration = 6;
+  string video_url = 7;
+  string video_cover = 8;
+  int64 video_duration = 9;
+  string file_url = 10;
+  string file_name = 11;
+  int64 file_size = 12;
+  string extra = 13;
+}
+
+// 消息
+message Message {
+  int64 id = 1;
+  int64 sender_id = 2;
+  int64 receiver_id = 3;
+  ConversationType conv_type = 4;
+  MessageType msg_type = 5;
+  MessageContent content = 6;
+  MessageStatus status = 7;
+  bool is_recalled = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+// 会话
+message Conversation {
+  int64 id = 1;
+  ConversationType type = 2;
+  int64 target_id = 3;
+  string last_message = 4;
+  MessageType last_msg_type = 5;
+  int64 last_msg_time = 6;
+  int32 unread_count = 7;
+  string updated_at = 8;
+}
+
+// 发送消息请求
+message SendMessageReq {
+  int64 receiver_id = 1;
+  ConversationType conv_type = 2;
+  MessageType msg_type = 3;
+  MessageContent content = 4;
+  string client_msg_id = 5;
+}
+
+message SendMessageResp {
+  int64 message_id = 1;
+}
+
+// 获取消息列表请求
+message ListMessagesReq {
+  int64 target_id = 1;
+  ConversationType conv_type = 2;
+  int64 last_msg_id = 3;
+  int32 limit = 4;
+}
+
+message ListMessagesResp {
+  repeated Message messages = 1;
+  bool has_more = 2;
+  int64 last_msg_id = 3;
+}
+
+// 撤回消息请求
+message RecallMessageReq {
+  int64 message_id = 1;
+}
+
+message RecallMessageResp {}
+
+// 标记消息已读请求
+message MarkMessagesReadReq {
+  int64 target_id = 1;
+  ConversationType conv_type = 2;
+  int64 last_msg_id = 3;
+}
+
+message MarkMessagesReadResp {}
+
+// 获取会话列表请求
+message ListConversationsReq {
+  PageStatsReq page_stats = 1;
+}
+
+message ListConversationsResp {
+  repeated Conversation conversations = 1;
+  PageStatsResp page_stats = 2;
+}
+
+// 删除会话请求
+message DeleteConversationReq {
+  int64 conversation_id = 1;
+}
+
+message DeleteConversationResp {}

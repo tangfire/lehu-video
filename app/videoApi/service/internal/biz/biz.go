@@ -12,6 +12,8 @@ var ProviderSet = wire.NewSet(
 	NewFavoirteUsecase,
 	NewFollowUsecase,
 	NewCollectionUsecase,
+	NewGroupUsecase,
+	NewMessageUsecase,
 )
 
 type PageStats struct {

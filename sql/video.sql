@@ -175,3 +175,126 @@ CREATE TABLE IF NOT EXISTS `collection_video` (
                                                   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                                   INDEX `collection_id_idx` (`collection_id`, `is_deleted`)
 );
+
+
+-- 创建群聊信息表
+CREATE TABLE `group_info` (
+                              `id` bigint(20) NOT NULL COMMENT '群聊ID',
+                              `name` varchar(20) NOT NULL COMMENT '群名称',
+                              `notice` varchar(500) DEFAULT NULL COMMENT '群公告',
+                              `members` json DEFAULT NULL COMMENT '群组成员',
+                              `member_cnt` int(11) DEFAULT '1' COMMENT '群人数',
+                              `owner_id` bigint(20) NOT NULL COMMENT '群主ID',
+                              `add_mode` tinyint(4) DEFAULT '0' COMMENT '加群方式，0.直接，1.审核',
+                              `avatar` varchar(255) DEFAULT NULL COMMENT '头像',
+                              `status` tinyint(4) DEFAULT '0' COMMENT '状态，0.正常，1.禁用，2.解散',
+                              `created_at` datetime NOT NULL COMMENT '创建时间',
+                              `updated_at` datetime NOT NULL COMMENT '更新时间',
+                              `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+                              PRIMARY KEY (`id`),
+                              KEY `idx_owner_id` (`owner_id`),
+                              KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群聊信息表';
+
+-- 创建群成员表
+CREATE TABLE `group_member` (
+                                `id` bigint(20) NOT NULL COMMENT '成员ID',
+                                `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+                                `group_id` bigint(20) NOT NULL COMMENT '群聊ID',
+                                `role` tinyint(4) DEFAULT '0' COMMENT '角色，0.普通成员，1.管理员，2.群主',
+                                `join_time` datetime NOT NULL COMMENT '加入时间',
+                                `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+                                PRIMARY KEY (`id`),
+                                KEY `idx_group_id` (`group_id`),
+                                KEY `idx_user_id` (`user_id`),
+                                KEY `idx_group_user` (`group_id`,`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群成员表';
+
+-- 创建加群申请表
+CREATE TABLE `group_apply` (
+                               `id` bigint(20) NOT NULL COMMENT '申请ID',
+                               `user_id` bigint(20) NOT NULL COMMENT '申请用户ID',
+                               `group_id` bigint(20) NOT NULL COMMENT '群聊ID',
+                               `apply_reason` varchar(200) DEFAULT NULL COMMENT '申请理由',
+                               `status` tinyint(4) DEFAULT '0' COMMENT '状态，0.待处理，1.已通过，2.已拒绝',
+                               `handler_id` bigint(20) DEFAULT NULL COMMENT '处理人ID',
+                               `reply_msg` varchar(200) DEFAULT NULL COMMENT '回复消息',
+                               `created_at` datetime NOT NULL COMMENT '创建时间',
+                               `updated_at` datetime NOT NULL COMMENT '更新时间',
+                               `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+                               PRIMARY KEY (`id`),
+                               KEY `idx_group_id` (`group_id`),
+                               KEY `idx_user_id` (`user_id`),
+                               KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='加群申请表';
+
+
+-- 消息表
+CREATE TABLE `message` (
+                           `id` bigint(20) NOT NULL COMMENT '消息ID',
+                           `sender_id` bigint(20) NOT NULL COMMENT '发送者ID',
+                           `receiver_id` bigint(20) NOT NULL COMMENT '接收者ID（用户ID或群ID）',
+                           `conv_type` tinyint(4) NOT NULL COMMENT '会话类型 0:单聊 1:群聊',
+                           `msg_type` tinyint(4) NOT NULL COMMENT '消息类型 0:文本 1:图片 2:语音 3:视频 4:文件 99:系统',
+                           `content` json NOT NULL COMMENT '消息内容',
+                           `status` tinyint(4) DEFAULT '0' COMMENT '消息状态 0:发送中 1:已发送 2:已送达 3:已读 4:已撤回 99:失败',
+                           `is_recalled` tinyint(1) DEFAULT '0' COMMENT '是否已撤回',
+                           `created_at` datetime NOT NULL COMMENT '创建时间',
+                           `updated_at` datetime NOT NULL COMMENT '更新时间',
+                           `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+                           PRIMARY KEY (`id`),
+                           KEY `idx_sender_id` (`sender_id`),
+                           KEY `idx_receiver_id` (`receiver_id`),
+                           KEY `idx_conv_type` (`conv_type`),
+                           KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息表';
+
+-- 会话表
+CREATE TABLE `conversation` (
+                                `id` bigint(20) NOT NULL COMMENT '会话ID',
+                                `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+                                `type` tinyint(4) NOT NULL COMMENT '会话类型 0:单聊 1:群聊',
+                                `target_id` bigint(20) NOT NULL COMMENT '对方ID（用户ID或群ID）',
+                                `last_message` text COMMENT '最后一条消息内容',
+                                `last_msg_type` tinyint(4) DEFAULT NULL COMMENT '最后一条消息类型',
+                                `last_msg_time` datetime DEFAULT NULL COMMENT '最后一条消息时间',
+                                `unread_count` int(11) DEFAULT '0' COMMENT '未读消息数',
+                                `is_pinned` tinyint(1) DEFAULT '0' COMMENT '是否置顶',
+                                `is_muted` tinyint(1) DEFAULT '0' COMMENT '是否免打扰',
+                                `created_at` datetime NOT NULL COMMENT '创建时间',
+                                `updated_at` datetime NOT NULL COMMENT '更新时间',
+                                `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+                                PRIMARY KEY (`id`),
+                                UNIQUE KEY `uk_user_target_type` (`user_id`,`target_id`,`type`),
+                                KEY `idx_user_id` (`user_id`),
+                                KEY `idx_target_id` (`target_id`),
+                                KEY `idx_last_msg_time` (`last_msg_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话表';
+
+-- 消息已读记录表
+CREATE TABLE `message_read` (
+                                `id` bigint(20) NOT NULL COMMENT '记录ID',
+                                `message_id` bigint(20) NOT NULL COMMENT '消息ID',
+                                `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+                                `read_at` datetime NOT NULL COMMENT '阅读时间',
+                                `created_at` datetime NOT NULL COMMENT '创建时间',
+                                PRIMARY KEY (`id`),
+                                UNIQUE KEY `uk_message_user` (`message_id`,`user_id`),
+                                KEY `idx_user_id` (`user_id`),
+                                KEY `idx_read_at` (`read_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息已读记录表';
+
+-- 用户消息设置表
+CREATE TABLE `user_message_setting` (
+                                        `id` bigint(20) NOT NULL COMMENT '设置ID',
+                                        `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+                                        `target_id` bigint(20) NOT NULL COMMENT '对方ID（用户ID或群ID）',
+                                        `conv_type` tinyint(4) NOT NULL COMMENT '会话类型',
+                                        `is_muted` tinyint(1) DEFAULT '0' COMMENT '是否免打扰',
+                                        `created_at` datetime NOT NULL COMMENT '创建时间',
+                                        `updated_at` datetime NOT NULL COMMENT '更新时间',
+                                        `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+                                        PRIMARY KEY (`id`),
+                                        UNIQUE KEY `uk_user_target_conv` (`user_id`,`target_id`,`conv_type`),
+                                        KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户消息设置表';

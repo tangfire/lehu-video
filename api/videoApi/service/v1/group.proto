@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+package api.videoApi.service.v1;
+
+option go_package = "lehu-video/api/videoApi/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoApi.service.v1";
+
+import "google/api/annotations.proto";
+import "api/videoApi/service/v1/base.proto";
+
+service GroupService {
+  // 创建群聊
+  rpc CreateGroup(CreateGroupReq) returns (CreateGroupResp) {
+    option (google.api.http) = {
+      post: "/v1/group"
+      body: "*"
+    };
+  };
+
+  // 获取我创建的群聊
+  rpc LoadMyGroup(LoadMyGroupReq) returns (LoadMyGroupResp) {
+    option (google.api.http) = {
+      post: "/v1/group/my"
+      body:"*"
+    };
+  };
+
+  // 检查群聊加群方式
+  rpc CheckGroupAddMode(CheckGroupAddModeReq) returns (CheckGroupAddModeResp) {
+    option (google.api.http) = {
+      get: "/v1/group/{group_id}/add-mode"
+    };
+  };
+
+  // 直接进群
+  rpc EnterGroupDirectly(EnterGroupDirectlyReq) returns (EnterGroupDirectlyResp) {
+    option (google.api.http) = {
+      post: "/v1/group/{group_id}/enter"
+      body: "*"
+    };
+  };
+
+  // 申请加群
+  rpc ApplyJoinGroup(ApplyJoinGroupReq) returns (ApplyJoinGroupResp) {
+    option (google.api.http) = {
+      post: "/v1/group/{group_id}/apply"
+      body: "*"
+    };
+  };
+
+  // 退群
+  rpc LeaveGroup(LeaveGroupReq) returns (LeaveGroupResp) {
+    option (google.api.http) = {
+      delete: "/v1/group/{group_id}/leave"
+    };
+  };
+
+  // 解散群聊
+  rpc DismissGroup(DismissGroupReq) returns (DismissGroupResp) {
+    option (google.api.http) = {
+      delete: "/v1/group/{group_id}"
+    };
+  };
+
+  // 获取群聊信息
+  rpc GetGroupInfo(GetGroupInfoReq) returns (GetGroupInfoResp) {
+    option (google.api.http) = {
+      get: "/v1/group/{group_id}"
+    };
+  };
+
+  // 获取我加入的群聊
+  rpc ListMyJoinedGroups(ListMyJoinedGroupsReq) returns (ListMyJoinedGroupsResp) {
+    option (google.api.http) = {
+      get: "/v1/group/joined"
+    };
+  };
+}
+
+message GroupInfo {
+  int64 id = 1;
+  string name = 2;
+  string notice = 3;
+  int32 member_cnt = 4;
+  int64 owner_id = 5;
+  int32 add_mode = 6;
+  string avatar = 7;
+  int32 status = 8;
+  repeated int64 members = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+message CreateGroupReq {
+  string name = 1;
+  string notice = 2;
+  int32 add_mode = 3;
+  string avatar = 4;
+}
+
+message CreateGroupResp {
+  int64 group_id = 1;
+}
+
+message LoadMyGroupReq {
+  PageStatsReq page_stats = 1;
+}
+
+message LoadMyGroupResp {
+  repeated GroupInfo groups = 1;
+  PageStatsResp page_stats = 2;
+}
+
+message CheckGroupAddModeReq {
+  int64 group_id = 1;
+}
+
+message CheckGroupAddModeResp {
+  int32 add_mode = 1;
+}
+
+message EnterGroupDirectlyReq {
+  int64 group_id = 1;
+}
+
+message EnterGroupDirectlyResp {}
+
+message ApplyJoinGroupReq {
+  int64 group_id = 1;
+  string apply_reason = 2;
+}
+
+message ApplyJoinGroupResp {}
+
+message LeaveGroupReq {
+  int64 group_id = 1;
+}
+
+message LeaveGroupResp {}
+
+message DismissGroupReq {
+  int64 group_id = 1;
+}
+
+message DismissGroupResp {}
+
+message GetGroupInfoReq {
+  int64 group_id = 1;
+}
+
+message GetGroupInfoResp {
+  GroupInfo group = 1;
+}
+
+message ListMyJoinedGroupsReq {
+  PageStatsReq page_stats = 1;
+}
+
+message ListMyJoinedGroupsResp {
+  repeated GroupInfo groups = 1;
+  PageStatsResp page_stats = 2;
+}

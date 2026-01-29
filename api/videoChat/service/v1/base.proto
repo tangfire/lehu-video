@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package api.videoChat.service.v1;
+
+option go_package = "lehu-video/api/videoChat/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoChat.service.v1";
+
+message Metadata{
+  int32 code = 1;
+  string message = 2;
+  string data = 3;
+  repeated string reason = 4;
+}
+
+message PageStatsReq{
+  int32 page = 1;
+  int32 size = 2;
+  string sort = 3;
+}
+
+message PageStatsResp{
+  int32 total = 1;
+}

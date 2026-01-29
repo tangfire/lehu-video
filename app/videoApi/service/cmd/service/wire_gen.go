@@ -51,8 +51,16 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	followUsecase := biz.NewFollowUsecase(coreAdapter, logger)
 	followServiceService := service.NewFollowServiceService(followUsecase)
 	collectionUsecase := biz.NewCollectionUsecase(coreAdapter, videoAssembler, logger)
-	collectionServiceService := service.NewCollectionServiceService(collectionUsecase)
-	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, logger)
+	collectionServiceService := service.NewCollectionServiceService(collectionUsecase, logger)
+	groupServiceClient := data.NewGroupServiceClient(discovery)
+	messageServiceClient := data.NewMessageServiceClient(discovery)
+	chatAdapter := data.NewChatAdapter(groupServiceClient, messageServiceClient)
+	groupUsecase := biz.NewGroupUsecase(chatAdapter, logger)
+	groupServiceService := service.NewGroupServiceService(groupUsecase, logger)
+	messageUsecase := biz.NewMessageUsecase(chatAdapter, logger)
+	messageServiceService := service.NewMessageServiceService(messageUsecase, logger)
+	webSocketService := service.NewWebSocketService(messageUsecase, logger)
+	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, groupServiceService, messageServiceService, webSocketService, logger)
 	app := newApp(logger, registrar, httpServer)
 	return app, func() {
 	}, nil

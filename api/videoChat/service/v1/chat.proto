@@ -1,0 +1,210 @@
+syntax = "proto3";
+
+package api.videoChat.service.v1;
+
+option go_package = "lehu-video/api/videoChat/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoChat.service.v1";
+
+import "api/videoChat/service/v1/base.proto";
+
+// 消息相关服务
+service MessageService {
+  // 发送消息
+  rpc SendMessage(SendMessageReq) returns (SendMessageResp);
+
+  // 获取消息列表
+  rpc ListMessages(ListMessagesReq) returns (ListMessagesResp);
+
+  // 撤回消息
+  rpc RecallMessage(RecallMessageReq) returns (RecallMessageResp);
+
+  // 标记消息已读
+  rpc MarkMessagesRead(MarkMessagesReadReq) returns (MarkMessagesReadResp);
+
+  // 获取未读消息数量
+  rpc GetUnreadCount(GetUnreadCountReq) returns (GetUnreadCountResp);
+
+  // 获取会话列表
+  rpc ListConversations(ListConversationsReq) returns (ListConversationsResp);
+
+  // 删除会话
+  rpc DeleteConversation(DeleteConversationReq) returns (DeleteConversationResp);
+
+  // 清空聊天记录
+  rpc ClearMessages(ClearMessagesReq) returns (ClearMessagesResp);
+}
+
+// 会话类型
+enum ConversationType {
+  SINGLE = 0;  // 单聊
+  GROUP = 1;   // 群聊
+}
+
+// 消息类型
+enum MessageType {
+  TEXT = 0;        // 文本
+  IMAGE = 1;       // 图片
+  VOICE = 2;       // 语音
+  VIDEO = 3;       // 视频
+  FILE = 4;        // 文件
+  SYSTEM = 99;     // 系统消息
+}
+
+// 消息状态
+enum MessageStatus {
+  SENDING = 0;     // 发送中
+  SENT = 1;        // 已发送
+  DELIVERED = 2;   // 已送达
+  READ = 3;        // 已读
+  RECALLED = 4;    // 已撤回
+  FAILED = 99;     // 发送失败
+}
+
+// 消息内容
+message MessageContent {
+  string text = 1;            // 文本内容
+  string image_url = 2;       // 图片URL
+  int64 image_width = 3;      // 图片宽度
+  int64 image_height = 4;     // 图片高度
+  string voice_url = 5;       // 语音URL
+  int64 voice_duration = 6;   // 语音时长(秒)
+  string video_url = 7;       // 视频URL
+  string video_cover = 8;     // 视频封面
+  int64 video_duration = 9;   // 视频时长
+  string file_url = 10;       // 文件URL
+  string file_name = 11;      // 文件名
+  int64 file_size = 12;       // 文件大小
+  string extra = 13;          // 扩展信息
+}
+
+// 消息
+message Message {
+  int64 id = 1;
+  int64 sender_id = 2;
+  int64 receiver_id = 3;      // 接收者ID（用户ID或群ID）
+  ConversationType conv_type = 4;
+  MessageType msg_type = 5;
+  MessageContent content = 6;
+  MessageStatus status = 7;
+  bool is_recalled = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+// 会话
+message Conversation {
+  int64 id = 1;
+  ConversationType type = 2;
+  int64 target_id = 3;        // 对方ID（用户ID或群ID）
+  string last_message = 4;    // 最后一条消息内容
+  MessageType last_msg_type = 5;
+  int64 last_msg_time = 6;    // 最后一条消息时间戳
+  int64 unread_count = 7;     // 未读消息数
+  string updated_at = 8;
+}
+
+// WebSocket相关消息
+message WSMessage {
+  string action = 1;          // 消息类型：send_message, recall_message, read_message等
+  Message message = 2;        // 消息内容
+  int64 timestamp = 3;        // 时间戳
+  string client_msg_id = 4;   // 客户端消息ID（用于消息去重）
+}
+
+// 发送消息请求
+message SendMessageReq {
+  int64 sender_id = 1;
+  int64 receiver_id = 2;
+  ConversationType conv_type = 3;
+  MessageType msg_type = 4;
+  MessageContent content = 5;
+  string client_msg_id = 6;   // 客户端消息ID（用于去重）
+}
+
+message SendMessageResp {
+  int64 message_id = 1;
+  Metadata meta = 2;
+}
+
+// 获取消息列表请求
+message ListMessagesReq {
+  int64 user_id = 1;
+  int64 target_id = 2;        // 对方ID（用户ID或群ID）
+  ConversationType conv_type = 3;
+  int64 last_msg_id = 4;      // 最后一条消息ID（用于分页）
+  int32 limit = 5;            // 每页数量
+}
+
+message ListMessagesResp {
+  repeated Message messages = 1;
+  bool has_more = 2;
+  int64 last_msg_id = 3;
+  Metadata meta = 4;
+}
+
+// 撤回消息请求
+message RecallMessageReq {
+  int64 message_id = 1;
+  int64 user_id = 2;          // 操作者ID
+}
+
+message RecallMessageResp {
+  Metadata meta = 1;
+}
+
+// 标记消息已读请求
+message MarkMessagesReadReq {
+  int64 user_id = 1;
+  int64 target_id = 2;        // 对方ID（用户ID或群ID）
+  ConversationType conv_type = 3;
+  int64 last_msg_id = 4;      // 最后一条已读消息ID
+}
+
+message MarkMessagesReadResp {
+  Metadata meta = 1;
+}
+
+// 获取未读消息数量请求
+message GetUnreadCountReq {
+  int64 user_id = 1;
+}
+
+message GetUnreadCountResp {
+  int64 total_unread = 1;
+  map<int64, int64> conv_unread = 2;  // 会话ID -> 未读数
+  Metadata meta = 3;
+}
+
+// 获取会话列表请求
+message ListConversationsReq {
+  int64 user_id = 1;
+  PageStatsReq page_stats = 2;
+}
+
+message ListConversationsResp {
+  repeated Conversation conversations = 1;
+  Metadata meta = 2;
+  PageStatsResp page_stats = 3;
+}
+
+// 删除会话请求
+message DeleteConversationReq {
+  int64 user_id = 1;
+  int64 conversation_id = 2;
+}
+
+message DeleteConversationResp {
+  Metadata meta = 1;
+}
+
+// 清空聊天记录请求
+message ClearMessagesReq {
+  int64 user_id = 1;
+  int64 target_id = 2;        // 对方ID（用户ID或群ID）
+  ConversationType conv_type = 3;
+}
+
+message ClearMessagesResp {
+  Metadata meta = 1;
+}

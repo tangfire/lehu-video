@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/go-kratos/kratos/v2/log"
 	"lehu-video/app/videoApi/service/internal/biz"
 
 	pb "lehu-video/api/videoApi/service/v1"
@@ -10,11 +11,13 @@ import (
 type CollectionServiceService struct {
 	pb.UnimplementedCollectionServiceServer
 
+	log *log.Helper
+
 	uc *biz.CollectionUsecase
 }
 
-func NewCollectionServiceService(uc *biz.CollectionUsecase) *CollectionServiceService {
-	return &CollectionServiceService{uc: uc}
+func NewCollectionServiceService(uc *biz.CollectionUsecase, logger log.Logger) *CollectionServiceService {
+	return &CollectionServiceService{uc: uc, log: log.NewHelper(logger)}
 }
 
 func (s *CollectionServiceService) CreateCollection(ctx context.Context, req *pb.CreateCollectionReq) (*pb.CreateCollectionResp, error) {

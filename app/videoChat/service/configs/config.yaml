@@ -1,0 +1,16 @@
+server:
+  http:
+    addr: 0.0.0.0:8040
+    timeout: 100s
+  grpc:
+    addr: 0.0.0.0:9040
+    timeout: 100s
+data:
+  database:
+    driver: mysql
+    source: root:8888.216@tcp(127.0.0.1:3306)/lehu_video_db?parseTime=True&loc=Local
+  redis:
+    addr: 127.0.0.1:6379
+    password: "8888.216"
+    read_timeout: 20s
+    write_timeout: 20s
