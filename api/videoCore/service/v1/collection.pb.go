@@ -198,6 +198,7 @@ type UpdateCollectionReq struct {
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	UserId        int64                  `protobuf:"varint,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -253,6 +254,13 @@ func (x *UpdateCollectionReq) GetDescription() string {
 	return ""
 }
 
+func (x *UpdateCollectionReq) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
 type UpdateCollectionResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
@@ -300,6 +308,7 @@ func (x *UpdateCollectionResp) GetMeta() *Metadata {
 type RemoveCollectionReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -337,6 +346,13 @@ func (*RemoveCollectionReq) Descriptor() ([]byte, []int) {
 func (x *RemoveCollectionReq) GetId() int64 {
 	if x != nil {
 		return x.Id
+	}
+	return 0
+}
+
+func (x *RemoveCollectionReq) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
 	}
 	return 0
 }
@@ -1181,15 +1197,17 @@ const file_api_videoCore_service_v1_collection_proto_rawDesc = "" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\x03R\x06userId\"N\n" +
 	"\x14CreateCollectionResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"[\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"t\n" +
 	"\x13UpdateCollectionReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\"N\n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\x03R\x06userId\"N\n" +
 	"\x14UpdateCollectionResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"%\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\">\n" +
 	"\x13RemoveCollectionReq\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"N\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\"N\n" +
 	"\x14RemoveCollectionResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"&\n" +
 	"\x14GetCollectionByIdReq\x12\x0e\n" +

@@ -42,6 +42,7 @@ func (s *CollectionServiceService) UpdateCollection(ctx context.Context, req *pb
 	// ✅ 改为Command
 	cmd := &biz.UpdateCollectionCommand{
 		CollectionId: req.Id,
+		UserId:       req.UserId,
 		Name:         req.Name,
 		Description:  req.Description,
 	}
@@ -60,6 +61,7 @@ func (s *CollectionServiceService) RemoveCollection(ctx context.Context, req *pb
 	// ✅ 改为Command
 	cmd := &biz.RemoveCollectionCommand{
 		CollectionId: req.Id,
+		UserId:       req.UserId,
 	}
 
 	_, err := s.uc.RemoveCollection(ctx, cmd)

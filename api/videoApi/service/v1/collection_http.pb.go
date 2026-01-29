@@ -48,11 +48,11 @@ func RegisterCollectionServiceHTTPServer(s *http.Server, srv CollectionServiceHT
 	r := s.Route("/")
 	r.POST("/v1/collection", _CollectionService_CreateCollection0_HTTP_Handler(srv))
 	r.DELETE("/v1/collection/{id}", _CollectionService_RemoveCollection0_HTTP_Handler(srv))
-	r.GET("/v1/collection", _CollectionService_ListCollection0_HTTP_Handler(srv))
+	r.POST("/v1/collection/list", _CollectionService_ListCollection0_HTTP_Handler(srv))
 	r.PUT("/v1/collection", _CollectionService_UpdateCollection0_HTTP_Handler(srv))
 	r.POST("/v1/collection/video", _CollectionService_AddVideo2Collection0_HTTP_Handler(srv))
 	r.DELETE("/v1/collection/{collection_id}/video/{video_id}", _CollectionService_RemoveVideoFromCollection0_HTTP_Handler(srv))
-	r.GET("/v1/collection/video", _CollectionService_ListVideo4Collection0_HTTP_Handler(srv))
+	r.POST("/v1/collection/video/list", _CollectionService_ListVideo4Collection0_HTTP_Handler(srv))
 }
 
 func _CollectionService_CreateCollection0_HTTP_Handler(srv CollectionServiceHTTPServer) func(ctx http.Context) error {
@@ -102,6 +102,9 @@ func _CollectionService_RemoveCollection0_HTTP_Handler(srv CollectionServiceHTTP
 func _CollectionService_ListCollection0_HTTP_Handler(srv CollectionServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in ListCollectionReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -187,6 +190,9 @@ func _CollectionService_RemoveVideoFromCollection0_HTTP_Handler(srv CollectionSe
 func _CollectionService_ListVideo4Collection0_HTTP_Handler(srv CollectionServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in ListVideo4CollectionReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -249,11 +255,11 @@ func (c *CollectionServiceHTTPClientImpl) CreateCollection(ctx context.Context, 
 
 func (c *CollectionServiceHTTPClientImpl) ListCollection(ctx context.Context, in *ListCollectionReq, opts ...http.CallOption) (*ListCollectionResp, error) {
 	var out ListCollectionResp
-	pattern := "/v1/collection"
-	path := binding.EncodeURL(pattern, in, true)
+	pattern := "/v1/collection/list"
+	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationCollectionServiceListCollection))
 	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -262,11 +268,11 @@ func (c *CollectionServiceHTTPClientImpl) ListCollection(ctx context.Context, in
 
 func (c *CollectionServiceHTTPClientImpl) ListVideo4Collection(ctx context.Context, in *ListVideo4CollectionReq, opts ...http.CallOption) (*ListVideo4CollectionResp, error) {
 	var out ListVideo4CollectionResp
-	pattern := "/v1/collection/video"
-	path := binding.EncodeURL(pattern, in, true)
+	pattern := "/v1/collection/video/list"
+	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationCollectionServiceListVideo4Collection))
 	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

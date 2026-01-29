@@ -45,6 +45,7 @@ message UpdateCollectionReq {
 	int64 id = 1;
 	string name = 2;
 	string description = 3;
+	int64 user_id = 4;
 }
 message UpdateCollectionResp {
 	Metadata meta = 1;
@@ -52,6 +53,7 @@ message UpdateCollectionResp {
 
 message RemoveCollectionReq {
 	int64 id = 1;
+	int64 user_id = 2;
 }
 message RemoveCollectionResp {
 	Metadata meta = 1;

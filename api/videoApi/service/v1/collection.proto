@@ -38,7 +38,8 @@ service CollectionService {
 	// 列出用户的收藏夹
 	rpc ListCollection(ListCollectionReq) returns (ListCollectionResp) {
 		option (google.api.http) = {
-			get: "/v1/collection"
+			post: "/v1/collection/list"
+			body:"*"
 		};
 	};
 
@@ -68,7 +69,8 @@ service CollectionService {
 	// 列出收藏夹中的视频
 	rpc ListVideo4Collection(ListVideo4CollectionReq) returns (ListVideo4CollectionResp) {
 		option (google.api.http) = {
-			get: "/v1/collection/video"
+			post: "/v1/collection/video/list"
+			body: "*"
 		};
 	};
 }
@@ -79,7 +81,6 @@ message CreateCollectionReq {
 }
 
 message CreateCollectionResp {
-	Collection collection = 1;
 }
 
 message RemoveCollectionReq {
@@ -106,7 +107,6 @@ message UpdateCollectionReq {
 }
 
 message UpdateCollectionResp {
-	Collection collection = 1;
 }
 
 message AddVideo2CollectionReq {

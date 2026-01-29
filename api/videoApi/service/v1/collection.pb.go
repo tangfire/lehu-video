@@ -146,7 +146,6 @@ func (x *CreateCollectionReq) GetDescription() string {
 
 type CreateCollectionResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Collection    *Collection            `protobuf:"bytes,1,opt,name=collection,proto3" json:"collection,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -179,13 +178,6 @@ func (x *CreateCollectionResp) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CreateCollectionResp.ProtoReflect.Descriptor instead.
 func (*CreateCollectionResp) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_collection_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *CreateCollectionResp) GetCollection() *Collection {
-	if x != nil {
-		return x.Collection
-	}
-	return nil
 }
 
 type RemoveCollectionReq struct {
@@ -428,7 +420,6 @@ func (x *UpdateCollectionReq) GetDescription() string {
 
 type UpdateCollectionResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Collection    *Collection            `protobuf:"bytes,1,opt,name=collection,proto3" json:"collection,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -461,13 +452,6 @@ func (x *UpdateCollectionResp) ProtoReflect() protoreflect.Message {
 // Deprecated: Use UpdateCollectionResp.ProtoReflect.Descriptor instead.
 func (*UpdateCollectionResp) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_collection_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *UpdateCollectionResp) GetCollection() *Collection {
-	if x != nil {
-		return x.Collection
-	}
-	return nil
 }
 
 type AddVideo2CollectionReq struct {
@@ -768,11 +752,8 @@ const file_api_videoApi_service_v1_collection_proto_rawDesc = "" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\"K\n" +
 	"\x13CreateCollectionReq\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\"[\n" +
-	"\x14CreateCollectionResp\x12C\n" +
-	"\n" +
-	"collection\x18\x01 \x01(\v2#.api.videoApi.service.v1.CollectionR\n" +
-	"collection\"%\n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\"\x16\n" +
+	"\x14CreateCollectionResp\"%\n" +
 	"\x13RemoveCollectionReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"\x16\n" +
 	"\x14RemoveCollectionResp\"Y\n" +
@@ -786,11 +767,8 @@ const file_api_videoApi_service_v1_collection_proto_rawDesc = "" +
 	"\x13UpdateCollectionReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\"[\n" +
-	"\x14UpdateCollectionResp\x12C\n" +
-	"\n" +
-	"collection\x18\x01 \x01(\v2#.api.videoApi.service.v1.CollectionR\n" +
-	"collection\"X\n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\"\x16\n" +
+	"\x14UpdateCollectionResp\"X\n" +
 	"\x16AddVideo2CollectionReq\x12#\n" +
 	"\rcollection_id\x18\x01 \x01(\x03R\fcollectionId\x12\x19\n" +
 	"\bvideo_id\x18\x02 \x01(\x03R\avideoId\"\x19\n" +
@@ -806,15 +784,15 @@ const file_api_videoApi_service_v1_collection_proto_rawDesc = "" +
 	"\x18ListVideo4CollectionResp\x126\n" +
 	"\x06videos\x18\x01 \x03(\v2\x1e.api.videoApi.service.v1.VideoR\x06videos\x12E\n" +
 	"\n" +
-	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats2\xbe\b\n" +
+	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats2\xce\b\n" +
 	"\x11CollectionService\x12\x8a\x01\n" +
 	"\x10CreateCollection\x12,.api.videoApi.service.v1.CreateCollectionReq\x1a-.api.videoApi.service.v1.CreateCollectionResp\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/collection\x12\x8c\x01\n" +
-	"\x10RemoveCollection\x12,.api.videoApi.service.v1.RemoveCollectionReq\x1a-.api.videoApi.service.v1.RemoveCollectionResp\"\x1b\x82\xd3\xe4\x93\x02\x15*\x13/v1/collection/{id}\x12\x81\x01\n" +
-	"\x0eListCollection\x12*.api.videoApi.service.v1.ListCollectionReq\x1a+.api.videoApi.service.v1.ListCollectionResp\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1/collection\x12\x8a\x01\n" +
+	"\x10RemoveCollection\x12,.api.videoApi.service.v1.RemoveCollectionReq\x1a-.api.videoApi.service.v1.RemoveCollectionResp\"\x1b\x82\xd3\xe4\x93\x02\x15*\x13/v1/collection/{id}\x12\x89\x01\n" +
+	"\x0eListCollection\x12*.api.videoApi.service.v1.ListCollectionReq\x1a+.api.videoApi.service.v1.ListCollectionResp\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/collection/list\x12\x8a\x01\n" +
 	"\x10UpdateCollection\x12,.api.videoApi.service.v1.UpdateCollectionReq\x1a-.api.videoApi.service.v1.UpdateCollectionResp\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\x1a\x0e/v1/collection\x12\x99\x01\n" +
 	"\x13AddVideo2Collection\x12/.api.videoApi.service.v1.AddVideo2CollectionReq\x1a0.api.videoApi.service.v1.AddVideo2CollectionResp\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/collection/video\x12\xc3\x01\n" +
-	"\x19RemoveVideoFromCollection\x125.api.videoApi.service.v1.RemoveVideoFromCollectionReq\x1a6.api.videoApi.service.v1.RemoveVideoFromCollectionResp\"7\x82\xd3\xe4\x93\x021*//v1/collection/{collection_id}/video/{video_id}\x12\x99\x01\n" +
-	"\x14ListVideo4Collection\x120.api.videoApi.service.v1.ListVideo4CollectionReq\x1a1.api.videoApi.service.v1.ListVideo4CollectionResp\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/collection/videoBB\n" +
+	"\x19RemoveVideoFromCollection\x125.api.videoApi.service.v1.RemoveVideoFromCollectionReq\x1a6.api.videoApi.service.v1.RemoveVideoFromCollectionResp\"7\x82\xd3\xe4\x93\x021*//v1/collection/{collection_id}/video/{video_id}\x12\xa1\x01\n" +
+	"\x14ListVideo4Collection\x120.api.videoApi.service.v1.ListVideo4CollectionReq\x1a1.api.videoApi.service.v1.ListVideo4CollectionResp\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/collection/video/listBB\n" +
 	"\x17api.videoApi.service.v1P\x01Z%lehu-video/api/videoApi/service/v1;v1b\x06proto3"
 
 var (
@@ -851,33 +829,31 @@ var file_api_videoApi_service_v1_collection_proto_goTypes = []any{
 	(*Video)(nil),                         // 17: api.videoApi.service.v1.Video
 }
 var file_api_videoApi_service_v1_collection_proto_depIdxs = []int32{
-	0,  // 0: api.videoApi.service.v1.CreateCollectionResp.collection:type_name -> api.videoApi.service.v1.Collection
-	15, // 1: api.videoApi.service.v1.ListCollectionReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
-	0,  // 2: api.videoApi.service.v1.ListCollectionResp.collections:type_name -> api.videoApi.service.v1.Collection
-	16, // 3: api.videoApi.service.v1.ListCollectionResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
-	0,  // 4: api.videoApi.service.v1.UpdateCollectionResp.collection:type_name -> api.videoApi.service.v1.Collection
-	15, // 5: api.videoApi.service.v1.ListVideo4CollectionReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
-	17, // 6: api.videoApi.service.v1.ListVideo4CollectionResp.videos:type_name -> api.videoApi.service.v1.Video
-	16, // 7: api.videoApi.service.v1.ListVideo4CollectionResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
-	1,  // 8: api.videoApi.service.v1.CollectionService.CreateCollection:input_type -> api.videoApi.service.v1.CreateCollectionReq
-	3,  // 9: api.videoApi.service.v1.CollectionService.RemoveCollection:input_type -> api.videoApi.service.v1.RemoveCollectionReq
-	5,  // 10: api.videoApi.service.v1.CollectionService.ListCollection:input_type -> api.videoApi.service.v1.ListCollectionReq
-	7,  // 11: api.videoApi.service.v1.CollectionService.UpdateCollection:input_type -> api.videoApi.service.v1.UpdateCollectionReq
-	9,  // 12: api.videoApi.service.v1.CollectionService.AddVideo2Collection:input_type -> api.videoApi.service.v1.AddVideo2CollectionReq
-	11, // 13: api.videoApi.service.v1.CollectionService.RemoveVideoFromCollection:input_type -> api.videoApi.service.v1.RemoveVideoFromCollectionReq
-	13, // 14: api.videoApi.service.v1.CollectionService.ListVideo4Collection:input_type -> api.videoApi.service.v1.ListVideo4CollectionReq
-	2,  // 15: api.videoApi.service.v1.CollectionService.CreateCollection:output_type -> api.videoApi.service.v1.CreateCollectionResp
-	4,  // 16: api.videoApi.service.v1.CollectionService.RemoveCollection:output_type -> api.videoApi.service.v1.RemoveCollectionResp
-	6,  // 17: api.videoApi.service.v1.CollectionService.ListCollection:output_type -> api.videoApi.service.v1.ListCollectionResp
-	8,  // 18: api.videoApi.service.v1.CollectionService.UpdateCollection:output_type -> api.videoApi.service.v1.UpdateCollectionResp
-	10, // 19: api.videoApi.service.v1.CollectionService.AddVideo2Collection:output_type -> api.videoApi.service.v1.AddVideo2CollectionResp
-	12, // 20: api.videoApi.service.v1.CollectionService.RemoveVideoFromCollection:output_type -> api.videoApi.service.v1.RemoveVideoFromCollectionResp
-	14, // 21: api.videoApi.service.v1.CollectionService.ListVideo4Collection:output_type -> api.videoApi.service.v1.ListVideo4CollectionResp
-	15, // [15:22] is the sub-list for method output_type
-	8,  // [8:15] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	15, // 0: api.videoApi.service.v1.ListCollectionReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
+	0,  // 1: api.videoApi.service.v1.ListCollectionResp.collections:type_name -> api.videoApi.service.v1.Collection
+	16, // 2: api.videoApi.service.v1.ListCollectionResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
+	15, // 3: api.videoApi.service.v1.ListVideo4CollectionReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
+	17, // 4: api.videoApi.service.v1.ListVideo4CollectionResp.videos:type_name -> api.videoApi.service.v1.Video
+	16, // 5: api.videoApi.service.v1.ListVideo4CollectionResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
+	1,  // 6: api.videoApi.service.v1.CollectionService.CreateCollection:input_type -> api.videoApi.service.v1.CreateCollectionReq
+	3,  // 7: api.videoApi.service.v1.CollectionService.RemoveCollection:input_type -> api.videoApi.service.v1.RemoveCollectionReq
+	5,  // 8: api.videoApi.service.v1.CollectionService.ListCollection:input_type -> api.videoApi.service.v1.ListCollectionReq
+	7,  // 9: api.videoApi.service.v1.CollectionService.UpdateCollection:input_type -> api.videoApi.service.v1.UpdateCollectionReq
+	9,  // 10: api.videoApi.service.v1.CollectionService.AddVideo2Collection:input_type -> api.videoApi.service.v1.AddVideo2CollectionReq
+	11, // 11: api.videoApi.service.v1.CollectionService.RemoveVideoFromCollection:input_type -> api.videoApi.service.v1.RemoveVideoFromCollectionReq
+	13, // 12: api.videoApi.service.v1.CollectionService.ListVideo4Collection:input_type -> api.videoApi.service.v1.ListVideo4CollectionReq
+	2,  // 13: api.videoApi.service.v1.CollectionService.CreateCollection:output_type -> api.videoApi.service.v1.CreateCollectionResp
+	4,  // 14: api.videoApi.service.v1.CollectionService.RemoveCollection:output_type -> api.videoApi.service.v1.RemoveCollectionResp
+	6,  // 15: api.videoApi.service.v1.CollectionService.ListCollection:output_type -> api.videoApi.service.v1.ListCollectionResp
+	8,  // 16: api.videoApi.service.v1.CollectionService.UpdateCollection:output_type -> api.videoApi.service.v1.UpdateCollectionResp
+	10, // 17: api.videoApi.service.v1.CollectionService.AddVideo2Collection:output_type -> api.videoApi.service.v1.AddVideo2CollectionResp
+	12, // 18: api.videoApi.service.v1.CollectionService.RemoveVideoFromCollection:output_type -> api.videoApi.service.v1.RemoveVideoFromCollectionResp
+	14, // 19: api.videoApi.service.v1.CollectionService.ListVideo4Collection:output_type -> api.videoApi.service.v1.ListVideo4CollectionResp
+	13, // [13:20] is the sub-list for method output_type
+	6,  // [6:13] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_api_videoApi_service_v1_collection_proto_init() }

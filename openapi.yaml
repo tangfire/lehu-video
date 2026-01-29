@@ -7,39 +7,6 @@ info:
     version: 0.0.1
 paths:
     /v1/collection:
-        get:
-            tags:
-                - CollectionService
-            description: 列出用户的收藏夹
-            operationId: CollectionService_ListCollection
-            parameters:
-                - name: pageStats.page
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageStats.size
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageStats.sort
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ListCollectionResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
         put:
             tags:
                 - CollectionService
@@ -88,45 +55,32 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/collection/video:
-        get:
+    /v1/collection/list:
+        post:
             tags:
                 - CollectionService
-            description: 列出收藏夹中的视频
-            operationId: CollectionService_ListVideo4Collection
-            parameters:
-                - name: collectionId
-                  in: query
-                  description: '@gotags: json:"collectionId,omitempty,string"'
-                  schema:
-                    type: string
-                - name: pageStats.page
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageStats.size
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageStats.sort
-                  in: query
-                  schema:
-                    type: string
+            description: 列出用户的收藏夹
+            operationId: CollectionService_ListCollection
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListCollectionReq'
+                required: true
             responses:
                 "200":
                     description: OK
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ListVideo4CollectionResp'
+                                $ref: '#/components/schemas/ListCollectionResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/collection/video:
         post:
             tags:
                 - CollectionService
@@ -145,6 +99,31 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/AddVideo2CollectionResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/collection/video/list:
+        post:
+            tags:
+                - CollectionService
+            description: 列出收藏夹中的视频
+            operationId: CollectionService_ListVideo4Collection
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListVideo4CollectionReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListVideo4CollectionResp'
                 default:
                     description: Default error response
                     content:
@@ -245,9 +224,7 @@ components:
                     type: string
         CreateCollectionResp:
             type: object
-            properties:
-                collection:
-                    $ref: '#/components/schemas/Collection'
+            properties: {}
         GoogleProtobufAny:
             type: object
             properties:
@@ -256,6 +233,11 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        ListCollectionReq:
+            type: object
+            properties:
+                pageStats:
+                    $ref: '#/components/schemas/PageStatsReq'
         ListCollectionResp:
             type: object
             properties:
@@ -265,6 +247,14 @@ components:
                         $ref: '#/components/schemas/Collection'
                 pageStats:
                     $ref: '#/components/schemas/PageStatsResp'
+        ListVideo4CollectionReq:
+            type: object
+            properties:
+                collectionId:
+                    type: string
+                    description: '@gotags: json:"collectionId,omitempty,string"'
+                pageStats:
+                    $ref: '#/components/schemas/PageStatsReq'
         ListVideo4CollectionResp:
             type: object
             properties:
@@ -274,6 +264,17 @@ components:
                         $ref: '#/components/schemas/Video'
                 pageStats:
                     $ref: '#/components/schemas/PageStatsResp'
+        PageStatsReq:
+            type: object
+            properties:
+                page:
+                    type: integer
+                    format: int32
+                size:
+                    type: integer
+                    format: int32
+                sort:
+                    type: string
         PageStatsResp:
             type: object
             properties:
@@ -314,9 +315,7 @@ components:
                     type: string
         UpdateCollectionResp:
             type: object
-            properties:
-                collection:
-                    $ref: '#/components/schemas/Collection'
+            properties: {}
         Video:
             type: object
             properties:

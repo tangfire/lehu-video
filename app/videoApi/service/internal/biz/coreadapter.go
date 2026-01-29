@@ -32,4 +32,12 @@ type CoreAdapter interface {
 	AddFollow(ctx context.Context, userId, targetUserId int64) error
 	RemoveFollow(ctx context.Context, userId, targetUserId int64) error
 	ListFollow(ctx context.Context, userId int64, _type *FollowType, pageStats *PageStats) (int64, []int64, error)
+	GetCollectionById(ctx context.Context, collectionId int64) (*Collection, error)
+	AddVideo2Collection(ctx context.Context, userId, collectionId, videoId int64) error
+	AddCollection(ctx context.Context, collection *Collection) error
+	ListCollection(ctx context.Context, userId int64, pageStats *PageStats) (int64, []*Collection, error)
+	ListVideo4Collection(ctx context.Context, collectionId int64, pageStats *PageStats) (int64, []int64, error)
+	RemoveCollection(ctx context.Context, userId, collectionId int64) error
+	RemoveVideo4Collection(ctx context.Context, userId int64, collectionId int64, videoId int64) error
+	UpdateCollection(ctx context.Context, collection *Collection) error
 }

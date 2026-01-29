@@ -39,6 +39,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	commentService *service.CommentServiceService,
 	favoriteService *service.FavoriteServiceService,
 	followService *service.FollowServiceService,
+	collectionService *service.CollectionServiceService,
 	logger log.Logger) *http.Server {
 	fmt.Println("ac api_key = " + ac.ApiKey)
 	var opts = []http.ServerOption{
@@ -78,5 +79,6 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	v1.RegisterCommentServiceHTTPServer(srv, commentService)
 	v1.RegisterFavoriteServiceHTTPServer(srv, favoriteService)
 	v1.RegisterFollowServiceHTTPServer(srv, followService)
+	v1.RegisterCollectionServiceHTTPServer(srv, collectionService)
 	return srv
 }

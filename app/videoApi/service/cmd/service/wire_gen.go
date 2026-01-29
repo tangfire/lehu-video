@@ -50,7 +50,9 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	favoriteServiceService := service.NewFavoriteServiceService(favoriteUsecase)
 	followUsecase := biz.NewFollowUsecase(coreAdapter, logger)
 	followServiceService := service.NewFollowServiceService(followUsecase)
-	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, logger)
+	collectionUsecase := biz.NewCollectionUsecase(coreAdapter, videoAssembler, logger)
+	collectionServiceService := service.NewCollectionServiceService(collectionUsecase)
+	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, logger)
 	app := newApp(logger, registrar, httpServer)
 	return app, func() {
 	}, nil
