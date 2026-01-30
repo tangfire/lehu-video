@@ -1,13 +1,12 @@
-syntax = "proto3";
+ syntax = "proto3";
 
 package api.videoApi.service.v1;
 
 option go_package = "lehu-video/api/videoApi/service/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.videoApi.service.v1";
-
-import "google/api/annotations.proto";
 import "api/videoApi/service/v1/base.proto";
+import "google/api/annotations.proto";
 
 service GroupService {
   // 创建群聊
@@ -73,11 +72,14 @@ service GroupService {
   // 获取我加入的群聊
   rpc ListMyJoinedGroups(ListMyJoinedGroupsReq) returns (ListMyJoinedGroupsResp) {
     option (google.api.http) = {
-      get: "/v1/group/joined"
+      post: "/v1/group/joined"
+      body:"*"
     };
   };
 }
 
+
+// 群聊信息
 message GroupInfo {
   int64 id = 1;
   string name = 2;
@@ -87,11 +89,11 @@ message GroupInfo {
   int32 add_mode = 6;
   string avatar = 7;
   int32 status = 8;
-  repeated int64 members = 9;
-  string created_at = 10;
-  string updated_at = 11;
+  string created_at = 9;
+  string updated_at = 10;
 }
 
+// 创建群聊请求
 message CreateGroupReq {
   string name = 1;
   string notice = 2;
@@ -103,6 +105,7 @@ message CreateGroupResp {
   int64 group_id = 1;
 }
 
+// 获取我创建的群聊请求
 message LoadMyGroupReq {
   PageStatsReq page_stats = 1;
 }
@@ -112,6 +115,7 @@ message LoadMyGroupResp {
   PageStatsResp page_stats = 2;
 }
 
+// 检查群聊加群方式请求
 message CheckGroupAddModeReq {
   int64 group_id = 1;
 }
@@ -120,12 +124,14 @@ message CheckGroupAddModeResp {
   int32 add_mode = 1;
 }
 
+// 直接进群请求
 message EnterGroupDirectlyReq {
   int64 group_id = 1;
 }
 
 message EnterGroupDirectlyResp {}
 
+// 申请加群请求
 message ApplyJoinGroupReq {
   int64 group_id = 1;
   string apply_reason = 2;
@@ -133,18 +139,21 @@ message ApplyJoinGroupReq {
 
 message ApplyJoinGroupResp {}
 
+// 退群请求
 message LeaveGroupReq {
   int64 group_id = 1;
 }
 
 message LeaveGroupResp {}
 
+// 解散群聊请求
 message DismissGroupReq {
   int64 group_id = 1;
 }
 
 message DismissGroupResp {}
 
+// 获取群聊信息请求
 message GetGroupInfoReq {
   int64 group_id = 1;
 }
@@ -153,6 +162,7 @@ message GetGroupInfoResp {
   GroupInfo group = 1;
 }
 
+// 获取我加入的群聊请求
 message ListMyJoinedGroupsReq {
   PageStatsReq page_stats = 1;
 }

@@ -7,20 +7,6 @@ import (
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
-type FavoriteTarget int64
-
-var (
-	VIDEO   FavoriteTarget = 0
-	COMMENT FavoriteTarget = 1
-)
-
-type FavoriteType int64
-
-var (
-	FAVORITE FavoriteType = 0
-	UNLIKE   FavoriteType = 1
-)
-
 type AddFavoriteInput struct {
 	Target *FavoriteTarget
 	Type   *FavoriteType

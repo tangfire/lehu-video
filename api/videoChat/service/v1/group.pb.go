@@ -31,10 +31,8 @@ type GroupInfo struct {
 	AddMode       int32                  `protobuf:"varint,6,opt,name=add_mode,json=addMode,proto3" json:"add_mode,omitempty"`
 	Avatar        string                 `protobuf:"bytes,7,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	Status        int32                  `protobuf:"varint,8,opt,name=status,proto3" json:"status,omitempty"`
-	Members       []int64                `protobuf:"varint,9,rep,packed,name=members,proto3" json:"members,omitempty"`
-	Admins        []int64                `protobuf:"varint,10,rep,packed,name=admins,proto3" json:"admins,omitempty"`
-	CreatedAt     string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     string                 `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -125,20 +123,6 @@ func (x *GroupInfo) GetStatus() int32 {
 	return 0
 }
 
-func (x *GroupInfo) GetMembers() []int64 {
-	if x != nil {
-		return x.Members
-	}
-	return nil
-}
-
-func (x *GroupInfo) GetAdmins() []int64 {
-	if x != nil {
-		return x.Admins
-	}
-	return nil
-}
-
 func (x *GroupInfo) GetCreatedAt() string {
 	if x != nil {
 		return x.CreatedAt
@@ -149,74 +133,6 @@ func (x *GroupInfo) GetCreatedAt() string {
 func (x *GroupInfo) GetUpdatedAt() string {
 	if x != nil {
 		return x.UpdatedAt
-	}
-	return ""
-}
-
-type GroupMember struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	GroupId       int64                  `protobuf:"varint,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	Role          int32                  `protobuf:"varint,3,opt,name=role,proto3" json:"role,omitempty"` // 0:普通成员, 1:管理员, 2:群主
-	JoinTime      string                 `protobuf:"bytes,4,opt,name=join_time,json=joinTime,proto3" json:"join_time,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GroupMember) Reset() {
-	*x = GroupMember{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GroupMember) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GroupMember) ProtoMessage() {}
-
-func (x *GroupMember) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GroupMember.ProtoReflect.Descriptor instead.
-func (*GroupMember) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *GroupMember) GetUserId() int64 {
-	if x != nil {
-		return x.UserId
-	}
-	return 0
-}
-
-func (x *GroupMember) GetGroupId() int64 {
-	if x != nil {
-		return x.GroupId
-	}
-	return 0
-}
-
-func (x *GroupMember) GetRole() int32 {
-	if x != nil {
-		return x.Role
-	}
-	return 0
-}
-
-func (x *GroupMember) GetJoinTime() string {
-	if x != nil {
-		return x.JoinTime
 	}
 	return ""
 }
@@ -234,7 +150,7 @@ type CreateGroupReq struct {
 
 func (x *CreateGroupReq) Reset() {
 	*x = CreateGroupReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[2]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -246,7 +162,7 @@ func (x *CreateGroupReq) String() string {
 func (*CreateGroupReq) ProtoMessage() {}
 
 func (x *CreateGroupReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[2]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -259,7 +175,7 @@ func (x *CreateGroupReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGroupReq.ProtoReflect.Descriptor instead.
 func (*CreateGroupReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{2}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CreateGroupReq) GetOwnerId() int64 {
@@ -307,7 +223,7 @@ type CreateGroupResp struct {
 
 func (x *CreateGroupResp) Reset() {
 	*x = CreateGroupResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[3]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -319,7 +235,7 @@ func (x *CreateGroupResp) String() string {
 func (*CreateGroupResp) ProtoMessage() {}
 
 func (x *CreateGroupResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[3]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -332,7 +248,7 @@ func (x *CreateGroupResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGroupResp.ProtoReflect.Descriptor instead.
 func (*CreateGroupResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{3}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CreateGroupResp) GetGroupId() int64 {
@@ -359,7 +275,7 @@ type LoadMyGroupReq struct {
 
 func (x *LoadMyGroupReq) Reset() {
 	*x = LoadMyGroupReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[4]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -371,7 +287,7 @@ func (x *LoadMyGroupReq) String() string {
 func (*LoadMyGroupReq) ProtoMessage() {}
 
 func (x *LoadMyGroupReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[4]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -384,7 +300,7 @@ func (x *LoadMyGroupReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadMyGroupReq.ProtoReflect.Descriptor instead.
 func (*LoadMyGroupReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{4}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *LoadMyGroupReq) GetOwnerId() int64 {
@@ -412,7 +328,7 @@ type LoadMyGroupResp struct {
 
 func (x *LoadMyGroupResp) Reset() {
 	*x = LoadMyGroupResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[5]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -424,7 +340,7 @@ func (x *LoadMyGroupResp) String() string {
 func (*LoadMyGroupResp) ProtoMessage() {}
 
 func (x *LoadMyGroupResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[5]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -437,7 +353,7 @@ func (x *LoadMyGroupResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadMyGroupResp.ProtoReflect.Descriptor instead.
 func (*LoadMyGroupResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{5}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *LoadMyGroupResp) GetGroups() []*GroupInfo {
@@ -470,7 +386,7 @@ type CheckGroupAddModeReq struct {
 
 func (x *CheckGroupAddModeReq) Reset() {
 	*x = CheckGroupAddModeReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[6]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -482,7 +398,7 @@ func (x *CheckGroupAddModeReq) String() string {
 func (*CheckGroupAddModeReq) ProtoMessage() {}
 
 func (x *CheckGroupAddModeReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[6]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -495,7 +411,7 @@ func (x *CheckGroupAddModeReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckGroupAddModeReq.ProtoReflect.Descriptor instead.
 func (*CheckGroupAddModeReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{6}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CheckGroupAddModeReq) GetGroupId() int64 {
@@ -515,7 +431,7 @@ type CheckGroupAddModeResp struct {
 
 func (x *CheckGroupAddModeResp) Reset() {
 	*x = CheckGroupAddModeResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[7]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -527,7 +443,7 @@ func (x *CheckGroupAddModeResp) String() string {
 func (*CheckGroupAddModeResp) ProtoMessage() {}
 
 func (x *CheckGroupAddModeResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[7]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -540,7 +456,7 @@ func (x *CheckGroupAddModeResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckGroupAddModeResp.ProtoReflect.Descriptor instead.
 func (*CheckGroupAddModeResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{7}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CheckGroupAddModeResp) GetAddMode() int32 {
@@ -567,7 +483,7 @@ type EnterGroupDirectlyReq struct {
 
 func (x *EnterGroupDirectlyReq) Reset() {
 	*x = EnterGroupDirectlyReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[8]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -579,7 +495,7 @@ func (x *EnterGroupDirectlyReq) String() string {
 func (*EnterGroupDirectlyReq) ProtoMessage() {}
 
 func (x *EnterGroupDirectlyReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[8]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -592,7 +508,7 @@ func (x *EnterGroupDirectlyReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnterGroupDirectlyReq.ProtoReflect.Descriptor instead.
 func (*EnterGroupDirectlyReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{8}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *EnterGroupDirectlyReq) GetUserId() int64 {
@@ -618,7 +534,7 @@ type EnterGroupDirectlyResp struct {
 
 func (x *EnterGroupDirectlyResp) Reset() {
 	*x = EnterGroupDirectlyResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[9]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -630,7 +546,7 @@ func (x *EnterGroupDirectlyResp) String() string {
 func (*EnterGroupDirectlyResp) ProtoMessage() {}
 
 func (x *EnterGroupDirectlyResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[9]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -643,7 +559,7 @@ func (x *EnterGroupDirectlyResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnterGroupDirectlyResp.ProtoReflect.Descriptor instead.
 func (*EnterGroupDirectlyResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{9}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *EnterGroupDirectlyResp) GetMeta() *Metadata {
@@ -664,7 +580,7 @@ type ApplyJoinGroupReq struct {
 
 func (x *ApplyJoinGroupReq) Reset() {
 	*x = ApplyJoinGroupReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[10]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -676,7 +592,7 @@ func (x *ApplyJoinGroupReq) String() string {
 func (*ApplyJoinGroupReq) ProtoMessage() {}
 
 func (x *ApplyJoinGroupReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[10]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -689,7 +605,7 @@ func (x *ApplyJoinGroupReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyJoinGroupReq.ProtoReflect.Descriptor instead.
 func (*ApplyJoinGroupReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{10}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ApplyJoinGroupReq) GetUserId() int64 {
@@ -722,7 +638,7 @@ type ApplyJoinGroupResp struct {
 
 func (x *ApplyJoinGroupResp) Reset() {
 	*x = ApplyJoinGroupResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[11]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -734,7 +650,7 @@ func (x *ApplyJoinGroupResp) String() string {
 func (*ApplyJoinGroupResp) ProtoMessage() {}
 
 func (x *ApplyJoinGroupResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[11]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -747,122 +663,10 @@ func (x *ApplyJoinGroupResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyJoinGroupResp.ProtoReflect.Descriptor instead.
 func (*ApplyJoinGroupResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{11}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ApplyJoinGroupResp) GetMeta() *Metadata {
-	if x != nil {
-		return x.Meta
-	}
-	return nil
-}
-
-type HandleJoinApplyReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ApplyId       int64                  `protobuf:"varint,1,opt,name=apply_id,json=applyId,proto3" json:"apply_id,omitempty"`
-	HandlerId     int64                  `protobuf:"varint,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
-	Accept        bool                   `protobuf:"varint,3,opt,name=accept,proto3" json:"accept,omitempty"`
-	ReplyMsg      string                 `protobuf:"bytes,4,opt,name=reply_msg,json=replyMsg,proto3" json:"reply_msg,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *HandleJoinApplyReq) Reset() {
-	*x = HandleJoinApplyReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *HandleJoinApplyReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*HandleJoinApplyReq) ProtoMessage() {}
-
-func (x *HandleJoinApplyReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use HandleJoinApplyReq.ProtoReflect.Descriptor instead.
-func (*HandleJoinApplyReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *HandleJoinApplyReq) GetApplyId() int64 {
-	if x != nil {
-		return x.ApplyId
-	}
-	return 0
-}
-
-func (x *HandleJoinApplyReq) GetHandlerId() int64 {
-	if x != nil {
-		return x.HandlerId
-	}
-	return 0
-}
-
-func (x *HandleJoinApplyReq) GetAccept() bool {
-	if x != nil {
-		return x.Accept
-	}
-	return false
-}
-
-func (x *HandleJoinApplyReq) GetReplyMsg() string {
-	if x != nil {
-		return x.ReplyMsg
-	}
-	return ""
-}
-
-type HandleJoinApplyResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *HandleJoinApplyResp) Reset() {
-	*x = HandleJoinApplyResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *HandleJoinApplyResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*HandleJoinApplyResp) ProtoMessage() {}
-
-func (x *HandleJoinApplyResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use HandleJoinApplyResp.ProtoReflect.Descriptor instead.
-func (*HandleJoinApplyResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{13}
-}
-
-func (x *HandleJoinApplyResp) GetMeta() *Metadata {
 	if x != nil {
 		return x.Meta
 	}
@@ -879,7 +683,7 @@ type LeaveGroupReq struct {
 
 func (x *LeaveGroupReq) Reset() {
 	*x = LeaveGroupReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[14]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -891,7 +695,7 @@ func (x *LeaveGroupReq) String() string {
 func (*LeaveGroupReq) ProtoMessage() {}
 
 func (x *LeaveGroupReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[14]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -904,7 +708,7 @@ func (x *LeaveGroupReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveGroupReq.ProtoReflect.Descriptor instead.
 func (*LeaveGroupReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{14}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *LeaveGroupReq) GetUserId() int64 {
@@ -930,7 +734,7 @@ type LeaveGroupResp struct {
 
 func (x *LeaveGroupResp) Reset() {
 	*x = LeaveGroupResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[15]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -942,7 +746,7 @@ func (x *LeaveGroupResp) String() string {
 func (*LeaveGroupResp) ProtoMessage() {}
 
 func (x *LeaveGroupResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[15]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -955,7 +759,7 @@ func (x *LeaveGroupResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveGroupResp.ProtoReflect.Descriptor instead.
 func (*LeaveGroupResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{15}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *LeaveGroupResp) GetMeta() *Metadata {
@@ -975,7 +779,7 @@ type DismissGroupReq struct {
 
 func (x *DismissGroupReq) Reset() {
 	*x = DismissGroupReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[16]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -987,7 +791,7 @@ func (x *DismissGroupReq) String() string {
 func (*DismissGroupReq) ProtoMessage() {}
 
 func (x *DismissGroupReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[16]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1000,7 +804,7 @@ func (x *DismissGroupReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DismissGroupReq.ProtoReflect.Descriptor instead.
 func (*DismissGroupReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{16}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DismissGroupReq) GetOwnerId() int64 {
@@ -1026,7 +830,7 @@ type DismissGroupResp struct {
 
 func (x *DismissGroupResp) Reset() {
 	*x = DismissGroupResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[17]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1038,7 +842,7 @@ func (x *DismissGroupResp) String() string {
 func (*DismissGroupResp) ProtoMessage() {}
 
 func (x *DismissGroupResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[17]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1051,7 +855,7 @@ func (x *DismissGroupResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DismissGroupResp.ProtoReflect.Descriptor instead.
 func (*DismissGroupResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{17}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DismissGroupResp) GetMeta() *Metadata {
@@ -1070,7 +874,7 @@ type GetGroupInfoReq struct {
 
 func (x *GetGroupInfoReq) Reset() {
 	*x = GetGroupInfoReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[18]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1082,7 +886,7 @@ func (x *GetGroupInfoReq) String() string {
 func (*GetGroupInfoReq) ProtoMessage() {}
 
 func (x *GetGroupInfoReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[18]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1095,7 +899,7 @@ func (x *GetGroupInfoReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupInfoReq.ProtoReflect.Descriptor instead.
 func (*GetGroupInfoReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{18}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetGroupInfoReq) GetGroupId() int64 {
@@ -1115,7 +919,7 @@ type GetGroupInfoResp struct {
 
 func (x *GetGroupInfoResp) Reset() {
 	*x = GetGroupInfoResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[19]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1127,7 +931,7 @@ func (x *GetGroupInfoResp) String() string {
 func (*GetGroupInfoResp) ProtoMessage() {}
 
 func (x *GetGroupInfoResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[19]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1140,7 +944,7 @@ func (x *GetGroupInfoResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupInfoResp.ProtoReflect.Descriptor instead.
 func (*GetGroupInfoResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{19}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetGroupInfoResp) GetGroup() *GroupInfo {
@@ -1157,566 +961,6 @@ func (x *GetGroupInfoResp) GetMeta() *Metadata {
 	return nil
 }
 
-type UpdateGroupInfoReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	OperatorId    int64                  `protobuf:"varint,2,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Notice        string                 `protobuf:"bytes,4,opt,name=notice,proto3" json:"notice,omitempty"`
-	AddMode       int32                  `protobuf:"varint,5,opt,name=add_mode,json=addMode,proto3" json:"add_mode,omitempty"`
-	Avatar        string                 `protobuf:"bytes,6,opt,name=avatar,proto3" json:"avatar,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *UpdateGroupInfoReq) Reset() {
-	*x = UpdateGroupInfoReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[20]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *UpdateGroupInfoReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UpdateGroupInfoReq) ProtoMessage() {}
-
-func (x *UpdateGroupInfoReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[20]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UpdateGroupInfoReq.ProtoReflect.Descriptor instead.
-func (*UpdateGroupInfoReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{20}
-}
-
-func (x *UpdateGroupInfoReq) GetGroupId() int64 {
-	if x != nil {
-		return x.GroupId
-	}
-	return 0
-}
-
-func (x *UpdateGroupInfoReq) GetOperatorId() int64 {
-	if x != nil {
-		return x.OperatorId
-	}
-	return 0
-}
-
-func (x *UpdateGroupInfoReq) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *UpdateGroupInfoReq) GetNotice() string {
-	if x != nil {
-		return x.Notice
-	}
-	return ""
-}
-
-func (x *UpdateGroupInfoReq) GetAddMode() int32 {
-	if x != nil {
-		return x.AddMode
-	}
-	return 0
-}
-
-func (x *UpdateGroupInfoReq) GetAvatar() string {
-	if x != nil {
-		return x.Avatar
-	}
-	return ""
-}
-
-type UpdateGroupInfoResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *UpdateGroupInfoResp) Reset() {
-	*x = UpdateGroupInfoResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[21]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *UpdateGroupInfoResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UpdateGroupInfoResp) ProtoMessage() {}
-
-func (x *UpdateGroupInfoResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[21]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UpdateGroupInfoResp.ProtoReflect.Descriptor instead.
-func (*UpdateGroupInfoResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{21}
-}
-
-func (x *UpdateGroupInfoResp) GetMeta() *Metadata {
-	if x != nil {
-		return x.Meta
-	}
-	return nil
-}
-
-type ListGroupMembersReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListGroupMembersReq) Reset() {
-	*x = ListGroupMembersReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[22]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListGroupMembersReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListGroupMembersReq) ProtoMessage() {}
-
-func (x *ListGroupMembersReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[22]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListGroupMembersReq.ProtoReflect.Descriptor instead.
-func (*ListGroupMembersReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{22}
-}
-
-func (x *ListGroupMembersReq) GetGroupId() int64 {
-	if x != nil {
-		return x.GroupId
-	}
-	return 0
-}
-
-func (x *ListGroupMembersReq) GetPageStats() *PageStatsReq {
-	if x != nil {
-		return x.PageStats
-	}
-	return nil
-}
-
-type ListGroupMembersResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Members       []*GroupMember         `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
-	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
-	PageStats     *PageStatsResp         `protobuf:"bytes,3,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListGroupMembersResp) Reset() {
-	*x = ListGroupMembersResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[23]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListGroupMembersResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListGroupMembersResp) ProtoMessage() {}
-
-func (x *ListGroupMembersResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[23]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListGroupMembersResp.ProtoReflect.Descriptor instead.
-func (*ListGroupMembersResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{23}
-}
-
-func (x *ListGroupMembersResp) GetMembers() []*GroupMember {
-	if x != nil {
-		return x.Members
-	}
-	return nil
-}
-
-func (x *ListGroupMembersResp) GetMeta() *Metadata {
-	if x != nil {
-		return x.Meta
-	}
-	return nil
-}
-
-func (x *ListGroupMembersResp) GetPageStats() *PageStatsResp {
-	if x != nil {
-		return x.PageStats
-	}
-	return nil
-}
-
-type RemoveGroupMemberReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	OperatorId    int64                  `protobuf:"varint,2,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
-	TargetUserId  int64                  `protobuf:"varint,3,opt,name=target_user_id,json=targetUserId,proto3" json:"target_user_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RemoveGroupMemberReq) Reset() {
-	*x = RemoveGroupMemberReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[24]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RemoveGroupMemberReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RemoveGroupMemberReq) ProtoMessage() {}
-
-func (x *RemoveGroupMemberReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[24]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RemoveGroupMemberReq.ProtoReflect.Descriptor instead.
-func (*RemoveGroupMemberReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{24}
-}
-
-func (x *RemoveGroupMemberReq) GetGroupId() int64 {
-	if x != nil {
-		return x.GroupId
-	}
-	return 0
-}
-
-func (x *RemoveGroupMemberReq) GetOperatorId() int64 {
-	if x != nil {
-		return x.OperatorId
-	}
-	return 0
-}
-
-func (x *RemoveGroupMemberReq) GetTargetUserId() int64 {
-	if x != nil {
-		return x.TargetUserId
-	}
-	return 0
-}
-
-type RemoveGroupMemberResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RemoveGroupMemberResp) Reset() {
-	*x = RemoveGroupMemberResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[25]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RemoveGroupMemberResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RemoveGroupMemberResp) ProtoMessage() {}
-
-func (x *RemoveGroupMemberResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[25]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RemoveGroupMemberResp.ProtoReflect.Descriptor instead.
-func (*RemoveGroupMemberResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{25}
-}
-
-func (x *RemoveGroupMemberResp) GetMeta() *Metadata {
-	if x != nil {
-		return x.Meta
-	}
-	return nil
-}
-
-type TransferGroupOwnerReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	FromUserId    int64                  `protobuf:"varint,2,opt,name=from_user_id,json=fromUserId,proto3" json:"from_user_id,omitempty"`
-	ToUserId      int64                  `protobuf:"varint,3,opt,name=to_user_id,json=toUserId,proto3" json:"to_user_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TransferGroupOwnerReq) Reset() {
-	*x = TransferGroupOwnerReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[26]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TransferGroupOwnerReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TransferGroupOwnerReq) ProtoMessage() {}
-
-func (x *TransferGroupOwnerReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[26]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TransferGroupOwnerReq.ProtoReflect.Descriptor instead.
-func (*TransferGroupOwnerReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{26}
-}
-
-func (x *TransferGroupOwnerReq) GetGroupId() int64 {
-	if x != nil {
-		return x.GroupId
-	}
-	return 0
-}
-
-func (x *TransferGroupOwnerReq) GetFromUserId() int64 {
-	if x != nil {
-		return x.FromUserId
-	}
-	return 0
-}
-
-func (x *TransferGroupOwnerReq) GetToUserId() int64 {
-	if x != nil {
-		return x.ToUserId
-	}
-	return 0
-}
-
-type TransferGroupOwnerResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TransferGroupOwnerResp) Reset() {
-	*x = TransferGroupOwnerResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[27]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TransferGroupOwnerResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TransferGroupOwnerResp) ProtoMessage() {}
-
-func (x *TransferGroupOwnerResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[27]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TransferGroupOwnerResp.ProtoReflect.Descriptor instead.
-func (*TransferGroupOwnerResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{27}
-}
-
-func (x *TransferGroupOwnerResp) GetMeta() *Metadata {
-	if x != nil {
-		return x.Meta
-	}
-	return nil
-}
-
-type SetGroupAdminReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	OperatorId    int64                  `protobuf:"varint,2,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
-	TargetUserId  int64                  `protobuf:"varint,3,opt,name=target_user_id,json=targetUserId,proto3" json:"target_user_id,omitempty"`
-	SetAsAdmin    bool                   `protobuf:"varint,4,opt,name=set_as_admin,json=setAsAdmin,proto3" json:"set_as_admin,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SetGroupAdminReq) Reset() {
-	*x = SetGroupAdminReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[28]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SetGroupAdminReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SetGroupAdminReq) ProtoMessage() {}
-
-func (x *SetGroupAdminReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[28]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SetGroupAdminReq.ProtoReflect.Descriptor instead.
-func (*SetGroupAdminReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{28}
-}
-
-func (x *SetGroupAdminReq) GetGroupId() int64 {
-	if x != nil {
-		return x.GroupId
-	}
-	return 0
-}
-
-func (x *SetGroupAdminReq) GetOperatorId() int64 {
-	if x != nil {
-		return x.OperatorId
-	}
-	return 0
-}
-
-func (x *SetGroupAdminReq) GetTargetUserId() int64 {
-	if x != nil {
-		return x.TargetUserId
-	}
-	return 0
-}
-
-func (x *SetGroupAdminReq) GetSetAsAdmin() bool {
-	if x != nil {
-		return x.SetAsAdmin
-	}
-	return false
-}
-
-type SetGroupAdminResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SetGroupAdminResp) Reset() {
-	*x = SetGroupAdminResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[29]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SetGroupAdminResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SetGroupAdminResp) ProtoMessage() {}
-
-func (x *SetGroupAdminResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[29]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SetGroupAdminResp.ProtoReflect.Descriptor instead.
-func (*SetGroupAdminResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{29}
-}
-
-func (x *SetGroupAdminResp) GetMeta() *Metadata {
-	if x != nil {
-		return x.Meta
-	}
-	return nil
-}
-
 type ListMyJoinedGroupsReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -1727,7 +971,7 @@ type ListMyJoinedGroupsReq struct {
 
 func (x *ListMyJoinedGroupsReq) Reset() {
 	*x = ListMyJoinedGroupsReq{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[30]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1739,7 +983,7 @@ func (x *ListMyJoinedGroupsReq) String() string {
 func (*ListMyJoinedGroupsReq) ProtoMessage() {}
 
 func (x *ListMyJoinedGroupsReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[30]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1752,7 +996,7 @@ func (x *ListMyJoinedGroupsReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyJoinedGroupsReq.ProtoReflect.Descriptor instead.
 func (*ListMyJoinedGroupsReq) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{30}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListMyJoinedGroupsReq) GetUserId() int64 {
@@ -1780,7 +1024,7 @@ type ListMyJoinedGroupsResp struct {
 
 func (x *ListMyJoinedGroupsResp) Reset() {
 	*x = ListMyJoinedGroupsResp{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[31]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1792,7 +1036,7 @@ func (x *ListMyJoinedGroupsResp) String() string {
 func (*ListMyJoinedGroupsResp) ProtoMessage() {}
 
 func (x *ListMyJoinedGroupsResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[31]
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1805,7 +1049,7 @@ func (x *ListMyJoinedGroupsResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyJoinedGroupsResp.ProtoReflect.Descriptor instead.
 func (*ListMyJoinedGroupsResp) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{31}
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListMyJoinedGroupsResp) GetGroups() []*GroupInfo {
@@ -1829,27 +1073,28 @@ func (x *ListMyJoinedGroupsResp) GetPageStats() *PageStatsResp {
 	return nil
 }
 
-type UpdateGroupRequest struct {
+type GetGroupMembersReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateGroupRequest) Reset() {
-	*x = UpdateGroupRequest{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[32]
+func (x *GetGroupMembersReq) Reset() {
+	*x = GetGroupMembersReq{}
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateGroupRequest) String() string {
+func (x *GetGroupMembersReq) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateGroupRequest) ProtoMessage() {}
+func (*GetGroupMembersReq) ProtoMessage() {}
 
-func (x *UpdateGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[32]
+func (x *GetGroupMembersReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1860,32 +1105,41 @@ func (x *UpdateGroupRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateGroupRequest.ProtoReflect.Descriptor instead.
-func (*UpdateGroupRequest) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{32}
+// Deprecated: Use GetGroupMembersReq.ProtoReflect.Descriptor instead.
+func (*GetGroupMembersReq) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{19}
 }
 
-type UpdateGroupReply struct {
+func (x *GetGroupMembersReq) GetGroupId() int64 {
+	if x != nil {
+		return x.GroupId
+	}
+	return 0
+}
+
+type GetGroupMembersResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	MemberIds     []int64                `protobuf:"varint,1,rep,packed,name=member_ids,json=memberIds,proto3" json:"member_ids,omitempty"`
+	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateGroupReply) Reset() {
-	*x = UpdateGroupReply{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[33]
+func (x *GetGroupMembersResp) Reset() {
+	*x = GetGroupMembersResp{}
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateGroupReply) String() string {
+func (x *GetGroupMembersResp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateGroupReply) ProtoMessage() {}
+func (*GetGroupMembersResp) ProtoMessage() {}
 
-func (x *UpdateGroupReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[33]
+func (x *GetGroupMembersResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1896,32 +1150,48 @@ func (x *UpdateGroupReply) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateGroupReply.ProtoReflect.Descriptor instead.
-func (*UpdateGroupReply) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{33}
+// Deprecated: Use GetGroupMembersResp.ProtoReflect.Descriptor instead.
+func (*GetGroupMembersResp) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{20}
 }
 
-type DeleteGroupRequest struct {
+func (x *GetGroupMembersResp) GetMemberIds() []int64 {
+	if x != nil {
+		return x.MemberIds
+	}
+	return nil
+}
+
+func (x *GetGroupMembersResp) GetMeta() *Metadata {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
+type IsGroupMemberReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeleteGroupRequest) Reset() {
-	*x = DeleteGroupRequest{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[34]
+func (x *IsGroupMemberReq) Reset() {
+	*x = IsGroupMemberReq{}
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeleteGroupRequest) String() string {
+func (x *IsGroupMemberReq) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteGroupRequest) ProtoMessage() {}
+func (*IsGroupMemberReq) ProtoMessage() {}
 
-func (x *DeleteGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[34]
+func (x *IsGroupMemberReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1932,32 +1202,48 @@ func (x *DeleteGroupRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteGroupRequest.ProtoReflect.Descriptor instead.
-func (*DeleteGroupRequest) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{34}
+// Deprecated: Use IsGroupMemberReq.ProtoReflect.Descriptor instead.
+func (*IsGroupMemberReq) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{21}
 }
 
-type DeleteGroupReply struct {
+func (x *IsGroupMemberReq) GetGroupId() int64 {
+	if x != nil {
+		return x.GroupId
+	}
+	return 0
+}
+
+func (x *IsGroupMemberReq) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type IsGroupMemberResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	IsMember      bool                   `protobuf:"varint,1,opt,name=is_member,json=isMember,proto3" json:"is_member,omitempty"`
+	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeleteGroupReply) Reset() {
-	*x = DeleteGroupReply{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[35]
+func (x *IsGroupMemberResp) Reset() {
+	*x = IsGroupMemberResp{}
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeleteGroupReply) String() string {
+func (x *IsGroupMemberResp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteGroupReply) ProtoMessage() {}
+func (*IsGroupMemberResp) ProtoMessage() {}
 
-func (x *DeleteGroupReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[35]
+func (x *IsGroupMemberResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1968,160 +1254,30 @@ func (x *DeleteGroupReply) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteGroupReply.ProtoReflect.Descriptor instead.
-func (*DeleteGroupReply) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{35}
+// Deprecated: Use IsGroupMemberResp.ProtoReflect.Descriptor instead.
+func (*IsGroupMemberResp) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{22}
 }
 
-type GetGroupRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetGroupRequest) Reset() {
-	*x = GetGroupRequest{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[36]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetGroupRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetGroupRequest) ProtoMessage() {}
-
-func (x *GetGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[36]
+func (x *IsGroupMemberResp) GetIsMember() bool {
 	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+		return x.IsMember
 	}
-	return mi.MessageOf(x)
+	return false
 }
 
-// Deprecated: Use GetGroupRequest.ProtoReflect.Descriptor instead.
-func (*GetGroupRequest) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{36}
-}
-
-type GetGroupReply struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetGroupReply) Reset() {
-	*x = GetGroupReply{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[37]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetGroupReply) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetGroupReply) ProtoMessage() {}
-
-func (x *GetGroupReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[37]
+func (x *IsGroupMemberResp) GetMeta() *Metadata {
 	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+		return x.Meta
 	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetGroupReply.ProtoReflect.Descriptor instead.
-func (*GetGroupReply) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{37}
-}
-
-type ListGroupRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListGroupRequest) Reset() {
-	*x = ListGroupRequest{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[38]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListGroupRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListGroupRequest) ProtoMessage() {}
-
-func (x *ListGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[38]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListGroupRequest.ProtoReflect.Descriptor instead.
-func (*ListGroupRequest) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{38}
-}
-
-type ListGroupReply struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListGroupReply) Reset() {
-	*x = ListGroupReply{}
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[39]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListGroupReply) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListGroupReply) ProtoMessage() {}
-
-func (x *ListGroupReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[39]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListGroupReply.ProtoReflect.Descriptor instead.
-func (*ListGroupReply) Descriptor() ([]byte, []int) {
-	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{39}
+	return nil
 }
 
 var File_api_videoChat_service_v1_group_proto protoreflect.FileDescriptor
 
 const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\n" +
-	"$api/videoChat/service/v1/group.proto\x12\x18api.videoChat.service.v1\x1a#api/videoChat/service/v1/base.proto\"\xbc\x02\n" +
+	"$api/videoChat/service/v1/group.proto\x12\x18api.videoChat.service.v1\x1a#api/videoChat/service/v1/base.proto\"\x8a\x02\n" +
 	"\tGroupInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -2131,19 +1287,12 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\bowner_id\x18\x05 \x01(\x03R\aownerId\x12\x19\n" +
 	"\badd_mode\x18\x06 \x01(\x05R\aaddMode\x12\x16\n" +
 	"\x06avatar\x18\a \x01(\tR\x06avatar\x12\x16\n" +
-	"\x06status\x18\b \x01(\x05R\x06status\x12\x18\n" +
-	"\amembers\x18\t \x03(\x03R\amembers\x12\x16\n" +
-	"\x06admins\x18\n" +
-	" \x03(\x03R\x06admins\x12\x1d\n" +
+	"\x06status\x18\b \x01(\x05R\x06status\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\v \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"created_at\x18\t \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\f \x01(\tR\tupdatedAt\"r\n" +
-	"\vGroupMember\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x19\n" +
-	"\bgroup_id\x18\x02 \x01(\x03R\agroupId\x12\x12\n" +
-	"\x04role\x18\x03 \x01(\x05R\x04role\x12\x1b\n" +
-	"\tjoin_time\x18\x04 \x01(\tR\bjoinTime\"\x8a\x01\n" +
+	"updated_at\x18\n" +
+	" \x01(\tR\tupdatedAt\"\x8a\x01\n" +
 	"\x0eCreateGroupReq\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -2177,14 +1326,6 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\bgroup_id\x18\x02 \x01(\x03R\agroupId\x12!\n" +
 	"\fapply_reason\x18\x03 \x01(\tR\vapplyReason\"L\n" +
 	"\x12ApplyJoinGroupResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\x83\x01\n" +
-	"\x12HandleJoinApplyReq\x12\x19\n" +
-	"\bapply_id\x18\x01 \x01(\x03R\aapplyId\x12\x1d\n" +
-	"\n" +
-	"handler_id\x18\x02 \x01(\x03R\thandlerId\x12\x16\n" +
-	"\x06accept\x18\x03 \x01(\bR\x06accept\x12\x1b\n" +
-	"\treply_msg\x18\x04 \x01(\tR\breplyMsg\"M\n" +
-	"\x13HandleJoinApplyResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"C\n" +
 	"\rLeaveGroupReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x19\n" +
@@ -2200,50 +1341,7 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"\x85\x01\n" +
 	"\x10GetGroupInfoResp\x129\n" +
 	"\x05group\x18\x01 \x01(\v2#.api.videoChat.service.v1.GroupInfoR\x05group\x126\n" +
-	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\xaf\x01\n" +
-	"\x12UpdateGroupInfoReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\x12\x1f\n" +
-	"\voperator_id\x18\x02 \x01(\x03R\n" +
-	"operatorId\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12\x16\n" +
-	"\x06notice\x18\x04 \x01(\tR\x06notice\x12\x19\n" +
-	"\badd_mode\x18\x05 \x01(\x05R\aaddMode\x12\x16\n" +
-	"\x06avatar\x18\x06 \x01(\tR\x06avatar\"M\n" +
-	"\x13UpdateGroupInfoResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"w\n" +
-	"\x13ListGroupMembersReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\x12E\n" +
-	"\n" +
-	"page_stats\x18\x02 \x01(\v2&.api.videoChat.service.v1.PageStatsReqR\tpageStats\"\xd7\x01\n" +
-	"\x14ListGroupMembersResp\x12?\n" +
-	"\amembers\x18\x01 \x03(\v2%.api.videoChat.service.v1.GroupMemberR\amembers\x126\n" +
-	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\x12F\n" +
-	"\n" +
-	"page_stats\x18\x03 \x01(\v2'.api.videoChat.service.v1.PageStatsRespR\tpageStats\"x\n" +
-	"\x14RemoveGroupMemberReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\x12\x1f\n" +
-	"\voperator_id\x18\x02 \x01(\x03R\n" +
-	"operatorId\x12$\n" +
-	"\x0etarget_user_id\x18\x03 \x01(\x03R\ftargetUserId\"O\n" +
-	"\x15RemoveGroupMemberResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"r\n" +
-	"\x15TransferGroupOwnerReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\x12 \n" +
-	"\ffrom_user_id\x18\x02 \x01(\x03R\n" +
-	"fromUserId\x12\x1c\n" +
-	"\n" +
-	"to_user_id\x18\x03 \x01(\x03R\btoUserId\"P\n" +
-	"\x16TransferGroupOwnerResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\x96\x01\n" +
-	"\x10SetGroupAdminReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\x12\x1f\n" +
-	"\voperator_id\x18\x02 \x01(\x03R\n" +
-	"operatorId\x12$\n" +
-	"\x0etarget_user_id\x18\x03 \x01(\x03R\ftargetUserId\x12 \n" +
-	"\fset_as_admin\x18\x04 \x01(\bR\n" +
-	"setAsAdmin\"K\n" +
-	"\x11SetGroupAdminResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"w\n" +
+	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"w\n" +
 	"\x15ListMyJoinedGroupsReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12E\n" +
 	"\n" +
@@ -2252,32 +1350,32 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\x06groups\x18\x01 \x03(\v2#.api.videoChat.service.v1.GroupInfoR\x06groups\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\x12F\n" +
 	"\n" +
-	"page_stats\x18\x03 \x01(\v2'.api.videoChat.service.v1.PageStatsRespR\tpageStats\"\x14\n" +
-	"\x12UpdateGroupRequest\"\x12\n" +
-	"\x10UpdateGroupReply\"\x14\n" +
-	"\x12DeleteGroupRequest\"\x12\n" +
-	"\x10DeleteGroupReply\"\x11\n" +
-	"\x0fGetGroupRequest\"\x0f\n" +
-	"\rGetGroupReply\"\x12\n" +
-	"\x10ListGroupRequest\"\x10\n" +
-	"\x0eListGroupReply2\x86\r\n" +
+	"page_stats\x18\x03 \x01(\v2'.api.videoChat.service.v1.PageStatsRespR\tpageStats\"/\n" +
+	"\x12GetGroupMembersReq\x12\x19\n" +
+	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"l\n" +
+	"\x13GetGroupMembersResp\x12\x1d\n" +
+	"\n" +
+	"member_ids\x18\x01 \x03(\x03R\tmemberIds\x126\n" +
+	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"F\n" +
+	"\x10IsGroupMemberReq\x12\x19\n" +
+	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\"h\n" +
+	"\x11IsGroupMemberResp\x12\x1b\n" +
+	"\tis_member\x18\x01 \x01(\bR\bisMember\x126\n" +
+	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta2\xb4\t\n" +
 	"\fGroupService\x12b\n" +
 	"\vCreateGroup\x12(.api.videoChat.service.v1.CreateGroupReq\x1a).api.videoChat.service.v1.CreateGroupResp\x12b\n" +
 	"\vLoadMyGroup\x12(.api.videoChat.service.v1.LoadMyGroupReq\x1a).api.videoChat.service.v1.LoadMyGroupResp\x12t\n" +
 	"\x11CheckGroupAddMode\x12..api.videoChat.service.v1.CheckGroupAddModeReq\x1a/.api.videoChat.service.v1.CheckGroupAddModeResp\x12w\n" +
 	"\x12EnterGroupDirectly\x12/.api.videoChat.service.v1.EnterGroupDirectlyReq\x1a0.api.videoChat.service.v1.EnterGroupDirectlyResp\x12k\n" +
-	"\x0eApplyJoinGroup\x12+.api.videoChat.service.v1.ApplyJoinGroupReq\x1a,.api.videoChat.service.v1.ApplyJoinGroupResp\x12n\n" +
-	"\x0fHandleJoinApply\x12,.api.videoChat.service.v1.HandleJoinApplyReq\x1a-.api.videoChat.service.v1.HandleJoinApplyResp\x12_\n" +
+	"\x0eApplyJoinGroup\x12+.api.videoChat.service.v1.ApplyJoinGroupReq\x1a,.api.videoChat.service.v1.ApplyJoinGroupResp\x12_\n" +
 	"\n" +
 	"LeaveGroup\x12'.api.videoChat.service.v1.LeaveGroupReq\x1a(.api.videoChat.service.v1.LeaveGroupResp\x12e\n" +
 	"\fDismissGroup\x12).api.videoChat.service.v1.DismissGroupReq\x1a*.api.videoChat.service.v1.DismissGroupResp\x12e\n" +
-	"\fGetGroupInfo\x12).api.videoChat.service.v1.GetGroupInfoReq\x1a*.api.videoChat.service.v1.GetGroupInfoResp\x12n\n" +
-	"\x0fUpdateGroupInfo\x12,.api.videoChat.service.v1.UpdateGroupInfoReq\x1a-.api.videoChat.service.v1.UpdateGroupInfoResp\x12q\n" +
-	"\x10ListGroupMembers\x12-.api.videoChat.service.v1.ListGroupMembersReq\x1a..api.videoChat.service.v1.ListGroupMembersResp\x12t\n" +
-	"\x11RemoveGroupMember\x12..api.videoChat.service.v1.RemoveGroupMemberReq\x1a/.api.videoChat.service.v1.RemoveGroupMemberResp\x12w\n" +
-	"\x12TransferGroupOwner\x12/.api.videoChat.service.v1.TransferGroupOwnerReq\x1a0.api.videoChat.service.v1.TransferGroupOwnerResp\x12h\n" +
-	"\rSetGroupAdmin\x12*.api.videoChat.service.v1.SetGroupAdminReq\x1a+.api.videoChat.service.v1.SetGroupAdminResp\x12w\n" +
-	"\x12ListMyJoinedGroups\x12/.api.videoChat.service.v1.ListMyJoinedGroupsReq\x1a0.api.videoChat.service.v1.ListMyJoinedGroupsRespBD\n" +
+	"\fGetGroupInfo\x12).api.videoChat.service.v1.GetGroupInfoReq\x1a*.api.videoChat.service.v1.GetGroupInfoResp\x12w\n" +
+	"\x12ListMyJoinedGroups\x12/.api.videoChat.service.v1.ListMyJoinedGroupsReq\x1a0.api.videoChat.service.v1.ListMyJoinedGroupsResp\x12n\n" +
+	"\x0fGetGroupMembers\x12,.api.videoChat.service.v1.GetGroupMembersReq\x1a-.api.videoChat.service.v1.GetGroupMembersResp\x12h\n" +
+	"\rIsGroupMember\x12*.api.videoChat.service.v1.IsGroupMemberReq\x1a+.api.videoChat.service.v1.IsGroupMemberRespBD\n" +
 	"\x18api.videoChat.service.v1P\x01Z&lehu-video/api/videoChat/service/v1;v1b\x06proto3"
 
 var (
@@ -2292,113 +1390,81 @@ func file_api_videoChat_service_v1_group_proto_rawDescGZIP() []byte {
 	return file_api_videoChat_service_v1_group_proto_rawDescData
 }
 
-var file_api_videoChat_service_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
+var file_api_videoChat_service_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_api_videoChat_service_v1_group_proto_goTypes = []any{
 	(*GroupInfo)(nil),              // 0: api.videoChat.service.v1.GroupInfo
-	(*GroupMember)(nil),            // 1: api.videoChat.service.v1.GroupMember
-	(*CreateGroupReq)(nil),         // 2: api.videoChat.service.v1.CreateGroupReq
-	(*CreateGroupResp)(nil),        // 3: api.videoChat.service.v1.CreateGroupResp
-	(*LoadMyGroupReq)(nil),         // 4: api.videoChat.service.v1.LoadMyGroupReq
-	(*LoadMyGroupResp)(nil),        // 5: api.videoChat.service.v1.LoadMyGroupResp
-	(*CheckGroupAddModeReq)(nil),   // 6: api.videoChat.service.v1.CheckGroupAddModeReq
-	(*CheckGroupAddModeResp)(nil),  // 7: api.videoChat.service.v1.CheckGroupAddModeResp
-	(*EnterGroupDirectlyReq)(nil),  // 8: api.videoChat.service.v1.EnterGroupDirectlyReq
-	(*EnterGroupDirectlyResp)(nil), // 9: api.videoChat.service.v1.EnterGroupDirectlyResp
-	(*ApplyJoinGroupReq)(nil),      // 10: api.videoChat.service.v1.ApplyJoinGroupReq
-	(*ApplyJoinGroupResp)(nil),     // 11: api.videoChat.service.v1.ApplyJoinGroupResp
-	(*HandleJoinApplyReq)(nil),     // 12: api.videoChat.service.v1.HandleJoinApplyReq
-	(*HandleJoinApplyResp)(nil),    // 13: api.videoChat.service.v1.HandleJoinApplyResp
-	(*LeaveGroupReq)(nil),          // 14: api.videoChat.service.v1.LeaveGroupReq
-	(*LeaveGroupResp)(nil),         // 15: api.videoChat.service.v1.LeaveGroupResp
-	(*DismissGroupReq)(nil),        // 16: api.videoChat.service.v1.DismissGroupReq
-	(*DismissGroupResp)(nil),       // 17: api.videoChat.service.v1.DismissGroupResp
-	(*GetGroupInfoReq)(nil),        // 18: api.videoChat.service.v1.GetGroupInfoReq
-	(*GetGroupInfoResp)(nil),       // 19: api.videoChat.service.v1.GetGroupInfoResp
-	(*UpdateGroupInfoReq)(nil),     // 20: api.videoChat.service.v1.UpdateGroupInfoReq
-	(*UpdateGroupInfoResp)(nil),    // 21: api.videoChat.service.v1.UpdateGroupInfoResp
-	(*ListGroupMembersReq)(nil),    // 22: api.videoChat.service.v1.ListGroupMembersReq
-	(*ListGroupMembersResp)(nil),   // 23: api.videoChat.service.v1.ListGroupMembersResp
-	(*RemoveGroupMemberReq)(nil),   // 24: api.videoChat.service.v1.RemoveGroupMemberReq
-	(*RemoveGroupMemberResp)(nil),  // 25: api.videoChat.service.v1.RemoveGroupMemberResp
-	(*TransferGroupOwnerReq)(nil),  // 26: api.videoChat.service.v1.TransferGroupOwnerReq
-	(*TransferGroupOwnerResp)(nil), // 27: api.videoChat.service.v1.TransferGroupOwnerResp
-	(*SetGroupAdminReq)(nil),       // 28: api.videoChat.service.v1.SetGroupAdminReq
-	(*SetGroupAdminResp)(nil),      // 29: api.videoChat.service.v1.SetGroupAdminResp
-	(*ListMyJoinedGroupsReq)(nil),  // 30: api.videoChat.service.v1.ListMyJoinedGroupsReq
-	(*ListMyJoinedGroupsResp)(nil), // 31: api.videoChat.service.v1.ListMyJoinedGroupsResp
-	(*UpdateGroupRequest)(nil),     // 32: api.videoChat.service.v1.UpdateGroupRequest
-	(*UpdateGroupReply)(nil),       // 33: api.videoChat.service.v1.UpdateGroupReply
-	(*DeleteGroupRequest)(nil),     // 34: api.videoChat.service.v1.DeleteGroupRequest
-	(*DeleteGroupReply)(nil),       // 35: api.videoChat.service.v1.DeleteGroupReply
-	(*GetGroupRequest)(nil),        // 36: api.videoChat.service.v1.GetGroupRequest
-	(*GetGroupReply)(nil),          // 37: api.videoChat.service.v1.GetGroupReply
-	(*ListGroupRequest)(nil),       // 38: api.videoChat.service.v1.ListGroupRequest
-	(*ListGroupReply)(nil),         // 39: api.videoChat.service.v1.ListGroupReply
-	(*Metadata)(nil),               // 40: api.videoChat.service.v1.Metadata
-	(*PageStatsReq)(nil),           // 41: api.videoChat.service.v1.PageStatsReq
-	(*PageStatsResp)(nil),          // 42: api.videoChat.service.v1.PageStatsResp
+	(*CreateGroupReq)(nil),         // 1: api.videoChat.service.v1.CreateGroupReq
+	(*CreateGroupResp)(nil),        // 2: api.videoChat.service.v1.CreateGroupResp
+	(*LoadMyGroupReq)(nil),         // 3: api.videoChat.service.v1.LoadMyGroupReq
+	(*LoadMyGroupResp)(nil),        // 4: api.videoChat.service.v1.LoadMyGroupResp
+	(*CheckGroupAddModeReq)(nil),   // 5: api.videoChat.service.v1.CheckGroupAddModeReq
+	(*CheckGroupAddModeResp)(nil),  // 6: api.videoChat.service.v1.CheckGroupAddModeResp
+	(*EnterGroupDirectlyReq)(nil),  // 7: api.videoChat.service.v1.EnterGroupDirectlyReq
+	(*EnterGroupDirectlyResp)(nil), // 8: api.videoChat.service.v1.EnterGroupDirectlyResp
+	(*ApplyJoinGroupReq)(nil),      // 9: api.videoChat.service.v1.ApplyJoinGroupReq
+	(*ApplyJoinGroupResp)(nil),     // 10: api.videoChat.service.v1.ApplyJoinGroupResp
+	(*LeaveGroupReq)(nil),          // 11: api.videoChat.service.v1.LeaveGroupReq
+	(*LeaveGroupResp)(nil),         // 12: api.videoChat.service.v1.LeaveGroupResp
+	(*DismissGroupReq)(nil),        // 13: api.videoChat.service.v1.DismissGroupReq
+	(*DismissGroupResp)(nil),       // 14: api.videoChat.service.v1.DismissGroupResp
+	(*GetGroupInfoReq)(nil),        // 15: api.videoChat.service.v1.GetGroupInfoReq
+	(*GetGroupInfoResp)(nil),       // 16: api.videoChat.service.v1.GetGroupInfoResp
+	(*ListMyJoinedGroupsReq)(nil),  // 17: api.videoChat.service.v1.ListMyJoinedGroupsReq
+	(*ListMyJoinedGroupsResp)(nil), // 18: api.videoChat.service.v1.ListMyJoinedGroupsResp
+	(*GetGroupMembersReq)(nil),     // 19: api.videoChat.service.v1.GetGroupMembersReq
+	(*GetGroupMembersResp)(nil),    // 20: api.videoChat.service.v1.GetGroupMembersResp
+	(*IsGroupMemberReq)(nil),       // 21: api.videoChat.service.v1.IsGroupMemberReq
+	(*IsGroupMemberResp)(nil),      // 22: api.videoChat.service.v1.IsGroupMemberResp
+	(*Metadata)(nil),               // 23: api.videoChat.service.v1.Metadata
+	(*PageStatsReq)(nil),           // 24: api.videoChat.service.v1.PageStatsReq
+	(*PageStatsResp)(nil),          // 25: api.videoChat.service.v1.PageStatsResp
 }
 var file_api_videoChat_service_v1_group_proto_depIdxs = []int32{
-	40, // 0: api.videoChat.service.v1.CreateGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	41, // 1: api.videoChat.service.v1.LoadMyGroupReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
+	23, // 0: api.videoChat.service.v1.CreateGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	24, // 1: api.videoChat.service.v1.LoadMyGroupReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
 	0,  // 2: api.videoChat.service.v1.LoadMyGroupResp.groups:type_name -> api.videoChat.service.v1.GroupInfo
-	40, // 3: api.videoChat.service.v1.LoadMyGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	42, // 4: api.videoChat.service.v1.LoadMyGroupResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
-	40, // 5: api.videoChat.service.v1.CheckGroupAddModeResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	40, // 6: api.videoChat.service.v1.EnterGroupDirectlyResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	40, // 7: api.videoChat.service.v1.ApplyJoinGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	40, // 8: api.videoChat.service.v1.HandleJoinApplyResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	40, // 9: api.videoChat.service.v1.LeaveGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	40, // 10: api.videoChat.service.v1.DismissGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	0,  // 11: api.videoChat.service.v1.GetGroupInfoResp.group:type_name -> api.videoChat.service.v1.GroupInfo
-	40, // 12: api.videoChat.service.v1.GetGroupInfoResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	40, // 13: api.videoChat.service.v1.UpdateGroupInfoResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	41, // 14: api.videoChat.service.v1.ListGroupMembersReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
-	1,  // 15: api.videoChat.service.v1.ListGroupMembersResp.members:type_name -> api.videoChat.service.v1.GroupMember
-	40, // 16: api.videoChat.service.v1.ListGroupMembersResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	42, // 17: api.videoChat.service.v1.ListGroupMembersResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
-	40, // 18: api.videoChat.service.v1.RemoveGroupMemberResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	40, // 19: api.videoChat.service.v1.TransferGroupOwnerResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	40, // 20: api.videoChat.service.v1.SetGroupAdminResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	41, // 21: api.videoChat.service.v1.ListMyJoinedGroupsReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
-	0,  // 22: api.videoChat.service.v1.ListMyJoinedGroupsResp.groups:type_name -> api.videoChat.service.v1.GroupInfo
-	40, // 23: api.videoChat.service.v1.ListMyJoinedGroupsResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	42, // 24: api.videoChat.service.v1.ListMyJoinedGroupsResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
-	2,  // 25: api.videoChat.service.v1.GroupService.CreateGroup:input_type -> api.videoChat.service.v1.CreateGroupReq
-	4,  // 26: api.videoChat.service.v1.GroupService.LoadMyGroup:input_type -> api.videoChat.service.v1.LoadMyGroupReq
-	6,  // 27: api.videoChat.service.v1.GroupService.CheckGroupAddMode:input_type -> api.videoChat.service.v1.CheckGroupAddModeReq
-	8,  // 28: api.videoChat.service.v1.GroupService.EnterGroupDirectly:input_type -> api.videoChat.service.v1.EnterGroupDirectlyReq
-	10, // 29: api.videoChat.service.v1.GroupService.ApplyJoinGroup:input_type -> api.videoChat.service.v1.ApplyJoinGroupReq
-	12, // 30: api.videoChat.service.v1.GroupService.HandleJoinApply:input_type -> api.videoChat.service.v1.HandleJoinApplyReq
-	14, // 31: api.videoChat.service.v1.GroupService.LeaveGroup:input_type -> api.videoChat.service.v1.LeaveGroupReq
-	16, // 32: api.videoChat.service.v1.GroupService.DismissGroup:input_type -> api.videoChat.service.v1.DismissGroupReq
-	18, // 33: api.videoChat.service.v1.GroupService.GetGroupInfo:input_type -> api.videoChat.service.v1.GetGroupInfoReq
-	20, // 34: api.videoChat.service.v1.GroupService.UpdateGroupInfo:input_type -> api.videoChat.service.v1.UpdateGroupInfoReq
-	22, // 35: api.videoChat.service.v1.GroupService.ListGroupMembers:input_type -> api.videoChat.service.v1.ListGroupMembersReq
-	24, // 36: api.videoChat.service.v1.GroupService.RemoveGroupMember:input_type -> api.videoChat.service.v1.RemoveGroupMemberReq
-	26, // 37: api.videoChat.service.v1.GroupService.TransferGroupOwner:input_type -> api.videoChat.service.v1.TransferGroupOwnerReq
-	28, // 38: api.videoChat.service.v1.GroupService.SetGroupAdmin:input_type -> api.videoChat.service.v1.SetGroupAdminReq
-	30, // 39: api.videoChat.service.v1.GroupService.ListMyJoinedGroups:input_type -> api.videoChat.service.v1.ListMyJoinedGroupsReq
-	3,  // 40: api.videoChat.service.v1.GroupService.CreateGroup:output_type -> api.videoChat.service.v1.CreateGroupResp
-	5,  // 41: api.videoChat.service.v1.GroupService.LoadMyGroup:output_type -> api.videoChat.service.v1.LoadMyGroupResp
-	7,  // 42: api.videoChat.service.v1.GroupService.CheckGroupAddMode:output_type -> api.videoChat.service.v1.CheckGroupAddModeResp
-	9,  // 43: api.videoChat.service.v1.GroupService.EnterGroupDirectly:output_type -> api.videoChat.service.v1.EnterGroupDirectlyResp
-	11, // 44: api.videoChat.service.v1.GroupService.ApplyJoinGroup:output_type -> api.videoChat.service.v1.ApplyJoinGroupResp
-	13, // 45: api.videoChat.service.v1.GroupService.HandleJoinApply:output_type -> api.videoChat.service.v1.HandleJoinApplyResp
-	15, // 46: api.videoChat.service.v1.GroupService.LeaveGroup:output_type -> api.videoChat.service.v1.LeaveGroupResp
-	17, // 47: api.videoChat.service.v1.GroupService.DismissGroup:output_type -> api.videoChat.service.v1.DismissGroupResp
-	19, // 48: api.videoChat.service.v1.GroupService.GetGroupInfo:output_type -> api.videoChat.service.v1.GetGroupInfoResp
-	21, // 49: api.videoChat.service.v1.GroupService.UpdateGroupInfo:output_type -> api.videoChat.service.v1.UpdateGroupInfoResp
-	23, // 50: api.videoChat.service.v1.GroupService.ListGroupMembers:output_type -> api.videoChat.service.v1.ListGroupMembersResp
-	25, // 51: api.videoChat.service.v1.GroupService.RemoveGroupMember:output_type -> api.videoChat.service.v1.RemoveGroupMemberResp
-	27, // 52: api.videoChat.service.v1.GroupService.TransferGroupOwner:output_type -> api.videoChat.service.v1.TransferGroupOwnerResp
-	29, // 53: api.videoChat.service.v1.GroupService.SetGroupAdmin:output_type -> api.videoChat.service.v1.SetGroupAdminResp
-	31, // 54: api.videoChat.service.v1.GroupService.ListMyJoinedGroups:output_type -> api.videoChat.service.v1.ListMyJoinedGroupsResp
-	40, // [40:55] is the sub-list for method output_type
-	25, // [25:40] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	23, // 3: api.videoChat.service.v1.LoadMyGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	25, // 4: api.videoChat.service.v1.LoadMyGroupResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
+	23, // 5: api.videoChat.service.v1.CheckGroupAddModeResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	23, // 6: api.videoChat.service.v1.EnterGroupDirectlyResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	23, // 7: api.videoChat.service.v1.ApplyJoinGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	23, // 8: api.videoChat.service.v1.LeaveGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	23, // 9: api.videoChat.service.v1.DismissGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	0,  // 10: api.videoChat.service.v1.GetGroupInfoResp.group:type_name -> api.videoChat.service.v1.GroupInfo
+	23, // 11: api.videoChat.service.v1.GetGroupInfoResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	24, // 12: api.videoChat.service.v1.ListMyJoinedGroupsReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
+	0,  // 13: api.videoChat.service.v1.ListMyJoinedGroupsResp.groups:type_name -> api.videoChat.service.v1.GroupInfo
+	23, // 14: api.videoChat.service.v1.ListMyJoinedGroupsResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	25, // 15: api.videoChat.service.v1.ListMyJoinedGroupsResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
+	23, // 16: api.videoChat.service.v1.GetGroupMembersResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	23, // 17: api.videoChat.service.v1.IsGroupMemberResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	1,  // 18: api.videoChat.service.v1.GroupService.CreateGroup:input_type -> api.videoChat.service.v1.CreateGroupReq
+	3,  // 19: api.videoChat.service.v1.GroupService.LoadMyGroup:input_type -> api.videoChat.service.v1.LoadMyGroupReq
+	5,  // 20: api.videoChat.service.v1.GroupService.CheckGroupAddMode:input_type -> api.videoChat.service.v1.CheckGroupAddModeReq
+	7,  // 21: api.videoChat.service.v1.GroupService.EnterGroupDirectly:input_type -> api.videoChat.service.v1.EnterGroupDirectlyReq
+	9,  // 22: api.videoChat.service.v1.GroupService.ApplyJoinGroup:input_type -> api.videoChat.service.v1.ApplyJoinGroupReq
+	11, // 23: api.videoChat.service.v1.GroupService.LeaveGroup:input_type -> api.videoChat.service.v1.LeaveGroupReq
+	13, // 24: api.videoChat.service.v1.GroupService.DismissGroup:input_type -> api.videoChat.service.v1.DismissGroupReq
+	15, // 25: api.videoChat.service.v1.GroupService.GetGroupInfo:input_type -> api.videoChat.service.v1.GetGroupInfoReq
+	17, // 26: api.videoChat.service.v1.GroupService.ListMyJoinedGroups:input_type -> api.videoChat.service.v1.ListMyJoinedGroupsReq
+	19, // 27: api.videoChat.service.v1.GroupService.GetGroupMembers:input_type -> api.videoChat.service.v1.GetGroupMembersReq
+	21, // 28: api.videoChat.service.v1.GroupService.IsGroupMember:input_type -> api.videoChat.service.v1.IsGroupMemberReq
+	2,  // 29: api.videoChat.service.v1.GroupService.CreateGroup:output_type -> api.videoChat.service.v1.CreateGroupResp
+	4,  // 30: api.videoChat.service.v1.GroupService.LoadMyGroup:output_type -> api.videoChat.service.v1.LoadMyGroupResp
+	6,  // 31: api.videoChat.service.v1.GroupService.CheckGroupAddMode:output_type -> api.videoChat.service.v1.CheckGroupAddModeResp
+	8,  // 32: api.videoChat.service.v1.GroupService.EnterGroupDirectly:output_type -> api.videoChat.service.v1.EnterGroupDirectlyResp
+	10, // 33: api.videoChat.service.v1.GroupService.ApplyJoinGroup:output_type -> api.videoChat.service.v1.ApplyJoinGroupResp
+	12, // 34: api.videoChat.service.v1.GroupService.LeaveGroup:output_type -> api.videoChat.service.v1.LeaveGroupResp
+	14, // 35: api.videoChat.service.v1.GroupService.DismissGroup:output_type -> api.videoChat.service.v1.DismissGroupResp
+	16, // 36: api.videoChat.service.v1.GroupService.GetGroupInfo:output_type -> api.videoChat.service.v1.GetGroupInfoResp
+	18, // 37: api.videoChat.service.v1.GroupService.ListMyJoinedGroups:output_type -> api.videoChat.service.v1.ListMyJoinedGroupsResp
+	20, // 38: api.videoChat.service.v1.GroupService.GetGroupMembers:output_type -> api.videoChat.service.v1.GetGroupMembersResp
+	22, // 39: api.videoChat.service.v1.GroupService.IsGroupMember:output_type -> api.videoChat.service.v1.IsGroupMemberResp
+	29, // [29:40] is the sub-list for method output_type
+	18, // [18:29] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_api_videoChat_service_v1_group_proto_init() }
@@ -2413,7 +1479,7 @@ func file_api_videoChat_service_v1_group_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_videoChat_service_v1_group_proto_rawDesc), len(file_api_videoChat_service_v1_group_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   40,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

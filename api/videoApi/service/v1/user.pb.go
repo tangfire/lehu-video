@@ -82,6 +82,10 @@ type User struct {
 	TotalFavorited  int64                  `protobuf:"varint,10,opt,name=total_favorited,json=totalFavorited,proto3" json:"total_favorited,omitempty"`  // 获赞数量
 	WorkCount       int64                  `protobuf:"varint,11,opt,name=work_count,json=workCount,proto3" json:"work_count,omitempty"`                 // 作品数量
 	FavoriteCount   int64                  `protobuf:"varint,12,opt,name=favorite_count,json=favoriteCount,proto3" json:"favorite_count,omitempty"`     // 点赞数量
+	Nickname        string                 `protobuf:"bytes,13,opt,name=nickname,proto3" json:"nickname,omitempty"`
+	Gender          int32                  `protobuf:"varint,14,opt,name=gender,proto3" json:"gender,omitempty"`
+	OnlineStatus    int32                  `protobuf:"varint,15,opt,name=online_status,json=onlineStatus,proto3" json:"online_status,omitempty"`
+	LastOnlineTime  string                 `protobuf:"bytes,16,opt,name=last_online_time,json=lastOnlineTime,proto3" json:"last_online_time,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -198,6 +202,34 @@ func (x *User) GetFavoriteCount() int64 {
 		return x.FavoriteCount
 	}
 	return 0
+}
+
+func (x *User) GetNickname() string {
+	if x != nil {
+		return x.Nickname
+	}
+	return ""
+}
+
+func (x *User) GetGender() int32 {
+	if x != nil {
+		return x.Gender
+	}
+	return 0
+}
+
+func (x *User) GetOnlineStatus() int32 {
+	if x != nil {
+		return x.OnlineStatus
+	}
+	return 0
+}
+
+func (x *User) GetLastOnlineTime() string {
+	if x != nil {
+		return x.LastOnlineTime
+	}
+	return ""
 }
 
 type GetVerificationCodeReq struct {
@@ -908,7 +940,7 @@ var File_api_videoApi_service_v1_user_proto protoreflect.FileDescriptor
 
 const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\n" +
-	"\"api/videoApi/service/v1/user.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\"\xf2\x02\n" +
+	"\"api/videoApi/service/v1/user.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\"\xf5\x03\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -923,7 +955,11 @@ const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	" \x01(\x03R\x0etotalFavorited\x12\x1d\n" +
 	"\n" +
 	"work_count\x18\v \x01(\x03R\tworkCount\x12%\n" +
-	"\x0efavorite_count\x18\f \x01(\x03R\rfavoriteCount\"F\n" +
+	"\x0efavorite_count\x18\f \x01(\x03R\rfavoriteCount\x12\x1a\n" +
+	"\bnickname\x18\r \x01(\tR\bnickname\x12\x16\n" +
+	"\x06gender\x18\x0e \x01(\x05R\x06gender\x12#\n" +
+	"\ronline_status\x18\x0f \x01(\x05R\fonlineStatus\x12(\n" +
+	"\x10last_online_time\x18\x10 \x01(\tR\x0elastOnlineTime\"F\n" +
 	"\x16GetVerificationCodeReq\x12\x16\n" +
 	"\x06mobile\x18\x01 \x01(\tR\x06mobile\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\"2\n" +

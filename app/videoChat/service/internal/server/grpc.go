@@ -17,6 +17,7 @@ import (
 func NewGRPCServer(c *conf.Server,
 	group *service.GroupServiceService,
 	message *service.MessageServiceService,
+	friend *service.FriendServiceService,
 	logger log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
@@ -35,6 +36,7 @@ func NewGRPCServer(c *conf.Server,
 	srv := grpc.NewServer(opts...)
 	v1.RegisterGroupServiceServer(srv, group)
 	v1.RegisterMessageServiceServer(srv, message)
+	v1.RegisterFriendServiceServer(srv, friend)
 	return srv
 }
 

@@ -11,7 +11,8 @@ var ProviderSet = wire.NewSet(
 	NewFavoriteServiceService,
 	NewFollowServiceService,
 	NewCollectionServiceService,
+	NewWebSocketService,
 	NewGroupServiceService,
 	NewMessageServiceService,
-	NewWebSocketService,
+	NewFriendServiceService,
 )

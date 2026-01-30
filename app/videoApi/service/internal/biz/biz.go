@@ -14,9 +14,5 @@ var ProviderSet = wire.NewSet(
 	NewCollectionUsecase,
 	NewGroupUsecase,
 	NewMessageUsecase,
+	NewFriendUsecase,
 )
-
-type PageStats struct {
-	Page     int32
-	PageSize int32
-}

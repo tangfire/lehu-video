@@ -21,6 +21,10 @@ message User {
 	int64 total_favorited = 10; // 获赞数量
 	int64 work_count = 11; // 作品数量
 	int64 favorite_count = 12; // 点赞数量
+	string nickname = 13;
+	int32 gender = 14;
+	int32 online_status = 15;
+	string last_online_time = 16;
 }
 
 service UserService {
@@ -42,6 +46,9 @@ service UserService {
 		};
 	};
 	rpc GetUserByIdList(GetUserByIdListReq) returns (GetUserByIdListResp);
+
+	// 新增：搜索用户接口
+	rpc SearchUsers(SearchUsersReq) returns (SearchUsersResp);
 }
 
 message CreateUserReq{
@@ -71,7 +78,6 @@ message UpdateUserInfoReq{
 	string avatar = 3;
 	string background_image = 4;
 	string signature = 5;
-
 }
 
 message UpdateUserInfoResp{
@@ -92,4 +98,16 @@ message GetUserByIdListResp{
 	Metadata meta = 2;
 }
 
+// 新增：搜索用户请求
+message SearchUsersReq {
+	string keyword = 1;
+	int32 page = 2;
+	int32 page_size = 3;
+}
 
+// 新增：搜索用户响应
+message SearchUsersResp {
+	repeated User users = 1;
+	int32 total = 2;
+	Metadata meta = 3;
+}

@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -53,7 +54,7 @@ func (r *messageRepo) GetMessageByID(ctx context.Context, id int64) (*biz.Messag
 		Where("id = ? AND is_deleted = ?", id, false).
 		First(&dbMessage).Error
 
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -88,7 +89,7 @@ func (r *messageRepo) UpdateMessageStatus(ctx context.Context, id int64, status 
 		Model(&model.Message{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"status":     status,
+			"status":     int8(status),
 			"updated_at": time.Now(),
 		}).Error
 }
@@ -104,26 +105,44 @@ func (r *messageRepo) RecallMessage(ctx context.Context, id int64) error {
 		}).Error
 }
 
-func (r *messageRepo) ListMessages(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64, limit int) ([]*biz.Message, error) {
+// ListMessages 改进的分页查询方法，按时间戳分页
+func (r *messageRepo) ListMessages(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64, limit int) ([]*biz.Message, bool, error) {
 	var dbMessages []*model.Message
 
+	// 构建基础查询
 	query := r.data.db.WithContext(ctx).
 		Where("((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND conv_type = ? AND is_deleted = ?",
-			userID, targetID, targetID, userID, convType, false)
+			userID, targetID, targetID, userID, int8(convType), false)
 
+	// 如果提供了lastMsgID，先查询该消息的时间戳
 	if lastMsgID > 0 {
-		query = query.Where("id < ?", lastMsgID)
+		var lastMessage model.Message
+		err := r.data.db.WithContext(ctx).
+			Where("id = ?", lastMsgID).
+			First(&lastMessage).Error
+		if err == nil {
+			// 使用时间戳进行分页
+			query = query.Where("created_at < ?", lastMessage.CreatedAt)
+		}
 	}
 
-	err := query.Order("id DESC").
-		Limit(limit).
+	// 获取limit+1条记录来判断是否还有更多
+	err := query.Order("created_at DESC").
+		Limit(limit + 1). // 多取一条用于判断
 		Find(&dbMessages).Error
 
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	// 反转顺序，使消息按时间正序排列
+	// 判断是否还有更多数据
+	hasMore := false
+	if len(dbMessages) > limit {
+		hasMore = true
+		dbMessages = dbMessages[:limit] // 只保留limit条
+	}
+
+	// 反转顺序，使消息按时间正序排列（从旧到新）
 	for i, j := 0, len(dbMessages)-1; i < j; i, j = i+1, j-1 {
 		dbMessages[i], dbMessages[j] = dbMessages[j], dbMessages[i]
 	}
@@ -135,7 +154,7 @@ func (r *messageRepo) ListMessages(ctx context.Context, userID, targetID int64, 
 		if len(dbMessage.Content) > 0 {
 			err = json.Unmarshal(dbMessage.Content, &content)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 		}
 
@@ -153,48 +172,73 @@ func (r *messageRepo) ListMessages(ctx context.Context, userID, targetID int64, 
 		})
 	}
 
-	return messages, nil
+	return messages, hasMore, nil
 }
 
 func (r *messageRepo) CountUnreadMessages(ctx context.Context, userID, targetID int64, convType int32) (int64, error) {
 	var count int64
 
-	// 查询对方发送的未读消息
-	query := r.data.db.WithContext(ctx).
-		Model(&model.Message{}).
-		Where("sender_id = ? AND receiver_id = ? AND conv_type = ? AND status < ? AND is_recalled = ? AND is_deleted = ?",
-			targetID, userID, convType, 3, false, false)
+	// ✅ 单聊：查询对方发送的未读消息（status < 3）
+	// ✅ 群聊：不查询未读消息数，返回0（群聊不显示已读状态）
+	if convType == 0 {
+		query := r.data.db.WithContext(ctx).
+			Model(&model.Message{}).
+			Where("sender_id = ? AND receiver_id = ? AND conv_type = ? AND status < ? AND is_recalled = ? AND is_deleted = ?",
+				targetID, userID, 0, 3, false, false)
 
-	// 对于群聊，还需要考虑已读记录
-	if convType == 1 { // 群聊
-		// TODO: 需要结合message_read表来统计
+		err := query.Count(&count).Error
+		return count, err
 	}
 
-	err := query.Count(&count).Error
-	return count, err
+	// 群聊：返回0，不统计未读
+	return 0, nil
 }
 
 func (r *messageRepo) MarkMessagesAsRead(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64) error {
-	// 更新消息状态
-	err := r.data.db.WithContext(ctx).
-		Model(&model.Message{}).
-		Where("sender_id = ? AND receiver_id = ? AND conv_type = ? AND status < ? AND id <= ? AND is_deleted = ?",
-			targetID, userID, convType, 3, lastMsgID, false).
-		Updates(map[string]interface{}{
-			"status":     3, // 已读
-			"updated_at": time.Now(),
-		}).Error
-
-	if err != nil {
-		return err
+	// 只有单聊才需要标记已读
+	if convType != 0 {
+		// 群聊：什么都不做，直接返回成功
+		return nil
 	}
 
-	// 创建已读记录
+	// 单聊：标记消息为已读
+	tx := r.data.db.WithContext(ctx).Begin()
+
+	// 如果有lastMsgID，标记该消息及之前的消息为已读
 	if lastMsgID > 0 {
-		// TODO: 为每条消息创建已读记录
+		// 获取最后一条已读消息的时间
+		var lastMessage model.Message
+		err := tx.Where("id = ?", lastMsgID).First(&lastMessage).Error
+		if err == nil {
+			// 更新该时间之前的所有消息为已读
+			err = tx.Model(&model.Message{}).
+				Where("sender_id = ? AND receiver_id = ? AND conv_type = ? AND status < ? AND created_at <= ? AND is_deleted = ?",
+					targetID, userID, 0, 3, lastMessage.CreatedAt, false).
+				Updates(map[string]interface{}{
+					"status":     3, // 已读
+					"updated_at": time.Now(),
+				}).Error
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	} else {
+		// 标记所有消息为已读
+		err := tx.Model(&model.Message{}).
+			Where("sender_id = ? AND receiver_id = ? AND conv_type = ? AND status < ? AND is_deleted = ?",
+				targetID, userID, 0, 3, false).
+			Updates(map[string]interface{}{
+				"status":     3,
+				"updated_at": time.Now(),
+			}).Error
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
-	return nil
+	return tx.Commit().Error
 }
 
 func (r *messageRepo) CreateOrUpdateConversation(ctx context.Context, conv *biz.Conversation) error {
@@ -202,10 +246,10 @@ func (r *messageRepo) CreateOrUpdateConversation(ctx context.Context, conv *biz.
 	var existingConv model.Conversation
 	err := r.data.db.WithContext(ctx).
 		Where("user_id = ? AND type = ? AND target_id = ? AND is_deleted = ?",
-			conv.UserID, conv.Type, conv.TargetID, false).
+			conv.UserID, int8(conv.Type), conv.TargetID, false).
 		First(&existingConv).Error
 
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// 创建新会话
 		dbConv := model.Conversation{
 			UserID:      conv.UserID,
@@ -229,23 +273,31 @@ func (r *messageRepo) CreateOrUpdateConversation(ctx context.Context, conv *biz.
 	}
 
 	// 更新现有会话
+	updateData := map[string]interface{}{
+		"last_message":  conv.LastMessage,
+		"last_msg_type": conv.LastMsgType,
+		"last_msg_time": conv.LastMsgTime,
+		"updated_at":    time.Now(),
+	}
+
+	// 如果提供了unreadCount，则累加
+	if conv.UnreadCount > 0 {
+		updateData["unread_count"] = gorm.Expr("unread_count + ?", conv.UnreadCount)
+	} else {
+		updateData["unread_count"] = conv.UnreadCount
+	}
+
 	return r.data.db.WithContext(ctx).
 		Model(&model.Conversation{}).
 		Where("id = ?", existingConv.ID).
-		Updates(map[string]interface{}{
-			"last_message":  conv.LastMessage,
-			"last_msg_type": conv.LastMsgType,
-			"last_msg_time": conv.LastMsgTime,
-			"unread_count":  gorm.Expr("unread_count + ?", conv.UnreadCount),
-			"updated_at":    time.Now(),
-		}).Error
+		Updates(updateData).Error
 }
 
 func (r *messageRepo) GetConversation(ctx context.Context, userID, targetID int64, convType int32) (*biz.Conversation, error) {
 	var dbConv model.Conversation
 	err := r.data.db.WithContext(ctx).
 		Where("user_id = ? AND type = ? AND target_id = ? AND is_deleted = ?",
-			userID, convType, targetID, false).
+			userID, int8(convType), targetID, false).
 		First(&dbConv).Error
 
 	if err == gorm.ErrRecordNotFound {
@@ -304,7 +356,10 @@ func (r *messageRepo) DeleteConversation(ctx context.Context, id int64) error {
 	return r.data.db.WithContext(ctx).
 		Model(&model.Conversation{}).
 		Where("id = ?", id).
-		Update("is_deleted", true).Error
+		Updates(map[string]interface{}{
+			"is_deleted": true,
+			"updated_at": time.Now(),
+		}).Error
 }
 
 func (r *messageRepo) ListConversations(ctx context.Context, userID int64, offset, limit int) ([]*biz.Conversation, error) {
@@ -354,72 +409,62 @@ func (r *messageRepo) CountConversations(ctx context.Context, userID int64) (int
 	return count, err
 }
 
-func (r *messageRepo) CreateMessageRead(ctx context.Context, messageID, userID int64) error {
-	readRecord := model.MessageRead{
-		MessageID: messageID,
-		UserID:    userID,
-		ReadAt:    time.Now(),
-		CreatedAt: time.Now(),
-	}
-	return r.data.db.WithContext(ctx).Create(&readRecord).Error
+func (r *messageRepo) CountTotalUnread(ctx context.Context, userID int64) (int64, error) {
+	var count int64
+
+	// ✅ 只统计单聊未读消息
+	err := r.data.db.WithContext(ctx).
+		Model(&model.Message{}).
+		Where("receiver_id = ? AND conv_type = ? AND status < ? AND is_recalled = ? AND is_deleted = ?",
+			userID, 0, 3, false, false).
+		Count(&count).Error
+
+	return count, err
 }
 
-func (r *messageRepo) GetUserMessageSetting(ctx context.Context, userID, targetID int64, convType int32) (*biz.UserMessageSetting, error) {
-	var dbSetting model.UserMessageSetting
-	err := r.data.db.WithContext(ctx).
-		Where("user_id = ? AND target_id = ? AND conv_type = ? AND is_deleted = ?",
-			userID, targetID, convType, false).
-		First(&dbSetting).Error
+func (r *messageRepo) CountUnreadByConversations(ctx context.Context, userID int64) (map[int64]int64, error) {
+	result := make(map[int64]int64)
 
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
+	// ✅ 只统计单聊未读，群聊返回0
+	type SingleChatResult struct {
+		TargetID int64
+		Count    int64
 	}
+
+	var singleResults []SingleChatResult
+	err := r.data.db.WithContext(ctx).
+		Model(&model.Message{}).
+		Select("sender_id as target_id, COUNT(*) as count").
+		Where("receiver_id = ? AND conv_type = ? AND status < ? AND is_recalled = ? AND is_deleted = ?",
+			userID, 0, 3, false, false).
+		Group("sender_id").
+		Find(&singleResults).Error
+
 	if err != nil {
 		return nil, err
 	}
 
-	return &biz.UserMessageSetting{
-		ID:        dbSetting.ID,
-		UserID:    dbSetting.UserID,
-		TargetID:  dbSetting.TargetID,
-		ConvType:  int32(dbSetting.ConvType),
-		IsMuted:   dbSetting.IsMuted,
-		CreatedAt: dbSetting.CreatedAt,
-		UpdatedAt: dbSetting.UpdatedAt,
-	}, nil
+	// 单聊：key = targetID * 10 + 0 (convType=0)
+	for _, r := range singleResults {
+		key := r.TargetID*10 + 0
+		result[key] = r.Count
+	}
+
+	// 群聊：直接返回0，不需要统计
+	return result, nil
 }
 
-func (r *messageRepo) UpdateUserMessageSetting(ctx context.Context, setting *biz.UserMessageSetting) error {
-	var dbSetting model.UserMessageSetting
-	err := r.data.db.WithContext(ctx).
-		Where("user_id = ? AND target_id = ? AND conv_type = ? AND is_deleted = ?",
-			setting.UserID, setting.TargetID, setting.ConvType, false).
-		First(&dbSetting).Error
+// 清空聊天记录
+func (r *messageRepo) DeleteMessagesByConversation(ctx context.Context, userID, targetID int64, convType int32) error {
+	// 使用软删除，只标记为删除状态，不物理删除
+	// 注意：这里只删除用户接收的消息，发送的消息不删除（保留发送记录）
 
-	if err == gorm.ErrRecordNotFound {
-		// 创建新设置
-		dbSetting = model.UserMessageSetting{
-			UserID:    setting.UserID,
-			TargetID:  setting.TargetID,
-			ConvType:  int8(setting.ConvType),
-			IsMuted:   setting.IsMuted,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-			IsDeleted: false,
-		}
-		return r.data.db.WithContext(ctx).Create(&dbSetting).Error
-	}
-
-	if err != nil {
-		return err
-	}
-
-	// 更新现有设置
 	return r.data.db.WithContext(ctx).
-		Model(&model.UserMessageSetting{}).
-		Where("id = ?", dbSetting.ID).
+		Model(&model.Message{}).
+		Where("receiver_id = ? AND ((sender_id = ? AND conv_type = ?) OR (receiver_id = ? AND conv_type = ?)) AND is_deleted = ?",
+			userID, targetID, convType, targetID, convType, false).
 		Updates(map[string]interface{}{
-			"is_muted":   setting.IsMuted,
+			"is_deleted": true,
 			"updated_at": time.Now(),
 		}).Error
 }

@@ -37,8 +37,8 @@ func (s *FollowServiceService) ListFollowing(ctx context.Context, req *pb.ListFo
 		UserId: req.UserId,
 		Type:   &followType,
 		PageStats: &biz.PageStats{
-			Page:     req.PageStats.Page,
-			PageSize: req.PageStats.Size,
+			Page:     int(req.PageStats.Page),
+			PageSize: int(req.PageStats.Size),
 		},
 	}
 	output, err := s.uc.ListFollowing(ctx, input)

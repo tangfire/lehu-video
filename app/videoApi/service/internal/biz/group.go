@@ -12,7 +12,6 @@ type Group struct {
 	ID        int64
 	Name      string
 	Notice    string
-	Members   []int64
 	MemberCnt int
 	OwnerID   int64
 	AddMode   int32
@@ -30,7 +29,8 @@ type CreateGroupInput struct {
 }
 
 type LoadMyGroupInput struct {
-	PageStats *PageStats
+	Page     int32
+	PageSize int32
 }
 
 type LoadMyGroupOutput struct {
@@ -72,7 +72,8 @@ type GetGroupInfoOutput struct {
 }
 
 type ListMyJoinedGroupsInput struct {
-	PageStats *PageStats
+	Page     int32
+	PageSize int32
 }
 
 type ListMyJoinedGroupsOutput struct {
@@ -124,7 +125,12 @@ func (uc *GroupUsecase) LoadMyGroup(ctx context.Context, input *LoadMyGroupInput
 		return nil, errors.New("获取用户信息失败")
 	}
 
-	total, groups, err := uc.chat.LoadMyGroup(ctx, userId, input.PageStats)
+	pageStats := &PageStats{
+		Page:     int(input.Page),
+		PageSize: int(input.PageSize),
+	}
+
+	total, groups, err := uc.chat.LoadMyGroup(ctx, userId, pageStats)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取我创建的群聊失败: %v", err)
 		return nil, errors.New("获取群聊列表失败")
@@ -230,7 +236,12 @@ func (uc *GroupUsecase) ListMyJoinedGroups(ctx context.Context, input *ListMyJoi
 		return nil, errors.New("获取用户信息失败")
 	}
 
-	total, groups, err := uc.chat.ListMyJoinedGroups(ctx, userId, input.PageStats)
+	pageStats := &PageStats{
+		Page:     int(input.Page),
+		PageSize: int(input.PageSize),
+	}
+
+	total, groups, err := uc.chat.ListMyJoinedGroups(ctx, userId, pageStats)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取我加入的群聊失败: %v", err)
 		return nil, errors.New("获取群聊列表失败")

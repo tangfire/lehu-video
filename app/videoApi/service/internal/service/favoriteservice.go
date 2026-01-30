@@ -55,8 +55,8 @@ func (s *FavoriteServiceService) ListFavoriteVideo(ctx context.Context, req *pb.
 	input := &biz.ListFavoriteVideoInput{
 		UserId: req.UserId,
 		PageStats: &biz.PageStats{
-			Page:     req.PageStats.Page,
-			PageSize: req.PageStats.Size,
+			Page:     int(req.PageStats.Page),
+			PageSize: int(req.PageStats.Size),
 		},
 	}
 	total, videos, err := s.uc.ListFavoriteVideo(ctx, input)

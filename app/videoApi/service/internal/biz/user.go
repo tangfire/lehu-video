@@ -74,16 +74,6 @@ type UnbindUserVoucherInput struct {
 
 type UnbindUserVoucherOutput struct{}
 
-// 用户信息结构体
-type UserInfo struct {
-	Id              int64
-	Name            string
-	Avatar          string
-	BackgroundImage string
-	Mobile          string
-	Email           string
-}
-
 type UserUsecase struct {
 	base BaseAdapter
 	core CoreAdapter

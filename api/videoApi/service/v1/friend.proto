@@ -1,0 +1,222 @@
+syntax = "proto3";
+
+package api.videoApi.service.v1;
+
+option go_package = "lehu-video/api/videoApi/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoApi.service.v1";
+import "api/videoApi/service/v1/base.proto";
+import "google/api/annotations.proto";
+import "api/videoApi/service/v1/user.proto";
+
+// 好友服务
+service FriendService {
+	// 搜索用户
+	rpc SearchUsers(SearchUsersReq) returns (SearchUsersResp) {
+		option (google.api.http) = {
+			get: "/v1/friends/search"
+		};
+	};
+
+	// 发送好友申请
+	rpc SendFriendApply(SendFriendApplyReq) returns (SendFriendApplyResp) {
+		option (google.api.http) = {
+			post: "/v1/friend/apply"
+			body: "*"
+		};
+	};
+
+	// 处理好友申请
+	rpc HandleFriendApply(HandleFriendApplyReq) returns (HandleFriendApplyResp) {
+		option (google.api.http) = {
+			put: "/v1/friend/apply/{apply_id}"
+			body: "*"
+		};
+	};
+
+	// 获取好友申请列表
+	rpc ListFriendApplies(ListFriendAppliesReq) returns (ListFriendAppliesResp) {
+		option (google.api.http) = {
+			post: "/v1/friend/applies"
+			body:"*"
+		};
+	};
+
+	// 获取好友列表
+	rpc ListFriends(ListFriendsReq) returns (ListFriendsResp) {
+		option (google.api.http) = {
+			post: "/v1/friends"
+			body:"*"
+		};
+	};
+
+	// 删除好友
+	rpc DeleteFriend(DeleteFriendReq) returns (DeleteFriendResp) {
+		option (google.api.http) = {
+			delete: "/v1/friend/{friend_id}"
+		};
+	};
+
+	// 更新好友备注
+	rpc UpdateFriendRemark(UpdateFriendRemarkReq) returns (UpdateFriendRemarkResp) {
+		option (google.api.http) = {
+			put: "/v1/friend/{friend_id}/remark"
+			body: "*"
+		};
+	};
+
+	// 设置好友分组
+	rpc SetFriendGroup(SetFriendGroupReq) returns (SetFriendGroupResp) {
+		option (google.api.http) = {
+			put: "/v1/friend/{friend_id}/group"
+			body: "*"
+		};
+	};
+
+	// 检查好友关系
+	rpc CheckFriendRelation(CheckFriendRelationReq) returns (CheckFriendRelationResp) {
+		option (google.api.http) = {
+			get: "/v1/friend/{target_id}/relation"
+		};
+	};
+
+	// 获取用户在线状态
+	rpc GetUserOnlineStatus(GetUserOnlineStatusReq) returns (GetUserOnlineStatusResp) {
+		option (google.api.http) = {
+			get: "/v1/user/{user_id}/online-status"
+		};
+	};
+
+	// 批量获取用户在线状态
+	rpc BatchGetUserOnlineStatus(BatchGetUserOnlineStatusReq) returns (BatchGetUserOnlineStatusResp) {
+		option (google.api.http) = {
+			post: "/v1/users/online-status"
+			body: "*"
+		};
+	};
+}
+
+
+// 好友信息
+message FriendInfo {
+	int64 id = 1;
+	User friend = 2;
+	string remark = 3;
+	string group_name = 4;
+	int32 status = 5;
+	string created_at = 6;
+}
+
+// 好友申请信息
+message FriendApplyInfo {
+	int64 id = 1;
+	User applicant = 2;
+	User receiver = 3;
+	string apply_reason = 4;
+	int32 status = 5;
+	string handled_at = 6;
+	string created_at = 7;
+}
+
+// 搜索用户请求
+message SearchUsersReq {
+	string keyword = 1;
+	PageStatsReq page_stats = 2;
+}
+
+message SearchUsersResp {
+	repeated User users = 1;
+	PageStatsResp page_stats = 2;
+}
+
+// 发送好友申请请求
+message SendFriendApplyReq {
+	int64 receiver_id = 1;
+	string apply_reason = 2;
+}
+
+message SendFriendApplyResp {
+	int64 apply_id = 1;
+}
+
+// 处理好友申请请求
+message HandleFriendApplyReq {
+	int64 apply_id = 1;
+	bool accept = 2;
+}
+
+message HandleFriendApplyResp {}
+
+// 获取好友申请列表请求
+message ListFriendAppliesReq {
+	PageStatsReq page_stats = 1;
+	optional int32 status = 2;
+}
+
+message ListFriendAppliesResp {
+	repeated FriendApplyInfo applies = 1;
+	PageStatsResp page_stats = 2;
+}
+
+// 获取好友列表请求
+message ListFriendsReq {
+	PageStatsReq page_stats = 1;
+	optional string group_name = 2;
+}
+
+message ListFriendsResp {
+	repeated FriendInfo friends = 1;
+	PageStatsResp page_stats = 2;
+}
+
+// 删除好友请求
+message DeleteFriendReq {
+	int64 friend_id = 1;
+}
+
+message DeleteFriendResp {}
+
+// 更新好友备注请求
+message UpdateFriendRemarkReq {
+	int64 friend_id = 1;
+	string remark = 2;
+}
+
+message UpdateFriendRemarkResp {}
+
+// 设置好友分组请求
+message SetFriendGroupReq {
+	int64 friend_id = 1;
+	string group_name = 2;
+}
+
+message SetFriendGroupResp {}
+
+// 检查好友关系请求
+message CheckFriendRelationReq {
+	int64 target_id = 1;
+}
+
+message CheckFriendRelationResp {
+	bool is_friend = 1;
+	int32 status = 2;
+}
+
+// 获取用户在线状态请求
+message GetUserOnlineStatusReq {
+	int64 user_id = 1;
+}
+
+message GetUserOnlineStatusResp {
+	int32 online_status = 1;
+	string last_online_time = 2;
+}
+
+// 批量获取用户在线状态请求
+message BatchGetUserOnlineStatusReq {
+	repeated int64 user_ids = 1;
+}
+
+message BatchGetUserOnlineStatusResp {
+	map<int64, int32> online_status = 1;
+}

@@ -2,7 +2,6 @@ package data
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -23,18 +22,28 @@ func NewGroupRepo(data *Data, logger log.Logger) biz.GroupRepo {
 	}
 }
 
-func (r *groupRepo) CreateGroup(ctx context.Context, group *biz.Group) error {
-	// 序列化成员列表
-	membersJSON, err := json.Marshal(group.Members)
+func (r *groupRepo) GetGroupMembers(ctx context.Context, groupID int64) ([]int64, error) {
+	var memberIDs []int64
+
+	err := r.data.db.WithContext(ctx).
+		Model(&model.GroupMember{}).
+		Select("user_id").
+		Where("group_id = ? AND is_deleted = ?", groupID, false).
+		Order("role DESC, join_time ASC").
+		Pluck("user_id", &memberIDs).Error
+
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	return memberIDs, nil
+}
+
+func (r *groupRepo) CreateGroup(ctx context.Context, group *biz.Group) error {
 	dbGroup := model.GroupInfo{
 		Id:        group.ID,
 		Name:      group.Name,
 		Notice:    group.Notice,
-		Members:   membersJSON,
 		MemberCnt: group.MemberCnt,
 		OwnerId:   group.OwnerID,
 		AddMode:   int8(group.AddMode),
@@ -61,20 +70,11 @@ func (r *groupRepo) GetGroupByID(ctx context.Context, id int64) (*biz.Group, err
 		return nil, err
 	}
 
-	// 反序列化成员列表
-	var members []int64
-	if len(dbGroup.Members) > 0 {
-		err = json.Unmarshal(dbGroup.Members, &members)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+	// 不再从 members 字段反序列化，而是从 GroupMember 表查询
 	return &biz.Group{
 		ID:        dbGroup.Id,
 		Name:      dbGroup.Name,
 		Notice:    dbGroup.Notice,
-		Members:   members,
 		MemberCnt: dbGroup.MemberCnt,
 		OwnerID:   dbGroup.OwnerId,
 		AddMode:   int32(dbGroup.AddMode),
@@ -83,6 +83,32 @@ func (r *groupRepo) GetGroupByID(ctx context.Context, id int64) (*biz.Group, err
 		CreatedAt: dbGroup.CreatedAt,
 		UpdatedAt: dbGroup.UpdatedAt,
 	}, nil
+}
+
+func (r *groupRepo) GetGroupWithMembers(ctx context.Context, id int64) (*biz.Group, []int64, error) {
+	// 获取群组基本信息
+	group, err := r.GetGroupByID(ctx, id)
+	if err != nil || group == nil {
+		return nil, nil, err
+	}
+
+	// 获取成员ID列表
+	memberIDs, err := r.GetGroupMemberIDs(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return group, memberIDs, nil
+}
+
+func (r *groupRepo) GetGroupMemberIDs(ctx context.Context, groupID int64) ([]int64, error) {
+	var memberIDs []int64
+	err := r.data.db.WithContext(ctx).
+		Model(&model.GroupMember{}).
+		Where("group_id = ? AND is_deleted = ?", groupID, false).
+		Pluck("user_id", &memberIDs).Error
+
+	return memberIDs, err
 }
 
 func (r *groupRepo) GetGroupByOwnerAndID(ctx context.Context, ownerID, id int64) (*biz.Group, error) {
@@ -98,20 +124,10 @@ func (r *groupRepo) GetGroupByOwnerAndID(ctx context.Context, ownerID, id int64)
 		return nil, err
 	}
 
-	// 反序列化成员列表
-	var members []int64
-	if len(dbGroup.Members) > 0 {
-		err = json.Unmarshal(dbGroup.Members, &members)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &biz.Group{
 		ID:        dbGroup.Id,
 		Name:      dbGroup.Name,
 		Notice:    dbGroup.Notice,
-		Members:   members,
 		MemberCnt: dbGroup.MemberCnt,
 		OwnerID:   dbGroup.OwnerId,
 		AddMode:   int32(dbGroup.AddMode),
@@ -123,19 +139,12 @@ func (r *groupRepo) GetGroupByOwnerAndID(ctx context.Context, ownerID, id int64)
 }
 
 func (r *groupRepo) UpdateGroup(ctx context.Context, group *biz.Group) error {
-	// 序列化成员列表
-	membersJSON, err := json.Marshal(group.Members)
-	if err != nil {
-		return err
-	}
-
 	return r.data.db.WithContext(ctx).
 		Model(&model.GroupInfo{}).
 		Where("id = ?", group.ID).
 		Updates(map[string]interface{}{
 			"name":       group.Name,
 			"notice":     group.Notice,
-			"members":    membersJSON,
 			"member_cnt": group.MemberCnt,
 			"add_mode":   group.AddMode,
 			"avatar":     group.Avatar,
@@ -169,20 +178,10 @@ func (r *groupRepo) ListGroupsByOwner(ctx context.Context, ownerID int64, offset
 
 	groups := make([]*biz.Group, 0, len(dbGroups))
 	for _, dbGroup := range dbGroups {
-		// 反序列化成员列表
-		var members []int64
-		if len(dbGroup.Members) > 0 {
-			err = json.Unmarshal(dbGroup.Members, &members)
-			if err != nil {
-				return nil, err
-			}
-		}
-
 		groups = append(groups, &biz.Group{
 			ID:        dbGroup.Id,
 			Name:      dbGroup.Name,
 			Notice:    dbGroup.Notice,
-			Members:   members,
 			MemberCnt: dbGroup.MemberCnt,
 			OwnerID:   dbGroup.OwnerId,
 			AddMode:   int32(dbGroup.AddMode),
@@ -441,54 +440,33 @@ func (r *groupRepo) CountPendingApplies(ctx context.Context, groupID int64) (int
 	return count, err
 }
 
+// 优化查询，使用 JOIN 提高性能
 func (r *groupRepo) ListJoinedGroups(ctx context.Context, userID int64, offset, limit int) ([]*biz.Group, error) {
 	var dbGroups []*model.GroupInfo
 
-	// 先查询用户加入的群聊ID
-	var groupIDs []int64
-	subQuery := r.data.db.WithContext(ctx).
-		Model(&model.GroupMember{}).
-		Select("group_id").
-		Where("user_id = ? AND is_deleted = ?", userID, false)
+	// 使用 JOIN 查询用户加入的群聊
+	query := r.data.db.WithContext(ctx).
+		Model(&model.GroupInfo{}).
+		Joins("JOIN group_member ON group_info.id = group_member.group_id").
+		Where("group_member.user_id = ? AND group_member.is_deleted = ? AND group_info.is_deleted = ?",
+			userID, false, false).
+		Order("group_info.created_at DESC")
 
 	if limit > 0 {
-		subQuery = subQuery.Offset(offset).Limit(limit)
+		query = query.Offset(offset).Limit(limit)
 	}
 
-	err := subQuery.Pluck("group_id", &groupIDs).Error
-	if err != nil {
-		return nil, err
-	}
-
-	if len(groupIDs) == 0 {
-		return []*biz.Group{}, nil
-	}
-
-	// 查询群聊信息
-	err = r.data.db.WithContext(ctx).
-		Where("id IN ? AND is_deleted = ?", groupIDs, false).
-		Order("created_at DESC").
-		Find(&dbGroups).Error
+	err := query.Find(&dbGroups).Error
 	if err != nil {
 		return nil, err
 	}
 
 	groups := make([]*biz.Group, 0, len(dbGroups))
 	for _, dbGroup := range dbGroups {
-		// 反序列化成员列表
-		var members []int64
-		if len(dbGroup.Members) > 0 {
-			err = json.Unmarshal(dbGroup.Members, &members)
-			if err != nil {
-				return nil, err
-			}
-		}
-
 		groups = append(groups, &biz.Group{
 			ID:        dbGroup.Id,
 			Name:      dbGroup.Name,
 			Notice:    dbGroup.Notice,
-			Members:   members,
 			MemberCnt: dbGroup.MemberCnt,
 			OwnerID:   dbGroup.OwnerId,
 			AddMode:   int32(dbGroup.AddMode),
@@ -510,4 +488,28 @@ func (r *groupRepo) CountJoinedGroups(ctx context.Context, userID int64) (int64,
 		Count(&count).Error
 
 	return count, err
+}
+
+// 批量检查用户是否在多个群中
+func (r *groupRepo) BatchIsGroupMember(ctx context.Context, groupIDs []int64, userID int64) (map[int64]bool, error) {
+	var members []struct {
+		GroupID int64
+	}
+
+	err := r.data.db.WithContext(ctx).
+		Model(&model.GroupMember{}).
+		Select("group_id").
+		Where("group_id IN ? AND user_id = ? AND is_deleted = ?", groupIDs, userID, false).
+		Find(&members).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[int64]bool)
+	for _, member := range members {
+		result[member.GroupID] = true
+	}
+
+	return result, nil
 }

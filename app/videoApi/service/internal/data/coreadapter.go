@@ -19,11 +19,6 @@ type CoreAdapterImpl struct {
 	follow     core.FollowServiceClient
 }
 
-func (r *CoreAdapterImpl) UpdateUserInfo(ctx context.Context, userId int64, name, avatar, backgroundImage, signature string) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func NewCoreAdapter(
 	user core.UserServiceClient,
 	video core.VideoServiceClient,
@@ -131,6 +126,7 @@ func NewFollowServiceClient(r registry.Discovery) core.FollowServiceClient {
 	return core.NewFollowServiceClient(conn)
 }
 
+// 实现CoreAdapter接口
 func (r *CoreAdapterImpl) GetUserInfo(ctx context.Context, userId, accountId int64) (*biz.UserInfo, error) {
 	resp, err := r.user.GetUserInfo(ctx, &core.GetUserInfoReq{
 		UserId:    userId,
@@ -144,16 +140,69 @@ func (r *CoreAdapterImpl) GetUserInfo(ctx context.Context, userId, accountId int
 	if err != nil {
 		return nil, err
 	}
+
 	user := resp.User
-	retUser := &biz.UserInfo{
+	return &biz.UserInfo{
 		Id:              user.Id,
 		Name:            user.Name,
+		Nickname:        user.Nickname,
 		Avatar:          user.Avatar,
 		BackgroundImage: user.BackgroundImage,
+		Signature:       user.Signature,
 		Mobile:          user.Mobile,
 		Email:           user.Email,
+		Gender:          user.Gender,
+	}, nil
+}
+
+func (r *CoreAdapterImpl) UpdateUserInfo(ctx context.Context, userId int64, name, avatar, backgroundImage, signature string) error {
+	req := &core.UpdateUserInfoReq{
+		UserId:          userId,
+		Name:            name,
+		Avatar:          avatar,
+		BackgroundImage: backgroundImage,
+		Signature:       signature,
 	}
-	return retUser, nil
+
+	resp, err := r.user.UpdateUser(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *CoreAdapterImpl) GetUserInfoByIdList(ctx context.Context, userIdList []int64) ([]*biz.UserInfo, error) {
+	resp, err := r.user.GetUserByIdList(ctx, &core.GetUserByIdListReq{
+		UserIdList: userIdList,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+
+	var retUserInfos []*biz.UserInfo
+	for _, user := range resp.UserList {
+		retUserInfos = append(retUserInfos, &biz.UserInfo{
+			Id:              user.Id,
+			Name:            user.Name,
+			Nickname:        user.Nickname,
+			Avatar:          user.Avatar,
+			BackgroundImage: user.BackgroundImage,
+			Signature:       user.Signature,
+			Mobile:          user.Mobile,
+			Email:           user.Email,
+			Gender:          user.Gender,
+		})
+	}
+	return retUserInfos, nil
 }
 
 func (r *CoreAdapterImpl) CountFollow4User(ctx context.Context, userId int64) ([]int64, error) {
@@ -253,8 +302,8 @@ func (r *CoreAdapterImpl) ListPublishedVideo(ctx context.Context, userId int64, 
 	resp, err := r.video.ListPublishedVideo(ctx, &core.ListPublishedVideoReq{
 		UserId: userId,
 		PageStats: &core.PageStatsReq{
-			Page: pageStats.Page,
-			Size: pageStats.PageSize,
+			Page: int32(pageStats.Page),
+			Size: int32(pageStats.PageSize),
 		},
 	})
 	if err != nil {
@@ -283,31 +332,6 @@ func (r *CoreAdapterImpl) ListPublishedVideo(ctx context.Context, userId int64, 
 		})
 	}
 	return int64(resp.PageStats.Total), retVideos, nil
-}
-
-func (r *CoreAdapterImpl) GetUserInfoByIdList(ctx context.Context, userIdList []int64) ([]*biz.UserInfo, error) {
-	resp, err := r.user.GetUserByIdList(ctx, &core.GetUserByIdListReq{
-		UserIdList: userIdList,
-	})
-	if err != nil {
-		return nil, err
-	}
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return nil, err
-	}
-	var retUserInfos []*biz.UserInfo
-	for _, user := range resp.UserList {
-		retUserInfos = append(retUserInfos, &biz.UserInfo{
-			Id:              user.Id,
-			Name:            user.Name,
-			Avatar:          user.Avatar,
-			BackgroundImage: user.BackgroundImage,
-			Mobile:          user.Mobile,
-			Email:           user.Email,
-		})
-	}
-	return retUserInfos, nil
 }
 
 func (r *CoreAdapterImpl) IsUserFavoriteVideo(ctx context.Context, userId int64, videoIdList []int64) (map[int64]bool, error) {
@@ -586,8 +610,8 @@ func (r *CoreAdapterImpl) ListChildComment(ctx context.Context, commentId int64,
 	resp, err := r.comment.ListChildComment4Comment(ctx, &core.ListChildComment4CommentReq{
 		CommentId: commentId,
 		PageStats: &core.PageStatsReq{
-			Page: pageStats.Page,
-			Size: pageStats.PageSize,
+			Page: int32(pageStats.Page),
+			Size: int32(pageStats.PageSize),
 		},
 	})
 	if err != nil {
@@ -619,8 +643,8 @@ func (r *CoreAdapterImpl) ListComment4Video(ctx context.Context, videoId int64, 
 	resp, err := r.comment.ListComment4Video(ctx, &core.ListComment4VideoReq{
 		VideoId: videoId,
 		PageStats: &core.PageStatsReq{
-			Page: pageStats.Page,
-			Size: pageStats.PageSize,
+			Page: int32(pageStats.Page),
+			Size: int32(pageStats.PageSize),
 		},
 	})
 	if err != nil {
@@ -705,8 +729,8 @@ func (r *CoreAdapterImpl) ListUserFavoriteVideo(ctx context.Context, userId int6
 		AggregateType: core.FavoriteAggregateType_BY_USER,
 		FavoriteType:  core.FavoriteType_FAVORITE,
 		PageStats: &core.PageStatsReq{
-			Page: pageStats.Page,
-			Size: pageStats.PageSize,
+			Page: int32(pageStats.Page),
+			Size: int32(pageStats.PageSize),
 		},
 	})
 	if err != nil {
@@ -787,8 +811,8 @@ func (r *CoreAdapterImpl) ListFollow(ctx context.Context, userId int64, _type *b
 		UserId:     userId,
 		FollowType: followType,
 		PageStats: &core.PageStatsReq{
-			Page: pageStats.Page,
-			Size: pageStats.PageSize,
+			Page: int32(pageStats.Page),
+			Size: int32(pageStats.PageSize),
 		},
 	})
 	if err != nil {
@@ -855,8 +879,8 @@ func (r *CoreAdapterImpl) ListCollection(ctx context.Context, userId int64, page
 	resp, err := r.collection.ListCollection(ctx, &core.ListCollectionReq{
 		UserId: userId,
 		PageStats: &core.PageStatsReq{
-			Page: pageStats.Page,
-			Size: pageStats.PageSize,
+			Page: int32(pageStats.Page),
+			Size: int32(pageStats.PageSize),
 		},
 	})
 	if err != nil {
@@ -883,8 +907,8 @@ func (r *CoreAdapterImpl) ListVideo4Collection(ctx context.Context, collectionId
 	resp, err := r.collection.ListVideo4Collection(ctx, &core.ListVideo4CollectionReq{
 		CollectionId: collectionId,
 		PageStats: &core.PageStatsReq{
-			Page: pageStats.Page,
-			Size: pageStats.PageSize,
+			Page: int32(pageStats.Page),
+			Size: int32(pageStats.PageSize),
 		},
 	})
 	if err != nil {

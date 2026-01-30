@@ -33,6 +33,7 @@ var ProviderSet = wire.NewSet(
 	NewGroupServiceClient,
 	NewChatAdapter,
 	NewMessageServiceClient,
+	NewFriendServiceClient,
 )
 
 // Data .

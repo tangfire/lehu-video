@@ -5,7 +5,6 @@ package api.videoChat.service.v1;
 option go_package = "lehu-video/api/videoChat/service/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.videoChat.service.v1";
-
 import "api/videoChat/service/v1/base.proto";
 
 // 消息相关服务
@@ -30,6 +29,15 @@ service MessageService {
 
   // 删除会话
   rpc DeleteConversation(DeleteConversationReq) returns (DeleteConversationResp);
+
+  // 更新消息状态
+  rpc UpdateMessageStatus(UpdateMessageStatusReq) returns (UpdateMessageStatusResp);
+
+  // 获取消息详情
+  rpc GetMessage(GetMessageReq) returns (GetMessageResp);
+
+  // 获取会话详情
+  rpc GetConversation(GetConversationReq) returns (GetConversationResp);
 
   // 清空聊天记录
   rpc ClearMessages(ClearMessagesReq) returns (ClearMessagesResp);
@@ -102,14 +110,6 @@ message Conversation {
   int64 last_msg_time = 6;    // 最后一条消息时间戳
   int64 unread_count = 7;     // 未读消息数
   string updated_at = 8;
-}
-
-// WebSocket相关消息
-message WSMessage {
-  string action = 1;          // 消息类型：send_message, recall_message, read_message等
-  Message message = 2;        // 消息内容
-  int64 timestamp = 3;        // 时间戳
-  string client_msg_id = 4;   // 客户端消息ID（用于消息去重）
 }
 
 // 发送消息请求
@@ -198,10 +198,44 @@ message DeleteConversationResp {
   Metadata meta = 1;
 }
 
-// 清空聊天记录请求
+
+// 更新消息状态请求
+message UpdateMessageStatusReq {
+  int64 message_id = 1;
+  MessageStatus status = 2;
+  int64 operator_id = 3;
+}
+
+message UpdateMessageStatusResp {
+  Metadata meta = 1;
+}
+
+// 获取消息详情请求
+message GetMessageReq {
+  int64 message_id = 1;
+}
+
+message GetMessageResp {
+  Message message = 1;
+  Metadata meta = 2;
+}
+
+// 获取会话详情请求
+message GetConversationReq {
+  int64 user_id = 1;
+  int64 target_id = 2;
+  ConversationType conv_type = 3;
+}
+
+message GetConversationResp {
+  Conversation conversation = 1;
+  Metadata meta = 2;
+}
+
+// 清空聊天记录请求（在已有基础上确认）
 message ClearMessagesReq {
   int64 user_id = 1;
-  int64 target_id = 2;        // 对方ID（用户ID或群ID）
+  int64 target_id = 2;
   ConversationType conv_type = 3;
 }
 

@@ -41,8 +41,8 @@ func (s *CollectionServiceService) RemoveCollection(ctx context.Context, req *pb
 func (s *CollectionServiceService) ListCollection(ctx context.Context, req *pb.ListCollectionReq) (*pb.ListCollectionResp, error) {
 	input := &biz.ListCollectionInput{
 		PageStats: &biz.PageStats{
-			Page:     req.PageStats.Page,
-			PageSize: req.PageStats.Size,
+			Page:     int(req.PageStats.Page),
+			PageSize: int(req.PageStats.Size),
 		},
 	}
 	output, err := s.uc.ListCollection(ctx, input)
@@ -102,8 +102,8 @@ func (s *CollectionServiceService) ListVideo4Collection(ctx context.Context, req
 	input := &biz.ListVideo4CollectionsInput{
 		CollectionId: req.CollectionId,
 		PageStats: &biz.PageStats{
-			Page:     req.PageStats.Page,
-			PageSize: req.PageStats.Size,
+			Page:     int(req.PageStats.Page),
+			PageSize: int(req.PageStats.Size),
 		},
 	}
 	output, err := s.uc.ListVideo4Collection(ctx, input)

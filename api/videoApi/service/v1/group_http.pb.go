@@ -60,7 +60,7 @@ func RegisterGroupServiceHTTPServer(s *http.Server, srv GroupServiceHTTPServer) 
 	r.DELETE("/v1/group/{group_id}/leave", _GroupService_LeaveGroup0_HTTP_Handler(srv))
 	r.DELETE("/v1/group/{group_id}", _GroupService_DismissGroup0_HTTP_Handler(srv))
 	r.GET("/v1/group/{group_id}", _GroupService_GetGroupInfo0_HTTP_Handler(srv))
-	r.GET("/v1/group/joined", _GroupService_ListMyJoinedGroups0_HTTP_Handler(srv))
+	r.POST("/v1/group/joined", _GroupService_ListMyJoinedGroups0_HTTP_Handler(srv))
 }
 
 func _GroupService_CreateGroup0_HTTP_Handler(srv GroupServiceHTTPServer) func(ctx http.Context) error {
@@ -248,6 +248,9 @@ func _GroupService_GetGroupInfo0_HTTP_Handler(srv GroupServiceHTTPServer) func(c
 func _GroupService_ListMyJoinedGroups0_HTTP_Handler(srv GroupServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in ListMyJoinedGroupsReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -378,10 +381,10 @@ func (c *GroupServiceHTTPClientImpl) LeaveGroup(ctx context.Context, in *LeaveGr
 func (c *GroupServiceHTTPClientImpl) ListMyJoinedGroups(ctx context.Context, in *ListMyJoinedGroupsReq, opts ...http.CallOption) (*ListMyJoinedGroupsResp, error) {
 	var out ListMyJoinedGroupsResp
 	pattern := "/v1/group/joined"
-	path := binding.EncodeURL(pattern, in, true)
+	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationGroupServiceListMyJoinedGroups))
 	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

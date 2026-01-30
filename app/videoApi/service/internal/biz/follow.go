@@ -7,14 +7,6 @@ import (
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
-type FollowType int64
-
-var (
-	FOLLOWING FollowType = 0
-	Follower  FollowType = 1
-	BOTH      FollowType = 2
-)
-
 type FollowUser struct {
 	Id          int64
 	Name        string

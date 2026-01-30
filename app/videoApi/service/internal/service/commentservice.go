@@ -48,8 +48,8 @@ func (s *CommentServiceService) RemoveComment(ctx context.Context, req *pb.Remov
 
 func (s *CommentServiceService) ListComment4Video(ctx context.Context, req *pb.ListComment4VideoReq) (*pb.ListComment4VideoResp, error) {
 	pageStats := &biz.PageStats{
-		Page:     req.PageStats.Page,
-		PageSize: req.PageStats.Size,
+		Page:     int(req.PageStats.Page),
+		PageSize: int(req.PageStats.Size),
 	}
 
 	input := &biz.ListComment4VideoInput{
@@ -77,8 +77,8 @@ func (s *CommentServiceService) ListComment4Video(ctx context.Context, req *pb.L
 
 func (s *CommentServiceService) ListChildComment(ctx context.Context, req *pb.ListChildCommentReq) (*pb.ListChildCommentResp, error) {
 	pageStats := &biz.PageStats{
-		Page:     req.PageStats.Page,
-		PageSize: req.PageStats.Size,
+		Page:     int(req.PageStats.Page),
+		PageSize: int(req.PageStats.Size),
 	}
 
 	input := &biz.ListChildCommentInput{

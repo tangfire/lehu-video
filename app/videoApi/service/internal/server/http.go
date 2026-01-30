@@ -42,6 +42,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	collectionService *service.CollectionServiceService,
 	groupService *service.GroupServiceService,
 	messageService *service.MessageServiceService,
+	friendService *service.FriendServiceService,
 	wsService *service.WebSocketService,
 	logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
@@ -84,6 +85,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	v1.RegisterCollectionServiceHTTPServer(srv, collectionService)
 	v1.RegisterGroupServiceHTTPServer(srv, groupService)
 	v1.RegisterMessageServiceHTTPServer(srv, messageService)
+	v1.RegisterFriendServiceHTTPServer(srv, friendService)
 
 	// 注册WebSocket路由 - 使用标准HTTP处理器
 	// 注意：WebSocket需要绕过Kratos的中间件，所以直接使用原始HTTP处理器

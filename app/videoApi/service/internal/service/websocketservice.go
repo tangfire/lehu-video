@@ -14,12 +14,12 @@ type WebSocketService struct {
 	logger    log.Logger
 }
 
-func NewWebSocketService(messageUC *biz.MessageUsecase, logger log.Logger) *WebSocketService {
+func NewWebSocketService(messageUC *biz.MessageUsecase, chat biz.ChatAdapter, logger log.Logger) *WebSocketService {
 	// 创建WebSocket管理器
-	wsManager := websocket.NewManager(logger)
+	wsManager := websocket.NewManager(logger, messageUC, chat)
 
-	// 创建WebSocket处理器
-	wsHandler := websocket.NewHandler(wsManager, messageUC, logger)
+	// 创建WebSocket处理器，传入chat适配器
+	wsHandler := websocket.NewHandler(wsManager, messageUC, chat, logger, "fireshine")
 
 	// 启动WebSocket管理器
 	go wsManager.Start()
@@ -43,4 +43,14 @@ func (s *WebSocketService) BroadcastToUser(userID int64, message []byte) {
 // BroadcastToGroup 向群组所有成员发送消息
 func (s *WebSocketService) BroadcastToGroup(userIDs []int64, message []byte) {
 	s.wsManager.BroadcastToGroup(userIDs, message)
+}
+
+// IsUserOnline 检查用户是否在线
+func (s *WebSocketService) IsUserOnline(userID int64) bool {
+	return s.wsManager.IsUserOnline(userID)
+}
+
+// BatchCheckOnline 批量检查用户在线状态
+func (s *WebSocketService) BatchCheckOnline(userIDs []int64) map[int64]bool {
+	return s.wsManager.BatchCheckOnline(userIDs)
 }

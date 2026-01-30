@@ -8,7 +8,6 @@ type GroupInfo struct {
 	Id        int64     `gorm:"column:id;primaryKey;comment:id"`
 	Name      string    `gorm:"column:name;type:varchar(20);not null;comment:群名称"`
 	Notice    string    `gorm:"column:notice;type:varchar(500);comment:群公告"`
-	Members   []byte    `gorm:"column:members;type:json;comment:群组成员"`
 	MemberCnt int       `gorm:"column:member_cnt;default:1;comment:群人数"`
 	OwnerId   int64     `gorm:"column:owner_id;not null;comment:群主ID"`
 	AddMode   int8      `gorm:"column:add_mode;default:0;comment:加群方式，0.直接，1.审核"`

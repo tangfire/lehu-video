@@ -12,6 +12,7 @@ import (
 	"lehu-video/app/videoChat/service/internal/biz"
 	"lehu-video/app/videoChat/service/internal/conf"
 	"lehu-video/app/videoChat/service/internal/data"
+	"lehu-video/app/videoChat/service/internal/pkg/idgen"
 	"lehu-video/app/videoChat/service/internal/server"
 	"lehu-video/app/videoChat/service/internal/service"
 )
@@ -25,17 +26,27 @@ import (
 // wireApp init kratos application.
 func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Data, logger log.Logger) (*kratos.App, func(), error) {
 	db := data.NewDB(confData, logger)
-	dataData, cleanup, err := data.NewData(db, logger)
+	discovery := data.NewDiscovery(registry)
+	userServiceClient := data.NewUserServiceClient(discovery)
+	dataData, cleanup, err := data.NewData(db, userServiceClient, logger)
 	if err != nil {
 		return nil, nil, err
 	}
 	groupRepo := data.NewGroupRepo(dataData, logger)
 	groupUsecase := biz.NewGroupUsecase(groupRepo, logger)
-	groupServiceService := service.NewGroupServiceService(groupUsecase)
+	groupServiceService := service.NewGroupServiceService(groupUsecase, logger)
 	messageRepo := data.NewMessageRepo(dataData, logger)
-	messageUsecase := biz.NewMessageUsecase(messageRepo, logger)
-	messageServiceService := service.NewMessageServiceService(messageUsecase)
-	grpcServer := server.NewGRPCServer(confServer, groupServiceService, messageServiceService, logger)
+	friendRepo := data.NewFriendRepo(dataData, logger)
+	idGenerator, err := idgen.NewIDGenerator()
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	messageUsecase := biz.NewMessageUsecase(messageRepo, friendRepo, groupRepo, idGenerator, logger)
+	messageServiceService := service.NewMessageServiceService(messageUsecase, logger)
+	friendUsecase := biz.NewFriendUsecase(friendRepo, logger)
+	friendServiceService := service.NewFriendServiceService(friendUsecase, logger)
+	grpcServer := server.NewGRPCServer(confServer, groupServiceService, messageServiceService, friendServiceService, logger)
 	registrar := server.NewRegistrar(registry)
 	app := newApp(logger, grpcServer, registrar)
 	return app, func() {

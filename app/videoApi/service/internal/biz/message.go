@@ -172,7 +172,7 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, input *SendMessageInp
 	messageID, err := uc.chat.SendMessage(ctx, userID, input.ReceiverID, input.ConvType, input.MsgType, input.Content, input.ClientMsgID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("发送消息失败: %v", err)
-		return nil, errors.New("发送消息失败")
+		return nil, err
 	}
 
 	return &SendMessageOutput{
@@ -266,5 +266,69 @@ func (uc *MessageUsecase) DeleteConversation(ctx context.Context, input *DeleteC
 		return errors.New("删除会话失败")
 	}
 
+	return nil
+}
+
+// 新增：更新消息状态
+func (uc *MessageUsecase) UpdateMessageStatus(ctx context.Context, messageID int64, status int32) error {
+	// 验证状态值
+	if status < 0 || status > 99 {
+		return errors.New("无效的消息状态")
+	}
+
+	// 这里通过chat适配器调用chat服务更新状态
+	err := uc.chat.UpdateMessageStatus(ctx, messageID, status)
+	if err != nil {
+		uc.log.WithContext(ctx).Errorf("更新消息状态失败: %v", err)
+		return errors.New("更新消息状态失败")
+	}
+
+	return nil
+}
+
+// 新增：获取消息详情
+func (uc *MessageUsecase) GetMessage(ctx context.Context, messageID int64) (*Message, error) {
+	message, err := uc.chat.GetMessageByID(ctx, messageID)
+	if err != nil {
+		uc.log.WithContext(ctx).Errorf("获取消息详情失败: %v", err)
+		return nil, errors.New("获取消息失败")
+	}
+
+	if message == nil {
+		return nil, errors.New("消息不存在")
+	}
+
+	return message, nil
+}
+
+// 新增：获取会话详情
+func (uc *MessageUsecase) GetConversation(ctx context.Context, targetID int64, convType int32) (*Conversation, error) {
+	userID, err := claims.GetUserId(ctx)
+	if err != nil {
+		return nil, errors.New("获取用户信息失败")
+	}
+
+	conversation, err := uc.chat.GetConversation(ctx, userID, targetID, convType)
+	if err != nil {
+		uc.log.WithContext(ctx).Errorf("获取会话详情失败: %v", err)
+		return nil, errors.New("获取会话失败")
+	}
+
+	return conversation, nil
+}
+
+func (uc *MessageUsecase) GetUnreadCount(ctx context.Context, userID int64) (int64, map[int64]int64, error) {
+	total, results, err := uc.chat.GetUnreadCount(ctx, userID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return total, results, nil
+}
+
+func (uc *MessageUsecase) ClearMessages(ctx context.Context, userID, targetID int64, convType int32) error {
+	err := uc.chat.ClearMessages(ctx, userID, targetID, convType)
+	if err != nil {
+		return err
+	}
 	return nil
 }

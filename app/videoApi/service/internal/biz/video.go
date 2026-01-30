@@ -92,36 +92,6 @@ type ListPublishedVideoOutput struct {
 	Total  int64
 }
 
-// ============ 业务模型 ============
-
-// VideoAuthor 视频作者
-type VideoAuthor struct {
-	ID          int64
-	Name        string
-	Avatar      string
-	IsFollowing bool
-}
-
-// Video 视频
-type Video struct {
-	ID             int64
-	Author         *VideoAuthor
-	PlayURL        string
-	CoverURL       string
-	FavoriteCount  int64
-	CommentCount   int64
-	IsFavorite     bool
-	Title          string
-	IsCollected    bool
-	CollectedCount int64
-}
-
-// FileInfo 文件信息
-type FileInfo struct {
-	ObjectName string `json:"object_name"`
-	Hash       string `json:"hash"`
-}
-
 // ============ VideoUsecase 视频用例 ============
 
 // VideoUsecase 视频业务用例
@@ -283,8 +253,8 @@ func (uc *VideoUsecase) ListPublishedVideo(ctx context.Context, input *ListPubli
 
 	// 获取用户发布的视频
 	total, videos, err := uc.core.ListPublishedVideo(ctx, input.UserID, &PageStats{
-		Page:     int32(input.Page),
-		PageSize: int32(input.PageSize),
+		Page:     int(input.Page),
+		PageSize: int(input.PageSize),
 	})
 	if err != nil {
 		return nil, err

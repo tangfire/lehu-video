@@ -2,17 +2,15 @@ package service
 
 import (
 	"context"
-
 	"github.com/go-kratos/kratos/v2/log"
-	pb "lehu-video/api/videoApi/service/v1"
+	v1 "lehu-video/api/videoApi/service/v1"
 	"lehu-video/app/videoApi/service/internal/biz"
 )
 
 type GroupServiceService struct {
-	pb.UnimplementedGroupServiceServer
-
-	log *log.Helper
+	v1.UnimplementedGroupServiceServer
 	uc  *biz.GroupUsecase
+	log *log.Helper
 }
 
 func NewGroupServiceService(uc *biz.GroupUsecase, logger log.Logger) *GroupServiceService {
@@ -22,7 +20,7 @@ func NewGroupServiceService(uc *biz.GroupUsecase, logger log.Logger) *GroupServi
 	}
 }
 
-func (s *GroupServiceService) CreateGroup(ctx context.Context, req *pb.CreateGroupReq) (*pb.CreateGroupResp, error) {
+func (s *GroupServiceService) CreateGroup(ctx context.Context, req *v1.CreateGroupReq) (*v1.CreateGroupResp, error) {
 	input := &biz.CreateGroupInput{
 		Name:    req.Name,
 		Notice:  req.Notice,
@@ -30,83 +28,81 @@ func (s *GroupServiceService) CreateGroup(ctx context.Context, req *pb.CreateGro
 		Avatar:  req.Avatar,
 	}
 
-	groupID, err := s.uc.CreateGroup(ctx, input)
+	groupId, err := s.uc.CreateGroup(ctx, input)
 	if err != nil {
-		return nil, err
+		return &v1.CreateGroupResp{}, err
 	}
 
-	return &pb.CreateGroupResp{
-		GroupId: groupID,
+	return &v1.CreateGroupResp{
+		GroupId: groupId,
 	}, nil
 }
 
-func (s *GroupServiceService) LoadMyGroup(ctx context.Context, req *pb.LoadMyGroupReq) (*pb.LoadMyGroupResp, error) {
+func (s *GroupServiceService) LoadMyGroup(ctx context.Context, req *v1.LoadMyGroupReq) (*v1.LoadMyGroupResp, error) {
 	input := &biz.LoadMyGroupInput{
-		PageStats: &biz.PageStats{
-			Page:     req.PageStats.Page,
-			PageSize: req.PageStats.Size,
-		},
+		Page:     req.PageStats.Page,
+		PageSize: req.PageStats.Size,
 	}
 
 	output, err := s.uc.LoadMyGroup(ctx, input)
 	if err != nil {
-		return nil, err
+		return &v1.LoadMyGroupResp{}, err
 	}
 
-	var groups []*pb.GroupInfo
-	for _, g := range output.Groups {
-		groups = append(groups, &pb.GroupInfo{
-			Id:        g.ID,
-			Name:      g.Name,
-			Notice:    g.Notice,
-			Members:   g.Members,
-			MemberCnt: int32(g.MemberCnt),
-			OwnerId:   g.OwnerID,
-			AddMode:   g.AddMode,
-			Avatar:    g.Avatar,
-			Status:    g.Status,
-			CreatedAt: g.CreatedAt,
-			UpdatedAt: g.UpdatedAt,
+	// 转换群聊信息
+	var groups []*v1.GroupInfo
+	for _, group := range output.Groups {
+		groups = append(groups, &v1.GroupInfo{
+			Id:        group.ID,
+			Name:      group.Name,
+			Notice:    group.Notice,
+			MemberCnt: int32(group.MemberCnt),
+			OwnerId:   group.OwnerID,
+			AddMode:   group.AddMode,
+			Avatar:    group.Avatar,
+			Status:    group.Status,
+			CreatedAt: group.CreatedAt,
+			UpdatedAt: group.UpdatedAt,
 		})
 	}
 
-	return &pb.LoadMyGroupResp{
+	return &v1.LoadMyGroupResp{
 		Groups: groups,
-		PageStats: &pb.PageStatsResp{
+		PageStats: &v1.PageStatsResp{
 			Total: int32(output.Total),
 		},
 	}, nil
 }
 
-func (s *GroupServiceService) CheckGroupAddMode(ctx context.Context, req *pb.CheckGroupAddModeReq) (*pb.CheckGroupAddModeResp, error) {
+func (s *GroupServiceService) CheckGroupAddMode(ctx context.Context, req *v1.CheckGroupAddModeReq) (*v1.CheckGroupAddModeResp, error) {
 	input := &biz.CheckGroupAddModeInput{
 		GroupID: req.GroupId,
 	}
 
 	output, err := s.uc.CheckGroupAddMode(ctx, input)
 	if err != nil {
-		return nil, err
+		return &v1.CheckGroupAddModeResp{}, err
 	}
 
-	return &pb.CheckGroupAddModeResp{
+	return &v1.CheckGroupAddModeResp{
 		AddMode: output.AddMode,
 	}, nil
 }
 
-func (s *GroupServiceService) EnterGroupDirectly(ctx context.Context, req *pb.EnterGroupDirectlyReq) (*pb.EnterGroupDirectlyResp, error) {
+func (s *GroupServiceService) EnterGroupDirectly(ctx context.Context, req *v1.EnterGroupDirectlyReq) (*v1.EnterGroupDirectlyResp, error) {
 	input := &biz.EnterGroupDirectlyInput{
 		GroupID: req.GroupId,
 	}
 
 	err := s.uc.EnterGroupDirectly(ctx, input)
 	if err != nil {
-		return nil, err
+		return &v1.EnterGroupDirectlyResp{}, err
 	}
 
-	return &pb.EnterGroupDirectlyResp{}, nil
+	return &v1.EnterGroupDirectlyResp{}, nil
 }
 
-func (s *GroupServiceService) ApplyJoinGroup(ctx context.Context, req *pb.ApplyJoinGroupReq) (*pb.ApplyJoinGroupResp, error) {
+func (s *GroupServiceService) ApplyJoinGroup(ctx context.Context, req *v1.ApplyJoinGroupReq) (*v1.ApplyJoinGroupResp, error) {
 	input := &biz.ApplyJoinGroupInput{
 		GroupID:     req.GroupId,
 		ApplyReason: req.ApplyReason,
@@ -114,55 +110,58 @@ func (s *GroupServiceService) ApplyJoinGroup(ctx context.Context, req *pb.ApplyJ
 
 	err := s.uc.ApplyJoinGroup(ctx, input)
 	if err != nil {
-		return nil, err
+		return &v1.ApplyJoinGroupResp{}, err
 	}
 
-	return &pb.ApplyJoinGroupResp{}, nil
+	return &v1.ApplyJoinGroupResp{}, nil
 }
 
-func (s *GroupServiceService) LeaveGroup(ctx context.Context, req *pb.LeaveGroupReq) (*pb.LeaveGroupResp, error) {
+func (s *GroupServiceService) LeaveGroup(ctx context.Context, req *v1.LeaveGroupReq) (*v1.LeaveGroupResp, error) {
 	input := &biz.LeaveGroupInput{
 		GroupID: req.GroupId,
 	}
 
 	err := s.uc.LeaveGroup(ctx, input)
 	if err != nil {
-		return nil, err
+		return &v1.LeaveGroupResp{}, err
 	}
 
-	return &pb.LeaveGroupResp{}, nil
+	return &v1.LeaveGroupResp{}, nil
 }
 
-func (s *GroupServiceService) DismissGroup(ctx context.Context, req *pb.DismissGroupReq) (*pb.DismissGroupResp, error) {
+func (s *GroupServiceService) DismissGroup(ctx context.Context, req *v1.DismissGroupReq) (*v1.DismissGroupResp, error) {
 	input := &biz.DismissGroupInput{
 		GroupID: req.GroupId,
 	}
 
 	err := s.uc.DismissGroup(ctx, input)
 	if err != nil {
-		return nil, err
+		return &v1.DismissGroupResp{}, err
 	}
 
-	return &pb.DismissGroupResp{}, nil
+	return &v1.DismissGroupResp{}, nil
 }
 
-func (s *GroupServiceService) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoReq) (*pb.GetGroupInfoResp, error) {
+func (s *GroupServiceService) GetGroupInfo(ctx context.Context, req *v1.GetGroupInfoReq) (*v1.GetGroupInfoResp, error) {
 	input := &biz.GetGroupInfoInput{
 		GroupID: req.GroupId,
 	}
 
 	output, err := s.uc.GetGroupInfo(ctx, input)
 	if err != nil {
-		return nil, err
+		return &v1.GetGroupInfoResp{}, err
+	}
+
+	if output.Group == nil {
+		return &v1.GetGroupInfoResp{}, nil
 	}
 
 	group := output.Group
-	return &pb.GetGroupInfoResp{
-		Group: &pb.GroupInfo{
+	return &v1.GetGroupInfoResp{
+		Group: &v1.GroupInfo{
 			Id:        group.ID,
 			Name:      group.Name,
 			Notice:    group.Notice,
-			Members:   group.Members,
 			MemberCnt: int32(group.MemberCnt),
 			OwnerId:   group.OwnerID,
 			AddMode:   group.AddMode,
@@ -174,39 +173,36 @@ func (s *GroupServiceService) GetGroupInfo(ctx context.Context, req *pb.GetGroup
 	}, nil
 }
 
-func (s *GroupServiceService) ListMyJoinedGroups(ctx context.Context, req *pb.ListMyJoinedGroupsReq) (*pb.ListMyJoinedGroupsResp, error) {
+func (s *GroupServiceService) ListMyJoinedGroups(ctx context.Context, req *v1.ListMyJoinedGroupsReq) (*v1.ListMyJoinedGroupsResp, error) {
 	input := &biz.ListMyJoinedGroupsInput{
-		PageStats: &biz.PageStats{
-			Page:     req.PageStats.Page,
-			PageSize: req.PageStats.Size,
-		},
+		Page:     req.PageStats.Page,
+		PageSize: req.PageStats.Size,
 	}
 
 	output, err := s.uc.ListMyJoinedGroups(ctx, input)
 	if err != nil {
-		return nil, err
+		return &v1.ListMyJoinedGroupsResp{}, err
 	}
 
-	var groups []*pb.GroupInfo
-	for _, g := range output.Groups {
-		groups = append(groups, &pb.GroupInfo{
-			Id:        g.ID,
-			Name:      g.Name,
-			Notice:    g.Notice,
-			Members:   g.Members,
-			MemberCnt: int32(g.MemberCnt),
-			OwnerId:   g.OwnerID,
-			AddMode:   g.AddMode,
-			Avatar:    g.Avatar,
-			Status:    g.Status,
-			CreatedAt: g.CreatedAt,
-			UpdatedAt: g.UpdatedAt,
+	var groups []*v1.GroupInfo
+	for _, group := range output.Groups {
+		groups = append(groups, &v1.GroupInfo{
+			Id:        group.ID,
+			Name:      group.Name,
+			Notice:    group.Notice,
+			MemberCnt: int32(group.MemberCnt),
+			OwnerId:   group.OwnerID,
+			AddMode:   group.AddMode,
+			Avatar:    group.Avatar,
+			Status:    group.Status,
+			CreatedAt: group.CreatedAt,
+			UpdatedAt: group.UpdatedAt,
 		})
 	}
 
-	return &pb.ListMyJoinedGroupsResp{
+	return &v1.ListMyJoinedGroupsResp{
 		Groups: groups,
-		PageStats: &pb.PageStatsResp{
+		PageStats: &v1.PageStatsResp{
 			Total: int32(output.Total),
 		},
 	}, nil

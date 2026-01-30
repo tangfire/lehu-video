@@ -43,26 +43,6 @@ type ListComment4VideoOutput struct {
 	Total    int64
 }
 
-type Comment struct {
-	Id         int64
-	VideoId    int64
-	ParentId   int64
-	User       *CommentUser
-	ReplyUser  *CommentUser
-	Content    string
-	Date       string
-	LikeCount  int64
-	ReplyCount int64
-	Comments   []*Comment
-}
-
-type CommentUser struct {
-	Id          int64
-	Name        string
-	Avatar      string
-	IsFollowing bool
-}
-
 type CommentUsecase struct {
 	core CoreAdapter
 	log  *log.Helper

@@ -19,16 +19,29 @@ var _ = binding.EncodeURL
 
 const _ = http.SupportPackageIsVersion1
 
+const OperationMessageServiceClearMessages = "/api.videoApi.service.v1.MessageService/ClearMessages"
 const OperationMessageServiceDeleteConversation = "/api.videoApi.service.v1.MessageService/DeleteConversation"
+const OperationMessageServiceGetConversation = "/api.videoApi.service.v1.MessageService/GetConversation"
+const OperationMessageServiceGetMessage = "/api.videoApi.service.v1.MessageService/GetMessage"
+const OperationMessageServiceGetUnreadCount = "/api.videoApi.service.v1.MessageService/GetUnreadCount"
 const OperationMessageServiceListConversations = "/api.videoApi.service.v1.MessageService/ListConversations"
 const OperationMessageServiceListMessages = "/api.videoApi.service.v1.MessageService/ListMessages"
 const OperationMessageServiceMarkMessagesRead = "/api.videoApi.service.v1.MessageService/MarkMessagesRead"
 const OperationMessageServiceRecallMessage = "/api.videoApi.service.v1.MessageService/RecallMessage"
 const OperationMessageServiceSendMessage = "/api.videoApi.service.v1.MessageService/SendMessage"
+const OperationMessageServiceUpdateMessageStatus = "/api.videoApi.service.v1.MessageService/UpdateMessageStatus"
 
 type MessageServiceHTTPServer interface {
+	// ClearMessages 清空聊天记录
+	ClearMessages(context.Context, *ClearMessagesReq) (*ClearMessagesResp, error)
 	// DeleteConversation 删除会话
 	DeleteConversation(context.Context, *DeleteConversationReq) (*DeleteConversationResp, error)
+	// GetConversation 新增：获取会话详情
+	GetConversation(context.Context, *GetConversationReq) (*GetConversationResp, error)
+	// GetMessage 新增：获取消息详情
+	GetMessage(context.Context, *GetMessageReq) (*GetMessageResp, error)
+	// GetUnreadCount 新增：获取未读消息数
+	GetUnreadCount(context.Context, *GetUnreadCountReq) (*GetUnreadCountResp, error)
 	// ListConversations 获取会话列表
 	ListConversations(context.Context, *ListConversationsReq) (*ListConversationsResp, error)
 	// ListMessages 获取消息列表
@@ -39,16 +52,23 @@ type MessageServiceHTTPServer interface {
 	RecallMessage(context.Context, *RecallMessageReq) (*RecallMessageResp, error)
 	// SendMessage 发送消息
 	SendMessage(context.Context, *SendMessageReq) (*SendMessageResp, error)
+	// UpdateMessageStatus 新增：更新消息状态（主要用于WebSocket回调）
+	UpdateMessageStatus(context.Context, *UpdateMessageStatusReq) (*UpdateMessageStatusResp, error)
 }
 
 func RegisterMessageServiceHTTPServer(s *http.Server, srv MessageServiceHTTPServer) {
 	r := s.Route("/")
 	r.POST("/v1/message", _MessageService_SendMessage0_HTTP_Handler(srv))
-	r.GET("/v1/messages", _MessageService_ListMessages0_HTTP_Handler(srv))
+	r.POST("/v1/messages/list", _MessageService_ListMessages0_HTTP_Handler(srv))
 	r.DELETE("/v1/message/{message_id}", _MessageService_RecallMessage0_HTTP_Handler(srv))
 	r.POST("/v1/messages/read", _MessageService_MarkMessagesRead0_HTTP_Handler(srv))
 	r.GET("/v1/conversations", _MessageService_ListConversations0_HTTP_Handler(srv))
 	r.DELETE("/v1/conversation/{conversation_id}", _MessageService_DeleteConversation0_HTTP_Handler(srv))
+	r.DELETE("/v1/messages", _MessageService_ClearMessages0_HTTP_Handler(srv))
+	r.GET("/v1/message/{message_id}", _MessageService_GetMessage0_HTTP_Handler(srv))
+	r.POST("/v1/conversation/detail", _MessageService_GetConversation0_HTTP_Handler(srv))
+	r.GET("/v1/messages/unread-count", _MessageService_GetUnreadCount0_HTTP_Handler(srv))
+	r.POST("/v1/message/status", _MessageService_UpdateMessageStatus0_HTTP_Handler(srv))
 }
 
 func _MessageService_SendMessage0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
@@ -76,6 +96,9 @@ func _MessageService_SendMessage0_HTTP_Handler(srv MessageServiceHTTPServer) fun
 func _MessageService_ListMessages0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in ListMessagesReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -177,13 +200,122 @@ func _MessageService_DeleteConversation0_HTTP_Handler(srv MessageServiceHTTPServ
 	}
 }
 
+func _MessageService_ClearMessages0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ClearMessagesReq
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationMessageServiceClearMessages)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ClearMessages(ctx, req.(*ClearMessagesReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ClearMessagesResp)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _MessageService_GetMessage0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetMessageReq
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationMessageServiceGetMessage)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetMessage(ctx, req.(*GetMessageReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetMessageResp)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _MessageService_GetConversation0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetConversationReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationMessageServiceGetConversation)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetConversation(ctx, req.(*GetConversationReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetConversationResp)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _MessageService_GetUnreadCount0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetUnreadCountReq
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationMessageServiceGetUnreadCount)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetUnreadCount(ctx, req.(*GetUnreadCountReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetUnreadCountResp)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _MessageService_UpdateMessageStatus0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UpdateMessageStatusReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationMessageServiceUpdateMessageStatus)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.UpdateMessageStatus(ctx, req.(*UpdateMessageStatusReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*UpdateMessageStatusResp)
+		return ctx.Result(200, reply)
+	}
+}
+
 type MessageServiceHTTPClient interface {
+	ClearMessages(ctx context.Context, req *ClearMessagesReq, opts ...http.CallOption) (rsp *ClearMessagesResp, err error)
 	DeleteConversation(ctx context.Context, req *DeleteConversationReq, opts ...http.CallOption) (rsp *DeleteConversationResp, err error)
+	GetConversation(ctx context.Context, req *GetConversationReq, opts ...http.CallOption) (rsp *GetConversationResp, err error)
+	GetMessage(ctx context.Context, req *GetMessageReq, opts ...http.CallOption) (rsp *GetMessageResp, err error)
+	GetUnreadCount(ctx context.Context, req *GetUnreadCountReq, opts ...http.CallOption) (rsp *GetUnreadCountResp, err error)
 	ListConversations(ctx context.Context, req *ListConversationsReq, opts ...http.CallOption) (rsp *ListConversationsResp, err error)
 	ListMessages(ctx context.Context, req *ListMessagesReq, opts ...http.CallOption) (rsp *ListMessagesResp, err error)
 	MarkMessagesRead(ctx context.Context, req *MarkMessagesReadReq, opts ...http.CallOption) (rsp *MarkMessagesReadResp, err error)
 	RecallMessage(ctx context.Context, req *RecallMessageReq, opts ...http.CallOption) (rsp *RecallMessageResp, err error)
 	SendMessage(ctx context.Context, req *SendMessageReq, opts ...http.CallOption) (rsp *SendMessageResp, err error)
+	UpdateMessageStatus(ctx context.Context, req *UpdateMessageStatusReq, opts ...http.CallOption) (rsp *UpdateMessageStatusResp, err error)
 }
 
 type MessageServiceHTTPClientImpl struct {
@@ -194,6 +326,19 @@ func NewMessageServiceHTTPClient(client *http.Client) MessageServiceHTTPClient {
 	return &MessageServiceHTTPClientImpl{client}
 }
 
+func (c *MessageServiceHTTPClientImpl) ClearMessages(ctx context.Context, in *ClearMessagesReq, opts ...http.CallOption) (*ClearMessagesResp, error) {
+	var out ClearMessagesResp
+	pattern := "/v1/messages"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationMessageServiceClearMessages))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *MessageServiceHTTPClientImpl) DeleteConversation(ctx context.Context, in *DeleteConversationReq, opts ...http.CallOption) (*DeleteConversationResp, error) {
 	var out DeleteConversationResp
 	pattern := "/v1/conversation/{conversation_id}"
@@ -201,6 +346,45 @@ func (c *MessageServiceHTTPClientImpl) DeleteConversation(ctx context.Context, i
 	opts = append(opts, http.Operation(OperationMessageServiceDeleteConversation))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *MessageServiceHTTPClientImpl) GetConversation(ctx context.Context, in *GetConversationReq, opts ...http.CallOption) (*GetConversationResp, error) {
+	var out GetConversationResp
+	pattern := "/v1/conversation/detail"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationMessageServiceGetConversation))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *MessageServiceHTTPClientImpl) GetMessage(ctx context.Context, in *GetMessageReq, opts ...http.CallOption) (*GetMessageResp, error) {
+	var out GetMessageResp
+	pattern := "/v1/message/{message_id}"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationMessageServiceGetMessage))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *MessageServiceHTTPClientImpl) GetUnreadCount(ctx context.Context, in *GetUnreadCountReq, opts ...http.CallOption) (*GetUnreadCountResp, error) {
+	var out GetUnreadCountResp
+	pattern := "/v1/messages/unread-count"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationMessageServiceGetUnreadCount))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -222,11 +406,11 @@ func (c *MessageServiceHTTPClientImpl) ListConversations(ctx context.Context, in
 
 func (c *MessageServiceHTTPClientImpl) ListMessages(ctx context.Context, in *ListMessagesReq, opts ...http.CallOption) (*ListMessagesResp, error) {
 	var out ListMessagesResp
-	pattern := "/v1/messages"
-	path := binding.EncodeURL(pattern, in, true)
+	pattern := "/v1/messages/list"
+	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationMessageServiceListMessages))
 	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -264,6 +448,19 @@ func (c *MessageServiceHTTPClientImpl) SendMessage(ctx context.Context, in *Send
 	pattern := "/v1/message"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationMessageServiceSendMessage))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *MessageServiceHTTPClientImpl) UpdateMessageStatus(ctx context.Context, in *UpdateMessageStatusReq, opts ...http.CallOption) (*UpdateMessageStatusResp, error) {
+	var out UpdateMessageStatusResp
+	pattern := "/v1/message/status"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationMessageServiceUpdateMessageStatus))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {

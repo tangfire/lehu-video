@@ -6,24 +6,28 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/google/uuid"
 )
+
+// IDGenerator ID生成器接口
+type IDGenerator interface {
+	Generate() int64
+}
 
 // 消息内容
 type MessageContent struct {
-	Text          string `json:"text,omitempty"`
-	ImageURL      string `json:"image_url,omitempty"`
-	ImageWidth    int64  `json:"image_width,omitempty"`
-	ImageHeight   int64  `json:"image_height,omitempty"`
-	VoiceURL      string `json:"voice_url,omitempty"`
-	VoiceDuration int64  `json:"voice_duration,omitempty"`
-	VideoURL      string `json:"video_url,omitempty"`
-	VideoCover    string `json:"video_cover,omitempty"`
-	VideoDuration int64  `json:"video_duration,omitempty"`
-	FileURL       string `json:"file_url,omitempty"`
-	FileName      string `json:"file_name,omitempty"`
-	FileSize      int64  `json:"file_size,omitempty"`
-	Extra         string `json:"extra,omitempty"`
+	Text          string
+	ImageURL      string
+	ImageWidth    int64
+	ImageHeight   int64
+	VoiceURL      string
+	VoiceDuration int64
+	VideoURL      string
+	VideoCover    string
+	VideoDuration int64
+	FileURL       string
+	FileName      string
+	FileSize      int64
+	Extra         string
 }
 
 // 消息领域对象
@@ -48,7 +52,7 @@ type Conversation struct {
 	TargetID    int64
 	LastMessage string
 	LastMsgType int32
-	LastMsgTime time.Time
+	LastMsgTime time.Time // 统一使用time.Time
 	UnreadCount int
 	IsPinned    bool
 	IsMuted     bool
@@ -111,7 +115,7 @@ type GetUnreadCountResult struct {
 
 type ListConversationsQuery struct {
 	UserID    int64
-	PageStats PageStats
+	PageStats *PageStats
 }
 
 type ListConversationsResult struct {
@@ -126,6 +130,16 @@ type DeleteConversationCommand struct {
 
 type DeleteConversationResult struct{}
 
+// 新增：更新消息状态Command
+type UpdateMessageStatusCommand struct {
+	MessageID  int64
+	Status     int32
+	OperatorID int64
+}
+
+type UpdateMessageStatusResult struct{}
+
+// 新增：清空消息Command
 type ClearMessagesCommand struct {
 	UserID   int64
 	TargetID int64
@@ -134,14 +148,6 @@ type ClearMessagesCommand struct {
 
 type ClearMessagesResult struct{}
 
-// WebSocket消息
-type WSMessage struct {
-	Action      string
-	Message     *Message
-	Timestamp   int64
-	ClientMsgID string
-}
-
 // 消息仓储接口
 type MessageRepo interface {
 	// 消息操作
@@ -149,7 +155,7 @@ type MessageRepo interface {
 	GetMessageByID(ctx context.Context, id int64) (*Message, error)
 	UpdateMessageStatus(ctx context.Context, id int64, status int32) error
 	RecallMessage(ctx context.Context, id int64) error
-	ListMessages(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64, limit int) ([]*Message, error)
+	ListMessages(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64, limit int) ([]*Message, bool, error)
 	CountUnreadMessages(ctx context.Context, userID, targetID int64, convType int32) (int64, error)
 	MarkMessagesAsRead(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64) error
 
@@ -161,34 +167,29 @@ type MessageRepo interface {
 	ListConversations(ctx context.Context, userID int64, offset, limit int) ([]*Conversation, error)
 	CountConversations(ctx context.Context, userID int64) (int64, error)
 
-	// 消息已读记录
-	CreateMessageRead(ctx context.Context, messageID, userID int64) error
+	// 统计总未读数
+	CountTotalUnread(ctx context.Context, userID int64) (int64, error)
+	CountUnreadByConversations(ctx context.Context, userID int64) (map[int64]int64, error)
 
-	// 用户消息设置
-	GetUserMessageSetting(ctx context.Context, userID, targetID int64, convType int32) (*UserMessageSetting, error)
-	UpdateUserMessageSetting(ctx context.Context, setting *UserMessageSetting) error
-}
-
-// 用户消息设置领域对象
-type UserMessageSetting struct {
-	ID        int64
-	UserID    int64
-	TargetID  int64
-	ConvType  int32
-	IsMuted   bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	// 新增方法
+	DeleteMessagesByConversation(ctx context.Context, userID, targetID int64, convType int32) error // 新增：清空聊天记录
 }
 
 type MessageUsecase struct {
-	repo MessageRepo
-	log  *log.Helper
+	repo       MessageRepo
+	friendRepo FriendRepo  // 用于检查好友关系
+	groupRepo  GroupRepo   // 用于检查群成员关系
+	idGen      IDGenerator // ID生成器
+	log        *log.Helper
 }
 
-func NewMessageUsecase(repo MessageRepo, logger log.Logger) *MessageUsecase {
+func NewMessageUsecase(repo MessageRepo, friendRepo FriendRepo, groupRepo GroupRepo, idGen IDGenerator, logger log.Logger) *MessageUsecase {
 	return &MessageUsecase{
-		repo: repo,
-		log:  log.NewHelper(logger),
+		repo:       repo,
+		friendRepo: friendRepo,
+		groupRepo:  groupRepo,
+		idGen:      idGen,
+		log:        log.NewHelper(logger),
 	}
 }
 
@@ -225,19 +226,44 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, cmd *SendMessageComma
 		}
 	}
 
+	// 检查权限
+	if cmd.ConvType == 0 { // 单聊
+		// 检查是否是好友关系
+		isFriend, _, err := uc.friendRepo.CheckFriendRelation(ctx, cmd.SenderID, cmd.ReceiverID)
+		if err != nil {
+			return nil, fmt.Errorf("检查好友关系失败")
+		}
+		if !isFriend {
+			return nil, fmt.Errorf("你们不是好友，无法发送消息")
+		}
+	} else if cmd.ConvType == 1 { // 群聊
+		// 检查是否是群成员
+		isMember, err := uc.groupRepo.IsGroupMember(ctx, cmd.ReceiverID, cmd.SenderID)
+		if err != nil {
+			return nil, fmt.Errorf("检查群成员关系失败")
+		}
+		if !isMember {
+			return nil, fmt.Errorf("你不是群成员，无法发送消息")
+		}
+	}
+
+	// 使用ID生成器生成消息ID
+	messageID := uc.idGen.Generate()
+
 	// 创建消息
+	now := time.Now()
 	message := &Message{
+		ID:         messageID,
 		SenderID:   cmd.SenderID,
 		ReceiverID: cmd.ReceiverID,
 		ConvType:   cmd.ConvType,
 		MsgType:    cmd.MsgType,
 		Content:    cmd.Content,
-		Status:     0, // 发送中
+		Status:     1, // 已发送
 		IsRecalled: false,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
-	message.ID = int64(uuid.New().ID())
 
 	// 保存消息
 	err := uc.repo.CreateMessage(ctx, message)
@@ -247,35 +273,62 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, cmd *SendMessageComma
 	}
 
 	// 创建或更新会话
-	conv := &Conversation{
+	lastMessageText := uc.getLastMessageText(cmd.MsgType, cmd.Content)
+
+	// 为发送者创建或更新会话
+	senderConv := &Conversation{
 		UserID:      cmd.SenderID,
 		Type:        cmd.ConvType,
 		TargetID:    cmd.ReceiverID,
-		LastMessage: uc.getLastMessageText(cmd.MsgType, cmd.Content),
+		LastMessage: lastMessageText,
 		LastMsgType: cmd.MsgType,
-		LastMsgTime: time.Now(),
+		LastMsgTime: now,
 		UnreadCount: 0,
-		UpdatedAt:   time.Now(),
+		UpdatedAt:   now,
 	}
 
-	// 如果是群聊，为所有群成员创建会话
-	if cmd.ConvType == 1 { // 群聊
-		// TODO: 获取群成员列表，为每个成员创建会话（不包括发送者）
-		// 这里需要调用GroupRepo来获取群成员
-	} else {
-		// 单聊：为发送者创建会话
-		err = uc.repo.CreateOrUpdateConversation(ctx, conv)
-		if err != nil {
-			uc.log.Errorf("更新会话失败: %v", err)
-			// 不返回错误，消息已发送成功
+	err = uc.repo.CreateOrUpdateConversation(ctx, senderConv)
+	if err != nil {
+		uc.log.Errorf("更新发送者会话失败: %v", err)
+	}
+
+	// 如果是单聊，为接收者创建或更新会话
+	if cmd.ConvType == 0 {
+		receiverConv := &Conversation{
+			UserID:      cmd.ReceiverID,
+			Type:        cmd.ConvType,
+			TargetID:    cmd.SenderID,
+			LastMessage: lastMessageText,
+			LastMsgType: cmd.MsgType,
+			LastMsgTime: now,
+			UnreadCount: 1,
+			UpdatedAt:   now,
 		}
 
-		// 为接收者创建会话
-		conv.UserID = cmd.ReceiverID
-		conv.UnreadCount = 1
-		err = uc.repo.CreateOrUpdateConversation(ctx, conv)
+		err = uc.repo.CreateOrUpdateConversation(ctx, receiverConv)
 		if err != nil {
 			uc.log.Errorf("更新接收者会话失败: %v", err)
+		}
+	} else if cmd.ConvType == 1 {
+		// 群聊：获取所有群成员（除发送者外），为每个成员更新会话
+		members, err := uc.groupRepo.GetGroupMembers(ctx, cmd.ReceiverID)
+		if err == nil {
+			for _, memberID := range members {
+				if memberID == cmd.SenderID {
+					continue
+				}
+				memberConv := &Conversation{
+					UserID:      memberID,
+					Type:        cmd.ConvType,
+					TargetID:    cmd.ReceiverID,
+					LastMessage: lastMessageText,
+					LastMsgType: cmd.MsgType,
+					LastMsgTime: now,
+					UnreadCount: 1,
+					UpdatedAt:   now,
+				}
+				_ = uc.repo.CreateOrUpdateConversation(ctx, memberConv)
+			}
 		}
 	}
 
@@ -287,6 +340,9 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, cmd *SendMessageComma
 func (uc *MessageUsecase) getLastMessageText(msgType int32, content *MessageContent) string {
 	switch msgType {
 	case 0: // 文本
+		if len(content.Text) > 50 {
+			return content.Text[:50] + "..."
+		}
 		return content.Text
 	case 1: // 图片
 		return "[图片]"
@@ -296,10 +352,8 @@ func (uc *MessageUsecase) getLastMessageText(msgType int32, content *MessageCont
 		return "[视频]"
 	case 4: // 文件
 		return "[文件] " + content.FileName
-	case 99: // 系统消息
-		return "[系统消息]"
 	default:
-		return "[未知消息]"
+		return "[消息]"
 	}
 }
 
@@ -312,19 +366,16 @@ func (uc *MessageUsecase) ListMessages(ctx context.Context, query *ListMessagesQ
 		query.Limit = 100
 	}
 
-	messages, err := uc.repo.ListMessages(ctx, query.UserID, query.TargetID, query.ConvType, query.LastMsgID, query.Limit)
+	// 使用改进的ListMessages方法，返回是否还有更多
+	messages, hasMore, err := uc.repo.ListMessages(ctx, query.UserID, query.TargetID, query.ConvType, query.LastMsgID, query.Limit)
 	if err != nil {
 		uc.log.Errorf("查询消息列表失败: %v", err)
 		return nil, fmt.Errorf("查询消息失败")
 	}
 
 	var lastMsgID int64
-	hasMore := false
 	if len(messages) > 0 {
 		lastMsgID = messages[len(messages)-1].ID
-		if len(messages) == query.Limit {
-			hasMore = true
-		}
 	}
 
 	return &ListMessagesResult{
@@ -367,13 +418,25 @@ func (uc *MessageUsecase) RecallMessage(ctx context.Context, cmd *RecallMessageC
 }
 
 func (uc *MessageUsecase) MarkMessagesRead(ctx context.Context, cmd *MarkMessagesReadCommand) (*MarkMessagesReadResult, error) {
+	// 参数验证
+	if cmd.LastMsgID < 0 {
+		cmd.LastMsgID = 0
+	}
+
+	// ✅ 群聊：不需要标记已读，直接返回成功
+	if cmd.ConvType == 1 {
+		// 群聊不标记已读，直接返回成功
+		return &MarkMessagesReadResult{}, nil
+	}
+
+	// 单聊：标记消息已读
 	err := uc.repo.MarkMessagesAsRead(ctx, cmd.UserID, cmd.TargetID, cmd.ConvType, cmd.LastMsgID)
 	if err != nil {
 		uc.log.Errorf("标记消息已读失败: %v", err)
 		return nil, fmt.Errorf("标记消息已读失败")
 	}
 
-	// 更新会话未读计数
+	// 更新会话未读计数为0
 	conv, err := uc.repo.GetConversation(ctx, cmd.UserID, cmd.TargetID, cmd.ConvType)
 	if err == nil && conv != nil {
 		conv.UnreadCount = 0
@@ -382,6 +445,27 @@ func (uc *MessageUsecase) MarkMessagesRead(ctx context.Context, cmd *MarkMessage
 	}
 
 	return &MarkMessagesReadResult{}, nil
+}
+
+func (uc *MessageUsecase) GetUnreadCount(ctx context.Context, query *GetUnreadCountQuery) (*GetUnreadCountResult, error) {
+	// 获取总未读数（只统计单聊）
+	total, err := uc.repo.CountTotalUnread(ctx, query.UserID)
+	if err != nil {
+		uc.log.Errorf("统计总未读数失败: %v", err)
+		return nil, fmt.Errorf("统计未读数失败")
+	}
+
+	// 获取会话未读数（只统计单聊）
+	convUnread, err := uc.repo.CountUnreadByConversations(ctx, query.UserID)
+	if err != nil {
+		uc.log.Errorf("统计会话未读数失败: %v", err)
+		return nil, fmt.Errorf("统计未读数失败")
+	}
+
+	return &GetUnreadCountResult{
+		TotalUnread: total,
+		ConvUnread:  convUnread,
+	}, nil
 }
 
 func (uc *MessageUsecase) ListConversations(ctx context.Context, query *ListConversationsQuery) (*ListConversationsResult, error) {
@@ -398,7 +482,7 @@ func (uc *MessageUsecase) ListConversations(ctx context.Context, query *ListConv
 
 	offset := (query.PageStats.Page - 1) * query.PageStats.PageSize
 
-	conversations, err := uc.repo.ListConversations(ctx, query.UserID, int(offset), int(query.PageStats.PageSize))
+	conversations, err := uc.repo.ListConversations(ctx, query.UserID, offset, query.PageStats.PageSize)
 	if err != nil {
 		uc.log.Errorf("查询会话列表失败: %v", err)
 		return nil, fmt.Errorf("查询会话列表失败")
@@ -441,4 +525,94 @@ func (uc *MessageUsecase) DeleteConversation(ctx context.Context, cmd *DeleteCon
 	}
 
 	return &DeleteConversationResult{}, nil
+}
+
+// 更新消息状态
+func (uc *MessageUsecase) UpdateMessageStatus(ctx context.Context, cmd *UpdateMessageStatusCommand) (*UpdateMessageStatusResult, error) {
+	// 验证参数
+	if cmd.MessageID <= 0 {
+		return nil, fmt.Errorf("消息ID不能为空")
+	}
+
+	// 验证状态值
+	if cmd.Status < 0 || (cmd.Status > 4 && cmd.Status != 99) {
+		return nil, fmt.Errorf("无效的消息状态")
+	}
+
+	// 检查消息是否存在
+	message, err := uc.repo.GetMessageByID(ctx, cmd.MessageID)
+	if err != nil {
+		uc.log.Errorf("查询消息失败: %v", err)
+		return nil, fmt.Errorf("消息不存在")
+	}
+
+	if message == nil {
+		return nil, fmt.Errorf("消息不存在")
+	}
+
+	// 检查权限：只能更新自己相关消息的状态
+	if cmd.OperatorID > 0 {
+		if message.SenderID != cmd.OperatorID && message.ReceiverID != cmd.OperatorID {
+			return nil, fmt.Errorf("无权更新此消息状态")
+		}
+	}
+
+	// 更新消息状态
+	err = uc.repo.UpdateMessageStatus(ctx, cmd.MessageID, cmd.Status)
+	if err != nil {
+		uc.log.Errorf("更新消息状态失败: %v", err)
+		return nil, fmt.Errorf("更新消息状态失败")
+	}
+
+	return &UpdateMessageStatusResult{}, nil
+}
+
+// 获取消息详情
+func (uc *MessageUsecase) GetMessage(ctx context.Context, messageID int64) (*Message, error) {
+	message, err := uc.repo.GetMessageByID(ctx, messageID)
+	if err != nil {
+		uc.log.Errorf("获取消息详情失败: %v", err)
+		return nil, fmt.Errorf("获取消息失败")
+	}
+
+	if message == nil {
+		return nil, fmt.Errorf("消息不存在")
+	}
+
+	return message, nil
+}
+
+// 获取会话详情
+func (uc *MessageUsecase) GetConversation(ctx context.Context, userID, targetID int64, convType int32) (*Conversation, error) {
+	conversation, err := uc.repo.GetConversation(ctx, userID, targetID, convType)
+	if err != nil {
+		uc.log.Errorf("获取会话详情失败: %v", err)
+		return nil, fmt.Errorf("获取会话失败")
+	}
+
+	return conversation, nil
+}
+
+// 清空聊天记录
+func (uc *MessageUsecase) ClearMessages(ctx context.Context, userID, targetID int64, convType int32) (*ClearMessagesResult, error) {
+	// 检查权限：只能清空自己的聊天记录
+	// 这里可以添加额外的权限检查，比如检查是否是好友或群成员
+
+	err := uc.repo.DeleteMessagesByConversation(ctx, userID, targetID, convType)
+	if err != nil {
+		uc.log.Errorf("清空聊天记录失败: %v", err)
+		return nil, fmt.Errorf("清空聊天记录失败")
+	}
+
+	// 更新会话
+	conv, err := uc.repo.GetConversation(ctx, userID, targetID, convType)
+	if err == nil && conv != nil {
+		// 清空最后一条消息和未读计数
+		conv.LastMessage = ""
+		conv.UnreadCount = 0
+		conv.UpdatedAt = time.Now()
+		_ = uc.repo.CreateOrUpdateConversation(ctx, conv)
+	}
+
+	return &ClearMessagesResult{}, nil
 }

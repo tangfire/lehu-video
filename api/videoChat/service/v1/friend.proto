@@ -1,0 +1,203 @@
+syntax = "proto3";
+
+package api.videoChat.service.v1;
+
+option go_package = "lehu-video/api/videoChat/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.videoChat.service.v1";
+import "api/videoChat/service/v1/base.proto";
+
+// 好友相关服务
+service FriendService {
+	// 搜索用户
+	rpc SearchUsers(SearchUsersReq) returns (SearchUsersResp);
+
+	// 发送好友申请
+	rpc SendFriendApply(SendFriendApplyReq) returns (SendFriendApplyResp);
+
+	// 处理好友申请
+	rpc HandleFriendApply(HandleFriendApplyReq) returns (HandleFriendApplyResp);
+
+	// 获取好友申请列表
+	rpc ListFriendApplies(ListFriendAppliesReq) returns (ListFriendAppliesResp);
+
+	// 获取好友列表
+	rpc ListFriends(ListFriendsReq) returns (ListFriendsResp);
+
+	// 删除好友
+	rpc DeleteFriend(DeleteFriendReq) returns (DeleteFriendResp);
+
+	// 更新好友备注
+	rpc UpdateFriendRemark(UpdateFriendRemarkReq) returns (UpdateFriendRemarkResp);
+
+	// 设置好友分组
+	rpc SetFriendGroup(SetFriendGroupReq) returns (SetFriendGroupResp);
+
+	// 检查好友关系
+	rpc CheckFriendRelation(CheckFriendRelationReq) returns (CheckFriendRelationResp);
+
+	// 获取用户在线状态
+	rpc GetUserOnlineStatus(GetUserOnlineStatusReq) returns (GetUserOnlineStatusResp);
+
+	// 批量获取用户在线状态
+	rpc BatchGetUserOnlineStatus(BatchGetUserOnlineStatusReq) returns (BatchGetUserOnlineStatusResp);
+}
+
+// 简化用户信息
+message User {
+	int64 id = 1;
+	string name = 2;
+	string avatar = 3;
+	string nickname = 4;
+	int32 gender = 5;
+	string signature = 6;
+	int32 online_status = 7;
+	string last_online_time = 8;
+}
+
+// 好友信息
+message FriendInfo {
+	int64 id = 1;
+	User friend = 2;
+	string remark = 3;
+	string group_name = 4;
+	int32 status = 5;
+	string created_at = 6;
+}
+
+// 好友申请信息
+message FriendApplyInfo {
+	int64 id = 1;
+	User applicant = 2;
+	User receiver = 3;
+	string apply_reason = 4;
+	int32 status = 5;
+	string handled_at = 6;
+	string created_at = 7;
+}
+
+// 搜索用户请求
+message SearchUsersReq {
+	string keyword = 1;
+	PageStatsReq page_stats = 2;
+}
+
+message SearchUsersResp {
+	repeated User users = 1;
+	Metadata meta = 2;
+	PageStatsResp page_stats = 3;
+}
+
+// 发送好友申请请求
+message SendFriendApplyReq {
+	int64 applicant_id = 1;
+	int64 receiver_id = 2;
+	string apply_reason = 3;
+}
+
+message SendFriendApplyResp {
+	int64 apply_id = 1;
+	Metadata meta = 2;
+}
+
+// 处理好友申请请求
+message HandleFriendApplyReq {
+	int64 apply_id = 1;
+	int64 handler_id = 2;
+	bool accept = 3;
+}
+
+message HandleFriendApplyResp {
+	Metadata meta = 1;
+}
+
+// 获取好友申请列表请求
+message ListFriendAppliesReq {
+	int64 user_id = 1;
+	PageStatsReq page_stats = 2;
+	optional int32 status = 3;
+}
+
+message ListFriendAppliesResp {
+	repeated FriendApplyInfo applies = 1;
+	Metadata meta = 2;
+	PageStatsResp page_stats = 3;
+}
+
+// 获取好友列表请求
+message ListFriendsReq {
+	int64 user_id = 1;
+	PageStatsReq page_stats = 2;
+	optional string group_name = 3;
+}
+
+message ListFriendsResp {
+	repeated FriendInfo friends = 1;
+	Metadata meta = 2;
+	PageStatsResp page_stats = 3;
+}
+
+// 删除好友请求
+message DeleteFriendReq {
+	int64 user_id = 1;
+	int64 friend_id = 2;
+}
+
+message DeleteFriendResp {
+	Metadata meta = 1;
+}
+
+// 更新好友备注请求
+message UpdateFriendRemarkReq {
+	int64 user_id = 1;
+	int64 friend_id = 2;
+	string remark = 3;
+}
+
+message UpdateFriendRemarkResp {
+	Metadata meta = 1;
+}
+
+// 设置好友分组请求
+message SetFriendGroupReq {
+	int64 user_id = 1;
+	int64 friend_id = 2;
+	string group_name = 3;
+}
+
+message SetFriendGroupResp {
+	Metadata meta = 1;
+}
+
+// 检查好友关系请求
+message CheckFriendRelationReq {
+	int64 user_id = 1;
+	int64 target_id = 2;
+}
+
+message CheckFriendRelationResp {
+	bool is_friend = 1;
+	int32 status = 2;
+	Metadata meta = 3;
+}
+
+// 获取用户在线状态请求
+message GetUserOnlineStatusReq {
+	int64 user_id = 1;
+}
+
+message GetUserOnlineStatusResp {
+	int32 online_status = 1;
+	string last_online_time = 2;
+	Metadata meta = 3;
+}
+
+// 批量获取用户在线状态请求
+message BatchGetUserOnlineStatusReq {
+	repeated int64 user_ids = 1;
+}
+
+message BatchGetUserOnlineStatusResp {
+	map<int64, int32> online_status = 1;
+	Metadata meta = 2;
+}

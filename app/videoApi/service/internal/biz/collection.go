@@ -47,13 +47,6 @@ type UpdateCollectionInput struct {
 	Description string
 }
 
-type Collection struct {
-	Id          int64
-	UserId      int64
-	Name        string
-	Description string
-}
-
 type CollectionUsecase struct {
 	core      CoreAdapter
 	assembler *VideoAssembler

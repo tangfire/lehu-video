@@ -3,9 +3,11 @@ package biz
 import (
 	"context"
 	"errors"
+	"strings"
+	"time"
+
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
-	"time"
 )
 
 type User struct {
@@ -17,6 +19,10 @@ type User struct {
 	Avatar          string
 	BackgroundImage string
 	Signature       string
+	Nickname        string
+	Gender          int32
+	OnlineStatus    int32
+	LastOnlineTime  time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -25,7 +31,6 @@ func (u *User) GenerateId() {
 	u.Id = int64(uuid.New().ID())
 }
 
-// ✅ 使用Command/Result模式
 type CreateUserCommand struct {
 	AccountId int64
 	Mobile    string
@@ -48,7 +53,6 @@ type UpdateUserInfoResult struct {
 	// 更新成功不需要额外数据
 }
 
-// ✅ 查询操作使用Query/Result
 type GetUserInfoQuery struct {
 	UserId    int64
 	AccountId int64
@@ -66,12 +70,28 @@ type GetUserByIdListResult struct {
 	UserList []*User
 }
 
+// 新增：搜索用户查询
+type SearchUsersQuery struct {
+	Keyword  string
+	Page     int
+	PageSize int
+}
+
+// 新增：搜索用户结果
+type SearchUsersResult struct {
+	Users []*User
+	Total int64
+}
+
 type UserRepo interface {
 	CreateUser(ctx context.Context, user *User) error
 	UpdateUser(ctx context.Context, user *User) error
 	GetUserById(ctx context.Context, id int64) (bool, *User, error)
 	GetUserByAccountId(ctx context.Context, accountId int64) (bool, *User, error)
 	GetUserByIdList(ctx context.Context, idList []int64) ([]*User, error)
+
+	// 新增：搜索用户
+	SearchUsers(ctx context.Context, keyword string, offset, limit int) ([]*User, int64, error)
 }
 
 type UserUsecase struct {
@@ -136,7 +156,6 @@ func (uc *UserUsecase) UpdateUser(ctx context.Context, cmd *UpdateUserInfoComman
 }
 
 func (uc *UserUsecase) GetUserInfo(ctx context.Context, query *GetUserInfoQuery) (*GetUserInfoResult, error) {
-	// 参数验证
 	if query.UserId == 0 && query.AccountId == 0 {
 		return nil, errors.New("参数错误：必须提供UserId或AccountId")
 	}
@@ -145,22 +164,17 @@ func (uc *UserUsecase) GetUserInfo(ctx context.Context, query *GetUserInfoQuery)
 	var exist bool
 	var err error
 
-	// 优先通过UserId查找
 	if query.UserId != 0 {
 		exist, existUser, err = uc.repo.GetUserById(ctx, query.UserId)
 	} else {
-		// 通过AccountId查找
 		exist, existUser, err = uc.repo.GetUserByAccountId(ctx, query.AccountId)
 	}
 
-	// 处理错误
 	if err != nil {
-		// 记录错误日志
 		uc.log.Error("获取用户信息失败", "error", err, "userId", query.UserId, "accountId", query.AccountId)
 		return nil, err
 	}
 
-	// 用户不存在
 	if !exist {
 		return nil, errors.New("用户不存在")
 	}
@@ -178,5 +192,40 @@ func (uc *UserUsecase) GetUserByIdList(ctx context.Context, query *GetUserByIdLi
 
 	return &GetUserByIdListResult{
 		UserList: userList,
+	}, nil
+}
+
+// 新增：搜索用户实现
+func (uc *UserUsecase) SearchUsers(ctx context.Context, query *SearchUsersQuery) (*SearchUsersResult, error) {
+	// 分页参数验证
+	if query.Page < 1 {
+		query.Page = 1
+	}
+	if query.PageSize <= 0 {
+		query.PageSize = 20
+	}
+	if query.PageSize > 100 {
+		query.PageSize = 100
+	}
+
+	offset := (query.Page - 1) * query.PageSize
+
+	// 如果关键词为空，返回空结果
+	if strings.TrimSpace(query.Keyword) == "" {
+		return &SearchUsersResult{
+			Users: []*User{},
+			Total: 0,
+		}, nil
+	}
+
+	users, total, err := uc.repo.SearchUsers(ctx, query.Keyword, offset, query.PageSize)
+	if err != nil {
+		uc.log.Errorf("搜索用户失败: %v", err)
+		return nil, errors.New("搜索用户失败")
+	}
+
+	return &SearchUsersResult{
+		Users: users,
+		Total: total,
 	}, nil
 }

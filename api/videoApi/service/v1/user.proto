@@ -20,6 +20,10 @@ message User {
 	int64 total_favorited = 10; // 获赞数量
 	int64 work_count = 11; // 作品数量
 	int64 favorite_count = 12; // 点赞数量
+	string nickname = 13;
+	int32 gender = 14;
+	int32 online_status = 15;
+	string last_online_time = 16;
 }
 
 

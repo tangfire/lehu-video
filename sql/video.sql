@@ -182,7 +182,6 @@ CREATE TABLE `group_info` (
                               `id` bigint(20) NOT NULL COMMENT '群聊ID',
                               `name` varchar(20) NOT NULL COMMENT '群名称',
                               `notice` varchar(500) DEFAULT NULL COMMENT '群公告',
-                              `members` json DEFAULT NULL COMMENT '群组成员',
                               `member_cnt` int(11) DEFAULT '1' COMMENT '群人数',
                               `owner_id` bigint(20) NOT NULL COMMENT '群主ID',
                               `add_mode` tinyint(4) DEFAULT '0' COMMENT '加群方式，0.直接，1.审核',
@@ -271,30 +270,48 @@ CREATE TABLE `conversation` (
                                 KEY `idx_last_msg_time` (`last_msg_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话表';
 
--- 消息已读记录表
-CREATE TABLE `message_read` (
-                                `id` bigint(20) NOT NULL COMMENT '记录ID',
-                                `message_id` bigint(20) NOT NULL COMMENT '消息ID',
-                                `user_id` bigint(20) NOT NULL COMMENT '用户ID',
-                                `read_at` datetime NOT NULL COMMENT '阅读时间',
-                                `created_at` datetime NOT NULL COMMENT '创建时间',
-                                PRIMARY KEY (`id`),
-                                UNIQUE KEY `uk_message_user` (`message_id`,`user_id`),
-                                KEY `idx_user_id` (`user_id`),
-                                KEY `idx_read_at` (`read_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息已读记录表';
 
--- 用户消息设置表
-CREATE TABLE `user_message_setting` (
-                                        `id` bigint(20) NOT NULL COMMENT '设置ID',
-                                        `user_id` bigint(20) NOT NULL COMMENT '用户ID',
-                                        `target_id` bigint(20) NOT NULL COMMENT '对方ID（用户ID或群ID）',
-                                        `conv_type` tinyint(4) NOT NULL COMMENT '会话类型',
-                                        `is_muted` tinyint(1) DEFAULT '0' COMMENT '是否免打扰',
-                                        `created_at` datetime NOT NULL COMMENT '创建时间',
-                                        `updated_at` datetime NOT NULL COMMENT '更新时间',
-                                        `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
-                                        PRIMARY KEY (`id`),
-                                        UNIQUE KEY `uk_user_target_conv` (`user_id`,`target_id`,`conv_type`),
-                                        KEY `idx_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户消息设置表';
+-- 好友关系表
+CREATE TABLE `friend_relation` (
+                                   `id` bigint(20) NOT NULL COMMENT 'ID',
+                                   `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+                                   `friend_id` bigint(20) NOT NULL COMMENT '好友ID',
+                                   `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0=待处理，1=已同意，2=已拒绝，3=已拉黑',
+                                   `remark` varchar(50) DEFAULT NULL COMMENT '备注',
+                                   `group_name` varchar(50) DEFAULT NULL COMMENT '分组名称',
+                                   `created_at` datetime NOT NULL COMMENT '创建时间',
+                                   `updated_at` datetime NOT NULL COMMENT '更新时间',
+                                   `is_deleted` tinyint(1) DEFAULT '0' NOT NULL,
+                                   PRIMARY KEY (`id`),
+                                   KEY `idx_user_id` (`user_id`),
+                                   KEY `idx_friend_id` (`friend_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='好友关系表';
+
+-- 好友申请表
+CREATE TABLE `friend_apply` (
+                                `id` bigint(20) NOT NULL COMMENT 'ID',
+                                `applicant_id` bigint(20) NOT NULL COMMENT '申请人ID',
+                                `receiver_id` bigint(20) NOT NULL COMMENT '接收人ID',
+                                `apply_reason` varchar(200) DEFAULT NULL COMMENT '申请理由',
+                                `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0=待处理，1=已同意，2=已拒绝',
+                                `handled_at` datetime DEFAULT NULL COMMENT '处理时间',
+                                `created_at` datetime NOT NULL COMMENT '创建时间',
+                                `updated_at` datetime NOT NULL COMMENT '更新时间',
+                                `is_deleted` tinyint(1) DEFAULT '0' NOT NULL,
+                                PRIMARY KEY (`id`),
+                                KEY `idx_applicant` (`applicant_id`),
+                                KEY `idx_receiver` (`receiver_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='好友申请表';
+
+-- 用户在线状态表
+CREATE TABLE `user_online_status` (
+                                      `id` bigint(20) NOT NULL COMMENT 'ID',
+                                      `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+                                      `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0=离线，1=在线，2=忙碌，3=离开',
+                                      `device_type` varchar(20) DEFAULT NULL COMMENT '设备类型：web/ios/android',
+                                      `last_online_time` datetime DEFAULT NULL COMMENT '最后在线时间',
+                                      `created_at` datetime NOT NULL COMMENT '创建时间',
+                                      `updated_at` datetime NOT NULL COMMENT '更新时间',
+                                      PRIMARY KEY (`id`),
+                                      UNIQUE KEY `uk_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户在线状态表';
