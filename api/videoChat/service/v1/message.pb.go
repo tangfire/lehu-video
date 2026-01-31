@@ -1772,6 +1772,127 @@ func (x *ClearMessagesResp) GetMeta() *Metadata {
 	return nil
 }
 
+// 创建会话请求
+type CreateConversationReq struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UserId         int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TargetId       int64                  `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	ConvType       ConversationType       `protobuf:"varint,3,opt,name=conv_type,json=convType,proto3,enum=api.videoChat.service.v1.ConversationType" json:"conv_type,omitempty"`
+	InitialMessage string                 `protobuf:"bytes,4,opt,name=initial_message,json=initialMessage,proto3" json:"initial_message,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CreateConversationReq) Reset() {
+	*x = CreateConversationReq{}
+	mi := &file_api_videoChat_service_v1_message_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateConversationReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateConversationReq) ProtoMessage() {}
+
+func (x *CreateConversationReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_message_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateConversationReq.ProtoReflect.Descriptor instead.
+func (*CreateConversationReq) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *CreateConversationReq) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *CreateConversationReq) GetTargetId() int64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+func (x *CreateConversationReq) GetConvType() ConversationType {
+	if x != nil {
+		return x.ConvType
+	}
+	return ConversationType_SINGLE
+}
+
+func (x *CreateConversationReq) GetInitialMessage() string {
+	if x != nil {
+		return x.InitialMessage
+	}
+	return ""
+}
+
+type CreateConversationResp struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ConversationId int64                  `protobuf:"varint,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	Meta           *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CreateConversationResp) Reset() {
+	*x = CreateConversationResp{}
+	mi := &file_api_videoChat_service_v1_message_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateConversationResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateConversationResp) ProtoMessage() {}
+
+func (x *CreateConversationResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_message_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateConversationResp.ProtoReflect.Descriptor instead.
+func (*CreateConversationResp) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *CreateConversationResp) GetConversationId() int64 {
+	if x != nil {
+		return x.ConversationId
+	}
+	return 0
+}
+
+func (x *CreateConversationResp) GetMeta() *Metadata {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
 var File_api_videoChat_service_v1_message_proto protoreflect.FileDescriptor
 
 const file_api_videoChat_service_v1_message_proto_rawDesc = "" +
@@ -1906,7 +2027,15 @@ const file_api_videoChat_service_v1_message_proto_rawDesc = "" +
 	"\ttarget_id\x18\x02 \x01(\x03R\btargetId\x12G\n" +
 	"\tconv_type\x18\x03 \x01(\x0e2*.api.videoChat.service.v1.ConversationTypeR\bconvType\"K\n" +
 	"\x11ClearMessagesResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta*)\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\xbf\x01\n" +
+	"\x15CreateConversationReq\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1b\n" +
+	"\ttarget_id\x18\x02 \x01(\x03R\btargetId\x12G\n" +
+	"\tconv_type\x18\x03 \x01(\x0e2*.api.videoChat.service.v1.ConversationTypeR\bconvType\x12'\n" +
+	"\x0finitial_message\x18\x04 \x01(\tR\x0einitialMessage\"y\n" +
+	"\x16CreateConversationResp\x12'\n" +
+	"\x0fconversation_id\x18\x01 \x01(\x03R\x0econversationId\x126\n" +
+	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta*)\n" +
 	"\x10ConversationType\x12\n" +
 	"\n" +
 	"\x06SINGLE\x10\x00\x12\t\n" +
@@ -1926,7 +2055,8 @@ const file_api_videoChat_service_v1_message_proto_rawDesc = "" +
 	"\x04READ\x10\x03\x12\f\n" +
 	"\bRECALLED\x10\x04\x12\n" +
 	"\n" +
-	"\x06FAILED\x10c2\xcb\t\n" +
+	"\x06FAILED\x10c2\xc4\n" +
+	"\n" +
 	"\x0eMessageService\x12b\n" +
 	"\vSendMessage\x12(.api.videoChat.service.v1.SendMessageReq\x1a).api.videoChat.service.v1.SendMessageResp\x12e\n" +
 	"\fListMessages\x12).api.videoChat.service.v1.ListMessagesReq\x1a*.api.videoChat.service.v1.ListMessagesResp\x12h\n" +
@@ -1939,7 +2069,8 @@ const file_api_videoChat_service_v1_message_proto_rawDesc = "" +
 	"\n" +
 	"GetMessage\x12'.api.videoChat.service.v1.GetMessageReq\x1a(.api.videoChat.service.v1.GetMessageResp\x12n\n" +
 	"\x0fGetConversation\x12,.api.videoChat.service.v1.GetConversationReq\x1a-.api.videoChat.service.v1.GetConversationResp\x12h\n" +
-	"\rClearMessages\x12*.api.videoChat.service.v1.ClearMessagesReq\x1a+.api.videoChat.service.v1.ClearMessagesRespBD\n" +
+	"\rClearMessages\x12*.api.videoChat.service.v1.ClearMessagesReq\x1a+.api.videoChat.service.v1.ClearMessagesResp\x12w\n" +
+	"\x12CreateConversation\x12/.api.videoChat.service.v1.CreateConversationReq\x1a0.api.videoChat.service.v1.CreateConversationRespBD\n" +
 	"\x18api.videoChat.service.v1P\x01Z&lehu-video/api/videoChat/service/v1;v1b\x06proto3"
 
 var (
@@ -1955,7 +2086,7 @@ func file_api_videoChat_service_v1_message_proto_rawDescGZIP() []byte {
 }
 
 var file_api_videoChat_service_v1_message_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_api_videoChat_service_v1_message_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_api_videoChat_service_v1_message_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_api_videoChat_service_v1_message_proto_goTypes = []any{
 	(ConversationType)(0),           // 0: api.videoChat.service.v1.ConversationType
 	(MessageType)(0),                // 1: api.videoChat.service.v1.MessageType
@@ -1985,10 +2116,12 @@ var file_api_videoChat_service_v1_message_proto_goTypes = []any{
 	(*GetConversationResp)(nil),     // 25: api.videoChat.service.v1.GetConversationResp
 	(*ClearMessagesReq)(nil),        // 26: api.videoChat.service.v1.ClearMessagesReq
 	(*ClearMessagesResp)(nil),       // 27: api.videoChat.service.v1.ClearMessagesResp
-	nil,                             // 28: api.videoChat.service.v1.GetUnreadCountResp.ConvUnreadEntry
-	(*Metadata)(nil),                // 29: api.videoChat.service.v1.Metadata
-	(*PageStatsReq)(nil),            // 30: api.videoChat.service.v1.PageStatsReq
-	(*PageStatsResp)(nil),           // 31: api.videoChat.service.v1.PageStatsResp
+	(*CreateConversationReq)(nil),   // 28: api.videoChat.service.v1.CreateConversationReq
+	(*CreateConversationResp)(nil),  // 29: api.videoChat.service.v1.CreateConversationResp
+	nil,                             // 30: api.videoChat.service.v1.GetUnreadCountResp.ConvUnreadEntry
+	(*Metadata)(nil),                // 31: api.videoChat.service.v1.Metadata
+	(*PageStatsReq)(nil),            // 32: api.videoChat.service.v1.PageStatsReq
+	(*PageStatsResp)(nil),           // 33: api.videoChat.service.v1.PageStatsResp
 }
 var file_api_videoChat_service_v1_message_proto_depIdxs = []int32{
 	0,  // 0: api.videoChat.service.v1.Message.conv_type:type_name -> api.videoChat.service.v1.ConversationType
@@ -2000,56 +2133,60 @@ var file_api_videoChat_service_v1_message_proto_depIdxs = []int32{
 	0,  // 6: api.videoChat.service.v1.SendMessageReq.conv_type:type_name -> api.videoChat.service.v1.ConversationType
 	1,  // 7: api.videoChat.service.v1.SendMessageReq.msg_type:type_name -> api.videoChat.service.v1.MessageType
 	3,  // 8: api.videoChat.service.v1.SendMessageReq.content:type_name -> api.videoChat.service.v1.MessageContent
-	29, // 9: api.videoChat.service.v1.SendMessageResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	31, // 9: api.videoChat.service.v1.SendMessageResp.meta:type_name -> api.videoChat.service.v1.Metadata
 	0,  // 10: api.videoChat.service.v1.ListMessagesReq.conv_type:type_name -> api.videoChat.service.v1.ConversationType
 	4,  // 11: api.videoChat.service.v1.ListMessagesResp.messages:type_name -> api.videoChat.service.v1.Message
-	29, // 12: api.videoChat.service.v1.ListMessagesResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	29, // 13: api.videoChat.service.v1.RecallMessageResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	31, // 12: api.videoChat.service.v1.ListMessagesResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	31, // 13: api.videoChat.service.v1.RecallMessageResp.meta:type_name -> api.videoChat.service.v1.Metadata
 	0,  // 14: api.videoChat.service.v1.MarkMessagesReadReq.conv_type:type_name -> api.videoChat.service.v1.ConversationType
-	29, // 15: api.videoChat.service.v1.MarkMessagesReadResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	28, // 16: api.videoChat.service.v1.GetUnreadCountResp.conv_unread:type_name -> api.videoChat.service.v1.GetUnreadCountResp.ConvUnreadEntry
-	29, // 17: api.videoChat.service.v1.GetUnreadCountResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	30, // 18: api.videoChat.service.v1.ListConversationsReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
+	31, // 15: api.videoChat.service.v1.MarkMessagesReadResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	30, // 16: api.videoChat.service.v1.GetUnreadCountResp.conv_unread:type_name -> api.videoChat.service.v1.GetUnreadCountResp.ConvUnreadEntry
+	31, // 17: api.videoChat.service.v1.GetUnreadCountResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	32, // 18: api.videoChat.service.v1.ListConversationsReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
 	5,  // 19: api.videoChat.service.v1.ListConversationsResp.conversations:type_name -> api.videoChat.service.v1.Conversation
-	29, // 20: api.videoChat.service.v1.ListConversationsResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	31, // 21: api.videoChat.service.v1.ListConversationsResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
-	29, // 22: api.videoChat.service.v1.DeleteConversationResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	31, // 20: api.videoChat.service.v1.ListConversationsResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	33, // 21: api.videoChat.service.v1.ListConversationsResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
+	31, // 22: api.videoChat.service.v1.DeleteConversationResp.meta:type_name -> api.videoChat.service.v1.Metadata
 	2,  // 23: api.videoChat.service.v1.UpdateMessageStatusReq.status:type_name -> api.videoChat.service.v1.MessageStatus
-	29, // 24: api.videoChat.service.v1.UpdateMessageStatusResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	31, // 24: api.videoChat.service.v1.UpdateMessageStatusResp.meta:type_name -> api.videoChat.service.v1.Metadata
 	4,  // 25: api.videoChat.service.v1.GetMessageResp.message:type_name -> api.videoChat.service.v1.Message
-	29, // 26: api.videoChat.service.v1.GetMessageResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	31, // 26: api.videoChat.service.v1.GetMessageResp.meta:type_name -> api.videoChat.service.v1.Metadata
 	0,  // 27: api.videoChat.service.v1.GetConversationReq.conv_type:type_name -> api.videoChat.service.v1.ConversationType
 	5,  // 28: api.videoChat.service.v1.GetConversationResp.conversation:type_name -> api.videoChat.service.v1.Conversation
-	29, // 29: api.videoChat.service.v1.GetConversationResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	31, // 29: api.videoChat.service.v1.GetConversationResp.meta:type_name -> api.videoChat.service.v1.Metadata
 	0,  // 30: api.videoChat.service.v1.ClearMessagesReq.conv_type:type_name -> api.videoChat.service.v1.ConversationType
-	29, // 31: api.videoChat.service.v1.ClearMessagesResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	6,  // 32: api.videoChat.service.v1.MessageService.SendMessage:input_type -> api.videoChat.service.v1.SendMessageReq
-	8,  // 33: api.videoChat.service.v1.MessageService.ListMessages:input_type -> api.videoChat.service.v1.ListMessagesReq
-	10, // 34: api.videoChat.service.v1.MessageService.RecallMessage:input_type -> api.videoChat.service.v1.RecallMessageReq
-	12, // 35: api.videoChat.service.v1.MessageService.MarkMessagesRead:input_type -> api.videoChat.service.v1.MarkMessagesReadReq
-	14, // 36: api.videoChat.service.v1.MessageService.GetUnreadCount:input_type -> api.videoChat.service.v1.GetUnreadCountReq
-	16, // 37: api.videoChat.service.v1.MessageService.ListConversations:input_type -> api.videoChat.service.v1.ListConversationsReq
-	18, // 38: api.videoChat.service.v1.MessageService.DeleteConversation:input_type -> api.videoChat.service.v1.DeleteConversationReq
-	20, // 39: api.videoChat.service.v1.MessageService.UpdateMessageStatus:input_type -> api.videoChat.service.v1.UpdateMessageStatusReq
-	22, // 40: api.videoChat.service.v1.MessageService.GetMessage:input_type -> api.videoChat.service.v1.GetMessageReq
-	24, // 41: api.videoChat.service.v1.MessageService.GetConversation:input_type -> api.videoChat.service.v1.GetConversationReq
-	26, // 42: api.videoChat.service.v1.MessageService.ClearMessages:input_type -> api.videoChat.service.v1.ClearMessagesReq
-	7,  // 43: api.videoChat.service.v1.MessageService.SendMessage:output_type -> api.videoChat.service.v1.SendMessageResp
-	9,  // 44: api.videoChat.service.v1.MessageService.ListMessages:output_type -> api.videoChat.service.v1.ListMessagesResp
-	11, // 45: api.videoChat.service.v1.MessageService.RecallMessage:output_type -> api.videoChat.service.v1.RecallMessageResp
-	13, // 46: api.videoChat.service.v1.MessageService.MarkMessagesRead:output_type -> api.videoChat.service.v1.MarkMessagesReadResp
-	15, // 47: api.videoChat.service.v1.MessageService.GetUnreadCount:output_type -> api.videoChat.service.v1.GetUnreadCountResp
-	17, // 48: api.videoChat.service.v1.MessageService.ListConversations:output_type -> api.videoChat.service.v1.ListConversationsResp
-	19, // 49: api.videoChat.service.v1.MessageService.DeleteConversation:output_type -> api.videoChat.service.v1.DeleteConversationResp
-	21, // 50: api.videoChat.service.v1.MessageService.UpdateMessageStatus:output_type -> api.videoChat.service.v1.UpdateMessageStatusResp
-	23, // 51: api.videoChat.service.v1.MessageService.GetMessage:output_type -> api.videoChat.service.v1.GetMessageResp
-	25, // 52: api.videoChat.service.v1.MessageService.GetConversation:output_type -> api.videoChat.service.v1.GetConversationResp
-	27, // 53: api.videoChat.service.v1.MessageService.ClearMessages:output_type -> api.videoChat.service.v1.ClearMessagesResp
-	43, // [43:54] is the sub-list for method output_type
-	32, // [32:43] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	31, // 31: api.videoChat.service.v1.ClearMessagesResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	0,  // 32: api.videoChat.service.v1.CreateConversationReq.conv_type:type_name -> api.videoChat.service.v1.ConversationType
+	31, // 33: api.videoChat.service.v1.CreateConversationResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	6,  // 34: api.videoChat.service.v1.MessageService.SendMessage:input_type -> api.videoChat.service.v1.SendMessageReq
+	8,  // 35: api.videoChat.service.v1.MessageService.ListMessages:input_type -> api.videoChat.service.v1.ListMessagesReq
+	10, // 36: api.videoChat.service.v1.MessageService.RecallMessage:input_type -> api.videoChat.service.v1.RecallMessageReq
+	12, // 37: api.videoChat.service.v1.MessageService.MarkMessagesRead:input_type -> api.videoChat.service.v1.MarkMessagesReadReq
+	14, // 38: api.videoChat.service.v1.MessageService.GetUnreadCount:input_type -> api.videoChat.service.v1.GetUnreadCountReq
+	16, // 39: api.videoChat.service.v1.MessageService.ListConversations:input_type -> api.videoChat.service.v1.ListConversationsReq
+	18, // 40: api.videoChat.service.v1.MessageService.DeleteConversation:input_type -> api.videoChat.service.v1.DeleteConversationReq
+	20, // 41: api.videoChat.service.v1.MessageService.UpdateMessageStatus:input_type -> api.videoChat.service.v1.UpdateMessageStatusReq
+	22, // 42: api.videoChat.service.v1.MessageService.GetMessage:input_type -> api.videoChat.service.v1.GetMessageReq
+	24, // 43: api.videoChat.service.v1.MessageService.GetConversation:input_type -> api.videoChat.service.v1.GetConversationReq
+	26, // 44: api.videoChat.service.v1.MessageService.ClearMessages:input_type -> api.videoChat.service.v1.ClearMessagesReq
+	28, // 45: api.videoChat.service.v1.MessageService.CreateConversation:input_type -> api.videoChat.service.v1.CreateConversationReq
+	7,  // 46: api.videoChat.service.v1.MessageService.SendMessage:output_type -> api.videoChat.service.v1.SendMessageResp
+	9,  // 47: api.videoChat.service.v1.MessageService.ListMessages:output_type -> api.videoChat.service.v1.ListMessagesResp
+	11, // 48: api.videoChat.service.v1.MessageService.RecallMessage:output_type -> api.videoChat.service.v1.RecallMessageResp
+	13, // 49: api.videoChat.service.v1.MessageService.MarkMessagesRead:output_type -> api.videoChat.service.v1.MarkMessagesReadResp
+	15, // 50: api.videoChat.service.v1.MessageService.GetUnreadCount:output_type -> api.videoChat.service.v1.GetUnreadCountResp
+	17, // 51: api.videoChat.service.v1.MessageService.ListConversations:output_type -> api.videoChat.service.v1.ListConversationsResp
+	19, // 52: api.videoChat.service.v1.MessageService.DeleteConversation:output_type -> api.videoChat.service.v1.DeleteConversationResp
+	21, // 53: api.videoChat.service.v1.MessageService.UpdateMessageStatus:output_type -> api.videoChat.service.v1.UpdateMessageStatusResp
+	23, // 54: api.videoChat.service.v1.MessageService.GetMessage:output_type -> api.videoChat.service.v1.GetMessageResp
+	25, // 55: api.videoChat.service.v1.MessageService.GetConversation:output_type -> api.videoChat.service.v1.GetConversationResp
+	27, // 56: api.videoChat.service.v1.MessageService.ClearMessages:output_type -> api.videoChat.service.v1.ClearMessagesResp
+	29, // 57: api.videoChat.service.v1.MessageService.CreateConversation:output_type -> api.videoChat.service.v1.CreateConversationResp
+	46, // [46:58] is the sub-list for method output_type
+	34, // [34:46] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_api_videoChat_service_v1_message_proto_init() }
@@ -2064,7 +2201,7 @@ func file_api_videoChat_service_v1_message_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_videoChat_service_v1_message_proto_rawDesc), len(file_api_videoChat_service_v1_message_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   26,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

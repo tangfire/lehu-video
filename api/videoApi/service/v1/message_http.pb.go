@@ -20,6 +20,7 @@ var _ = binding.EncodeURL
 const _ = http.SupportPackageIsVersion1
 
 const OperationMessageServiceClearMessages = "/api.videoApi.service.v1.MessageService/ClearMessages"
+const OperationMessageServiceCreateConversation = "/api.videoApi.service.v1.MessageService/CreateConversation"
 const OperationMessageServiceDeleteConversation = "/api.videoApi.service.v1.MessageService/DeleteConversation"
 const OperationMessageServiceGetConversation = "/api.videoApi.service.v1.MessageService/GetConversation"
 const OperationMessageServiceGetMessage = "/api.videoApi.service.v1.MessageService/GetMessage"
@@ -34,6 +35,8 @@ const OperationMessageServiceUpdateMessageStatus = "/api.videoApi.service.v1.Mes
 type MessageServiceHTTPServer interface {
 	// ClearMessages 清空聊天记录
 	ClearMessages(context.Context, *ClearMessagesReq) (*ClearMessagesResp, error)
+	// CreateConversation 创建会话
+	CreateConversation(context.Context, *CreateConversationReq) (*CreateConversationResp, error)
 	// DeleteConversation 删除会话
 	DeleteConversation(context.Context, *DeleteConversationReq) (*DeleteConversationResp, error)
 	// GetConversation 新增：获取会话详情
@@ -69,6 +72,7 @@ func RegisterMessageServiceHTTPServer(s *http.Server, srv MessageServiceHTTPServ
 	r.POST("/v1/conversation/detail", _MessageService_GetConversation0_HTTP_Handler(srv))
 	r.GET("/v1/messages/unread-count", _MessageService_GetUnreadCount0_HTTP_Handler(srv))
 	r.POST("/v1/message/status", _MessageService_UpdateMessageStatus0_HTTP_Handler(srv))
+	r.POST("/v1/conversation", _MessageService_CreateConversation0_HTTP_Handler(srv))
 }
 
 func _MessageService_SendMessage0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
@@ -304,8 +308,31 @@ func _MessageService_UpdateMessageStatus0_HTTP_Handler(srv MessageServiceHTTPSer
 	}
 }
 
+func _MessageService_CreateConversation0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in CreateConversationReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationMessageServiceCreateConversation)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.CreateConversation(ctx, req.(*CreateConversationReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*CreateConversationResp)
+		return ctx.Result(200, reply)
+	}
+}
+
 type MessageServiceHTTPClient interface {
 	ClearMessages(ctx context.Context, req *ClearMessagesReq, opts ...http.CallOption) (rsp *ClearMessagesResp, err error)
+	CreateConversation(ctx context.Context, req *CreateConversationReq, opts ...http.CallOption) (rsp *CreateConversationResp, err error)
 	DeleteConversation(ctx context.Context, req *DeleteConversationReq, opts ...http.CallOption) (rsp *DeleteConversationResp, err error)
 	GetConversation(ctx context.Context, req *GetConversationReq, opts ...http.CallOption) (rsp *GetConversationResp, err error)
 	GetMessage(ctx context.Context, req *GetMessageReq, opts ...http.CallOption) (rsp *GetMessageResp, err error)
@@ -333,6 +360,19 @@ func (c *MessageServiceHTTPClientImpl) ClearMessages(ctx context.Context, in *Cl
 	opts = append(opts, http.Operation(OperationMessageServiceClearMessages))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *MessageServiceHTTPClientImpl) CreateConversation(ctx context.Context, in *CreateConversationReq, opts ...http.CallOption) (*CreateConversationResp, error) {
+	var out CreateConversationResp
+	pattern := "/v1/conversation"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationMessageServiceCreateConversation))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

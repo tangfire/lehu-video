@@ -1618,6 +1618,111 @@ func (*UpdateMessageStatusResp) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_message_proto_rawDescGZIP(), []int{24}
 }
 
+// 创建会话请求
+type CreateConversationReq struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	TargetId       int64                  `protobuf:"varint,1,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`                                               // 对方ID（用户ID或群ID）
+	ConvType       ConversationType       `protobuf:"varint,2,opt,name=conv_type,json=convType,proto3,enum=api.videoApi.service.v1.ConversationType" json:"conv_type,omitempty"` // 会话类型
+	InitialMessage string                 `protobuf:"bytes,3,opt,name=initial_message,json=initialMessage,proto3" json:"initial_message,omitempty"`                              // 可选：初始消息
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CreateConversationReq) Reset() {
+	*x = CreateConversationReq{}
+	mi := &file_api_videoApi_service_v1_message_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateConversationReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateConversationReq) ProtoMessage() {}
+
+func (x *CreateConversationReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_message_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateConversationReq.ProtoReflect.Descriptor instead.
+func (*CreateConversationReq) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_message_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *CreateConversationReq) GetTargetId() int64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+func (x *CreateConversationReq) GetConvType() ConversationType {
+	if x != nil {
+		return x.ConvType
+	}
+	return ConversationType_SINGLE
+}
+
+func (x *CreateConversationReq) GetInitialMessage() string {
+	if x != nil {
+		return x.InitialMessage
+	}
+	return ""
+}
+
+type CreateConversationResp struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ConversationId int64                  `protobuf:"varint,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"` // 创建的会话ID
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CreateConversationResp) Reset() {
+	*x = CreateConversationResp{}
+	mi := &file_api_videoApi_service_v1_message_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateConversationResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateConversationResp) ProtoMessage() {}
+
+func (x *CreateConversationResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_message_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateConversationResp.ProtoReflect.Descriptor instead.
+func (*CreateConversationResp) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_message_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *CreateConversationResp) GetConversationId() int64 {
+	if x != nil {
+		return x.ConversationId
+	}
+	return 0
+}
+
 var File_api_videoApi_service_v1_message_proto protoreflect.FileDescriptor
 
 const file_api_videoApi_service_v1_message_proto_rawDesc = "" +
@@ -1729,7 +1834,13 @@ const file_api_videoApi_service_v1_message_proto_rawDesc = "" +
 	"\n" +
 	"message_id\x18\x01 \x01(\x03R\tmessageId\x12>\n" +
 	"\x06status\x18\x02 \x01(\x0e2&.api.videoApi.service.v1.MessageStatusR\x06status\"\x19\n" +
-	"\x17UpdateMessageStatusResp*R\n" +
+	"\x17UpdateMessageStatusResp\"\xa5\x01\n" +
+	"\x15CreateConversationReq\x12\x1b\n" +
+	"\ttarget_id\x18\x01 \x01(\x03R\btargetId\x12F\n" +
+	"\tconv_type\x18\x02 \x01(\x0e2).api.videoApi.service.v1.ConversationTypeR\bconvType\x12'\n" +
+	"\x0finitial_message\x18\x03 \x01(\tR\x0einitialMessage\"A\n" +
+	"\x16CreateConversationResp\x12'\n" +
+	"\x0fconversation_id\x18\x01 \x01(\x03R\x0econversationId*R\n" +
 	"\vMessageType\x12\b\n" +
 	"\x04TEXT\x10\x00\x12\t\n" +
 	"\x05IMAGE\x10\x01\x12\t\n" +
@@ -1749,7 +1860,7 @@ const file_api_videoApi_service_v1_message_proto_rawDesc = "" +
 	"\x04READ\x10\x03\x12\f\n" +
 	"\bRECALLED\x10\x04\x12\n" +
 	"\n" +
-	"\x06FAILED\x10c2\x98\f\n" +
+	"\x06FAILED\x10c2\xad\r\n" +
 	"\x0eMessageService\x12x\n" +
 	"\vSendMessage\x12'.api.videoApi.service.v1.SendMessageReq\x1a(.api.videoApi.service.v1.SendMessageResp\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/message\x12\x81\x01\n" +
 	"\fListMessages\x12(.api.videoApi.service.v1.ListMessagesReq\x1a).api.videoApi.service.v1.ListMessagesResp\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/messages/list\x12\x88\x01\n" +
@@ -1762,7 +1873,8 @@ const file_api_videoApi_service_v1_message_proto_rawDesc = "" +
 	"GetMessage\x12&.api.videoApi.service.v1.GetMessageReq\x1a'.api.videoApi.service.v1.GetMessageResp\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/message/{message_id}\x12\x90\x01\n" +
 	"\x0fGetConversation\x12+.api.videoApi.service.v1.GetConversationReq\x1a,.api.videoApi.service.v1.GetConversationResp\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/conversation/detail\x12\x8c\x01\n" +
 	"\x0eGetUnreadCount\x12*.api.videoApi.service.v1.GetUnreadCountReq\x1a+.api.videoApi.service.v1.GetUnreadCountResp\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/v1/messages/unread-count\x12\x97\x01\n" +
-	"\x13UpdateMessageStatus\x12/.api.videoApi.service.v1.UpdateMessageStatusReq\x1a0.api.videoApi.service.v1.UpdateMessageStatusResp\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/message/statusBB\n" +
+	"\x13UpdateMessageStatus\x12/.api.videoApi.service.v1.UpdateMessageStatusReq\x1a0.api.videoApi.service.v1.UpdateMessageStatusResp\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/message/status\x12\x92\x01\n" +
+	"\x12CreateConversation\x12..api.videoApi.service.v1.CreateConversationReq\x1a/.api.videoApi.service.v1.CreateConversationResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/conversationBB\n" +
 	"\x17api.videoApi.service.v1P\x01Z%lehu-video/api/videoApi/service/v1;v1b\x06proto3"
 
 var (
@@ -1778,7 +1890,7 @@ func file_api_videoApi_service_v1_message_proto_rawDescGZIP() []byte {
 }
 
 var file_api_videoApi_service_v1_message_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_api_videoApi_service_v1_message_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_api_videoApi_service_v1_message_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_api_videoApi_service_v1_message_proto_goTypes = []any{
 	(MessageType)(0),                // 0: api.videoApi.service.v1.MessageType
 	(ConversationType)(0),           // 1: api.videoApi.service.v1.ConversationType
@@ -1808,8 +1920,10 @@ var file_api_videoApi_service_v1_message_proto_goTypes = []any{
 	(*GetUnreadCountResp)(nil),      // 25: api.videoApi.service.v1.GetUnreadCountResp
 	(*UpdateMessageStatusReq)(nil),  // 26: api.videoApi.service.v1.UpdateMessageStatusReq
 	(*UpdateMessageStatusResp)(nil), // 27: api.videoApi.service.v1.UpdateMessageStatusResp
-	(*PageStatsReq)(nil),            // 28: api.videoApi.service.v1.PageStatsReq
-	(*PageStatsResp)(nil),           // 29: api.videoApi.service.v1.PageStatsResp
+	(*CreateConversationReq)(nil),   // 28: api.videoApi.service.v1.CreateConversationReq
+	(*CreateConversationResp)(nil),  // 29: api.videoApi.service.v1.CreateConversationResp
+	(*PageStatsReq)(nil),            // 30: api.videoApi.service.v1.PageStatsReq
+	(*PageStatsResp)(nil),           // 31: api.videoApi.service.v1.PageStatsResp
 }
 var file_api_videoApi_service_v1_message_proto_depIdxs = []int32{
 	1,  // 0: api.videoApi.service.v1.Message.conv_type:type_name -> api.videoApi.service.v1.ConversationType
@@ -1824,42 +1938,45 @@ var file_api_videoApi_service_v1_message_proto_depIdxs = []int32{
 	1,  // 9: api.videoApi.service.v1.ListMessagesReq.conv_type:type_name -> api.videoApi.service.v1.ConversationType
 	4,  // 10: api.videoApi.service.v1.ListMessagesResp.messages:type_name -> api.videoApi.service.v1.Message
 	1,  // 11: api.videoApi.service.v1.MarkMessagesReadReq.conv_type:type_name -> api.videoApi.service.v1.ConversationType
-	28, // 12: api.videoApi.service.v1.ListConversationsReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
+	30, // 12: api.videoApi.service.v1.ListConversationsReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
 	5,  // 13: api.videoApi.service.v1.ListConversationsResp.conversations:type_name -> api.videoApi.service.v1.Conversation
-	29, // 14: api.videoApi.service.v1.ListConversationsResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
+	31, // 14: api.videoApi.service.v1.ListConversationsResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
 	1,  // 15: api.videoApi.service.v1.ClearMessagesReq.conv_type:type_name -> api.videoApi.service.v1.ConversationType
 	4,  // 16: api.videoApi.service.v1.GetMessageResp.message:type_name -> api.videoApi.service.v1.Message
 	1,  // 17: api.videoApi.service.v1.GetConversationReq.conv_type:type_name -> api.videoApi.service.v1.ConversationType
 	5,  // 18: api.videoApi.service.v1.GetConversationResp.conversation:type_name -> api.videoApi.service.v1.Conversation
 	1,  // 19: api.videoApi.service.v1.GetUnreadCountReq.conv_type:type_name -> api.videoApi.service.v1.ConversationType
 	2,  // 20: api.videoApi.service.v1.UpdateMessageStatusReq.status:type_name -> api.videoApi.service.v1.MessageStatus
-	6,  // 21: api.videoApi.service.v1.MessageService.SendMessage:input_type -> api.videoApi.service.v1.SendMessageReq
-	8,  // 22: api.videoApi.service.v1.MessageService.ListMessages:input_type -> api.videoApi.service.v1.ListMessagesReq
-	10, // 23: api.videoApi.service.v1.MessageService.RecallMessage:input_type -> api.videoApi.service.v1.RecallMessageReq
-	12, // 24: api.videoApi.service.v1.MessageService.MarkMessagesRead:input_type -> api.videoApi.service.v1.MarkMessagesReadReq
-	14, // 25: api.videoApi.service.v1.MessageService.ListConversations:input_type -> api.videoApi.service.v1.ListConversationsReq
-	16, // 26: api.videoApi.service.v1.MessageService.DeleteConversation:input_type -> api.videoApi.service.v1.DeleteConversationReq
-	18, // 27: api.videoApi.service.v1.MessageService.ClearMessages:input_type -> api.videoApi.service.v1.ClearMessagesReq
-	20, // 28: api.videoApi.service.v1.MessageService.GetMessage:input_type -> api.videoApi.service.v1.GetMessageReq
-	22, // 29: api.videoApi.service.v1.MessageService.GetConversation:input_type -> api.videoApi.service.v1.GetConversationReq
-	24, // 30: api.videoApi.service.v1.MessageService.GetUnreadCount:input_type -> api.videoApi.service.v1.GetUnreadCountReq
-	26, // 31: api.videoApi.service.v1.MessageService.UpdateMessageStatus:input_type -> api.videoApi.service.v1.UpdateMessageStatusReq
-	7,  // 32: api.videoApi.service.v1.MessageService.SendMessage:output_type -> api.videoApi.service.v1.SendMessageResp
-	9,  // 33: api.videoApi.service.v1.MessageService.ListMessages:output_type -> api.videoApi.service.v1.ListMessagesResp
-	11, // 34: api.videoApi.service.v1.MessageService.RecallMessage:output_type -> api.videoApi.service.v1.RecallMessageResp
-	13, // 35: api.videoApi.service.v1.MessageService.MarkMessagesRead:output_type -> api.videoApi.service.v1.MarkMessagesReadResp
-	15, // 36: api.videoApi.service.v1.MessageService.ListConversations:output_type -> api.videoApi.service.v1.ListConversationsResp
-	17, // 37: api.videoApi.service.v1.MessageService.DeleteConversation:output_type -> api.videoApi.service.v1.DeleteConversationResp
-	19, // 38: api.videoApi.service.v1.MessageService.ClearMessages:output_type -> api.videoApi.service.v1.ClearMessagesResp
-	21, // 39: api.videoApi.service.v1.MessageService.GetMessage:output_type -> api.videoApi.service.v1.GetMessageResp
-	23, // 40: api.videoApi.service.v1.MessageService.GetConversation:output_type -> api.videoApi.service.v1.GetConversationResp
-	25, // 41: api.videoApi.service.v1.MessageService.GetUnreadCount:output_type -> api.videoApi.service.v1.GetUnreadCountResp
-	27, // 42: api.videoApi.service.v1.MessageService.UpdateMessageStatus:output_type -> api.videoApi.service.v1.UpdateMessageStatusResp
-	32, // [32:43] is the sub-list for method output_type
-	21, // [21:32] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	1,  // 21: api.videoApi.service.v1.CreateConversationReq.conv_type:type_name -> api.videoApi.service.v1.ConversationType
+	6,  // 22: api.videoApi.service.v1.MessageService.SendMessage:input_type -> api.videoApi.service.v1.SendMessageReq
+	8,  // 23: api.videoApi.service.v1.MessageService.ListMessages:input_type -> api.videoApi.service.v1.ListMessagesReq
+	10, // 24: api.videoApi.service.v1.MessageService.RecallMessage:input_type -> api.videoApi.service.v1.RecallMessageReq
+	12, // 25: api.videoApi.service.v1.MessageService.MarkMessagesRead:input_type -> api.videoApi.service.v1.MarkMessagesReadReq
+	14, // 26: api.videoApi.service.v1.MessageService.ListConversations:input_type -> api.videoApi.service.v1.ListConversationsReq
+	16, // 27: api.videoApi.service.v1.MessageService.DeleteConversation:input_type -> api.videoApi.service.v1.DeleteConversationReq
+	18, // 28: api.videoApi.service.v1.MessageService.ClearMessages:input_type -> api.videoApi.service.v1.ClearMessagesReq
+	20, // 29: api.videoApi.service.v1.MessageService.GetMessage:input_type -> api.videoApi.service.v1.GetMessageReq
+	22, // 30: api.videoApi.service.v1.MessageService.GetConversation:input_type -> api.videoApi.service.v1.GetConversationReq
+	24, // 31: api.videoApi.service.v1.MessageService.GetUnreadCount:input_type -> api.videoApi.service.v1.GetUnreadCountReq
+	26, // 32: api.videoApi.service.v1.MessageService.UpdateMessageStatus:input_type -> api.videoApi.service.v1.UpdateMessageStatusReq
+	28, // 33: api.videoApi.service.v1.MessageService.CreateConversation:input_type -> api.videoApi.service.v1.CreateConversationReq
+	7,  // 34: api.videoApi.service.v1.MessageService.SendMessage:output_type -> api.videoApi.service.v1.SendMessageResp
+	9,  // 35: api.videoApi.service.v1.MessageService.ListMessages:output_type -> api.videoApi.service.v1.ListMessagesResp
+	11, // 36: api.videoApi.service.v1.MessageService.RecallMessage:output_type -> api.videoApi.service.v1.RecallMessageResp
+	13, // 37: api.videoApi.service.v1.MessageService.MarkMessagesRead:output_type -> api.videoApi.service.v1.MarkMessagesReadResp
+	15, // 38: api.videoApi.service.v1.MessageService.ListConversations:output_type -> api.videoApi.service.v1.ListConversationsResp
+	17, // 39: api.videoApi.service.v1.MessageService.DeleteConversation:output_type -> api.videoApi.service.v1.DeleteConversationResp
+	19, // 40: api.videoApi.service.v1.MessageService.ClearMessages:output_type -> api.videoApi.service.v1.ClearMessagesResp
+	21, // 41: api.videoApi.service.v1.MessageService.GetMessage:output_type -> api.videoApi.service.v1.GetMessageResp
+	23, // 42: api.videoApi.service.v1.MessageService.GetConversation:output_type -> api.videoApi.service.v1.GetConversationResp
+	25, // 43: api.videoApi.service.v1.MessageService.GetUnreadCount:output_type -> api.videoApi.service.v1.GetUnreadCountResp
+	27, // 44: api.videoApi.service.v1.MessageService.UpdateMessageStatus:output_type -> api.videoApi.service.v1.UpdateMessageStatusResp
+	29, // 45: api.videoApi.service.v1.MessageService.CreateConversation:output_type -> api.videoApi.service.v1.CreateConversationResp
+	34, // [34:46] is the sub-list for method output_type
+	22, // [22:34] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_api_videoApi_service_v1_message_proto_init() }
@@ -1874,7 +1991,7 @@ func file_api_videoApi_service_v1_message_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_videoApi_service_v1_message_proto_rawDesc), len(file_api_videoApi_service_v1_message_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   25,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

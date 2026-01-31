@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -268,38 +269,6 @@ func (r *chatAdapterImpl) GetMessageByID(ctx context.Context, messageID int64) (
 		IsRecalled: m.IsRecalled,
 		CreatedAt:  parseTime(m.CreatedAt),
 		UpdatedAt:  parseTime(m.UpdatedAt),
-	}, nil
-}
-
-// 新增：获取会话详情
-func (r *chatAdapterImpl) GetConversation(ctx context.Context, userID, targetID int64, convType int32) (*biz.Conversation, error) {
-	req := &chat.GetConversationReq{
-		UserId:   userID,
-		TargetId: targetID,
-		ConvType: chat.ConversationType(convType),
-	}
-
-	resp, err := r.message.GetConversation(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return nil, err
-	}
-
-	c := resp.Conversation
-	return &biz.Conversation{
-		ID:          c.Id,
-		UserID:      userID,
-		Type:        int8(c.Type),
-		TargetID:    c.TargetId,
-		LastMessage: c.LastMessage,
-		LastMsgType: int8(c.LastMsgType),
-		LastMsgTime: c.LastMsgTime,
-		UnreadCount: int32(c.UnreadCount),
-		UpdatedAt:   parseTime(c.UpdatedAt),
 	}, nil
 }
 
@@ -920,21 +889,94 @@ func (r *chatAdapterImpl) GetGroupMembers(ctx context.Context, groupID int64) ([
 	return resp.MemberIds, nil
 }
 
-// 检查用户关系（单聊时检查好友，群聊时检查群成员）
+// 添加 CreateConversation 方法
+func (r *chatAdapterImpl) CreateConversation(ctx context.Context, userID, targetID int64, convType int32, initialMessage string) (int64, error) {
+	req := &chat.CreateConversationReq{
+		UserId:         userID,
+		TargetId:       targetID,
+		ConvType:       chat.ConversationType(convType),
+		InitialMessage: initialMessage,
+	}
+
+	resp, err := r.message.CreateConversation(ctx, req)
+	if err != nil {
+		return 0, err
+	}
+
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return 0, err
+	}
+
+	return resp.ConversationId, nil
+}
+
+func (r *chatAdapterImpl) GetConversation(ctx context.Context, userID, targetID int64, convType int32) (*biz.Conversation, error) {
+	req := &chat.GetConversationReq{
+		UserId:   userID,
+		TargetId: targetID,
+		ConvType: chat.ConversationType(convType),
+	}
+
+	resp, err := r.message.GetConversation(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return nil, err
+	}
+
+	c := resp.Conversation
+	if c == nil {
+		return nil, nil
+	}
+
+	return &biz.Conversation{
+		ID:          c.Id,
+		UserID:      userID,
+		Type:        int8(c.Type),
+		TargetID:    c.TargetId,
+		LastMessage: c.LastMessage,
+		LastMsgType: int8(c.LastMsgType),
+		LastMsgTime: c.LastMsgTime,
+		UnreadCount: int32(c.UnreadCount),
+		UpdatedAt:   parseTime(c.UpdatedAt),
+	}, nil
+}
+
+// 检查用户关系（单聊检查好友，群聊检查群成员）
 func (r *chatAdapterImpl) CheckUserRelation(ctx context.Context, userID, targetID int64, convType int32) (bool, error) {
 	if convType == 0 { // 单聊
 		// 检查好友关系
 		isFriend, _, err := r.CheckFriendRelation(ctx, userID, targetID)
-		return isFriend, err
+		if err != nil {
+			return false, fmt.Errorf("检查好友关系失败: %v", err)
+		}
+		return isFriend, nil
 	} else if convType == 1 { // 群聊
 		// 检查是否是群成员
-
-		resp, err := r.group.IsGroupMember(ctx, &chat.IsGroupMemberReq{
-			GroupId: targetID,
+		// 注意：这里需要chat服务有IsGroupMember方法
+		isMemberReq := &chat.IsGroupMemberReq{
 			UserId:  userID,
-		})
-		return resp.IsMember, err
+			GroupId: targetID,
+		}
+
+		// 需要确保chat服务有这个RPC
+		resp, err := r.group.IsGroupMember(ctx, isMemberReq)
+		if err != nil {
+			return false, fmt.Errorf("检查群成员关系失败: %v", err)
+		}
+
+		err = respcheck.ValidateResponseMeta(resp.Meta)
+		if err != nil {
+			return false, err
+		}
+
+		return resp.IsMember, nil
 	}
+
 	return false, nil
 }
 

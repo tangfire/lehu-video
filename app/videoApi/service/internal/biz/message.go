@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
 	"gorm.io/gorm"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
@@ -121,6 +122,16 @@ type DeleteConversationInput struct {
 type MessageUsecase struct {
 	chat ChatAdapter
 	log  *log.Helper
+}
+
+type CreateConversationInput struct {
+	TargetID       int64
+	ConvType       int32
+	InitialMessage string
+}
+
+type CreateConversationOutput struct {
+	ConversationID int64
 }
 
 func NewMessageUsecase(chat ChatAdapter, logger log.Logger) *MessageUsecase {
@@ -331,4 +342,69 @@ func (uc *MessageUsecase) ClearMessages(ctx context.Context, userID, targetID in
 		return err
 	}
 	return nil
+}
+
+// 添加创建会话方法
+func (uc *MessageUsecase) CreateConversation(ctx context.Context, input *CreateConversationInput) (*CreateConversationOutput, error) {
+	userID, err := claims.GetUserId(ctx)
+	if err != nil {
+		return nil, errors.New("获取用户信息失败")
+	}
+
+	// 检查权限
+	if input.ConvType == 0 { // 单聊
+		// 检查是否是好友关系
+		if uc.chat != nil {
+			// 检查是否有 CheckFriendRelation 方法
+			isFriend, _, err := uc.chat.CheckFriendRelation(ctx, userID, input.TargetID)
+			if err != nil {
+				return nil, fmt.Errorf("检查好友关系失败: %v", err)
+			}
+			if !isFriend {
+				return nil, errors.New("你们不是好友，无法创建会话")
+			}
+		}
+	} else if input.ConvType == 1 { // 群聊
+		// 检查是否是群成员
+		if uc.chat != nil {
+			// 检查是否有 CheckUserRelation 方法
+			checker, ok := uc.chat.(interface {
+				CheckUserRelation(ctx context.Context, userID, targetID int64, convType int32) (bool, error)
+			})
+			if ok {
+				isMember, err := checker.CheckUserRelation(ctx, userID, input.TargetID, input.ConvType)
+				if err != nil {
+					return nil, fmt.Errorf("检查群成员关系失败: %v", err)
+				}
+				if !isMember {
+					return nil, errors.New("你不是群成员，无法创建会话")
+				}
+			}
+		}
+	}
+
+	// 如果是单聊，检查是否已经存在会话
+	if input.ConvType == 0 {
+		existingConv, err := uc.chat.GetConversation(ctx, userID, input.TargetID, input.ConvType)
+		if err == nil && existingConv != nil {
+			return &CreateConversationOutput{
+				ConversationID: existingConv.ID,
+			}, nil
+		}
+	}
+
+	// 通过 chat 适配器创建会话
+	if uc.chat != nil {
+		conversationID, err := uc.chat.CreateConversation(ctx, userID, input.TargetID, input.ConvType, input.InitialMessage)
+		if err != nil {
+			uc.log.WithContext(ctx).Errorf("创建会话失败: %v", err)
+			return nil, fmt.Errorf("创建会话失败: %v", err)
+		}
+
+		return &CreateConversationOutput{
+			ConversationID: conversationID,
+		}, nil
+	}
+
+	return nil, errors.New("聊天服务不可用")
 }

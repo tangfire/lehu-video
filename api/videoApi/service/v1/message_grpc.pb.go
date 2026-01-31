@@ -30,6 +30,7 @@ const (
 	MessageService_GetConversation_FullMethodName     = "/api.videoApi.service.v1.MessageService/GetConversation"
 	MessageService_GetUnreadCount_FullMethodName      = "/api.videoApi.service.v1.MessageService/GetUnreadCount"
 	MessageService_UpdateMessageStatus_FullMethodName = "/api.videoApi.service.v1.MessageService/UpdateMessageStatus"
+	MessageService_CreateConversation_FullMethodName  = "/api.videoApi.service.v1.MessageService/CreateConversation"
 )
 
 // MessageServiceClient is the client API for MessageService service.
@@ -60,6 +61,8 @@ type MessageServiceClient interface {
 	GetUnreadCount(ctx context.Context, in *GetUnreadCountReq, opts ...grpc.CallOption) (*GetUnreadCountResp, error)
 	// 新增：更新消息状态（主要用于WebSocket回调）
 	UpdateMessageStatus(ctx context.Context, in *UpdateMessageStatusReq, opts ...grpc.CallOption) (*UpdateMessageStatusResp, error)
+	// 创建会话
+	CreateConversation(ctx context.Context, in *CreateConversationReq, opts ...grpc.CallOption) (*CreateConversationResp, error)
 }
 
 type messageServiceClient struct {
@@ -180,6 +183,16 @@ func (c *messageServiceClient) UpdateMessageStatus(ctx context.Context, in *Upda
 	return out, nil
 }
 
+func (c *messageServiceClient) CreateConversation(ctx context.Context, in *CreateConversationReq, opts ...grpc.CallOption) (*CreateConversationResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateConversationResp)
+	err := c.cc.Invoke(ctx, MessageService_CreateConversation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MessageServiceServer is the server API for MessageService service.
 // All implementations must embed UnimplementedMessageServiceServer
 // for forward compatibility.
@@ -208,6 +221,8 @@ type MessageServiceServer interface {
 	GetUnreadCount(context.Context, *GetUnreadCountReq) (*GetUnreadCountResp, error)
 	// 新增：更新消息状态（主要用于WebSocket回调）
 	UpdateMessageStatus(context.Context, *UpdateMessageStatusReq) (*UpdateMessageStatusResp, error)
+	// 创建会话
+	CreateConversation(context.Context, *CreateConversationReq) (*CreateConversationResp, error)
 	mustEmbedUnimplementedMessageServiceServer()
 }
 
@@ -250,6 +265,9 @@ func (UnimplementedMessageServiceServer) GetUnreadCount(context.Context, *GetUnr
 }
 func (UnimplementedMessageServiceServer) UpdateMessageStatus(context.Context, *UpdateMessageStatusReq) (*UpdateMessageStatusResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateMessageStatus not implemented")
+}
+func (UnimplementedMessageServiceServer) CreateConversation(context.Context, *CreateConversationReq) (*CreateConversationResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateConversation not implemented")
 }
 func (UnimplementedMessageServiceServer) mustEmbedUnimplementedMessageServiceServer() {}
 func (UnimplementedMessageServiceServer) testEmbeddedByValue()                        {}
@@ -470,6 +488,24 @@ func _MessageService_UpdateMessageStatus_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MessageService_CreateConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateConversationReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MessageServiceServer).CreateConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MessageService_CreateConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MessageServiceServer).CreateConversation(ctx, req.(*CreateConversationReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MessageService_ServiceDesc is the grpc.ServiceDesc for MessageService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -520,6 +556,10 @@ var MessageService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateMessageStatus",
 			Handler:    _MessageService_UpdateMessageStatus_Handler,
+		},
+		{
+			MethodName: "CreateConversation",
+			Handler:    _MessageService_CreateConversation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

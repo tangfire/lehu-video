@@ -41,6 +41,9 @@ service MessageService {
 
   // 清空聊天记录
   rpc ClearMessages(ClearMessagesReq) returns (ClearMessagesResp);
+
+  // 创建会话
+  rpc CreateConversation(CreateConversationReq) returns (CreateConversationResp);
 }
 
 // 会话类型
@@ -241,4 +244,17 @@ message ClearMessagesReq {
 
 message ClearMessagesResp {
   Metadata meta = 1;
+}
+
+// 创建会话请求
+message CreateConversationReq {
+  int64 user_id = 1;
+  int64 target_id = 2;
+  ConversationType conv_type = 3;
+  string initial_message = 4;
+}
+
+message CreateConversationResp {
+  int64 conversation_id = 1;
+  Metadata meta = 2;
 }

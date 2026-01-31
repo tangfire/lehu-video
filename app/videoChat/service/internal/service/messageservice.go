@@ -358,3 +358,27 @@ func (s *MessageServiceService) ClearMessages(ctx context.Context, req *pb.Clear
 		Meta: utils.GetSuccessMeta(),
 	}, nil
 }
+
+// 添加 CreateConversation 方法
+func (s *MessageServiceService) CreateConversation(ctx context.Context, req *pb.CreateConversationReq) (*pb.CreateConversationResp, error) {
+	// 构建Command
+	cmd := &biz.CreateConversationCommand{
+		UserID:         req.UserId,
+		TargetID:       req.TargetId,
+		ConvType:       int32(req.ConvType),
+		InitialMessage: req.InitialMessage,
+	}
+
+	// 调用业务层
+	result, err := s.uc.CreateConversation(ctx, cmd)
+	if err != nil {
+		return &pb.CreateConversationResp{
+			Meta: utils.GetMetaWithError(err),
+		}, nil
+	}
+
+	return &pb.CreateConversationResp{
+		Meta:           utils.GetSuccessMeta(),
+		ConversationId: result.ConversationID,
+	}, nil
+}

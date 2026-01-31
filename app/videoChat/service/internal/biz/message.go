@@ -148,6 +148,17 @@ type ClearMessagesCommand struct {
 
 type ClearMessagesResult struct{}
 
+type CreateConversationCommand struct {
+	UserID         int64
+	TargetID       int64
+	ConvType       int32
+	InitialMessage string
+}
+
+type CreateConversationResult struct {
+	ConversationID int64
+}
+
 // 消息仓储接口
 type MessageRepo interface {
 	// 消息操作
@@ -173,6 +184,34 @@ type MessageRepo interface {
 
 	// 新增方法
 	DeleteMessagesByConversation(ctx context.Context, userID, targetID int64, convType int32) error // 新增：清空聊天记录
+}
+
+// 单聊会话ID生成器
+func generateSingleChatConversationID(userID1, userID2 int64) int64 {
+	// 确保小ID在前，大ID在后
+	minID := userID1
+	maxID := userID2
+	if userID1 > userID2 {
+		minID, maxID = userID2, userID1
+	}
+
+	// 使用位运算生成唯一ID
+	// 高32位存储小ID，低32位存储大ID
+	return (minID << 32) | (maxID & 0xFFFFFFFF)
+}
+
+// 从会话ID解析用户ID
+func parseSingleChatUserIDs(conversationID int64) (int64, int64) {
+	userID1 := conversationID >> 32
+	userID2 := conversationID & 0xFFFFFFFF
+	return userID1, userID2
+}
+
+// 生成群聊会话ID（每个用户独立）
+func generateGroupConversationID(userID, groupID int64) int64 {
+	// 使用雪花算法或其他分布式ID生成
+	// 这里简单使用哈希组合
+	return (groupID << 32) | (userID & 0xFFFFFFFF)
 }
 
 type MessageUsecase struct {
@@ -228,7 +267,6 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, cmd *SendMessageComma
 
 	// 检查权限
 	if cmd.ConvType == 0 { // 单聊
-		// 检查是否是好友关系
 		isFriend, _, err := uc.friendRepo.CheckFriendRelation(ctx, cmd.SenderID, cmd.ReceiverID)
 		if err != nil {
 			return nil, fmt.Errorf("检查好友关系失败")
@@ -237,7 +275,6 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, cmd *SendMessageComma
 			return nil, fmt.Errorf("你们不是好友，无法发送消息")
 		}
 	} else if cmd.ConvType == 1 { // 群聊
-		// 检查是否是群成员
 		isMember, err := uc.groupRepo.IsGroupMember(ctx, cmd.ReceiverID, cmd.SenderID)
 		if err != nil {
 			return nil, fmt.Errorf("检查群成员关系失败")
@@ -272,36 +309,50 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, cmd *SendMessageComma
 		return nil, fmt.Errorf("发送消息失败")
 	}
 
-	// 创建或更新会话
+	// 生成会话ID
+	var senderConversationID int64
+	var receiverConversationID int64
 	lastMessageText := uc.getLastMessageText(cmd.MsgType, cmd.Content)
 
-	// 为发送者创建或更新会话
-	senderConv := &Conversation{
-		UserID:      cmd.SenderID,
-		Type:        cmd.ConvType,
-		TargetID:    cmd.ReceiverID,
-		LastMessage: lastMessageText,
-		LastMsgType: cmd.MsgType,
-		LastMsgTime: now,
-		UnreadCount: 0,
-		UpdatedAt:   now,
-	}
+	if cmd.ConvType == 0 { // 单聊
+		// 单聊使用统一的会话ID
+		senderConversationID = generateSingleChatConversationID(cmd.SenderID, cmd.ReceiverID)
+		receiverConversationID = senderConversationID // 两个用户共享同一会话ID
 
-	err = uc.repo.CreateOrUpdateConversation(ctx, senderConv)
-	if err != nil {
-		uc.log.Errorf("更新发送者会话失败: %v", err)
-	}
+		// 为发送者创建或更新会话
+		senderConv := &Conversation{
+			ID:          senderConversationID,
+			UserID:      cmd.SenderID,
+			Type:        cmd.ConvType,
+			TargetID:    cmd.ReceiverID,
+			LastMessage: lastMessageText,
+			LastMsgType: cmd.MsgType,
+			LastMsgTime: now,
+			UnreadCount: 0, // 发送者自己未读为0
+			IsPinned:    false,
+			IsMuted:     false,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
 
-	// 如果是单聊，为接收者创建或更新会话
-	if cmd.ConvType == 0 {
+		err = uc.repo.CreateOrUpdateConversation(ctx, senderConv)
+		if err != nil {
+			uc.log.Errorf("更新发送者会话失败: %v", err)
+		}
+
+		// 为接收者创建或更新会话
 		receiverConv := &Conversation{
+			ID:          receiverConversationID,
 			UserID:      cmd.ReceiverID,
 			Type:        cmd.ConvType,
 			TargetID:    cmd.SenderID,
 			LastMessage: lastMessageText,
 			LastMsgType: cmd.MsgType,
 			LastMsgTime: now,
-			UnreadCount: 1,
+			UnreadCount: 1, // 接收者未读+1
+			IsPinned:    false,
+			IsMuted:     false,
+			CreatedAt:   now,
 			UpdatedAt:   now,
 		}
 
@@ -309,25 +360,44 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, cmd *SendMessageComma
 		if err != nil {
 			uc.log.Errorf("更新接收者会话失败: %v", err)
 		}
-	} else if cmd.ConvType == 1 {
-		// 群聊：获取所有群成员（除发送者外），为每个成员更新会话
+
+	} else if cmd.ConvType == 1 { // 群聊
+		// 群聊：获取所有群成员，为每个成员更新会话
 		members, err := uc.groupRepo.GetGroupMembers(ctx, cmd.ReceiverID)
-		if err == nil {
-			for _, memberID := range members {
-				if memberID == cmd.SenderID {
-					continue
-				}
-				memberConv := &Conversation{
-					UserID:      memberID,
-					Type:        cmd.ConvType,
-					TargetID:    cmd.ReceiverID,
-					LastMessage: lastMessageText,
-					LastMsgType: cmd.MsgType,
-					LastMsgTime: now,
-					UnreadCount: 1,
-					UpdatedAt:   now,
-				}
-				_ = uc.repo.CreateOrUpdateConversation(ctx, memberConv)
+		if err != nil {
+			uc.log.Errorf("获取群成员失败: %v", err)
+			return &SendMessageResult{MessageID: messageID}, nil
+		}
+
+		for _, memberID := range members {
+			// 为每个成员生成独立的会话ID
+			memberConversationID := generateGroupConversationID(memberID, cmd.ReceiverID)
+
+			unreadCount := 0
+			if memberID == cmd.SenderID {
+				unreadCount = 0 // 发送者自己未读为0
+			} else {
+				unreadCount = 1 // 其他成员未读+1
+			}
+
+			memberConv := &Conversation{
+				ID:          memberConversationID,
+				UserID:      memberID,
+				Type:        cmd.ConvType,
+				TargetID:    cmd.ReceiverID,
+				LastMessage: lastMessageText,
+				LastMsgType: cmd.MsgType,
+				LastMsgTime: now,
+				UnreadCount: unreadCount,
+				IsPinned:    false,
+				IsMuted:     false,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
+
+			err = uc.repo.CreateOrUpdateConversation(ctx, memberConv)
+			if err != nil {
+				uc.log.Errorf("更新群成员会话失败 user_id=%d: %v", memberID, err)
 			}
 		}
 	}
@@ -615,4 +685,71 @@ func (uc *MessageUsecase) ClearMessages(ctx context.Context, userID, targetID in
 	}
 
 	return &ClearMessagesResult{}, nil
+}
+
+// CreateConversation 方法修复
+func (uc *MessageUsecase) CreateConversation(ctx context.Context, cmd *CreateConversationCommand) (*CreateConversationResult, error) {
+	// 检查权限
+	if cmd.ConvType == 0 { // 单聊
+		isFriend, _, err := uc.friendRepo.CheckFriendRelation(ctx, cmd.UserID, cmd.TargetID)
+		if err != nil {
+			return nil, fmt.Errorf("检查好友关系失败: %v", err)
+		}
+		if !isFriend {
+			return nil, fmt.Errorf("你们不是好友，无法创建会话")
+		}
+	} else if cmd.ConvType == 1 { // 群聊
+		isMember, err := uc.groupRepo.IsGroupMember(ctx, cmd.TargetID, cmd.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("检查群成员关系失败: %v", err)
+		}
+		if !isMember {
+			return nil, fmt.Errorf("你不是群成员，无法创建会话")
+		}
+	}
+
+	// 生成会话ID
+	var conversationID int64
+	if cmd.ConvType == 0 {
+		// 单聊：使用统一ID
+		conversationID = generateSingleChatConversationID(cmd.UserID, cmd.TargetID)
+	} else {
+		// 群聊：用户独立的ID
+		conversationID = generateGroupConversationID(cmd.UserID, cmd.TargetID)
+	}
+
+	// 检查是否已存在会话
+	existingConv, err := uc.repo.GetConversation(ctx, cmd.UserID, cmd.TargetID, cmd.ConvType)
+	if err == nil && existingConv != nil {
+		return &CreateConversationResult{
+			ConversationID: existingConv.ID,
+		}, nil
+	}
+
+	// 创建会话
+	now := time.Now()
+	conversation := &Conversation{
+		ID:          conversationID,
+		UserID:      cmd.UserID,
+		Type:        cmd.ConvType,
+		TargetID:    cmd.TargetID,
+		LastMessage: cmd.InitialMessage,
+		LastMsgType: 0, // 文本
+		LastMsgTime: now,
+		UnreadCount: 0,
+		IsPinned:    false,
+		IsMuted:     false,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	err = uc.repo.CreateOrUpdateConversation(ctx, conversation)
+	if err != nil {
+		uc.log.Errorf("创建会话失败: %v", err)
+		return nil, fmt.Errorf("创建会话失败")
+	}
+
+	return &CreateConversationResult{
+		ConversationID: conversationID,
+	}, nil
 }

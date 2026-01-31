@@ -91,6 +91,14 @@ service MessageService {
       body: "*"
     };
   };
+
+  // 创建会话
+  rpc CreateConversation(CreateConversationReq) returns (CreateConversationResp) {
+    option (google.api.http) = {
+      post: "/v1/conversation"
+      body: "*"
+    };
+  };
 }
 
 
@@ -266,4 +274,16 @@ message UpdateMessageStatusReq {
 }
 
 message UpdateMessageStatusResp {}
+
+
+// 创建会话请求
+message CreateConversationReq {
+  int64 target_id = 1;        // 对方ID（用户ID或群ID）
+  ConversationType conv_type = 2; // 会话类型
+  string initial_message = 3;    // 可选：初始消息
+}
+
+message CreateConversationResp {
+  int64 conversation_id = 1;   // 创建的会话ID
+}
 

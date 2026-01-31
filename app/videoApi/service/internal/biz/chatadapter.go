@@ -46,4 +46,7 @@ type ChatAdapter interface {
 
 	// 新增：检查用户关系
 	CheckUserRelation(ctx context.Context, userID, targetID int64, convType int32) (bool, error)
+
+	// 创建会话
+	CreateConversation(ctx context.Context, userID, targetID int64, convType int32, initialMessage string) (int64, error)
 }

@@ -364,25 +364,37 @@ func (c *Client) handleSendMessage(data json.RawMessage, clientMsgID string) {
 		return
 	}
 
-	// 检查用户关系
-	if c.chat != nil {
-		// 检查用户是否有 CheckUserRelation 方法
+	// 检查用户关系（仅在单聊时检查好友关系）
+	if msg.ConvType == 0 && c.chat != nil {
+		checker, ok := c.chat.(interface {
+			CheckFriendRelation(ctx context.Context, userID, targetID int64) (bool, int32, error)
+		})
+
+		if ok {
+			isFriend, _, err := checker.CheckFriendRelation(c.Ctx, c.UserID, msg.ReceiverID)
+			if err != nil {
+				c.sendError("relation_check_failed", "检查好友关系失败", clientMsgID)
+				return
+			}
+			if !isFriend {
+				c.sendError("not_friend", "你们不是好友，无法发送消息", clientMsgID)
+				return
+			}
+		}
+	} else if msg.ConvType == 1 && c.chat != nil {
+		// 群聊检查群成员关系
 		checker, ok := c.chat.(interface {
 			CheckUserRelation(ctx context.Context, userID, targetID int64, convType int32) (bool, error)
 		})
 
 		if ok {
-			hasRelation, err := checker.CheckUserRelation(c.Ctx, c.UserID, msg.ReceiverID, msg.ConvType)
+			isMember, err := checker.CheckUserRelation(c.Ctx, c.UserID, msg.ReceiverID, msg.ConvType)
 			if err != nil {
-				c.sendError("relation_check_failed", "检查用户关系失败: "+err.Error(), clientMsgID)
+				c.sendError("relation_check_failed", "检查群成员关系失败", clientMsgID)
 				return
 			}
-			if !hasRelation {
-				if msg.ConvType == 0 {
-					c.sendError("not_friend", "你们不是好友，无法发送消息", clientMsgID)
-				} else {
-					c.sendError("not_member", "你不是群成员，无法发送消息", clientMsgID)
-				}
+			if !isMember {
+				c.sendError("not_member", "你不是群成员，无法发送消息", clientMsgID)
 				return
 			}
 		}
@@ -468,18 +480,14 @@ func (c *Client) handleSendMessage(data json.RawMessage, clientMsgID string) {
 		// 构建推送消息
 		pushMsg := c.buildReceiveMessage(output.MessageID, msg)
 
+		// 处理消息推送（根据会话类型）
 		if msg.ConvType == 0 { // 单聊
-			isOnline := c.Manager.IsUserOnline(msg.ReceiverID)
+			// 立即更新消息状态为已送达（因为通过WebSocket直接推送）
+			go c.updateMessageStatus(output.MessageID, 2) // DELIVERED
 
-			if isOnline {
-				// 接收方在线，直接推送
-				c.Manager.BroadcastToUser(msg.ReceiverID, pushMsg)
-				// 发送送达确认
-				c.sendDeliveryConfirm(output.MessageID, msg.ReceiverID)
-			} else {
-				// 接收方离线，存储为离线消息
-				c.storeOfflineMessage(msg.ReceiverID, output.MessageID, msg)
-			}
+			// 推送给接收方
+			c.Manager.BroadcastToUser(msg.ReceiverID, pushMsg)
+
 		} else if msg.ConvType == 1 { // 群聊
 			// 获取群成员并推送
 			c.handleGroupMessage(msg.ReceiverID, output.MessageID, msg, pushMsg)
@@ -489,11 +497,26 @@ func (c *Client) handleSendMessage(data json.RawMessage, clientMsgID string) {
 	}
 }
 
-// handleGroupMessage 处理群聊消息
+// updateMessageStatus 更新消息状态
+func (c *Client) updateMessageStatus(messageID int64, status int32) {
+	if c.chat != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		err := c.chat.UpdateMessageStatus(ctx, messageID, status)
+		if err != nil {
+			c.logger.Log(log.LevelError, "msg", "更新消息状态失败",
+				"message_id", messageID,
+				"status", status,
+				"error", err)
+		}
+	}
+}
+
+// handleGroupMessage 处理群聊消息推送
 func (c *Client) handleGroupMessage(groupID, messageID int64, msg SendMessageReq, pushMsg []byte) {
 	// 获取群成员列表
 	if c.chat != nil {
-		// 检查是否有 GetGroupMembers 方法
 		gmGetter, ok := c.chat.(interface {
 			GetGroupMembers(ctx context.Context, groupID int64) ([]int64, error)
 		})
@@ -523,7 +546,7 @@ func (c *Client) handleGroupMessage(groupID, messageID int64, msg SendMessageReq
 				onlineCount++
 				// 推送给在线成员
 				c.Manager.BroadcastToUser(memberID, pushMsg)
-				// 发送送达确认
+				// 发送者可以看到送达状态
 				c.sendDeliveryConfirm(messageID, memberID)
 			} else {
 				offlineCount++
@@ -538,7 +561,7 @@ func (c *Client) handleGroupMessage(groupID, messageID int64, msg SendMessageReq
 			"group_id":      groupID,
 			"online_count":  onlineCount,
 			"offline_count": offlineCount,
-			"total_members": len(members) - 1, // 排除自己
+			"total_members": len(members) - 1,
 		}, "")
 	}
 }
@@ -929,7 +952,7 @@ func (h *Handler) validateConnection(r *http.Request) (*claims.Claims, error) {
 	// 1. JWT认证
 	claim, err := parseJWTFromRequest(r, h.jwtSecret)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("认证失败: %v", err)
 	}
 
 	// 2. 检查用户状态
@@ -937,10 +960,24 @@ func (h *Handler) validateConnection(r *http.Request) (*claims.Claims, error) {
 		return nil, errors.New("无效的用户ID")
 	}
 
-	// 3. 检查连接限制
+	// 3. 调整连接限制（开发阶段放宽）
 	currentConnections := h.manager.GetUserConnectionCount(claim.UserId)
-	if currentConnections >= 3 { // 限制最多3个连接
-		return nil, errors.New("连接数超过限制")
+	maxConnections := 10 // 开发阶段允许10个连接，方便多标签测试
+
+	// 根据环境调整限制
+	//env := os.Getenv("APP_ENV")
+	//if env == "production" {
+	//	maxConnections = 3 // 生产环境限制3个
+	//} else if env == "staging" {
+	//	maxConnections = 5 // 测试环境限制5个
+	//}
+
+	if currentConnections >= maxConnections {
+		h.logger.Log(log.LevelWarn, "msg", "用户连接数超过限制",
+			"user_id", claim.UserId,
+			"current", currentConnections,
+			"max", maxConnections)
+		return nil, fmt.Errorf("连接数超过限制(最多%d个)", maxConnections)
 	}
 
 	return claim, nil

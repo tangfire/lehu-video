@@ -301,3 +301,21 @@ func (s *MessageServiceService) UpdateMessageStatus(ctx context.Context, req *v1
 
 	return &v1.UpdateMessageStatusResp{}, nil
 }
+
+// 添加 CreateConversation 方法
+func (s *MessageServiceService) CreateConversation(ctx context.Context, req *v1.CreateConversationReq) (*v1.CreateConversationResp, error) {
+	input := &biz.CreateConversationInput{
+		TargetID:       req.TargetId,
+		ConvType:       int32(req.ConvType),
+		InitialMessage: req.InitialMessage,
+	}
+
+	output, err := s.uc.CreateConversation(ctx, input)
+	if err != nil {
+		return &v1.CreateConversationResp{}, err
+	}
+
+	return &v1.CreateConversationResp{
+		ConversationId: output.ConversationID,
+	}, nil
+}

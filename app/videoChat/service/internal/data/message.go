@@ -252,6 +252,7 @@ func (r *messageRepo) CreateOrUpdateConversation(ctx context.Context, conv *biz.
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// 创建新会话
 		dbConv := model.Conversation{
+			ID:          conv.ID,
 			UserID:      conv.UserID,
 			Type:        int8(conv.Type),
 			TargetID:    conv.TargetID,
@@ -265,6 +266,16 @@ func (r *messageRepo) CreateOrUpdateConversation(ctx context.Context, conv *biz.
 			UpdatedAt:   time.Now(),
 			IsDeleted:   false,
 		}
+
+		// 检查ID是否已存在（防止冲突）
+		var count int64
+		r.data.db.WithContext(ctx).Model(&model.Conversation{}).
+			Where("id = ?", conv.ID).Count(&count)
+		if count > 0 {
+			// ID冲突，使用数据库自增ID
+			return r.data.db.WithContext(ctx).Create(&dbConv).Error
+		}
+
 		return r.data.db.WithContext(ctx).Create(&dbConv).Error
 	}
 
@@ -280,11 +291,20 @@ func (r *messageRepo) CreateOrUpdateConversation(ctx context.Context, conv *biz.
 		"updated_at":    time.Now(),
 	}
 
-	// 如果提供了unreadCount，则累加
-	if conv.UnreadCount > 0 {
+	// 处理未读计数：如果是更新会话，通常不需要累加，直接设置
+	if conv.UnreadCount >= 0 {
 		updateData["unread_count"] = gorm.Expr("unread_count + ?", conv.UnreadCount)
 	} else {
-		updateData["unread_count"] = conv.UnreadCount
+		// 如果是清除未读
+		updateData["unread_count"] = 0
+	}
+
+	// 更新其他字段
+	if conv.IsPinned != existingConv.IsPinned {
+		updateData["is_pinned"] = conv.IsPinned
+	}
+	if conv.IsMuted != existingConv.IsMuted {
+		updateData["is_muted"] = conv.IsMuted
 	}
 
 	return r.data.db.WithContext(ctx).
@@ -293,14 +313,15 @@ func (r *messageRepo) CreateOrUpdateConversation(ctx context.Context, conv *biz.
 		Updates(updateData).Error
 }
 
-func (r *messageRepo) GetConversation(ctx context.Context, userID, targetID int64, convType int32) (*biz.Conversation, error) {
+// GetConversationByUniqueKey 新增：通过唯一键查询会话
+func (r *messageRepo) GetConversationByUniqueKey(ctx context.Context, userID, targetID int64, convType int32) (*biz.Conversation, error) {
 	var dbConv model.Conversation
 	err := r.data.db.WithContext(ctx).
-		Where("user_id = ? AND type = ? AND target_id = ? AND is_deleted = ?",
-			userID, int8(convType), targetID, false).
+		Where("user_id = ? AND target_id = ? AND type = ? AND is_deleted = ?",
+			userID, targetID, int8(convType), false).
 		First(&dbConv).Error
 
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -323,10 +344,64 @@ func (r *messageRepo) GetConversation(ctx context.Context, userID, targetID int6
 	}, nil
 }
 
-func (r *messageRepo) GetConversationByID(ctx context.Context, id int64) (*biz.Conversation, error) {
+// GetConversationByID 新增：通过ID查询会话
+func (r *messageRepo) GetConversationByID(ctx context.Context, conversationID int64) (*biz.Conversation, error) {
 	var dbConv model.Conversation
 	err := r.data.db.WithContext(ctx).
-		Where("id = ? AND is_deleted = ?", id, false).
+		Where("id = ? AND is_deleted = ?", conversationID, false).
+		First(&dbConv).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &biz.Conversation{
+		ID:          dbConv.ID,
+		UserID:      dbConv.UserID,
+		Type:        int32(dbConv.Type),
+		TargetID:    dbConv.TargetID,
+		LastMessage: dbConv.LastMessage,
+		LastMsgType: int32(dbConv.LastMsgType),
+		LastMsgTime: dbConv.LastMsgTime,
+		UnreadCount: dbConv.UnreadCount,
+		IsPinned:    dbConv.IsPinned,
+		IsMuted:     dbConv.IsMuted,
+		CreatedAt:   dbConv.CreatedAt,
+		UpdatedAt:   dbConv.UpdatedAt,
+	}, nil
+}
+
+// ResetConversationUnreadCount 重置会话未读计数
+func (r *messageRepo) ResetConversationUnreadCount(ctx context.Context, conversationID int64) error {
+	return r.data.db.WithContext(ctx).
+		Model(&model.Conversation{}).
+		Where("id = ?", conversationID).
+		Update("unread_count", 0).Error
+}
+
+// 批量更新消息状态
+func (r *messageRepo) BatchUpdateMessageStatus(ctx context.Context, messageIDs []int64, status int32) error {
+	if len(messageIDs) == 0 {
+		return nil
+	}
+
+	return r.data.db.WithContext(ctx).
+		Model(&model.Message{}).
+		Where("id IN ?", messageIDs).
+		Updates(map[string]interface{}{
+			"status":     int8(status),
+			"updated_at": time.Now(),
+		}).Error
+}
+
+func (r *messageRepo) GetConversation(ctx context.Context, userID, targetID int64, convType int32) (*biz.Conversation, error) {
+	var dbConv model.Conversation
+	err := r.data.db.WithContext(ctx).
+		Where("user_id = ? AND type = ? AND target_id = ? AND is_deleted = ?",
+			userID, int8(convType), targetID, false).
 		First(&dbConv).Error
 
 	if err == gorm.ErrRecordNotFound {
