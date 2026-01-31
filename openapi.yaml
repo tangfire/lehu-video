@@ -86,26 +86,17 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Status'
     /v1/conversations:
-        get:
+        post:
             tags:
                 - MessageService
             description: 获取会话列表
             operationId: MessageService_ListConversations
-            parameters:
-                - name: pageStats.page
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageStats.size
-                  in: query
-                  schema:
-                    type: integer
-                    format: int32
-                - name: pageStats.sort
-                  in: query
-                  schema:
-                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListConversationsReq'
+                required: true
             responses:
                 "200":
                     description: OK
@@ -385,6 +376,12 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        ListConversationsReq:
+            type: object
+            properties:
+                pageStats:
+                    $ref: '#/components/schemas/PageStatsReq'
+            description: 获取会话列表
         ListConversationsResp:
             type: object
             properties:
@@ -488,6 +485,17 @@ components:
                 =======================
                  消息模型
                  =======================
+        PageStatsReq:
+            type: object
+            properties:
+                page:
+                    type: integer
+                    format: int32
+                size:
+                    type: integer
+                    format: int32
+                sort:
+                    type: string
         PageStatsResp:
             type: object
             properties:

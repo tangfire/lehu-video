@@ -58,7 +58,7 @@ type FriendServiceHTTPServer interface {
 
 func RegisterFriendServiceHTTPServer(s *http.Server, srv FriendServiceHTTPServer) {
 	r := s.Route("/")
-	r.GET("/v1/friends/search", _FriendService_SearchUsers0_HTTP_Handler(srv))
+	r.POST("/v1/friends/search", _FriendService_SearchUsers0_HTTP_Handler(srv))
 	r.POST("/v1/friend/apply", _FriendService_SendFriendApply0_HTTP_Handler(srv))
 	r.PUT("/v1/friend/apply/{apply_id}", _FriendService_HandleFriendApply0_HTTP_Handler(srv))
 	r.POST("/v1/friend/applies", _FriendService_ListFriendApplies0_HTTP_Handler(srv))
@@ -74,6 +74,9 @@ func RegisterFriendServiceHTTPServer(s *http.Server, srv FriendServiceHTTPServer
 func _FriendService_SearchUsers0_HTTP_Handler(srv FriendServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in SearchUsersReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -435,10 +438,10 @@ func (c *FriendServiceHTTPClientImpl) ListFriends(ctx context.Context, in *ListF
 func (c *FriendServiceHTTPClientImpl) SearchUsers(ctx context.Context, in *SearchUsersReq, opts ...http.CallOption) (*SearchUsersResp, error) {
 	var out SearchUsersResp
 	pattern := "/v1/friends/search"
-	path := binding.EncodeURL(pattern, in, true)
+	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationFriendServiceSearchUsers))
 	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

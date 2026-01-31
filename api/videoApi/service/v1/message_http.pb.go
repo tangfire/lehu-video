@@ -62,7 +62,7 @@ func RegisterMessageServiceHTTPServer(s *http.Server, srv MessageServiceHTTPServ
 	r.POST("/v1/messages/list", _MessageService_ListMessages0_HTTP_Handler(srv))
 	r.DELETE("/v1/message/{message_id}", _MessageService_RecallMessage0_HTTP_Handler(srv))
 	r.POST("/v1/messages/read", _MessageService_MarkMessagesRead0_HTTP_Handler(srv))
-	r.GET("/v1/conversations", _MessageService_ListConversations0_HTTP_Handler(srv))
+	r.POST("/v1/conversations", _MessageService_ListConversations0_HTTP_Handler(srv))
 	r.DELETE("/v1/conversation/{conversation_id}", _MessageService_DeleteConversation0_HTTP_Handler(srv))
 	r.DELETE("/v1/messages", _MessageService_ClearMessages0_HTTP_Handler(srv))
 	r.POST("/v1/conversation/detail", _MessageService_GetConversation0_HTTP_Handler(srv))
@@ -162,6 +162,9 @@ func _MessageService_MarkMessagesRead0_HTTP_Handler(srv MessageServiceHTTPServer
 func _MessageService_ListConversations0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in ListConversationsReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -394,10 +397,10 @@ func (c *MessageServiceHTTPClientImpl) GetUnreadCount(ctx context.Context, in *G
 func (c *MessageServiceHTTPClientImpl) ListConversations(ctx context.Context, in *ListConversationsReq, opts ...http.CallOption) (*ListConversationsResp, error) {
 	var out ListConversationsResp
 	pattern := "/v1/conversations"
-	path := binding.EncodeURL(pattern, in, true)
+	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationMessageServiceListConversations))
 	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

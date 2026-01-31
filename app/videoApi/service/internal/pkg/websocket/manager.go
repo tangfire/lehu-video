@@ -97,6 +97,21 @@ func (m *Manager) Start() {
 		select {
 		case client := <-m.register:
 			m.Lock()
+
+			if old, ok := m.clients[client.UserID]; ok {
+				go func(old *Client) {
+					time.Sleep(500 * time.Millisecond) // 延迟半秒
+					old.Conn.WriteMessage(
+						websocket.CloseMessage,
+						websocket.FormatCloseMessage(
+							websocket.CloseNormalClosure,
+							"replaced by new connection",
+						),
+					)
+					old.Conn.Close()
+				}(old)
+			}
+
 			m.clients[client.UserID] = client
 			m.onlineMgr.SetUserOnline(client.UserID, "web", client.Conn.RemoteAddr().String())
 			m.Unlock()
@@ -108,7 +123,6 @@ func (m *Manager) Start() {
 			m.Lock()
 			if _, ok := m.clients[client.UserID]; ok {
 				delete(m.clients, client.UserID)
-				close(client.SendChan)
 				m.onlineMgr.SetUserOffline(client.UserID, client.Conn.RemoteAddr().String())
 			}
 			m.Unlock()
@@ -239,10 +253,10 @@ func (c *Client) ReadPump() {
 	}()
 
 	c.Conn.SetReadLimit(5120)
-	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	//c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.Conn.SetPongHandler(func(string) error {
 		c.Manager.onlineMgr.UpdateLastActive(c.UserID)
-		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		//c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
@@ -476,6 +490,7 @@ func (c *Client) handleSendMessage(data json.RawMessage, clientMsgID string) {
 			"message_id":      output.MessageID,
 			"conversation_id": output.ConversationId,
 			"status":          "sent",
+			"client_msg_id":   clientMsgID, // 确保返回客户端消息ID
 		}, clientMsgID)
 
 		// 构建推送消息
@@ -913,72 +928,73 @@ func NewHandler(
 	}
 }
 
+// ServeHTTP 处理 WebSocket 升级请求
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 增强认证验证
-	claim, err := h.validateConnection(r)
-	if err != nil {
-		http.Error(w, "unauthorized: "+err.Error(), http.StatusUnauthorized)
+	// 1. 获取 Token (优先从查询参数获取，因为浏览器 WebSocket API 不支持自定义 Header)
+	tokenStr := r.URL.Query().Get("token")
+	if tokenStr == "" {
+		// 备选：尝试从 Authorization Header 获取
+		auth := r.Header.Get("Authorization")
+		if auth != "" {
+			parts := strings.SplitN(auth, " ", 2)
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				tokenStr = parts[1]
+			}
+		}
+	}
+
+	if tokenStr == "" {
+		h.logger.Log(log.LevelWarn, "msg", "未授权的访问: 缺失 token")
+		http.Error(w, "Unauthorized: missing token", http.StatusUnauthorized)
 		return
 	}
 
-	// 构造 ctx，并注入 claims
+	// 2. 解析并验证 JWT Token
+	claim, err := parseJWT(tokenStr, h.jwtSecret)
+	if err != nil {
+		h.logger.Log(log.LevelError, "msg", "Token 验证失败", "err", err)
+		http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	// 3. 升级 HTTP 连接为 WebSocket
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		h.logger.Log(log.LevelError, "msg", "WebSocket 升级失败", "err", err)
+		return
+	}
+
+	// 4. 构造上下文 (将用户信息存入 context 供后续业务使用)
 	ctx := context.Background()
 	ctx = kjwt.NewContext(ctx, claim)
 
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		h.logger.Log(log.LevelError, "msg", "ws upgrade failed", "err", err)
-		return
-	}
+	// 5. 创建 Client 实例
+	// 注意：userID 从 claim 中获取，确保是 int64 类型
+	client := NewClient(ctx, claim.UserId, conn, h.manager, h.messageUC, h.chat, h.logger)
 
-	client := NewClient(
-		ctx,
-		claim.UserId,
-		conn,
-		h.manager,
-		h.messageUC,
-		h.chat,
-		h.logger,
-	)
-
+	// 6. 将新连接注册到 Manager
+	// Manager.Start 协程会处理此通道消息，并自动踢掉该用户之前的旧连接
 	h.manager.register <- client
 
+	// 7. 【关键】启动读写循环
+	// WritePump 必须在后台协程运行，用于向客户端发送数据
 	go client.WritePump()
-	go client.ReadPump()
+
+	// ReadPump 在当前协程运行，它是一个阻塞循环，直到连接断开
+	// 这会阻止 ServeHTTP 函数返回，从而维持连接生命周期
+	client.ReadPump()
 }
 
-// validateConnection 增强的连接验证
-func (h *Handler) validateConnection(r *http.Request) (*claims.Claims, error) {
-	// 1. JWT认证
-	claim, err := parseJWTFromRequest(r, h.jwtSecret)
-	if err != nil {
-		return nil, fmt.Errorf("认证失败: %v", err)
+// 辅助函数：解析 JWT
+func parseJWT(tokenStr string, secret string) (*claims.Claims, error) {
+	token, err := jwtv5.ParseWithClaims(tokenStr, &claims.Claims{}, func(token *jwtv5.Token) (interface{}, error) {
+		return []byte(secret), nil
+	})
+	if err != nil || !token.Valid {
+		return nil, err
 	}
-
-	// 2. 检查用户状态
-	if claim.UserId <= 0 {
-		return nil, errors.New("无效的用户ID")
+	if c, ok := token.Claims.(*claims.Claims); ok {
+		return c, nil
 	}
-
-	// 3. 调整连接限制（开发阶段放宽）
-	currentConnections := h.manager.GetUserConnectionCount(claim.UserId)
-	maxConnections := 10 // 开发阶段允许10个连接，方便多标签测试
-
-	// 根据环境调整限制
-	//env := os.Getenv("APP_ENV")
-	//if env == "production" {
-	//	maxConnections = 3 // 生产环境限制3个
-	//} else if env == "staging" {
-	//	maxConnections = 5 // 测试环境限制5个
-	//}
-
-	if currentConnections >= maxConnections {
-		h.logger.Log(log.LevelWarn, "msg", "用户连接数超过限制",
-			"user_id", claim.UserId,
-			"current", currentConnections,
-			"max", maxConnections)
-		return nil, fmt.Errorf("连接数超过限制(最多%d个)", maxConnections)
-	}
-
-	return claim, nil
+	return nil, errors.New("invalid claims type")
 }

@@ -14,7 +14,8 @@ service FriendService {
 	// 搜索用户
 	rpc SearchUsers(SearchUsersReq) returns (SearchUsersResp) {
 		option (google.api.http) = {
-			get: "/v1/friends/search"
+			post: "/v1/friends/search"
+			body:"*"
 		};
 	};
 

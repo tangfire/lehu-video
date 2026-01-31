@@ -1333,9 +1333,9 @@ const file_api_videoApi_service_v1_friend_proto_rawDesc = "" +
 	"\ronline_status\x18\x01 \x03(\v2G.api.videoApi.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntryR\fonlineStatus\x1a?\n" +
 	"\x11OnlineStatusEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x03R\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x012\xf8\f\n" +
-	"\rFriendService\x12|\n" +
-	"\vSearchUsers\x12'.api.videoApi.service.v1.SearchUsersReq\x1a(.api.videoApi.service.v1.SearchUsersResp\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/friends/search\x12\x89\x01\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x012\xfb\f\n" +
+	"\rFriendService\x12\x7f\n" +
+	"\vSearchUsers\x12'.api.videoApi.service.v1.SearchUsersReq\x1a(.api.videoApi.service.v1.SearchUsersResp\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/friends/search\x12\x89\x01\n" +
 	"\x0fSendFriendApply\x12+.api.videoApi.service.v1.SendFriendApplyReq\x1a,.api.videoApi.service.v1.SendFriendApplyResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/friend/apply\x12\x9a\x01\n" +
 	"\x11HandleFriendApply\x12-.api.videoApi.service.v1.HandleFriendApplyReq\x1a..api.videoApi.service.v1.HandleFriendApplyResp\"&\x82\xd3\xe4\x93\x02 :\x01*\x1a\x1b/v1/friend/apply/{apply_id}\x12\x91\x01\n" +
 	"\x11ListFriendApplies\x12-.api.videoApi.service.v1.ListFriendAppliesReq\x1a..api.videoApi.service.v1.ListFriendAppliesResp\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/friend/applies\x12x\n" +

@@ -1811,13 +1811,13 @@ const file_api_videoApi_service_v1_message_proto_rawDesc = "" +
 	"\x04READ\x10\x03\x12\f\n" +
 	"\bRECALLED\x10\x04\x12\n" +
 	"\n" +
-	"\x06FAILED\x10c2\xac\f\n" +
+	"\x06FAILED\x10c2\xaf\f\n" +
 	"\x0eMessageService\x12x\n" +
 	"\vSendMessage\x12'.api.videoApi.service.v1.SendMessageReq\x1a(.api.videoApi.service.v1.SendMessageResp\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/message\x12\x81\x01\n" +
 	"\fListMessages\x12(.api.videoApi.service.v1.ListMessagesReq\x1a).api.videoApi.service.v1.ListMessagesResp\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/messages/list\x12\x88\x01\n" +
 	"\rRecallMessage\x12).api.videoApi.service.v1.RecallMessageReq\x1a*.api.videoApi.service.v1.RecallMessageResp\" \x82\xd3\xe4\x93\x02\x1a*\x18/v1/message/{message_id}\x12\x8d\x01\n" +
-	"\x10MarkMessagesRead\x12,.api.videoApi.service.v1.MarkMessagesReadReq\x1a-.api.videoApi.service.v1.MarkMessagesReadResp\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/messages/read\x12\x8d\x01\n" +
-	"\x11ListConversations\x12-.api.videoApi.service.v1.ListConversationsReq\x1a..api.videoApi.service.v1.ListConversationsResp\"\x19\x82\xd3\xe4\x93\x02\x13\x12\x11/v1/conversations\x12\xa1\x01\n" +
+	"\x10MarkMessagesRead\x12,.api.videoApi.service.v1.MarkMessagesReadReq\x1a-.api.videoApi.service.v1.MarkMessagesReadResp\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/messages/read\x12\x90\x01\n" +
+	"\x11ListConversations\x12-.api.videoApi.service.v1.ListConversationsReq\x1a..api.videoApi.service.v1.ListConversationsResp\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/conversations\x12\xa1\x01\n" +
 	"\x12DeleteConversation\x12..api.videoApi.service.v1.DeleteConversationReq\x1a/.api.videoApi.service.v1.DeleteConversationResp\"*\x82\xd3\xe4\x93\x02$*\"/v1/conversation/{conversation_id}\x12|\n" +
 	"\rClearMessages\x12).api.videoApi.service.v1.ClearMessagesReq\x1a*.api.videoApi.service.v1.ClearMessagesResp\"\x14\x82\xd3\xe4\x93\x02\x0e*\f/v1/messages\x12\x90\x01\n" +
 	"\x0fGetConversation\x12+.api.videoApi.service.v1.GetConversationReq\x1a,.api.videoApi.service.v1.GetConversationResp\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/conversation/detail\x12\x8c\x01\n" +

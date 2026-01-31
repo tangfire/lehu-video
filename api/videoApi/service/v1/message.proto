@@ -47,7 +47,8 @@ service MessageService {
   // 获取会话列表
   rpc ListConversations(ListConversationsReq) returns (ListConversationsResp) {
     option (google.api.http) = {
-      get: "/v1/conversations"
+      post: "/v1/conversations"
+      body:"*"
     };
   };
 

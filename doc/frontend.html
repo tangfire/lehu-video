@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket 连接测试</title>
+</head>
+<body>
+<h1>WebSocket 连接测试</h1>
+
+<div>
+    <input type="text" id="token" placeholder="输入 JWT Token" style="width: 500px;">
+    <button onclick="connect()">连接</button>
+    <button onclick="disconnect()">断开</button>
+    <span id="status">未连接</span>
+</div>
+
+<div id="messages" style="margin-top: 20px; border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; font-family: monospace;"></div>
+
+<script>
+    let ws = null;
+
+    function log(message) {
+        const now = new Date().toLocaleTimeString();
+        const div = document.createElement('div');
+        div.textContent = `[${now}] ${message}`;
+        document.getElementById('messages').appendChild(div);
+        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    }
+
+    function connect() {
+        const token = document.getElementById('token').value.trim();
+        if (!token) {
+            alert('请输入 Token');
+            return;
+        }
+
+        // 测试不同的连接方式
+        const url = `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`;
+        log(`尝试连接: ${url}`);
+
+        ws = new WebSocket(url);
+
+        ws.onopen = function() {
+            log('连接成功！');
+            document.getElementById('status').textContent = '已连接';
+            log('WebSocket 状态: OPEN');
+        };
+
+        ws.onmessage = function(event) {
+            log(`收到消息: ${event.data}`);
+        };
+
+        ws.onclose = function(event) {
+            log(`连接关闭 - 代码: ${event.code}, 原因: ${event.reason}, 是否干净关闭: ${event.wasClean}`);
+            document.getElementById('status').textContent = '已断开';
+        };
+
+        ws.onerror = function(error) {
+            log(`连接错误: ${JSON.stringify(error)}`);
+        };
+    }
+
+    function disconnect() {
+        if (ws) {
+            ws.close(1000, '用户手动断开');
+            ws = null;
+        }
+    }
+
+    // 测试 token（如果有）
+    window.onload = function() {
+        // 测试用的 token，可以从登录接口获取
+        // document.getElementById('token').value = 'your_test_token_here';
+    };
+</script>
+</body>
+</html>
