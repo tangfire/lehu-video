@@ -5,17 +5,16 @@ import "context"
 // ChatAdapter 接口
 type ChatAdapter interface {
 	// 消息相关
-	SendMessage(ctx context.Context, senderID, receiverID int64, convType, msgType int32, content *MessageContent, clientMsgID string) (int64, error)
-	ListMessages(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64, limit int32) ([]*Message, bool, int64, error)
+	SendMessage(ctx context.Context, senderID, receiverID int64, convType, msgType int32, content *MessageContent, clientMsgID string) (int64, int64, error)
+	ListMessages(ctx context.Context, userID, conversationID int64, lastMsgID int64, limit int32) ([]*Message, bool, int64, error)
 	RecallMessage(ctx context.Context, messageID, userID int64) error
-	MarkMessagesRead(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64) error
+	MarkMessagesRead(ctx context.Context, userID, conversationID, lastMsgID int64) error
 	GetUnreadCount(ctx context.Context, userID int64) (int64, map[int64]int64, error)
 	ListConversations(ctx context.Context, userID int64, pageStats *PageStats) (int64, []*Conversation, error)
 	DeleteConversation(ctx context.Context, userID, conversationID int64) error
-	ClearMessages(ctx context.Context, userID, targetID int64, convType int32) error
-	UpdateMessageStatus(ctx context.Context, messageID int64, status int32) error                       // 新增：更新消息状态
-	GetMessageByID(ctx context.Context, messageID int64) (*Message, error)                              // 新增：获取消息详情
-	GetConversation(ctx context.Context, userID, targetID int64, convType int32) (*Conversation, error) // 新增：获取会话详情
+	ClearMessages(ctx context.Context, userID, conversationID int64) error
+	UpdateMessageStatus(ctx context.Context, messageID int64, status int32) error // 新增：更新消息状态
+	GetMessageByID(ctx context.Context, messageID int64) (*Message, error)        // 新增：获取消息详情
 
 	// 好友相关
 	SearchUsers(ctx context.Context, keyword string, page, size int32) (int64, []*UserInfo, error)
@@ -44,9 +43,7 @@ type ChatAdapter interface {
 	// 新增：获取群成员列表
 	GetGroupMembers(ctx context.Context, groupID int64) ([]int64, error)
 
-	// 新增：检查用户关系
-	CheckUserRelation(ctx context.Context, userID, targetID int64, convType int32) (bool, error)
-
 	// 创建会话
 	CreateConversation(ctx context.Context, userID, targetID int64, convType int32, initialMessage string) (int64, error)
+	GetConversation(ctx context.Context, userID, targetID int64, convType int32) (*Conversation, error) // 新增：获取会话详情
 }

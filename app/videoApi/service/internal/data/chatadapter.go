@@ -76,14 +76,18 @@ func NewFriendServiceClient(r registry.Discovery) chat.FriendServiceClient {
 	return chat.NewFriendServiceClient(conn)
 }
 
-// 消息相关方法
-func (r *chatAdapterImpl) SendMessage(ctx context.Context, senderID, receiverID int64, convType, msgType int32, content *biz.MessageContent, clientMsgID string) (int64, error) {
+// 发送消息
+func (r *chatAdapterImpl) SendMessage(ctx context.Context, senderID, receiverID int64, convType, msgType int32, content *biz.MessageContent, clientMsgID string) (int64, int64, error) {
 	req := &chat.SendMessageReq{
-		SenderId:   senderID,
-		ReceiverId: receiverID,
-		ConvType:   chat.ConversationType(convType),
-		MsgType:    chat.MessageType(msgType),
-		Content: &chat.MessageContent{
+		SenderId:    senderID,
+		ReceiverId:  receiverID,
+		ConvType:    chat.ConversationType(convType),
+		MsgType:     chat.MessageType(msgType),
+		ClientMsgId: clientMsgID,
+	}
+
+	if content != nil {
+		req.Content = &chat.MessageContent{
 			Text:          content.Text,
 			ImageUrl:      content.ImageURL,
 			ImageWidth:    content.ImageWidth,
@@ -97,51 +101,42 @@ func (r *chatAdapterImpl) SendMessage(ctx context.Context, senderID, receiverID 
 			FileName:      content.FileName,
 			FileSize:      content.FileSize,
 			Extra:         content.Extra,
-		},
-		ClientMsgId: clientMsgID,
+		}
 	}
 
 	resp, err := r.message.SendMessage(ctx, req)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
+	}
+	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
+		return 0, 0, err
 	}
 
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return 0, err
-	}
-
-	return resp.MessageId, nil
+	return resp.MessageId, resp.ConversationId, nil
 }
 
-func (r *chatAdapterImpl) ListMessages(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64, limit int32) ([]*biz.Message, bool, int64, error) {
+// 获取消息列表
+func (r *chatAdapterImpl) ListMessages(ctx context.Context, userID, conversationID int64, lastMsgID int64, limit int32) ([]*biz.Message, bool, int64, error) {
 	req := &chat.ListMessagesReq{
-		UserId:    userID,
-		TargetId:  targetID,
-		ConvType:  chat.ConversationType(convType),
-		LastMsgId: lastMsgID,
-		Limit:     limit,
+		UserId:         userID,
+		ConversationId: conversationID,
+		LastMsgId:      lastMsgID,
+		Limit:          limit,
 	}
 
 	resp, err := r.message.ListMessages(ctx, req)
 	if err != nil {
 		return nil, false, 0, err
 	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
+	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
 		return nil, false, 0, err
 	}
 
-	var messages []*biz.Message
+	messages := make([]*biz.Message, 0, len(resp.Messages))
 	for _, m := range resp.Messages {
-		messages = append(messages, &biz.Message{
-			ID:         m.Id,
-			SenderID:   m.SenderId,
-			ReceiverID: m.ReceiverId,
-			ConvType:   int8(m.ConvType),
-			MsgType:    int8(m.MsgType),
-			Content: &biz.MessageContent{
+		var content *biz.MessageContent
+		if m.Content != nil {
+			content = &biz.MessageContent{
 				Text:          m.Content.Text,
 				ImageURL:      m.Content.ImageUrl,
 				ImageWidth:    m.Content.ImageWidth,
@@ -155,7 +150,16 @@ func (r *chatAdapterImpl) ListMessages(ctx context.Context, userID, targetID int
 				FileName:      m.Content.FileName,
 				FileSize:      m.Content.FileSize,
 				Extra:         m.Content.Extra,
-			},
+			}
+		}
+
+		messages = append(messages, &biz.Message{
+			ID:         m.Id,
+			SenderID:   m.SenderId,
+			ReceiverID: m.ReceiverId,
+			ConvType:   int8(m.ConvType),
+			MsgType:    int8(m.MsgType),
+			Content:    content,
 			Status:     int8(m.Status),
 			IsRecalled: m.IsRecalled,
 			CreatedAt:  parseTime(m.CreatedAt),
@@ -171,86 +175,59 @@ func (r *chatAdapterImpl) RecallMessage(ctx context.Context, messageID, userID i
 		MessageId: messageID,
 		UserId:    userID,
 	}
-
 	resp, err := r.message.RecallMessage(ctx, req)
 	if err != nil {
 		return err
 	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return respcheck.ValidateResponseMeta(resp.Meta)
 }
 
-func (r *chatAdapterImpl) MarkMessagesRead(ctx context.Context, userID, targetID int64, convType int32, lastMsgID int64) error {
+// 标记消息已读
+func (r *chatAdapterImpl) MarkMessagesRead(ctx context.Context, userID, conversationID, lastMsgID int64) error {
 	req := &chat.MarkMessagesReadReq{
-		UserId:    userID,
-		TargetId:  targetID,
-		ConvType:  chat.ConversationType(convType),
-		LastMsgId: lastMsgID,
+		UserId:         userID,
+		ConversationId: conversationID,
+		LastMsgId:      lastMsgID,
 	}
-
 	resp, err := r.message.MarkMessagesRead(ctx, req)
 	if err != nil {
 		return err
 	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return respcheck.ValidateResponseMeta(resp.Meta)
 }
 
 // 新增：更新消息状态
 func (r *chatAdapterImpl) UpdateMessageStatus(ctx context.Context, messageID int64, status int32) error {
-	req := &chat.UpdateMessageStatusReq{
+	resp, err := r.message.UpdateMessageStatus(ctx, &chat.UpdateMessageStatusReq{
 		MessageId:  messageID,
 		Status:     chat.MessageStatus(status),
-		OperatorId: 0, // 系统操作
-	}
-
-	resp, err := r.message.UpdateMessageStatus(ctx, req)
+		OperatorId: 0,
+	})
 	if err != nil {
 		return err
 	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return respcheck.ValidateResponseMeta(resp.Meta)
 }
 
 // 新增：获取消息详情
 func (r *chatAdapterImpl) GetMessageByID(ctx context.Context, messageID int64) (*biz.Message, error) {
-	req := &chat.GetMessageReq{
+	resp, err := r.message.GetMessage(ctx, &chat.GetMessageReq{
 		MessageId: messageID,
-	}
-
-	resp, err := r.message.GetMessage(ctx, req)
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
+	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
 		return nil, err
+	}
+	if resp.Message == nil {
+		return nil, nil
 	}
 
 	m := resp.Message
-	return &biz.Message{
-		ID:         m.Id,
-		SenderID:   m.SenderId,
-		ReceiverID: m.ReceiverId,
-		ConvType:   int8(m.ConvType),
-		MsgType:    int8(m.MsgType),
-		Content: &biz.MessageContent{
+	var content *biz.MessageContent
+	if m.Content != nil {
+		content = &biz.MessageContent{
 			Text:          m.Content.Text,
 			ImageURL:      m.Content.ImageUrl,
 			ImageWidth:    m.Content.ImageWidth,
@@ -264,7 +241,16 @@ func (r *chatAdapterImpl) GetMessageByID(ctx context.Context, messageID int64) (
 			FileName:      m.Content.FileName,
 			FileSize:      m.Content.FileSize,
 			Extra:         m.Content.Extra,
-		},
+		}
+	}
+
+	return &biz.Message{
+		ID:         m.Id,
+		SenderID:   m.SenderId,
+		ReceiverID: m.ReceiverId,
+		ConvType:   int8(m.ConvType),
+		MsgType:    int8(m.MsgType),
+		Content:    content,
 		Status:     int8(m.Status),
 		IsRecalled: m.IsRecalled,
 		CreatedAt:  parseTime(m.CreatedAt),
@@ -313,19 +299,27 @@ func (r *chatAdapterImpl) ListConversations(ctx context.Context, userID int64, p
 	var conversations []*biz.Conversation
 	for _, c := range resp.Conversations {
 		conversations = append(conversations, &biz.Conversation{
-			ID:          c.Id,
+			ID:          c.Conversation.Id,
 			UserID:      userID,
-			Type:        int8(c.Type),
-			TargetID:    c.TargetId,
-			LastMessage: c.LastMessage,
-			LastMsgType: int8(c.LastMsgType),
-			LastMsgTime: c.LastMsgTime,
+			Type:        int32(c.Conversation.Type),
+			TargetID:    c.Conversation.TargetId,
+			LastMessage: c.Conversation.LastMessage,
+			LastMsgType: (*int32)(c.Conversation.LastMsgType),
+			LastMsgTime: parseUnixPointer(c.Conversation.LastMsgTime),
 			UnreadCount: int32(c.UnreadCount),
-			UpdatedAt:   parseTime(c.UpdatedAt),
+			UpdatedAt:   parseTime(c.Conversation.UpdatedAt),
 		})
 	}
 
 	return int64(resp.PageStats.Total), conversations, nil
+}
+
+func parseUnixPointer(ts *int64) *time.Time {
+	if ts == nil || *ts == 0 {
+		return nil
+	}
+	t := time.Unix(*ts, 0)
+	return &t
 }
 
 func (r *chatAdapterImpl) DeleteConversation(ctx context.Context, userID, conversationID int64) error {
@@ -347,11 +341,10 @@ func (r *chatAdapterImpl) DeleteConversation(ctx context.Context, userID, conver
 	return nil
 }
 
-func (r *chatAdapterImpl) ClearMessages(ctx context.Context, userID, targetID int64, convType int32) error {
+func (r *chatAdapterImpl) ClearMessages(ctx context.Context, userID, conversationID int64) error {
 	req := &chat.ClearMessagesReq{
-		UserId:   userID,
-		TargetId: targetID,
-		ConvType: chat.ConversationType(convType),
+		UserId:         userID,
+		ConversationId: conversationID,
 	}
 
 	resp, err := r.message.ClearMessages(ctx, req)
@@ -889,7 +882,7 @@ func (r *chatAdapterImpl) GetGroupMembers(ctx context.Context, groupID int64) ([
 	return resp.MemberIds, nil
 }
 
-// 添加 CreateConversation 方法
+// 创建会话
 func (r *chatAdapterImpl) CreateConversation(ctx context.Context, userID, targetID int64, convType int32, initialMessage string) (int64, error) {
 	req := &chat.CreateConversationReq{
 		UserId:         userID,
@@ -897,20 +890,17 @@ func (r *chatAdapterImpl) CreateConversation(ctx context.Context, userID, target
 		ConvType:       chat.ConversationType(convType),
 		InitialMessage: initialMessage,
 	}
-
 	resp, err := r.message.CreateConversation(ctx, req)
 	if err != nil {
 		return 0, err
 	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
+	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
 		return 0, err
 	}
-
 	return resp.ConversationId, nil
 }
 
+// 获取会话详情
 func (r *chatAdapterImpl) GetConversation(ctx context.Context, userID, targetID int64, convType int32) (*biz.Conversation, error) {
 	req := &chat.GetConversationReq{
 		UserId:   userID,
@@ -922,26 +912,48 @@ func (r *chatAdapterImpl) GetConversation(ctx context.Context, userID, targetID 
 	if err != nil {
 		return nil, err
 	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
+	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
 		return nil, err
 	}
-
 	c := resp.Conversation
 	if c == nil {
 		return nil, nil
 	}
 
+	var lastMsgTime *time.Time
+	if c.LastMsgTime != nil && *c.LastMsgTime > 0 {
+		t := time.Unix(*c.LastMsgTime, 0)
+		lastMsgTime = &t
+	}
+
+	var targetIDPtr *int64
+	if c.TargetId != nil && *c.TargetId > 0 {
+		targetIDPtr = c.TargetId
+	}
+
+	var groupIDPtr *int64
+	if c.GroupId != nil && *c.GroupId > 0 {
+		groupIDPtr = c.GroupId
+	}
+
+	var lastMsgTypePtr *int32
+	if c.LastMsgType != nil && *c.LastMsgType != 0 {
+		msgType := int32(*c.LastMsgType)
+		lastMsgTypePtr = &msgType
+	}
+
 	return &biz.Conversation{
 		ID:          c.Id,
-		UserID:      userID,
-		Type:        int8(c.Type),
-		TargetID:    c.TargetId,
+		Type:        int32(c.Type),
+		TargetID:    targetIDPtr,
+		GroupID:     groupIDPtr,
+		Name:        c.Name,
+		Avatar:      c.Avatar,
 		LastMessage: c.LastMessage,
-		LastMsgType: int8(c.LastMsgType),
-		LastMsgTime: c.LastMsgTime,
-		UnreadCount: int32(c.UnreadCount),
+		LastMsgType: lastMsgTypePtr,
+		LastMsgTime: lastMsgTime,
+		MemberCount: int32(c.MemberCount),
+		CreatedAt:   parseTime(c.CreatedAt),
 		UpdatedAt:   parseTime(c.UpdatedAt),
 	}, nil
 }

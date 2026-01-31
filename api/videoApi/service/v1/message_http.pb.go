@@ -23,7 +23,6 @@ const OperationMessageServiceClearMessages = "/api.videoApi.service.v1.MessageSe
 const OperationMessageServiceCreateConversation = "/api.videoApi.service.v1.MessageService/CreateConversation"
 const OperationMessageServiceDeleteConversation = "/api.videoApi.service.v1.MessageService/DeleteConversation"
 const OperationMessageServiceGetConversation = "/api.videoApi.service.v1.MessageService/GetConversation"
-const OperationMessageServiceGetMessage = "/api.videoApi.service.v1.MessageService/GetMessage"
 const OperationMessageServiceGetUnreadCount = "/api.videoApi.service.v1.MessageService/GetUnreadCount"
 const OperationMessageServiceListConversations = "/api.videoApi.service.v1.MessageService/ListConversations"
 const OperationMessageServiceListMessages = "/api.videoApi.service.v1.MessageService/ListMessages"
@@ -35,15 +34,13 @@ const OperationMessageServiceUpdateMessageStatus = "/api.videoApi.service.v1.Mes
 type MessageServiceHTTPServer interface {
 	// ClearMessages 清空聊天记录
 	ClearMessages(context.Context, *ClearMessagesReq) (*ClearMessagesResp, error)
-	// CreateConversation 创建会话
+	// CreateConversation 创建会话（可选发送初始消息）
 	CreateConversation(context.Context, *CreateConversationReq) (*CreateConversationResp, error)
 	// DeleteConversation 删除会话
 	DeleteConversation(context.Context, *DeleteConversationReq) (*DeleteConversationResp, error)
-	// GetConversation 新增：获取会话详情
+	// GetConversation 获取会话详情
 	GetConversation(context.Context, *GetConversationReq) (*GetConversationResp, error)
-	// GetMessage 新增：获取消息详情
-	GetMessage(context.Context, *GetMessageReq) (*GetMessageResp, error)
-	// GetUnreadCount 新增：获取未读消息数
+	// GetUnreadCount 获取未读消息数
 	GetUnreadCount(context.Context, *GetUnreadCountReq) (*GetUnreadCountResp, error)
 	// ListConversations 获取会话列表
 	ListConversations(context.Context, *ListConversationsReq) (*ListConversationsResp, error)
@@ -55,7 +52,7 @@ type MessageServiceHTTPServer interface {
 	RecallMessage(context.Context, *RecallMessageReq) (*RecallMessageResp, error)
 	// SendMessage 发送消息
 	SendMessage(context.Context, *SendMessageReq) (*SendMessageResp, error)
-	// UpdateMessageStatus 新增：更新消息状态（主要用于WebSocket回调）
+	// UpdateMessageStatus 更新消息状态（WebSocket 回调）
 	UpdateMessageStatus(context.Context, *UpdateMessageStatusReq) (*UpdateMessageStatusResp, error)
 }
 
@@ -68,7 +65,6 @@ func RegisterMessageServiceHTTPServer(s *http.Server, srv MessageServiceHTTPServ
 	r.GET("/v1/conversations", _MessageService_ListConversations0_HTTP_Handler(srv))
 	r.DELETE("/v1/conversation/{conversation_id}", _MessageService_DeleteConversation0_HTTP_Handler(srv))
 	r.DELETE("/v1/messages", _MessageService_ClearMessages0_HTTP_Handler(srv))
-	r.GET("/v1/message/{message_id}", _MessageService_GetMessage0_HTTP_Handler(srv))
 	r.POST("/v1/conversation/detail", _MessageService_GetConversation0_HTTP_Handler(srv))
 	r.GET("/v1/messages/unread-count", _MessageService_GetUnreadCount0_HTTP_Handler(srv))
 	r.POST("/v1/message/status", _MessageService_UpdateMessageStatus0_HTTP_Handler(srv))
@@ -223,28 +219,6 @@ func _MessageService_ClearMessages0_HTTP_Handler(srv MessageServiceHTTPServer) f
 	}
 }
 
-func _MessageService_GetMessage0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in GetMessageReq
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationMessageServiceGetMessage)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetMessage(ctx, req.(*GetMessageReq))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*GetMessageResp)
-		return ctx.Result(200, reply)
-	}
-}
-
 func _MessageService_GetConversation0_HTTP_Handler(srv MessageServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetConversationReq
@@ -335,7 +309,6 @@ type MessageServiceHTTPClient interface {
 	CreateConversation(ctx context.Context, req *CreateConversationReq, opts ...http.CallOption) (rsp *CreateConversationResp, err error)
 	DeleteConversation(ctx context.Context, req *DeleteConversationReq, opts ...http.CallOption) (rsp *DeleteConversationResp, err error)
 	GetConversation(ctx context.Context, req *GetConversationReq, opts ...http.CallOption) (rsp *GetConversationResp, err error)
-	GetMessage(ctx context.Context, req *GetMessageReq, opts ...http.CallOption) (rsp *GetMessageResp, err error)
 	GetUnreadCount(ctx context.Context, req *GetUnreadCountReq, opts ...http.CallOption) (rsp *GetUnreadCountResp, err error)
 	ListConversations(ctx context.Context, req *ListConversationsReq, opts ...http.CallOption) (rsp *ListConversationsResp, err error)
 	ListMessages(ctx context.Context, req *ListMessagesReq, opts ...http.CallOption) (rsp *ListMessagesResp, err error)
@@ -399,19 +372,6 @@ func (c *MessageServiceHTTPClientImpl) GetConversation(ctx context.Context, in *
 	opts = append(opts, http.Operation(OperationMessageServiceGetConversation))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *MessageServiceHTTPClientImpl) GetMessage(ctx context.Context, in *GetMessageReq, opts ...http.CallOption) (*GetMessageResp, error) {
-	var out GetMessageResp
-	pattern := "/v1/message/{message_id}"
-	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationMessageServiceGetMessage))
-	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

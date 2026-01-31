@@ -28,6 +28,7 @@ var ProviderSet = wire.NewSet(
 	NewDiscovery,
 	idgen.NewSnowflakeIDGenerator,
 	idgen.NewIDGenerator,
+	NewConversationRepo,
 )
 
 // Data .

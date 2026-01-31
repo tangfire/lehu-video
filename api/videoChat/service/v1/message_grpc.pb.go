@@ -26,10 +26,10 @@ const (
 	MessageService_GetUnreadCount_FullMethodName      = "/api.videoChat.service.v1.MessageService/GetUnreadCount"
 	MessageService_ListConversations_FullMethodName   = "/api.videoChat.service.v1.MessageService/ListConversations"
 	MessageService_DeleteConversation_FullMethodName  = "/api.videoChat.service.v1.MessageService/DeleteConversation"
-	MessageService_UpdateMessageStatus_FullMethodName = "/api.videoChat.service.v1.MessageService/UpdateMessageStatus"
-	MessageService_GetMessage_FullMethodName          = "/api.videoChat.service.v1.MessageService/GetMessage"
 	MessageService_GetConversation_FullMethodName     = "/api.videoChat.service.v1.MessageService/GetConversation"
 	MessageService_ClearMessages_FullMethodName       = "/api.videoChat.service.v1.MessageService/ClearMessages"
+	MessageService_UpdateMessageStatus_FullMethodName = "/api.videoChat.service.v1.MessageService/UpdateMessageStatus"
+	MessageService_GetMessage_FullMethodName          = "/api.videoChat.service.v1.MessageService/GetMessage"
 	MessageService_CreateConversation_FullMethodName  = "/api.videoChat.service.v1.MessageService/CreateConversation"
 )
 
@@ -37,9 +37,11 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
+// =======================
 // 消息相关服务
+// =======================
 type MessageServiceClient interface {
-	// 发送消息
+	// 发送消息（会自动创建/获取会话）
 	SendMessage(ctx context.Context, in *SendMessageReq, opts ...grpc.CallOption) (*SendMessageResp, error)
 	// 获取消息列表
 	ListMessages(ctx context.Context, in *ListMessagesReq, opts ...grpc.CallOption) (*ListMessagesResp, error)
@@ -49,19 +51,19 @@ type MessageServiceClient interface {
 	MarkMessagesRead(ctx context.Context, in *MarkMessagesReadReq, opts ...grpc.CallOption) (*MarkMessagesReadResp, error)
 	// 获取未读消息数量
 	GetUnreadCount(ctx context.Context, in *GetUnreadCountReq, opts ...grpc.CallOption) (*GetUnreadCountResp, error)
-	// 获取会话列表
+	// 获取会话列表（核心入口）
 	ListConversations(ctx context.Context, in *ListConversationsReq, opts ...grpc.CallOption) (*ListConversationsResp, error)
-	// 删除会话
+	// 删除会话（仅对自己不可见）
 	DeleteConversation(ctx context.Context, in *DeleteConversationReq, opts ...grpc.CallOption) (*DeleteConversationResp, error)
-	// 更新消息状态
-	UpdateMessageStatus(ctx context.Context, in *UpdateMessageStatusReq, opts ...grpc.CallOption) (*UpdateMessageStatusResp, error)
-	// 获取消息详情
-	GetMessage(ctx context.Context, in *GetMessageReq, opts ...grpc.CallOption) (*GetMessageResp, error)
-	// 获取会话详情
+	// 获取会话详情（单聊 / 群聊）
 	GetConversation(ctx context.Context, in *GetConversationReq, opts ...grpc.CallOption) (*GetConversationResp, error)
 	// 清空聊天记录
 	ClearMessages(ctx context.Context, in *ClearMessagesReq, opts ...grpc.CallOption) (*ClearMessagesResp, error)
-	// 创建会话
+	// 更新消息状态
+	UpdateMessageStatus(ctx context.Context, in *UpdateMessageStatusReq, opts ...grpc.CallOption) (*UpdateMessageStatusResp, error)
+	// 获取单条消息
+	GetMessage(ctx context.Context, in *GetMessageReq, opts ...grpc.CallOption) (*GetMessageResp, error)
+	// 创建会话（如果需要）
 	CreateConversation(ctx context.Context, in *CreateConversationReq, opts ...grpc.CallOption) (*CreateConversationResp, error)
 }
 
@@ -143,26 +145,6 @@ func (c *messageServiceClient) DeleteConversation(ctx context.Context, in *Delet
 	return out, nil
 }
 
-func (c *messageServiceClient) UpdateMessageStatus(ctx context.Context, in *UpdateMessageStatusReq, opts ...grpc.CallOption) (*UpdateMessageStatusResp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdateMessageStatusResp)
-	err := c.cc.Invoke(ctx, MessageService_UpdateMessageStatus_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *messageServiceClient) GetMessage(ctx context.Context, in *GetMessageReq, opts ...grpc.CallOption) (*GetMessageResp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetMessageResp)
-	err := c.cc.Invoke(ctx, MessageService_GetMessage_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *messageServiceClient) GetConversation(ctx context.Context, in *GetConversationReq, opts ...grpc.CallOption) (*GetConversationResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetConversationResp)
@@ -183,6 +165,26 @@ func (c *messageServiceClient) ClearMessages(ctx context.Context, in *ClearMessa
 	return out, nil
 }
 
+func (c *messageServiceClient) UpdateMessageStatus(ctx context.Context, in *UpdateMessageStatusReq, opts ...grpc.CallOption) (*UpdateMessageStatusResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMessageStatusResp)
+	err := c.cc.Invoke(ctx, MessageService_UpdateMessageStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *messageServiceClient) GetMessage(ctx context.Context, in *GetMessageReq, opts ...grpc.CallOption) (*GetMessageResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMessageResp)
+	err := c.cc.Invoke(ctx, MessageService_GetMessage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *messageServiceClient) CreateConversation(ctx context.Context, in *CreateConversationReq, opts ...grpc.CallOption) (*CreateConversationResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateConversationResp)
@@ -197,9 +199,11 @@ func (c *messageServiceClient) CreateConversation(ctx context.Context, in *Creat
 // All implementations must embed UnimplementedMessageServiceServer
 // for forward compatibility.
 //
+// =======================
 // 消息相关服务
+// =======================
 type MessageServiceServer interface {
-	// 发送消息
+	// 发送消息（会自动创建/获取会话）
 	SendMessage(context.Context, *SendMessageReq) (*SendMessageResp, error)
 	// 获取消息列表
 	ListMessages(context.Context, *ListMessagesReq) (*ListMessagesResp, error)
@@ -209,19 +213,19 @@ type MessageServiceServer interface {
 	MarkMessagesRead(context.Context, *MarkMessagesReadReq) (*MarkMessagesReadResp, error)
 	// 获取未读消息数量
 	GetUnreadCount(context.Context, *GetUnreadCountReq) (*GetUnreadCountResp, error)
-	// 获取会话列表
+	// 获取会话列表（核心入口）
 	ListConversations(context.Context, *ListConversationsReq) (*ListConversationsResp, error)
-	// 删除会话
+	// 删除会话（仅对自己不可见）
 	DeleteConversation(context.Context, *DeleteConversationReq) (*DeleteConversationResp, error)
-	// 更新消息状态
-	UpdateMessageStatus(context.Context, *UpdateMessageStatusReq) (*UpdateMessageStatusResp, error)
-	// 获取消息详情
-	GetMessage(context.Context, *GetMessageReq) (*GetMessageResp, error)
-	// 获取会话详情
+	// 获取会话详情（单聊 / 群聊）
 	GetConversation(context.Context, *GetConversationReq) (*GetConversationResp, error)
 	// 清空聊天记录
 	ClearMessages(context.Context, *ClearMessagesReq) (*ClearMessagesResp, error)
-	// 创建会话
+	// 更新消息状态
+	UpdateMessageStatus(context.Context, *UpdateMessageStatusReq) (*UpdateMessageStatusResp, error)
+	// 获取单条消息
+	GetMessage(context.Context, *GetMessageReq) (*GetMessageResp, error)
+	// 创建会话（如果需要）
 	CreateConversation(context.Context, *CreateConversationReq) (*CreateConversationResp, error)
 	mustEmbedUnimplementedMessageServiceServer()
 }
@@ -254,17 +258,17 @@ func (UnimplementedMessageServiceServer) ListConversations(context.Context, *Lis
 func (UnimplementedMessageServiceServer) DeleteConversation(context.Context, *DeleteConversationReq) (*DeleteConversationResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteConversation not implemented")
 }
-func (UnimplementedMessageServiceServer) UpdateMessageStatus(context.Context, *UpdateMessageStatusReq) (*UpdateMessageStatusResp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateMessageStatus not implemented")
-}
-func (UnimplementedMessageServiceServer) GetMessage(context.Context, *GetMessageReq) (*GetMessageResp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetMessage not implemented")
-}
 func (UnimplementedMessageServiceServer) GetConversation(context.Context, *GetConversationReq) (*GetConversationResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConversation not implemented")
 }
 func (UnimplementedMessageServiceServer) ClearMessages(context.Context, *ClearMessagesReq) (*ClearMessagesResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClearMessages not implemented")
+}
+func (UnimplementedMessageServiceServer) UpdateMessageStatus(context.Context, *UpdateMessageStatusReq) (*UpdateMessageStatusResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateMessageStatus not implemented")
+}
+func (UnimplementedMessageServiceServer) GetMessage(context.Context, *GetMessageReq) (*GetMessageResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMessage not implemented")
 }
 func (UnimplementedMessageServiceServer) CreateConversation(context.Context, *CreateConversationReq) (*CreateConversationResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateConversation not implemented")
@@ -416,42 +420,6 @@ func _MessageService_DeleteConversation_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MessageService_UpdateMessageStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateMessageStatusReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MessageServiceServer).UpdateMessageStatus(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MessageService_UpdateMessageStatus_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MessageServiceServer).UpdateMessageStatus(ctx, req.(*UpdateMessageStatusReq))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _MessageService_GetMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetMessageReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MessageServiceServer).GetMessage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MessageService_GetMessage_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MessageServiceServer).GetMessage(ctx, req.(*GetMessageReq))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _MessageService_GetConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetConversationReq)
 	if err := dec(in); err != nil {
@@ -484,6 +452,42 @@ func _MessageService_ClearMessages_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MessageServiceServer).ClearMessages(ctx, req.(*ClearMessagesReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MessageService_UpdateMessageStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMessageStatusReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MessageServiceServer).UpdateMessageStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MessageService_UpdateMessageStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MessageServiceServer).UpdateMessageStatus(ctx, req.(*UpdateMessageStatusReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MessageService_GetMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMessageReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MessageServiceServer).GetMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MessageService_GetMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MessageServiceServer).GetMessage(ctx, req.(*GetMessageReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -542,20 +546,20 @@ var MessageService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _MessageService_DeleteConversation_Handler,
 		},
 		{
-			MethodName: "UpdateMessageStatus",
-			Handler:    _MessageService_UpdateMessageStatus_Handler,
-		},
-		{
-			MethodName: "GetMessage",
-			Handler:    _MessageService_GetMessage_Handler,
-		},
-		{
 			MethodName: "GetConversation",
 			Handler:    _MessageService_GetConversation_Handler,
 		},
 		{
 			MethodName: "ClearMessages",
 			Handler:    _MessageService_ClearMessages_Handler,
+		},
+		{
+			MethodName: "UpdateMessageStatus",
+			Handler:    _MessageService_UpdateMessageStatus_Handler,
+		},
+		{
+			MethodName: "GetMessage",
+			Handler:    _MessageService_GetMessage_Handler,
 		},
 		{
 			MethodName: "CreateConversation",

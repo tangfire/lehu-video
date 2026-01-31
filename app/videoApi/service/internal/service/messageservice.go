@@ -51,47 +51,34 @@ func (s *MessageServiceService) SendMessage(ctx context.Context, req *v1.SendMes
 	}
 
 	return &v1.SendMessageResp{
-		MessageId: output.MessageID,
+		MessageId:      output.MessageID,
+		ConversationId: output.ConversationId,
 	}, nil
 }
 
 func (s *MessageServiceService) ListMessages(ctx context.Context, req *v1.ListMessagesReq) (*v1.ListMessagesResp, error) {
+	// 修复点：req.TargetId 已在 proto 中删除，改用 req.ConversationId
 	input := &biz.ListMessagesInput{
-		TargetID:  req.TargetId,
-		ConvType:  int32(req.ConvType),
-		LastMsgID: req.LastMsgId,
-		Limit:     req.Limit,
+		ConversationID: req.ConversationId,
+		LastMsgID:      req.LastMsgId,
+		Limit:          req.Limit,
 	}
 
 	output, err := s.uc.ListMessages(ctx, input)
 	if err != nil {
-		return &v1.ListMessagesResp{}, err
+		return nil, err
 	}
 
-	// 转换消息
 	var messages []*v1.Message
 	for _, msg := range output.Messages {
 		messages = append(messages, &v1.Message{
 			Id:         msg.ID,
 			SenderId:   msg.SenderID,
 			ReceiverId: msg.ReceiverID,
+			// 确保类型转换正确
 			ConvType:   v1.ConversationType(msg.ConvType),
 			MsgType:    v1.MessageType(msg.MsgType),
-			Content: &v1.MessageContent{
-				Text:          msg.Content.Text,
-				ImageUrl:      msg.Content.ImageURL,
-				ImageWidth:    msg.Content.ImageWidth,
-				ImageHeight:   msg.Content.ImageHeight,
-				VoiceUrl:      msg.Content.VoiceURL,
-				VoiceDuration: msg.Content.VoiceDuration,
-				VideoUrl:      msg.Content.VideoURL,
-				VideoCover:    msg.Content.VideoCover,
-				VideoDuration: msg.Content.VideoDuration,
-				FileUrl:       msg.Content.FileURL,
-				FileName:      msg.Content.FileName,
-				FileSize:      msg.Content.FileSize,
-				Extra:         msg.Content.Extra,
-			},
+			Content:    convertContentToProto(msg.Content), // 建议抽离个小函数
 			Status:     v1.MessageStatus(msg.Status),
 			IsRecalled: msg.IsRecalled,
 			CreatedAt:  msg.CreatedAt.Format("2006-01-02 15:04:05"),
@@ -104,6 +91,18 @@ func (s *MessageServiceService) ListMessages(ctx context.Context, req *v1.ListMe
 		HasMore:   output.HasMore,
 		LastMsgId: output.LastMsgID,
 	}, nil
+}
+
+func convertContentToProto(c *biz.MessageContent) *v1.MessageContent {
+	if c == nil {
+		return nil
+	}
+	return &v1.MessageContent{
+		Text: c.Text, ImageUrl: c.ImageURL, ImageWidth: c.ImageWidth,
+		ImageHeight: c.ImageHeight, VoiceUrl: c.VoiceURL, VoiceDuration: c.VoiceDuration,
+		VideoUrl: c.VideoURL, VideoCover: c.VideoCover, VideoDuration: c.VideoDuration,
+		FileUrl: c.FileURL, FileName: c.FileName, FileSize: c.FileSize, Extra: c.Extra,
+	}
 }
 
 func (s *MessageServiceService) RecallMessage(ctx context.Context, req *v1.RecallMessageReq) (*v1.RecallMessageResp, error) {
@@ -121,9 +120,8 @@ func (s *MessageServiceService) RecallMessage(ctx context.Context, req *v1.Recal
 
 func (s *MessageServiceService) MarkMessagesRead(ctx context.Context, req *v1.MarkMessagesReadReq) (*v1.MarkMessagesReadResp, error) {
 	input := &biz.MarkMessagesReadInput{
-		TargetID:  req.TargetId,
-		ConvType:  int32(req.ConvType),
-		LastMsgID: req.LastMsgId,
+		ConversationID: req.ConversationId,
+		LastMsgID:      req.LastMsgId,
 	}
 
 	err := s.uc.MarkMessagesRead(ctx, input)
@@ -151,14 +149,35 @@ func (s *MessageServiceService) ListConversations(ctx context.Context, req *v1.L
 	// 转换会话
 	var conversations []*v1.Conversation
 	for _, conv := range output.Conversations {
+		var targetID int64
+		if conv.TargetID != nil {
+			targetID = *conv.TargetID
+		}
+
+		var groupID int64
+		if conv.GroupID != nil {
+			groupID = *conv.GroupID
+		}
+
+		var lastMsgTime int64
+		if conv.LastMsgTime != nil {
+			lastMsgTime = conv.LastMsgTime.Unix()
+		}
+
+		var lastMsgType v1.MessageType
+		if conv.LastMsgType != nil {
+			lastMsgType = v1.MessageType(*conv.LastMsgType)
+		}
+
 		conversations = append(conversations, &v1.Conversation{
 			Id:          conv.ID,
 			Type:        v1.ConversationType(conv.Type),
-			TargetId:    conv.TargetID,
+			TargetId:    targetID,
+			GroupId:     groupID,
 			LastMessage: conv.LastMessage,
-			LastMsgType: v1.MessageType(conv.LastMsgType),
-			LastMsgTime: conv.LastMsgTime,
-			UnreadCount: conv.UnreadCount,
+			LastMsgType: lastMsgType,
+			LastMsgTime: lastMsgTime,
+			UnreadCount: int64(conv.UnreadCount),
 			UpdatedAt:   conv.UpdatedAt.Format("2006-01-02 15:04:05"),
 		})
 	}
@@ -193,7 +212,7 @@ func (s *MessageServiceService) ClearMessages(ctx context.Context, req *v1.Clear
 	}
 
 	// 调用chat适配器清空消息
-	err = s.uc.ClearMessages(ctx, userID, req.TargetId, int32(req.ConvType))
+	err = s.uc.ClearMessages(ctx, userID, req.ConversationId)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("清空聊天记录失败: %v", err)
 		return &v1.ClearMessagesResp{}, errors.New("清空聊天记录失败")
@@ -202,62 +221,55 @@ func (s *MessageServiceService) ClearMessages(ctx context.Context, req *v1.Clear
 	return &v1.ClearMessagesResp{}, nil
 }
 
-// GetMessage - 获取消息详情
-func (s *MessageServiceService) GetMessage(ctx context.Context, req *v1.GetMessageReq) (*v1.GetMessageResp, error) {
-	message, err := s.uc.GetMessage(ctx, req.MessageId)
-	if err != nil {
-		return &v1.GetMessageResp{}, err
-	}
-
-	// 转换消息类型
-	return &v1.GetMessageResp{
-		Message: &v1.Message{
-			Id:         message.ID,
-			SenderId:   message.SenderID,
-			ReceiverId: message.ReceiverID,
-			ConvType:   v1.ConversationType(message.ConvType),
-			MsgType:    v1.MessageType(message.MsgType),
-			Content: &v1.MessageContent{
-				Text:          message.Content.Text,
-				ImageUrl:      message.Content.ImageURL,
-				ImageWidth:    message.Content.ImageWidth,
-				ImageHeight:   message.Content.ImageHeight,
-				VoiceUrl:      message.Content.VoiceURL,
-				VoiceDuration: message.Content.VoiceDuration,
-				VideoUrl:      message.Content.VideoURL,
-				VideoCover:    message.Content.VideoCover,
-				VideoDuration: message.Content.VideoDuration,
-				FileUrl:       message.Content.FileURL,
-				FileName:      message.Content.FileName,
-				FileSize:      message.Content.FileSize,
-				Extra:         message.Content.Extra,
-			},
-			Status:     v1.MessageStatus(message.Status),
-			IsRecalled: message.IsRecalled,
-			CreatedAt:  message.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt:  message.UpdatedAt.Format("2006-01-02 15:04:05"),
-		},
-	}, nil
-}
-
 // GetConversation - 获取会话详情
 func (s *MessageServiceService) GetConversation(ctx context.Context, req *v1.GetConversationReq) (*v1.GetConversationResp, error) {
+
 	conversation, err := s.uc.GetConversation(ctx, req.TargetId, int32(req.ConvType))
 	if err != nil {
-		return &v1.GetConversationResp{}, err
+		return nil, err
 	}
 
-	// 转换会话类型
+	if conversation == nil {
+		return &v1.GetConversationResp{}, nil
+	}
+
+	c := conversation
+
+	var targetID int64
+	if c.TargetID != nil {
+		targetID = *c.TargetID
+	}
+
+	var groupID int64
+	if c.GroupID != nil {
+		groupID = *c.GroupID
+	}
+
+	var lastMsgTime int64
+	if c.LastMsgTime != nil {
+		lastMsgTime = c.LastMsgTime.Unix()
+	}
+
+	var lastMsgType v1.MessageType
+	if c.LastMsgType != nil {
+		lastMsgType = v1.MessageType(*c.LastMsgType)
+	}
+
 	return &v1.GetConversationResp{
 		Conversation: &v1.Conversation{
-			Id:          conversation.ID,
-			Type:        v1.ConversationType(conversation.Type),
-			TargetId:    conversation.TargetID,
-			LastMessage: conversation.LastMessage,
-			LastMsgType: v1.MessageType(conversation.LastMsgType),
-			LastMsgTime: conversation.LastMsgTime,
-			UnreadCount: conversation.UnreadCount,
-			UpdatedAt:   conversation.UpdatedAt.Format("2006-01-02 15:04:05"),
+			Id:          c.ID,
+			Type:        v1.ConversationType(c.Type),
+			TargetId:    targetID,
+			GroupId:     groupID,
+			Name:        c.Name,
+			Avatar:      c.Avatar,
+			LastMessage: c.LastMessage,
+			LastMsgType: lastMsgType,
+			LastMsgTime: lastMsgTime,
+			UnreadCount: int64(c.UnreadCount),
+			MemberCount: int64(c.MemberCount),
+			CreatedAt:   c.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:   c.UpdatedAt.Format("2006-01-02 15:04:05"),
 		},
 	}, nil
 }

@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -22,23 +23,6 @@ func NewGroupRepo(data *Data, logger log.Logger) biz.GroupRepo {
 	}
 }
 
-func (r *groupRepo) GetGroupMembers(ctx context.Context, groupID int64) ([]int64, error) {
-	var memberIDs []int64
-
-	err := r.data.db.WithContext(ctx).
-		Model(&model.GroupMember{}).
-		Select("user_id").
-		Where("group_id = ? AND is_deleted = ?", groupID, false).
-		Order("role DESC, join_time ASC").
-		Pluck("user_id", &memberIDs).Error
-
-	if err != nil {
-		return nil, err
-	}
-
-	return memberIDs, nil
-}
-
 func (r *groupRepo) CreateGroup(ctx context.Context, group *biz.Group) error {
 	dbGroup := model.GroupInfo{
 		Id:        group.ID,
@@ -57,37 +41,43 @@ func (r *groupRepo) CreateGroup(ctx context.Context, group *biz.Group) error {
 	return r.data.db.WithContext(ctx).Create(&dbGroup).Error
 }
 
-func (r *groupRepo) GetGroupByID(ctx context.Context, id int64) (*biz.Group, error) {
-	var dbGroup model.GroupInfo
+func (r *groupRepo) GetGroupMembers(ctx context.Context, groupID int64) ([]int64, error) {
+	var ids []int64
 	err := r.data.db.WithContext(ctx).
-		Where("id = ? AND is_deleted = ?", id, false).
-		First(&dbGroup).Error
+		Model(&model.GroupMember{}).
+		Where("group_id = ? AND is_deleted = 0", groupID).
+		Pluck("user_id", &ids).Error
+	return ids, err
+}
 
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
-	}
-	if err != nil {
+func (r *groupRepo) GetGroup(ctx context.Context, id int64) (*biz.Group, error) {
+	var g model.GroupInfo
+	if err := r.data.db.WithContext(ctx).
+		Where("id = ? AND is_deleted = 0", id).
+		First(&g).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
-	// 不再从 members 字段反序列化，而是从 GroupMember 表查询
 	return &biz.Group{
-		ID:        dbGroup.Id,
-		Name:      dbGroup.Name,
-		Notice:    dbGroup.Notice,
-		MemberCnt: dbGroup.MemberCnt,
-		OwnerID:   dbGroup.OwnerId,
-		AddMode:   int32(dbGroup.AddMode),
-		Avatar:    dbGroup.Avatar,
-		Status:    int32(dbGroup.Status),
-		CreatedAt: dbGroup.CreatedAt,
-		UpdatedAt: dbGroup.UpdatedAt,
+		ID:        g.Id,
+		Name:      g.Name,
+		Notice:    g.Notice,
+		MemberCnt: g.MemberCnt,
+		OwnerID:   g.OwnerId,
+		AddMode:   int32(g.AddMode),
+		Avatar:    g.Avatar,
+		Status:    int32(g.Status),
+		CreatedAt: g.CreatedAt,
+		UpdatedAt: g.UpdatedAt,
 	}, nil
 }
 
 func (r *groupRepo) GetGroupWithMembers(ctx context.Context, id int64) (*biz.Group, []int64, error) {
 	// 获取群组基本信息
-	group, err := r.GetGroupByID(ctx, id)
+	group, err := r.GetGroup(ctx, id)
 	if err != nil || group == nil {
 		return nil, nil, err
 	}

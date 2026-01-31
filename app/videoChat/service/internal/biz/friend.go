@@ -150,16 +150,6 @@ type SetFriendGroupCommand struct {
 
 type SetFriendGroupResult struct{}
 
-type CheckFriendRelationQuery struct {
-	UserID   int64
-	TargetID int64
-}
-
-type CheckFriendRelationResult struct {
-	IsFriend bool
-	Status   int32
-}
-
 type GetUserOnlineStatusQuery struct {
 	UserID int64
 }
@@ -178,6 +168,7 @@ type BatchGetUserOnlineStatusResult struct {
 }
 
 // 仓储接口
+// biz/friend.go - 修复FriendRepo接口
 type FriendRepo interface {
 	// 好友关系操作
 	CreateFriendRelation(ctx context.Context, relation *FriendRelation) error
@@ -527,24 +518,19 @@ func (uc *FriendUsecase) DeleteFriend(ctx context.Context, cmd *DeleteFriendComm
 	return &DeleteFriendResult{}, nil
 }
 
-func (uc *FriendUsecase) CheckFriendRelation(ctx context.Context, query *CheckFriendRelationQuery) (*CheckFriendRelationResult, error) {
-	relation, err := uc.repo.GetFriendRelation(ctx, query.UserID, query.TargetID)
+// biz/friend.go - 修复CheckFriendRelation方法
+func (uc *FriendUsecase) CheckFriendRelation(ctx context.Context, userID, targetID int64) (bool, int32, error) {
+	relation, err := uc.repo.GetFriendRelation(ctx, userID, targetID)
 	if err != nil {
 		uc.log.Errorf("检查好友关系失败: %v", err)
-		return nil, fmt.Errorf("系统错误")
+		return false, 0, fmt.Errorf("系统错误")
 	}
 
-	result := &CheckFriendRelationResult{
-		IsFriend: false,
-		Status:   0,
+	if relation != nil && relation.Status == 1 {
+		return true, relation.Status, nil
 	}
 
-	if relation != nil {
-		result.IsFriend = relation.Status == 1
-		result.Status = relation.Status
-	}
-
-	return result, nil
+	return false, 0, nil
 }
 
 func (uc *FriendUsecase) UpdateUserOnlineStatus(ctx context.Context, userID int64, status int32, deviceType string) error {
@@ -608,10 +594,18 @@ func (uc *FriendUsecase) GetUserInfo(ctx context.Context, userID int64) (*UserIn
 }
 
 func (uc *FriendUsecase) UpdateFriendRemark(ctx context.Context, cmd *UpdateFriendRemarkCommand) (*UpdateFriendRemarkResult, error) {
-	// 这里需要实现更新好友备注的逻辑
-	// 先获取好友关系
+	// 验证参数
+	if cmd.Remark == "" {
+		return nil, errors.New("备注不能为空")
+	}
+	if len(cmd.Remark) > 50 {
+		return nil, errors.New("备注不能超过50个字符")
+	}
+
+	// 获取好友关系
 	relation, err := uc.repo.GetFriendRelation(ctx, cmd.UserID, cmd.FriendID)
 	if err != nil {
+		uc.log.Errorf("查询好友关系失败: %v", err)
 		return nil, errors.New("系统错误")
 	}
 
@@ -625,17 +619,27 @@ func (uc *FriendUsecase) UpdateFriendRemark(ctx context.Context, cmd *UpdateFrie
 
 	err = uc.repo.UpdateFriendRelation(ctx, relation)
 	if err != nil {
+		uc.log.Errorf("更新好友备注失败: %v", err)
 		return nil, errors.New("更新备注失败")
 	}
 
 	return &UpdateFriendRemarkResult{}, nil
 }
 
+// 设置好友分组（之前有但需要完善）
 func (uc *FriendUsecase) SetFriendGroup(ctx context.Context, cmd *SetFriendGroupCommand) (*SetFriendGroupResult, error) {
-	// 这里需要实现设置好友分组的逻辑
-	// 先获取好友关系
+	// 验证参数
+	if cmd.GroupName == "" {
+		return nil, errors.New("分组名称不能为空")
+	}
+	if len(cmd.GroupName) > 50 {
+		return nil, errors.New("分组名称不能超过50个字符")
+	}
+
+	// 获取好友关系
 	relation, err := uc.repo.GetFriendRelation(ctx, cmd.UserID, cmd.FriendID)
 	if err != nil {
+		uc.log.Errorf("查询好友关系失败: %v", err)
 		return nil, errors.New("系统错误")
 	}
 
@@ -649,7 +653,8 @@ func (uc *FriendUsecase) SetFriendGroup(ctx context.Context, cmd *SetFriendGroup
 
 	err = uc.repo.UpdateFriendRelation(ctx, relation)
 	if err != nil {
-		return nil, &ServiceError{Code: 500, Message: "设置分组失败"}
+		uc.log.Errorf("设置好友分组失败: %v", err)
+		return nil, errors.New("设置分组失败")
 	}
 
 	return &SetFriendGroupResult{}, nil

@@ -233,6 +233,7 @@ CREATE TABLE `message` (
                            `id` bigint(20) NOT NULL COMMENT '消息ID',
                            `sender_id` bigint(20) NOT NULL COMMENT '发送者ID',
                            `receiver_id` bigint(20) NOT NULL COMMENT '接收者ID（用户ID或群ID）',
+                           `conversation_id` bigint(20) DEFAULT NULL COMMENT '会话ID',
                            `conv_type` tinyint(4) NOT NULL COMMENT '会话类型 0:单聊 1:群聊',
                            `msg_type` tinyint(4) NOT NULL COMMENT '消息类型 0:文本 1:图片 2:语音 3:视频 4:文件 99:系统',
                            `content` json NOT NULL COMMENT '消息内容',
@@ -245,30 +246,54 @@ CREATE TABLE `message` (
                            KEY `idx_sender_id` (`sender_id`),
                            KEY `idx_receiver_id` (`receiver_id`),
                            KEY `idx_conv_type` (`conv_type`),
-                           KEY `idx_created_at` (`created_at`)
+                           KEY `idx_created_at` (`created_at`),
+                           KEY `idx_conversation_id` (`conversation_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息表';
 
--- 会话表
+
+
 CREATE TABLE `conversation` (
-                                `id` bigint(20) NOT NULL COMMENT '会话ID',
-                                `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+                                `id` bigint(20) NOT NULL COMMENT '会话ID（主键）',
                                 `type` tinyint(4) NOT NULL COMMENT '会话类型 0:单聊 1:群聊',
-                                `target_id` bigint(20) NOT NULL COMMENT '对方ID（用户ID或群ID）',
+                                `target_id` bigint(20) DEFAULT NULL COMMENT '对方用户ID（仅单聊有效，群聊时为NULL）',
+                                `group_id` bigint(20) DEFAULT NULL COMMENT '群ID（仅群聊有效）',
+                                `name` varchar(100) DEFAULT '' COMMENT '会话名称（群聊时用）',
+                                `avatar` varchar(500) DEFAULT '' COMMENT '会话头像',
                                 `last_message` text COMMENT '最后一条消息内容',
                                 `last_msg_type` tinyint(4) DEFAULT NULL COMMENT '最后一条消息类型',
                                 `last_msg_time` datetime DEFAULT NULL COMMENT '最后一条消息时间',
-                                `unread_count` int(11) DEFAULT '0' COMMENT '未读消息数',
-                                `is_pinned` tinyint(1) DEFAULT '0' COMMENT '是否置顶',
-                                `is_muted` tinyint(1) DEFAULT '0' COMMENT '是否免打扰',
+                                `member_count` int(11) DEFAULT '1' COMMENT '成员数量',
                                 `created_at` datetime NOT NULL COMMENT '创建时间',
                                 `updated_at` datetime NOT NULL COMMENT '更新时间',
-                                `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
+                                `is_deleted` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否删除',
                                 PRIMARY KEY (`id`),
-                                UNIQUE KEY `uk_user_target_type` (`user_id`,`target_id`,`type`),
-                                KEY `idx_user_id` (`user_id`),
-                                KEY `idx_target_id` (`target_id`),
+                                UNIQUE KEY `uk_single_chat` (`type`, `target_id`),
+                                UNIQUE KEY `uk_group_chat` (`type`, `group_id`),
+                                KEY `idx_type_target` (`type`, `target_id`),
+                                KEY `idx_group_id` (`group_id`),
                                 KEY `idx_last_msg_time` (`last_msg_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话主表';
+
+-- 2. 创建会话成员表
+CREATE TABLE `conversation_member` (
+                                       `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+                                       `conversation_id` bigint(20) NOT NULL COMMENT '会话ID',
+                                       `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+                                       `type` tinyint(4) NOT NULL DEFAULT '0' COMMENT '成员类型 0:普通成员 1:管理员 2:群主',
+                                       `unread_count` int(11) DEFAULT '0' COMMENT '未读消息数',
+                                       `last_read_msg_id` bigint(20) DEFAULT '0' COMMENT '最后已读消息ID',
+                                       `is_pinned` tinyint(1) DEFAULT '0' COMMENT '是否置顶',
+                                       `is_muted` tinyint(1) DEFAULT '0' COMMENT '是否免打扰',
+                                       `join_time` datetime DEFAULT NULL COMMENT '加入时间',
+                                       `created_at` datetime NOT NULL COMMENT '创建时间',
+                                       `updated_at` datetime NOT NULL COMMENT '更新时间',
+                                       `is_deleted` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否删除',
+                                       PRIMARY KEY (`id`),
+                                       UNIQUE KEY `uk_conversation_user` (`conversation_id`, `user_id`),
+                                       KEY `idx_user_id` (`user_id`),
+                                       KEY `idx_unread_count` (`unread_count`),
+                                       KEY `idx_conversation_id` (`conversation_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话成员表';
 
 
 -- 好友关系表

@@ -107,15 +107,16 @@ type IsGroupMemberResult struct {
 }
 
 // 群聊信息领域对象
+
 type Group struct {
 	ID        int64
 	Name      string
 	Notice    string
 	MemberCnt int
 	OwnerID   int64
-	AddMode   int32 // 0:直接加入, 1:需要审核
+	AddMode   int32
 	Avatar    string
-	Status    int32 // 0:正常, 1:禁用, 2:解散
+	Status    int32
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -146,7 +147,7 @@ type GroupApply struct {
 type GroupRepo interface {
 	// 群聊基础操作
 	CreateGroup(ctx context.Context, group *Group) error
-	GetGroupByID(ctx context.Context, id int64) (*Group, error)
+	GetGroup(ctx context.Context, id int64) (*Group, error)
 	UpdateGroup(ctx context.Context, group *Group) error
 	DeleteGroup(ctx context.Context, id int64) error
 	ListGroupsByOwner(ctx context.Context, ownerID int64, offset, limit int) ([]*Group, error)
@@ -163,10 +164,8 @@ type GroupRepo interface {
 
 	// 查询用户加入的群聊
 	ListJoinedGroups(ctx context.Context, userID int64, offset, limit int) ([]*Group, error)
-	CountJoinedGroups(ctx context.Context, userID int64) (int64, error)
-
-	// 新增方法
 	GetGroupMembers(ctx context.Context, groupID int64) ([]int64, error)
+	CountJoinedGroups(ctx context.Context, userID int64) (int64, error)
 }
 
 type GroupUsecase struct {
@@ -269,7 +268,7 @@ func (uc *GroupUsecase) LoadMyGroup(ctx context.Context, query *LoadMyGroupQuery
 }
 
 func (uc *GroupUsecase) CheckGroupAddMode(ctx context.Context, query *CheckGroupAddModeQuery) (*CheckGroupAddModeResult, error) {
-	group, err := uc.repo.GetGroupByID(ctx, query.GroupID)
+	group, err := uc.repo.GetGroup(ctx, query.GroupID)
 	if err != nil {
 		uc.log.Errorf("查询群聊信息失败: %v", err)
 		return nil, fmt.Errorf("群聊不存在")
@@ -286,7 +285,7 @@ func (uc *GroupUsecase) CheckGroupAddMode(ctx context.Context, query *CheckGroup
 
 func (uc *GroupUsecase) EnterGroupDirectly(ctx context.Context, cmd *EnterGroupDirectlyCommand) (*EnterGroupDirectlyResult, error) {
 	// 检查群聊是否存在
-	group, err := uc.repo.GetGroupByID(ctx, cmd.GroupID)
+	group, err := uc.repo.GetGroup(ctx, cmd.GroupID)
 	if err != nil {
 		uc.log.Errorf("查询群聊信息失败: %v", err)
 		return nil, fmt.Errorf("群聊不存在")
@@ -354,7 +353,7 @@ func (uc *GroupUsecase) EnterGroupDirectly(ctx context.Context, cmd *EnterGroupD
 
 func (uc *GroupUsecase) ApplyJoinGroup(ctx context.Context, cmd *ApplyJoinGroupCommand) (*ApplyJoinGroupResult, error) {
 	// 检查群聊是否存在
-	group, err := uc.repo.GetGroupByID(ctx, cmd.GroupID)
+	group, err := uc.repo.GetGroup(ctx, cmd.GroupID)
 	if err != nil {
 		uc.log.Errorf("查询群聊信息失败: %v", err)
 		return nil, fmt.Errorf("群聊不存在")
@@ -422,7 +421,7 @@ func (uc *GroupUsecase) ApplyJoinGroup(ctx context.Context, cmd *ApplyJoinGroupC
 
 func (uc *GroupUsecase) LeaveGroup(ctx context.Context, cmd *LeaveGroupCommand) (*LeaveGroupResult, error) {
 	// 检查群聊是否存在
-	group, err := uc.repo.GetGroupByID(ctx, cmd.GroupID)
+	group, err := uc.repo.GetGroup(ctx, cmd.GroupID)
 	if err != nil {
 		uc.log.Errorf("查询群聊信息失败: %v", err)
 		return nil, fmt.Errorf("群聊不存在")
@@ -486,7 +485,7 @@ func (uc *GroupUsecase) LeaveGroup(ctx context.Context, cmd *LeaveGroupCommand) 
 
 func (uc *GroupUsecase) DismissGroup(ctx context.Context, cmd *DismissGroupCommand) (*DismissGroupResult, error) {
 	// 检查群聊是否存在
-	group, err := uc.repo.GetGroupByID(ctx, cmd.GroupID)
+	group, err := uc.repo.GetGroup(ctx, cmd.GroupID)
 	if err != nil {
 		uc.log.Errorf("查询群聊信息失败: %v", err)
 		return nil, fmt.Errorf("群聊不存在")
@@ -518,20 +517,6 @@ func (uc *GroupUsecase) DismissGroup(ctx context.Context, cmd *DismissGroupComma
 	}
 
 	return &DismissGroupResult{}, nil
-}
-
-func (uc *GroupUsecase) GetGroupInfo(ctx context.Context, query *GetGroupInfoQuery) (*GetGroupInfoResult, error) {
-	group, err := uc.repo.GetGroupByID(ctx, query.GroupID)
-	if err != nil {
-		uc.log.Errorf("查询群聊信息失败: %v", err)
-		return nil, fmt.Errorf("群聊不存在")
-	}
-
-	if group == nil {
-		return &GetGroupInfoResult{Group: nil}, nil
-	}
-
-	return &GetGroupInfoResult{Group: group}, nil
 }
 
 func (uc *GroupUsecase) ListMyJoinedGroups(ctx context.Context, query *ListMyJoinedGroupsQuery) (*ListMyJoinedGroupsResult, error) {
@@ -590,4 +575,18 @@ func (uc *GroupUsecase) IsGroupMember(ctx context.Context, query *IsGroupMemberQ
 	return &IsGroupMemberResult{
 		IsMember: isMember,
 	}, nil
+}
+
+func (uc *GroupUsecase) GetGroupInfo(ctx context.Context, query *GetGroupInfoQuery) (*GetGroupInfoResult, error) {
+	group, err := uc.repo.GetGroup(ctx, query.GroupID)
+	if err != nil {
+		uc.log.Errorf("查询群聊信息失败: %v", err)
+		return nil, fmt.Errorf("群聊不存在")
+	}
+
+	if group == nil {
+		return &GetGroupInfoResult{Group: nil}, nil
+	}
+
+	return &GetGroupInfoResult{Group: group}, nil
 }

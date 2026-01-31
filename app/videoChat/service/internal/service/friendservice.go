@@ -290,14 +290,8 @@ func (s *FriendServiceService) SetFriendGroup(ctx context.Context, req *pb.SetFr
 }
 
 func (s *FriendServiceService) CheckFriendRelation(ctx context.Context, req *pb.CheckFriendRelationReq) (*pb.CheckFriendRelationResp, error) {
-	// ✅ 构建Query
-	query := &biz.CheckFriendRelationQuery{
-		UserID:   req.UserId,
-		TargetID: req.TargetId,
-	}
-
 	// ✅ 调用业务层
-	result, err := s.uc.CheckFriendRelation(ctx, query)
+	isFriend, status, err := s.uc.CheckFriendRelation(ctx, req.UserId, req.TargetId)
 	if err != nil {
 		return &pb.CheckFriendRelationResp{
 			Meta: utils.GetMetaWithError(err),
@@ -306,8 +300,8 @@ func (s *FriendServiceService) CheckFriendRelation(ctx context.Context, req *pb.
 
 	return &pb.CheckFriendRelationResp{
 		Meta:     utils.GetSuccessMeta(),
-		IsFriend: result.IsFriend,
-		Status:   result.Status,
+		IsFriend: isFriend,
+		Status:   status,
 	}, nil
 }
 

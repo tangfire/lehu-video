@@ -473,8 +473,9 @@ func (c *Client) handleSendMessage(data json.RawMessage, clientMsgID string) {
 
 		// 发送成功响应
 		c.sendResponse("message_sent", map[string]interface{}{
-			"message_id": output.MessageID,
-			"status":     "sent",
+			"message_id":      output.MessageID,
+			"conversation_id": output.ConversationId,
+			"status":          "sent",
 		}, clientMsgID)
 
 		// 构建推送消息
@@ -753,9 +754,8 @@ func (c *Client) notifyRecall(messageID int64) {
 // 处理已读消息
 func (c *Client) handleReadMessage(data json.RawMessage) {
 	var msg struct {
-		TargetID  int64 `json:"target_id"`
-		ConvType  int32 `json:"conv_type"`
-		MessageID int64 `json:"message_id"`
+		ConversationID int64 `json:"conversation_id"` // 之前是 TargetID
+		MessageID      int64 `json:"message_id"`
 	}
 
 	if err := json.Unmarshal(data, &msg); err != nil {
@@ -766,9 +766,8 @@ func (c *Client) handleReadMessage(data json.RawMessage) {
 	// 调用业务层标记消息已读
 	if c.messageUC != nil {
 		input := &biz.MarkMessagesReadInput{
-			TargetID:  msg.TargetID,
-			ConvType:  msg.ConvType,
-			LastMsgID: msg.MessageID,
+			ConversationID: msg.ConversationID,
+			LastMsgID:      msg.MessageID,
 		}
 
 		err := c.messageUC.MarkMessagesRead(c.Ctx, input)
@@ -778,37 +777,38 @@ func (c *Client) handleReadMessage(data json.RawMessage) {
 		}
 
 		c.sendResponse("message_read", map[string]interface{}{
-			"target_id":  msg.TargetID,
-			"message_id": msg.MessageID,
-			"status":     "read",
+			"conversation_id": msg.ConversationID,
+			"message_id":      msg.MessageID,
+			"status":          "read",
 		}, "")
+		c.notifyMessageRead(msg.MessageID, msg.ConversationID)
 
 		// 通知发送方消息已读
-		c.notifyMessageRead(msg.MessageID, msg.TargetID)
+		c.notifyMessageRead(msg.MessageID, msg.ConversationID)
 	} else {
 		c.sendError("service_unavailable", "消息服务不可用", "")
 	}
 }
 
 // notifyMessageRead 通知消息已读
-func (c *Client) notifyMessageRead(messageID, targetID int64) {
-	// 获取消息详情
+func (c *Client) notifyMessageRead(messageID, conversationID int64) {
 	if c.chat != nil {
 		message, err := c.chat.GetMessageByID(c.Ctx, messageID)
 		if err != nil || message == nil {
 			return
 		}
 
-		// 只有单聊才需要发送已读回执
+		// 单聊判断还是用 message.ConvType
 		if message.ConvType == 0 && message.SenderID != c.UserID {
 			readMsg := WSMessageResponse{
 				Action:    "message_read_ack",
 				Timestamp: time.Now().Unix(),
 				Data: map[string]interface{}{
-					"message_id":  messageID,
-					"reader_id":   c.UserID,
-					"reader_name": "用户", // 这里应该获取用户名
-					"timestamp":   time.Now().Unix(),
+					"message_id":      messageID,
+					"reader_id":       c.UserID,
+					"reader_name":     "用户",
+					"timestamp":       time.Now().Unix(),
+					"conversation_id": conversationID,
 				},
 			}
 

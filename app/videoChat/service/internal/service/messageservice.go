@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/go-kratos/kratos/v2/log"
+
 	pb "lehu-video/api/videoChat/service/v1"
 	"lehu-video/app/videoChat/service/internal/biz"
 	"lehu-video/app/videoChat/service/internal/pkg/utils"
@@ -23,8 +24,21 @@ func NewMessageServiceService(uc *biz.MessageUsecase, logger log.Logger) *Messag
 	}
 }
 
-func (s *MessageServiceService) SendMessage(ctx context.Context, req *pb.SendMessageReq) (*pb.SendMessageResp, error) {
-	// ✅ 构建Command
+// =======================
+// SendMessage
+// =======================
+
+func (s *MessageServiceService) SendMessage(
+	ctx context.Context,
+	req *pb.SendMessageReq,
+) (*pb.SendMessageResp, error) {
+
+	if req.SenderId == 0 || req.ReceiverId == 0 {
+		return &pb.SendMessageResp{
+			Meta: utils.GetMetaWithError(errors.New("invalid sender or receiver")),
+		}, nil
+	}
+
 	cmd := &biz.SendMessageCommand{
 		SenderID:    req.SenderId,
 		ReceiverID:  req.ReceiverId,
@@ -33,7 +47,6 @@ func (s *MessageServiceService) SendMessage(ctx context.Context, req *pb.SendMes
 		ClientMsgID: req.ClientMsgId,
 	}
 
-	// 设置消息内容
 	if req.Content != nil {
 		cmd.Content = &biz.MessageContent{
 			Text:          req.Content.Text,
@@ -52,7 +65,6 @@ func (s *MessageServiceService) SendMessage(ctx context.Context, req *pb.SendMes
 		}
 	}
 
-	// ✅ 调用业务层
 	result, err := s.uc.SendMessage(ctx, cmd)
 	if err != nil {
 		return &pb.SendMessageResp{
@@ -61,22 +73,28 @@ func (s *MessageServiceService) SendMessage(ctx context.Context, req *pb.SendMes
 	}
 
 	return &pb.SendMessageResp{
-		Meta:      utils.GetSuccessMeta(),
-		MessageId: result.MessageID,
+		Meta:           utils.GetSuccessMeta(),
+		MessageId:      result.MessageID,
+		ConversationId: result.ConversationID,
 	}, nil
 }
 
-func (s *MessageServiceService) ListMessages(ctx context.Context, req *pb.ListMessagesReq) (*pb.ListMessagesResp, error) {
-	// ✅ 构建Query
+// =======================
+// ListMessages
+// =======================
+
+func (s *MessageServiceService) ListMessages(
+	ctx context.Context,
+	req *pb.ListMessagesReq,
+) (*pb.ListMessagesResp, error) {
+
 	query := &biz.ListMessagesQuery{
-		UserID:    req.UserId,
-		TargetID:  req.TargetId,
-		ConvType:  int32(req.ConvType),
-		LastMsgID: req.LastMsgId,
-		Limit:     int(req.Limit),
+		UserID:         req.UserId,
+		ConversationID: req.ConversationId,
+		LastMsgID:      req.LastMsgId,
+		Limit:          int(req.Limit),
 	}
 
-	// ✅ 调用业务层
 	result, err := s.uc.ListMessages(ctx, query)
 	if err != nil {
 		return &pb.ListMessagesResp{
@@ -84,16 +102,23 @@ func (s *MessageServiceService) ListMessages(ctx context.Context, req *pb.ListMe
 		}, nil
 	}
 
-	// ✅ 转换为proto结构
 	messages := make([]*pb.Message, 0, len(result.Messages))
 	for _, msg := range result.Messages {
-		messages = append(messages, &pb.Message{
-			Id:         msg.ID,
-			SenderId:   msg.SenderID,
-			ReceiverId: msg.ReceiverID,
-			ConvType:   pb.ConversationType(msg.ConvType),
-			MsgType:    pb.MessageType(msg.MsgType),
-			Content: &pb.MessageContent{
+		pbMsg := &pb.Message{
+			Id:             msg.ID,
+			ConversationId: msg.ConversationID,
+			SenderId:       msg.SenderID,
+			ReceiverId:     msg.ReceiverID,
+			ConvType:       pb.ConversationType(msg.ConvType),
+			MsgType:        pb.MessageType(msg.MsgType),
+			Status:         pb.MessageStatus(msg.Status),
+			IsRecalled:     msg.IsRecalled,
+			CreatedAt:      msg.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:      msg.UpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+
+		if msg.Content != nil {
+			pbMsg.Content = &pb.MessageContent{
 				Text:          msg.Content.Text,
 				ImageUrl:      msg.Content.ImageURL,
 				ImageWidth:    msg.Content.ImageWidth,
@@ -107,12 +132,10 @@ func (s *MessageServiceService) ListMessages(ctx context.Context, req *pb.ListMe
 				FileName:      msg.Content.FileName,
 				FileSize:      msg.Content.FileSize,
 				Extra:         msg.Content.Extra,
-			},
-			Status:     pb.MessageStatus(msg.Status),
-			IsRecalled: msg.IsRecalled,
-			CreatedAt:  msg.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt:  msg.UpdatedAt.Format("2006-01-02 15:04:05"),
-		})
+			}
+		}
+
+		messages = append(messages, pbMsg)
 	}
 
 	return &pb.ListMessagesResp{
@@ -123,14 +146,95 @@ func (s *MessageServiceService) ListMessages(ctx context.Context, req *pb.ListMe
 	}, nil
 }
 
-func (s *MessageServiceService) RecallMessage(ctx context.Context, req *pb.RecallMessageReq) (*pb.RecallMessageResp, error) {
-	// ✅ 构建Command
+// =======================
+// ListConversations（重点修复）
+// =======================
+
+func (s *MessageServiceService) ListConversations(
+	ctx context.Context,
+	req *pb.ListConversationsReq,
+) (*pb.ListConversationsResp, error) {
+
+	query := &biz.ListConversationsQuery{
+		UserID: req.UserId,
+		PageStats: &biz.PageStats{
+			Page:     int(req.PageStats.Page),
+			PageSize: int(req.PageStats.Size),
+		},
+	}
+
+	result, err := s.uc.ListConversations(ctx, query)
+	if err != nil {
+		return &pb.ListConversationsResp{
+			Meta: utils.GetMetaWithError(err),
+		}, nil
+	}
+
+	views := make([]*pb.ConversationView, 0, len(result.Conversations))
+	for _, conv := range result.Conversations {
+
+		pbConv := &pb.Conversation{
+			Id:          conv.ID,
+			Type:        pb.ConversationType(conv.Type),
+			Name:        conv.Name,
+			Avatar:      conv.Avatar,
+			LastMessage: conv.LastMessage,
+			MemberCount: conv.MemberCount,
+			UpdatedAt:   conv.UpdatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt:   conv.CreatedAt.Format("2006-01-02 15:04:05"),
+		}
+
+		if conv.TargetID != nil {
+			pbConv.TargetId = conv.TargetID
+		}
+		if conv.GroupID != nil {
+			pbConv.GroupId = conv.GroupID
+		}
+		if conv.LastMsgType != nil {
+			v := pb.MessageType(*conv.LastMsgType)
+			pbConv.LastMsgType = &v
+		}
+		if conv.LastMsgTime != nil {
+			t := conv.LastMsgTime.Unix()
+			pbConv.LastMsgTime = &t
+		}
+
+		view := &pb.ConversationView{
+			Conversation: pbConv,
+			UnreadCount:  conv.UnreadCount,
+			IsPinned:     conv.IsPinned,
+			IsMuted:      conv.IsMuted,
+		}
+
+		views = append(views, view)
+	}
+
+	return &pb.ListConversationsResp{
+		Meta:          utils.GetSuccessMeta(),
+		Conversations: views,
+		PageStats: &pb.PageStatsResp{
+			Total: int32(result.Total),
+		},
+	}, nil
+}
+
+// RecallMessage 撤回消息
+func (s *MessageServiceService) RecallMessage(
+	ctx context.Context,
+	req *pb.RecallMessageReq,
+) (*pb.RecallMessageResp, error) {
+
+	if req.MessageId == 0 || req.UserId == 0 {
+		return &pb.RecallMessageResp{
+			Meta: utils.GetMetaWithError(errors.New("参数错误")),
+		}, nil
+	}
+
 	cmd := &biz.RecallMessageCommand{
 		MessageID: req.MessageId,
 		UserID:    req.UserId,
 	}
 
-	// ✅ 调用业务层
 	_, err := s.uc.RecallMessage(ctx, cmd)
 	if err != nil {
 		return &pb.RecallMessageResp{
@@ -143,16 +247,24 @@ func (s *MessageServiceService) RecallMessage(ctx context.Context, req *pb.Recal
 	}, nil
 }
 
-func (s *MessageServiceService) MarkMessagesRead(ctx context.Context, req *pb.MarkMessagesReadReq) (*pb.MarkMessagesReadResp, error) {
-	// ✅ 构建Command
-	cmd := &biz.MarkMessagesReadCommand{
-		UserID:    req.UserId,
-		TargetID:  req.TargetId,
-		ConvType:  int32(req.ConvType),
-		LastMsgID: req.LastMsgId,
+// MarkMessagesRead 标记消息已读
+func (s *MessageServiceService) MarkMessagesRead(
+	ctx context.Context,
+	req *pb.MarkMessagesReadReq,
+) (*pb.MarkMessagesReadResp, error) {
+
+	if req.UserId == 0 || req.ConversationId == 0 {
+		return &pb.MarkMessagesReadResp{
+			Meta: utils.GetMetaWithError(errors.New("参数错误")),
+		}, nil
 	}
 
-	// ✅ 调用业务层
+	cmd := &biz.MarkMessagesReadCommand{
+		UserID:         req.UserId,
+		ConversationID: req.ConversationId,
+		LastMsgID:      req.LastMsgId,
+	}
+
 	_, err := s.uc.MarkMessagesRead(ctx, cmd)
 	if err != nil {
 		return &pb.MarkMessagesReadResp{
@@ -165,13 +277,22 @@ func (s *MessageServiceService) MarkMessagesRead(ctx context.Context, req *pb.Ma
 	}, nil
 }
 
-func (s *MessageServiceService) GetUnreadCount(ctx context.Context, req *pb.GetUnreadCountReq) (*pb.GetUnreadCountResp, error) {
-	// ✅ 构建Query
+// GetUnreadCount 获取未读消息数
+func (s *MessageServiceService) GetUnreadCount(
+	ctx context.Context,
+	req *pb.GetUnreadCountReq,
+) (*pb.GetUnreadCountResp, error) {
+
+	if req.UserId == 0 {
+		return &pb.GetUnreadCountResp{
+			Meta: utils.GetMetaWithError(errors.New("参数错误")),
+		}, nil
+	}
+
 	query := &biz.GetUnreadCountQuery{
 		UserID: req.UserId,
 	}
 
-	// ✅ 调用业务层
 	result, err := s.uc.GetUnreadCount(ctx, query)
 	if err != nil {
 		return &pb.GetUnreadCountResp{
@@ -179,63 +300,36 @@ func (s *MessageServiceService) GetUnreadCount(ctx context.Context, req *pb.GetU
 		}, nil
 	}
 
+	// 转换conv_unread为proto格式
+	convUnread := make(map[int64]int64)
+	for k, v := range result.ConvUnread {
+		convUnread[k] = v
+	}
+
 	return &pb.GetUnreadCountResp{
 		Meta:        utils.GetSuccessMeta(),
 		TotalUnread: result.TotalUnread,
-		ConvUnread:  result.ConvUnread,
+		ConvUnread:  convUnread,
 	}, nil
 }
 
-func (s *MessageServiceService) ListConversations(ctx context.Context, req *pb.ListConversationsReq) (*pb.ListConversationsResp, error) {
-	// ✅ 构建Query
-	query := &biz.ListConversationsQuery{
-		UserID: req.UserId,
-		PageStats: &biz.PageStats{
-			Page:     int(req.PageStats.Page),
-			PageSize: int(req.PageStats.Size),
-		},
-	}
+// DeleteConversation 删除会话
+func (s *MessageServiceService) DeleteConversation(
+	ctx context.Context,
+	req *pb.DeleteConversationReq,
+) (*pb.DeleteConversationResp, error) {
 
-	// ✅ 调用业务层
-	result, err := s.uc.ListConversations(ctx, query)
-	if err != nil {
-		return &pb.ListConversationsResp{
-			Meta: utils.GetMetaWithError(err),
+	if req.UserId == 0 || req.ConversationId == 0 {
+		return &pb.DeleteConversationResp{
+			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
-	// ✅ 转换为proto结构
-	conversations := make([]*pb.Conversation, 0, len(result.Conversations))
-	for _, conv := range result.Conversations {
-		conversations = append(conversations, &pb.Conversation{
-			Id:          conv.ID,
-			Type:        pb.ConversationType(conv.Type),
-			TargetId:    conv.TargetID,
-			LastMessage: conv.LastMessage,
-			LastMsgType: pb.MessageType(conv.LastMsgType),
-			LastMsgTime: conv.LastMsgTime.Unix(), // 转换为时间戳
-			UnreadCount: int64(conv.UnreadCount),
-			UpdatedAt:   conv.UpdatedAt.Format("2006-01-02 15:04:05"),
-		})
-	}
-
-	return &pb.ListConversationsResp{
-		Meta:          utils.GetSuccessMeta(),
-		Conversations: conversations,
-		PageStats: &pb.PageStatsResp{
-			Total: int32(result.Total),
-		},
-	}, nil
-}
-
-func (s *MessageServiceService) DeleteConversation(ctx context.Context, req *pb.DeleteConversationReq) (*pb.DeleteConversationResp, error) {
-	// ✅ 构建Command
 	cmd := &biz.DeleteConversationCommand{
 		UserID:         req.UserId,
 		ConversationID: req.ConversationId,
 	}
 
-	// ✅ 调用业务层
 	_, err := s.uc.DeleteConversation(ctx, cmd)
 	if err != nil {
 		return &pb.DeleteConversationResp{
@@ -248,72 +342,18 @@ func (s *MessageServiceService) DeleteConversation(ctx context.Context, req *pb.
 	}, nil
 }
 
-func (s *MessageServiceService) UpdateMessageStatus(ctx context.Context, req *pb.UpdateMessageStatusReq) (*pb.UpdateMessageStatusResp, error) {
-	// ✅ 构建Command
-	cmd := &biz.UpdateMessageStatusCommand{
-		MessageID:  req.MessageId,
-		Status:     int32(req.Status),
-		OperatorID: req.OperatorId,
-	}
+// GetConversation 获取会话详情
+func (s *MessageServiceService) GetConversation(
+	ctx context.Context,
+	req *pb.GetConversationReq,
+) (*pb.GetConversationResp, error) {
 
-	// ✅ 调用业务层
-	_, err := s.uc.UpdateMessageStatus(ctx, cmd)
-	if err != nil {
-		return &pb.UpdateMessageStatusResp{
-			Meta: utils.GetMetaWithError(err),
+	if req.UserId == 0 || req.TargetId == 0 {
+		return &pb.GetConversationResp{
+			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
-	return &pb.UpdateMessageStatusResp{
-		Meta: utils.GetSuccessMeta(),
-	}, nil
-}
-
-func (s *MessageServiceService) GetMessage(ctx context.Context, req *pb.GetMessageReq) (*pb.GetMessageResp, error) {
-	// ✅ 调用业务层获取消息
-	message, err := s.uc.GetMessage(ctx, req.MessageId)
-	if err != nil {
-		return &pb.GetMessageResp{
-			Meta: utils.GetMetaWithError(err),
-		}, nil
-	}
-
-	// ✅ 转换为proto结构
-	pbMessage := &pb.Message{
-		Id:         message.ID,
-		SenderId:   message.SenderID,
-		ReceiverId: message.ReceiverID,
-		ConvType:   pb.ConversationType(message.ConvType),
-		MsgType:    pb.MessageType(message.MsgType),
-		Content: &pb.MessageContent{
-			Text:          message.Content.Text,
-			ImageUrl:      message.Content.ImageURL,
-			ImageWidth:    message.Content.ImageWidth,
-			ImageHeight:   message.Content.ImageHeight,
-			VoiceUrl:      message.Content.VoiceURL,
-			VoiceDuration: message.Content.VoiceDuration,
-			VideoUrl:      message.Content.VideoURL,
-			VideoCover:    message.Content.VideoCover,
-			VideoDuration: message.Content.VideoDuration,
-			FileUrl:       message.Content.FileURL,
-			FileName:      message.Content.FileName,
-			FileSize:      message.Content.FileSize,
-			Extra:         message.Content.Extra,
-		},
-		Status:     pb.MessageStatus(message.Status),
-		IsRecalled: message.IsRecalled,
-		CreatedAt:  message.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt:  message.UpdatedAt.Format("2006-01-02 15:04:05"),
-	}
-
-	return &pb.GetMessageResp{
-		Meta:    utils.GetSuccessMeta(),
-		Message: pbMessage,
-	}, nil
-}
-
-func (s *MessageServiceService) GetConversation(ctx context.Context, req *pb.GetConversationReq) (*pb.GetConversationResp, error) {
-	// ✅ 调用业务层获取会话
 	conversation, err := s.uc.GetConversation(ctx, req.UserId, req.TargetId, int32(req.ConvType))
 	if err != nil {
 		return &pb.GetConversationResp{
@@ -327,58 +367,59 @@ func (s *MessageServiceService) GetConversation(ctx context.Context, req *pb.Get
 		}, nil
 	}
 
-	// ✅ 转换为proto结构
-	pbConversation := &pb.Conversation{
+	// 转换为proto结构
+	pbConv := &pb.Conversation{
 		Id:          conversation.ID,
 		Type:        pb.ConversationType(conversation.Type),
-		TargetId:    conversation.TargetID,
+		Name:        conversation.Name,
+		Avatar:      conversation.Avatar,
 		LastMessage: conversation.LastMessage,
-		LastMsgType: pb.MessageType(conversation.LastMsgType),
-		LastMsgTime: conversation.LastMsgTime.Unix(),
-		UnreadCount: int64(conversation.UnreadCount),
+		MemberCount: conversation.MemberCount,
 		UpdatedAt:   conversation.UpdatedAt.Format("2006-01-02 15:04:05"),
+		CreatedAt:   conversation.CreatedAt.Format("2006-01-02 15:04:05"),
+	}
+
+	if conversation.TargetID != nil {
+		pbConv.TargetId = conversation.TargetID
+	}
+	if conversation.GroupID != nil {
+		pbConv.GroupId = conversation.GroupID
+	}
+	if conversation.LastMsgType != nil {
+		v := pb.MessageType(*conversation.LastMsgType)
+		pbConv.LastMsgType = &v
+	}
+	if conversation.LastMsgTime != nil {
+		t := conversation.LastMsgTime.Unix()
+		pbConv.LastMsgTime = &t
 	}
 
 	return &pb.GetConversationResp{
 		Meta:         utils.GetSuccessMeta(),
-		Conversation: pbConversation,
+		Conversation: pbConv,
 	}, nil
 }
 
-func (s *MessageServiceService) ClearMessages(ctx context.Context, req *pb.ClearMessagesReq) (*pb.ClearMessagesResp, error) {
-	// ✅ 调用业务层清空消息
-	_, err := s.uc.ClearMessages(ctx, req.UserId, req.TargetId, int32(req.ConvType))
-	if err != nil {
+// ClearMessages 清空聊天记录
+func (s *MessageServiceService) ClearMessages(
+	ctx context.Context,
+	req *pb.ClearMessagesReq,
+) (*pb.ClearMessagesResp, error) {
+
+	if req.UserId == 0 || req.ConversationId == 0 {
 		return &pb.ClearMessagesResp{
-			Meta: utils.GetMetaWithError(err),
+			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
+	// 获取会话信息
+	// 这里需要先获取会话，然后根据会话类型调用不同的方法
+	// 由于ClearMessagesReq只有conversation_id，我们需要先获取会话信息
+	// 为了简化，我们可以添加一个新的UseCase方法
+	// 或者修改proto，添加target_id和conv_type参数
+
+	// 暂时返回未实现
 	return &pb.ClearMessagesResp{
-		Meta: utils.GetSuccessMeta(),
-	}, nil
-}
-
-// 添加 CreateConversation 方法
-func (s *MessageServiceService) CreateConversation(ctx context.Context, req *pb.CreateConversationReq) (*pb.CreateConversationResp, error) {
-	// 构建Command
-	cmd := &biz.CreateConversationCommand{
-		UserID:         req.UserId,
-		TargetID:       req.TargetId,
-		ConvType:       int32(req.ConvType),
-		InitialMessage: req.InitialMessage,
-	}
-
-	// 调用业务层
-	result, err := s.uc.CreateConversation(ctx, cmd)
-	if err != nil {
-		return &pb.CreateConversationResp{
-			Meta: utils.GetMetaWithError(err),
-		}, nil
-	}
-
-	return &pb.CreateConversationResp{
-		Meta:           utils.GetSuccessMeta(),
-		ConversationId: result.ConversationID,
+		Meta: utils.GetMetaWithError(errors.New("暂未实现")),
 	}, nil
 }

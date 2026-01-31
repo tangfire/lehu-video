@@ -5,10 +5,13 @@ package api.videoApi.service.v1;
 option go_package = "lehu-video/api/videoApi/service/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.videoApi.service.v1";
+
 import "api/videoApi/service/v1/base.proto";
 import "google/api/annotations.proto";
 
-// 消息服务
+// =======================
+// 消息服务 API
+// =======================
 service MessageService {
   // 发送消息
   rpc SendMessage(SendMessageReq) returns (SendMessageResp) {
@@ -62,14 +65,8 @@ service MessageService {
     };
   };
 
-  // 新增：获取消息详情
-  rpc GetMessage(GetMessageReq) returns (GetMessageResp) {
-    option (google.api.http) = {
-      get: "/v1/message/{message_id}"
-    };
-  };
 
-  // 新增：获取会话详情
+  // 获取会话详情
   rpc GetConversation(GetConversationReq) returns (GetConversationResp) {
     option (google.api.http) = {
       post: "/v1/conversation/detail"
@@ -77,14 +74,14 @@ service MessageService {
     };
   };
 
-  // 新增：获取未读消息数
+  // 获取未读消息数
   rpc GetUnreadCount(GetUnreadCountReq) returns (GetUnreadCountResp) {
     option (google.api.http) = {
       get: "/v1/messages/unread-count"
     };
   };
 
-  // 新增：更新消息状态（主要用于WebSocket回调）
+  // 更新消息状态（WebSocket 回调）
   rpc UpdateMessageStatus(UpdateMessageStatusReq) returns (UpdateMessageStatusResp) {
     option (google.api.http) = {
       post: "/v1/message/status"
@@ -92,7 +89,7 @@ service MessageService {
     };
   };
 
-  // 创建会话
+  // 创建会话（可选发送初始消息）
   rpc CreateConversation(CreateConversationReq) returns (CreateConversationResp) {
     option (google.api.http) = {
       post: "/v1/conversation"
@@ -101,24 +98,23 @@ service MessageService {
   };
 }
 
-
-// 消息类型
+// =======================
+// 枚举定义（保持和内部一致）
+// =======================
 enum MessageType {
   TEXT = 0;
   IMAGE = 1;
   VOICE = 2;
-  VIDEOTYPE = 3;
+  _VIDEO = 3;
   FILE = 4;
   SYSTEM = 99;
 }
 
-// 会话类型
 enum ConversationType {
   SINGLE = 0;
   GROUP = 1;
 }
 
-// 消息状态
 enum MessageStatus {
   SENDING = 0;
   SENT = 1;
@@ -128,7 +124,9 @@ enum MessageStatus {
   FAILED = 99;
 }
 
-// 消息内容
+// =======================
+// 消息模型
+// =======================
 message MessageContent {
   string text = 1;
   string image_url = 2;
@@ -145,35 +143,46 @@ message MessageContent {
   string extra = 13;
 }
 
-// 消息
 message Message {
   int64 id = 1;
-  int64 sender_id = 2;
-  int64 receiver_id = 3;
-  ConversationType conv_type = 4;
-  MessageType msg_type = 5;
-  MessageContent content = 6;
-  MessageStatus status = 7;
-  bool is_recalled = 8;
-  string created_at = 9;
-  string updated_at = 10;
+  int64 conversation_id = 2;
+  int64 sender_id = 3;
+  int64 receiver_id = 4;   // 用户ID或群ID
+  ConversationType conv_type = 5;
+  MessageType msg_type = 6;
+  MessageContent content = 7;
+  MessageStatus status = 8;
+  bool is_recalled = 9;
+  string created_at = 10;
+  string updated_at = 11;
 }
 
-// 会话
+// =======================
+// 会话模型
+// =======================
 message Conversation {
   int64 id = 1;
   ConversationType type = 2;
-  int64 target_id = 3;
-  string last_message = 4;
-  MessageType last_msg_type = 5;
-  int64 last_msg_time = 6;
-  int32 unread_count = 7;
-  string updated_at = 8;
+  int64 target_id = 3;       // 单聊对方ID
+  int64 group_id = 4;        // 群聊ID
+  string name = 5;
+  string avatar = 6;
+  string last_message = 7;
+  MessageType last_msg_type = 8;
+  int64 last_msg_time = 9;
+  int64 unread_count = 10;
+  int64 member_count = 11;
+  string created_at = 12;
+  string updated_at = 13;
 }
 
-// 发送消息请求
+// =======================
+// RPC 请求 / 响应
+// =======================
+
+// 发送消息
 message SendMessageReq {
-  int64 receiver_id = 1;
+  int64 receiver_id = 1;      // 用户ID或群ID
   ConversationType conv_type = 2;
   MessageType msg_type = 3;
   MessageContent content = 4;
@@ -182,14 +191,14 @@ message SendMessageReq {
 
 message SendMessageResp {
   int64 message_id = 1;
+  int64 conversation_id = 2;
 }
 
-// 获取消息列表请求
+// 获取消息列表
 message ListMessagesReq {
-  int64 target_id = 1; // 对方id(用户id或群id)
-  ConversationType conv_type = 2;
-  int64 last_msg_id = 3;
-  int32 limit = 4;
+  int64 conversation_id = 1;
+  int64 last_msg_id = 2;   // 分页
+  int32 limit = 3;
 }
 
 message ListMessagesResp {
@@ -198,23 +207,22 @@ message ListMessagesResp {
   int64 last_msg_id = 3;
 }
 
-// 撤回消息请求
+// 撤回消息
 message RecallMessageReq {
   int64 message_id = 1;
 }
 
 message RecallMessageResp {}
 
-// 标记消息已读请求
+// 标记已读
 message MarkMessagesReadReq {
-  int64 target_id = 1;
-  ConversationType conv_type = 2;
-  int64 last_msg_id = 3;
+  int64 conversation_id = 1;
+  int64 last_msg_id = 2;
 }
 
 message MarkMessagesReadResp {}
 
-// 获取会话列表请求
+// 获取会话列表
 message ListConversationsReq {
   PageStatsReq page_stats = 1;
 }
@@ -224,30 +232,23 @@ message ListConversationsResp {
   PageStatsResp page_stats = 2;
 }
 
-// 删除会话请求
+// 删除会话
 message DeleteConversationReq {
   int64 conversation_id = 1;
 }
 
 message DeleteConversationResp {}
 
-// 清空聊天记录请求
+// 清空消息
 message ClearMessagesReq {
-  int64 target_id = 1;
-  ConversationType conv_type = 2;
+  int64 conversation_id = 1;
 }
 
 message ClearMessagesResp {}
 
 
-message GetMessageReq {
-  int64 message_id = 1;
-}
 
-message GetMessageResp {
-  Message message = 1;
-}
-
+// 获取会话详情
 message GetConversationReq {
   int64 target_id = 1;
   ConversationType conv_type = 2;
@@ -257,17 +258,18 @@ message GetConversationResp {
   Conversation conversation = 1;
 }
 
+// 获取未读消息数
 message GetUnreadCountReq {
-  // 可选参数：target_id为空时返回总未读数，有值时返回该会话未读数
-  int64 target_id = 1;
+  int64 target_id = 1;          // 可选，会话ID
   ConversationType conv_type = 2;
 }
 
 message GetUnreadCountResp {
-  int64 total_unread = 1;
-  int64 conv_unread = 2; // 特定会话的未读数
+  int64 total_unread = 1;       // 总未读数
+  int64 conv_unread = 2;        // 单会话未读数
 }
 
+// 更新消息状态
 message UpdateMessageStatusReq {
   int64 message_id = 1;
   MessageStatus status = 2;
@@ -275,15 +277,13 @@ message UpdateMessageStatusReq {
 
 message UpdateMessageStatusResp {}
 
-
-// 创建会话请求
+// 创建会话
 message CreateConversationReq {
-  int64 target_id = 1;        // 对方ID（用户ID或群ID）
-  ConversationType conv_type = 2; // 会话类型
-  string initial_message = 3;    // 可选：初始消息
+  int64 target_id = 1;          // 用户ID或群ID
+  ConversationType conv_type = 2;
+  string initial_message = 3;
 }
 
 message CreateConversationResp {
-  int64 conversation_id = 1;   // 创建的会话ID
+  int64 conversation_id = 1;
 }
-

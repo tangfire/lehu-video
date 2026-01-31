@@ -59,18 +59,23 @@ func (m *Message) FromJSON(jsonStr string) error {
 
 // Conversation 会话结构体
 type Conversation struct {
-	ID          int64     `json:"id"`            // 会话唯一标识ID
-	UserID      int64     `json:"user_id"`       // 用户ID
-	Type        int8      `json:"type"`          // 会话类型: 0=单聊, 1=群聊
-	TargetID    int64     `json:"target_id"`     // 对方ID
-	LastMessage string    `json:"last_message"`  // 最后一条消息内容摘要
-	LastMsgType int8      `json:"last_msg_type"` // 最后一条消息类型
-	LastMsgTime int64     `json:"last_msg_time"` // 最后一条消息的时间戳(单位:秒)
-	UnreadCount int32     `json:"unread_count"`  // 未读消息数量
-	UpdatedAt   time.Time `json:"updated_at"`    // 会话最后更新时间
+	ID          int64
+	UserID      int64
+	Type        int32
+	TargetID    *int64 // 注意这里用指针，匹配 data 层实现
+	GroupID     *int64 // 注意这里用指针
+	Name        string
+	Avatar      string
+	LastMessage string
+	LastMsgType *int32     // 匹配 data 层
+	LastMsgTime *time.Time // 匹配 data 层使用的 time.Unix 转换
+	UnreadCount int32
+	MemberCount int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
-// 消息相关输入输出
+// 消息相关输入输出（修复版）
 type SendMessageInput struct {
 	ReceiverID  int64
 	ConvType    int32
@@ -80,14 +85,14 @@ type SendMessageInput struct {
 }
 
 type SendMessageOutput struct {
-	MessageID int64
+	MessageID      int64
+	ConversationId int64
 }
 
 type ListMessagesInput struct {
-	TargetID  int64
-	ConvType  int32
-	LastMsgID int64
-	Limit     int32
+	ConversationID int64 // 重点：对应 proto 中的 conversation_id
+	LastMsgID      int64
+	Limit          int32
 }
 
 type ListMessagesOutput struct {
@@ -101,9 +106,8 @@ type RecallMessageInput struct {
 }
 
 type MarkMessagesReadInput struct {
-	TargetID  int64
-	ConvType  int32
-	LastMsgID int64
+	ConversationID int64 // 对应 proto 的 conversation_id
+	LastMsgID      int64
 }
 
 type ListConversationsInput struct {
@@ -119,11 +123,6 @@ type DeleteConversationInput struct {
 	ConversationID int64
 }
 
-type MessageUsecase struct {
-	chat ChatAdapter
-	log  *log.Helper
-}
-
 type CreateConversationInput struct {
 	TargetID       int64
 	ConvType       int32
@@ -132,6 +131,12 @@ type CreateConversationInput struct {
 
 type CreateConversationOutput struct {
 	ConversationID int64
+}
+
+// MessageUsecase（修复版）
+type MessageUsecase struct {
+	chat ChatAdapter
+	log  *log.Helper
 }
 
 func NewMessageUsecase(chat ChatAdapter, logger log.Logger) *MessageUsecase {
@@ -180,17 +185,19 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, input *SendMessageInp
 	}
 
 	// 发送消息
-	messageID, err := uc.chat.SendMessage(ctx, userID, input.ReceiverID, input.ConvType, input.MsgType, input.Content, input.ClientMsgID)
+	messageID, conversationId, err := uc.chat.SendMessage(ctx, userID, input.ReceiverID, input.ConvType, input.MsgType, input.Content, input.ClientMsgID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("发送消息失败: %v", err)
 		return nil, err
 	}
 
 	return &SendMessageOutput{
-		MessageID: messageID,
+		MessageID:      messageID,
+		ConversationId: conversationId,
 	}, nil
 }
 
+// ListMessages 获取消息列表（修复版）
 func (uc *MessageUsecase) ListMessages(ctx context.Context, input *ListMessagesInput) (*ListMessagesOutput, error) {
 	userID, err := claims.GetUserId(ctx)
 	if err != nil {
@@ -204,7 +211,8 @@ func (uc *MessageUsecase) ListMessages(ctx context.Context, input *ListMessagesI
 		input.Limit = 100
 	}
 
-	messages, hasMore, lastMsgID, err := uc.chat.ListMessages(ctx, userID, input.TargetID, input.ConvType, input.LastMsgID, input.Limit)
+	// 注意：这里需要chat适配器支持按会话ID查询消息
+	messages, hasMore, lastMsgID, err := uc.chat.ListMessages(ctx, userID, input.ConversationID, input.LastMsgID, input.Limit)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取消息列表失败: %v", err)
 		return nil, errors.New("获取消息失败")
@@ -238,7 +246,8 @@ func (uc *MessageUsecase) MarkMessagesRead(ctx context.Context, input *MarkMessa
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.MarkMessagesRead(ctx, userID, input.TargetID, input.ConvType, input.LastMsgID)
+	// 调用 chatAdapter
+	err = uc.chat.MarkMessagesRead(ctx, userID, input.ConversationID, input.LastMsgID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("标记消息已读失败: %v", err)
 		return errors.New("标记消息已读失败")
@@ -297,21 +306,6 @@ func (uc *MessageUsecase) UpdateMessageStatus(ctx context.Context, messageID int
 	return nil
 }
 
-// 新增：获取消息详情
-func (uc *MessageUsecase) GetMessage(ctx context.Context, messageID int64) (*Message, error) {
-	message, err := uc.chat.GetMessageByID(ctx, messageID)
-	if err != nil {
-		uc.log.WithContext(ctx).Errorf("获取消息详情失败: %v", err)
-		return nil, errors.New("获取消息失败")
-	}
-
-	if message == nil {
-		return nil, errors.New("消息不存在")
-	}
-
-	return message, nil
-}
-
 // 新增：获取会话详情
 func (uc *MessageUsecase) GetConversation(ctx context.Context, targetID int64, convType int32) (*Conversation, error) {
 	userID, err := claims.GetUserId(ctx)
@@ -336,8 +330,8 @@ func (uc *MessageUsecase) GetUnreadCount(ctx context.Context, userID int64) (int
 	return total, results, nil
 }
 
-func (uc *MessageUsecase) ClearMessages(ctx context.Context, userID, targetID int64, convType int32) error {
-	err := uc.chat.ClearMessages(ctx, userID, targetID, convType)
+func (uc *MessageUsecase) ClearMessages(ctx context.Context, userID, conversationId int64) error {
+	err := uc.chat.ClearMessages(ctx, userID, conversationId)
 	if err != nil {
 		return err
 	}

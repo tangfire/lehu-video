@@ -26,7 +26,6 @@ const (
 	MessageService_ListConversations_FullMethodName   = "/api.videoApi.service.v1.MessageService/ListConversations"
 	MessageService_DeleteConversation_FullMethodName  = "/api.videoApi.service.v1.MessageService/DeleteConversation"
 	MessageService_ClearMessages_FullMethodName       = "/api.videoApi.service.v1.MessageService/ClearMessages"
-	MessageService_GetMessage_FullMethodName          = "/api.videoApi.service.v1.MessageService/GetMessage"
 	MessageService_GetConversation_FullMethodName     = "/api.videoApi.service.v1.MessageService/GetConversation"
 	MessageService_GetUnreadCount_FullMethodName      = "/api.videoApi.service.v1.MessageService/GetUnreadCount"
 	MessageService_UpdateMessageStatus_FullMethodName = "/api.videoApi.service.v1.MessageService/UpdateMessageStatus"
@@ -37,7 +36,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// 消息服务
+// =======================
+// 消息服务 API
+// =======================
 type MessageServiceClient interface {
 	// 发送消息
 	SendMessage(ctx context.Context, in *SendMessageReq, opts ...grpc.CallOption) (*SendMessageResp, error)
@@ -53,15 +54,13 @@ type MessageServiceClient interface {
 	DeleteConversation(ctx context.Context, in *DeleteConversationReq, opts ...grpc.CallOption) (*DeleteConversationResp, error)
 	// 清空聊天记录
 	ClearMessages(ctx context.Context, in *ClearMessagesReq, opts ...grpc.CallOption) (*ClearMessagesResp, error)
-	// 新增：获取消息详情
-	GetMessage(ctx context.Context, in *GetMessageReq, opts ...grpc.CallOption) (*GetMessageResp, error)
-	// 新增：获取会话详情
+	// 获取会话详情
 	GetConversation(ctx context.Context, in *GetConversationReq, opts ...grpc.CallOption) (*GetConversationResp, error)
-	// 新增：获取未读消息数
+	// 获取未读消息数
 	GetUnreadCount(ctx context.Context, in *GetUnreadCountReq, opts ...grpc.CallOption) (*GetUnreadCountResp, error)
-	// 新增：更新消息状态（主要用于WebSocket回调）
+	// 更新消息状态（WebSocket 回调）
 	UpdateMessageStatus(ctx context.Context, in *UpdateMessageStatusReq, opts ...grpc.CallOption) (*UpdateMessageStatusResp, error)
-	// 创建会话
+	// 创建会话（可选发送初始消息）
 	CreateConversation(ctx context.Context, in *CreateConversationReq, opts ...grpc.CallOption) (*CreateConversationResp, error)
 }
 
@@ -143,16 +142,6 @@ func (c *messageServiceClient) ClearMessages(ctx context.Context, in *ClearMessa
 	return out, nil
 }
 
-func (c *messageServiceClient) GetMessage(ctx context.Context, in *GetMessageReq, opts ...grpc.CallOption) (*GetMessageResp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetMessageResp)
-	err := c.cc.Invoke(ctx, MessageService_GetMessage_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *messageServiceClient) GetConversation(ctx context.Context, in *GetConversationReq, opts ...grpc.CallOption) (*GetConversationResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetConversationResp)
@@ -197,7 +186,9 @@ func (c *messageServiceClient) CreateConversation(ctx context.Context, in *Creat
 // All implementations must embed UnimplementedMessageServiceServer
 // for forward compatibility.
 //
-// 消息服务
+// =======================
+// 消息服务 API
+// =======================
 type MessageServiceServer interface {
 	// 发送消息
 	SendMessage(context.Context, *SendMessageReq) (*SendMessageResp, error)
@@ -213,15 +204,13 @@ type MessageServiceServer interface {
 	DeleteConversation(context.Context, *DeleteConversationReq) (*DeleteConversationResp, error)
 	// 清空聊天记录
 	ClearMessages(context.Context, *ClearMessagesReq) (*ClearMessagesResp, error)
-	// 新增：获取消息详情
-	GetMessage(context.Context, *GetMessageReq) (*GetMessageResp, error)
-	// 新增：获取会话详情
+	// 获取会话详情
 	GetConversation(context.Context, *GetConversationReq) (*GetConversationResp, error)
-	// 新增：获取未读消息数
+	// 获取未读消息数
 	GetUnreadCount(context.Context, *GetUnreadCountReq) (*GetUnreadCountResp, error)
-	// 新增：更新消息状态（主要用于WebSocket回调）
+	// 更新消息状态（WebSocket 回调）
 	UpdateMessageStatus(context.Context, *UpdateMessageStatusReq) (*UpdateMessageStatusResp, error)
-	// 创建会话
+	// 创建会话（可选发送初始消息）
 	CreateConversation(context.Context, *CreateConversationReq) (*CreateConversationResp, error)
 	mustEmbedUnimplementedMessageServiceServer()
 }
@@ -253,9 +242,6 @@ func (UnimplementedMessageServiceServer) DeleteConversation(context.Context, *De
 }
 func (UnimplementedMessageServiceServer) ClearMessages(context.Context, *ClearMessagesReq) (*ClearMessagesResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClearMessages not implemented")
-}
-func (UnimplementedMessageServiceServer) GetMessage(context.Context, *GetMessageReq) (*GetMessageResp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetMessage not implemented")
 }
 func (UnimplementedMessageServiceServer) GetConversation(context.Context, *GetConversationReq) (*GetConversationResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConversation not implemented")
@@ -416,24 +402,6 @@ func _MessageService_ClearMessages_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MessageService_GetMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetMessageReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MessageServiceServer).GetMessage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MessageService_GetMessage_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MessageServiceServer).GetMessage(ctx, req.(*GetMessageReq))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _MessageService_GetConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetConversationReq)
 	if err := dec(in); err != nil {
@@ -540,10 +508,6 @@ var MessageService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClearMessages",
 			Handler:    _MessageService_ClearMessages_Handler,
-		},
-		{
-			MethodName: "GetMessage",
-			Handler:    _MessageService_GetMessage_Handler,
 		},
 		{
 			MethodName: "GetConversation",
