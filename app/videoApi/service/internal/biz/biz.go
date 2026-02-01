@@ -9,7 +9,7 @@ var ProviderSet = wire.NewSet(
 	NewVideoUsecase,
 	NewVideoAssembler,
 	NewCommentUsecase,
-	NewFavoirteUsecase,
+	NewFavoriteUsecase,
 	NewFollowUsecase,
 	NewCollectionUsecase,
 	NewGroupUsecase,

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"google.golang.org/protobuf/encoding/protojson"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/errors"
@@ -102,6 +101,33 @@ func convertProtoToMap(pm proto.Message) interface{} {
 }
 
 // 递归修复数字类型
+//func fixNumberTypes(data interface{}) interface{} {
+//	switch v := data.(type) {
+//	case map[string]interface{}:
+//		for key, value := range v {
+//			v[key] = fixNumberTypes(value)
+//		}
+//		return v
+//	case []interface{}:
+//		for i, item := range v {
+//			v[i] = fixNumberTypes(item)
+//		}
+//		return v
+//	case string:
+//		// 尝试将字符串转换为数字
+//		if num, err := strconv.ParseInt(v, 10, 64); err == nil {
+//			return num
+//		}
+//		if num, err := strconv.ParseFloat(v, 64); err == nil {
+//			return num
+//		}
+//		return v
+//	default:
+//		return v
+//	}
+//}
+
+// 递归修复数字类型 - 改进版本
 func fixNumberTypes(data interface{}) interface{} {
 	switch v := data.(type) {
 	case map[string]interface{}:
@@ -112,15 +138,6 @@ func fixNumberTypes(data interface{}) interface{} {
 	case []interface{}:
 		for i, item := range v {
 			v[i] = fixNumberTypes(item)
-		}
-		return v
-	case string:
-		// 尝试将字符串转换为数字
-		if num, err := strconv.ParseInt(v, 10, 64); err == nil {
-			return num
-		}
-		if num, err := strconv.ParseFloat(v, 64); err == nil {
-			return num
 		}
 		return v
 	default:

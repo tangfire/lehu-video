@@ -8,111 +8,119 @@ option java_package = "api.videoCore.service.v1";
 import "api/videoCore/service/v1/base.proto";
 
 service FavoriteService {
-	rpc AddFavorite(AddFavoriteReq)returns (AddFavoriteResp);
+	rpc AddFavorite(AddFavoriteReq) returns (AddFavoriteResp);
 	rpc RemoveFavorite(RemoveFavoriteReq) returns (RemoveFavoriteResp);
-	rpc ListFavorite(ListFavoriteReq) returns(ListFavoriteResp);
+	rpc ListFavorite(ListFavoriteReq) returns (ListFavoriteResp);
 	rpc CountFavorite(CountFavoriteReq) returns (CountFavoriteResp);
 	rpc IsFavorite(IsFavoriteReq) returns (IsFavoriteResp);
+	rpc BatchIsFavorite(BatchIsFavoriteReq) returns (BatchIsFavoriteResp);
 }
 
-
-enum FavoriteTarget{
-	VIDEO = 0;
-	COMMENT = 1;
+enum FavoriteTarget {
+	FAVORITE_TARGET_VIDEO = 0;
+	FAVORITE_TARGET_COMMENT = 1;
 }
 
-enum FavoriteType{
-	FAVORITE = 0; // 点赞
-	UNLIKE = 1; // 点踩
+enum FavoriteType {
+	FAVORITE_TYPE_LIKE = 0;      // 点赞
+	FAVORITE_TYPE_DISLIKE = 1;   // 点踩
 }
 
-enum FavoriteAggregateType{
-	BY_VIDEO = 0;
-	BY_COMMENT = 1;
-	BY_USER = 2;
+enum FavoriteAggregateType {
+	FAVORITE_AGGREGATE_BY_VIDEO = 0;
+	FAVORITE_AGGREGATE_BY_COMMENT = 1;
+	FAVORITE_AGGREGATE_BY_USER = 2;
 }
 
-message AddFavoriteReq{
+message AddFavoriteReq {
 	FavoriteTarget target = 1;
 	FavoriteType type = 2;
-	string id = 3;
+	string biz_id = 3;      // 业务ID（视频ID或评论ID）
 	string user_id = 4;
 }
 
-message AddFavoriteResp{
+message AddFavoriteResp {
 	Metadata meta = 1;
+	bool already_favorited = 2;  // 是否已经点过赞
+	int64 total_count = 3;       // 当前总点赞数
 }
 
-message RemoveFavoriteReq{
+message RemoveFavoriteReq {
 	FavoriteTarget target = 1;
 	FavoriteType type = 2;
-	string id = 3;
+	string biz_id = 3;
 	string user_id = 4;
 }
 
-message RemoveFavoriteResp{
+message RemoveFavoriteResp {
 	Metadata meta = 1;
+	bool not_favorited = 2;     // 是否本来就没点赞
+	int64 total_count = 3;      // 当前总点赞数
 }
 
-message ListFavoriteReq{
+message ListFavoriteReq {
 	string id = 1;
 	FavoriteAggregateType aggregate_type = 2;
 	FavoriteType favorite_type = 3;
 	PageStatsReq page_stats = 4;
+	bool include_deleted = 5;   // 是否包含已删除的
 }
 
-message ListFavoriteResp{
+message ListFavoriteResp {
 	Metadata meta = 1;
 	repeated string ids = 2;
 	PageStatsResp page_stats = 3;
+	int64 total_count = 4;
 }
 
-
-message CountFavoriteReq{
+message CountFavoriteReq {
 	FavoriteAggregateType aggregate_type = 1;
 	repeated string ids = 2;
 	FavoriteType favorite_type = 3;
 }
 
-message CountFavoriteRespItem{
+message CountFavoriteRespItem {
 	string biz_id = 1;
-	int64 count = 2;
+	int64 like_count = 2;     // 点赞数
+	int64 dislike_count = 3;   // 点踩数
+	int64 total_count = 4;     // 总数
 }
 
-message CountFavoriteResp{
+message CountFavoriteResp {
 	Metadata meta = 1;
 	repeated CountFavoriteRespItem items = 2;
 }
 
-message IsFavoriteReqItem{
+message IsFavoriteReq {
 	string biz_id = 1;
 	string user_id = 2;
-
+	FavoriteTarget target = 3;
+	FavoriteType type = 4;
 }
 
-message IsFavoriteReq{
-	FavoriteTarget target = 1;
-	FavoriteType type = 2;
-	repeated IsFavoriteReqItem items = 3;
-}
-
-message IsFavoriteRespItem{
-	string biz_id = 1;
-	string user_id = 2;
-	bool is_favorite = 3;
-}
-
-message IsFavoriteResp{
+message IsFavoriteResp {
 	Metadata meta = 1;
-	repeated IsFavoriteRespItem items = 2;
+	bool is_favorite = 2;
+	FavoriteType favorite_type = 3;  // 当前点赞类型
+	int64 total_likes = 4;           // 总点赞数
+	int64 total_dislikes = 5;        // 总点踩数
 }
 
+message BatchIsFavoriteReq {
+	repeated string biz_ids = 1;
+	string user_id = 2;
+	FavoriteTarget target = 3;
+}
 
+message BatchIsFavoriteItem {
+	string biz_id = 1;
+	bool is_liked = 2;
+	bool is_disliked = 3;
+	int64 like_count = 4;
+	int64 dislike_count = 5;
+}
 
-
-
-
-
-
-
-
+message BatchIsFavoriteResp {
+	Metadata meta = 1;
+	repeated BatchIsFavoriteItem items = 2;
+}

@@ -92,37 +92,6 @@ func (r *CoreAdapterImpl) ListPublishedVideo(ctx context.Context, userId string,
 	return int64(resp.PageStats.Total), retVideos, nil
 }
 
-func (r *CoreAdapterImpl) IsUserFavoriteVideo(ctx context.Context, userId string, videoIdList []string) (map[string]bool, error) {
-
-	var items []*core.IsFavoriteReqItem
-	for _, id := range videoIdList {
-		items = append(items, &core.IsFavoriteReqItem{
-			BizId:  id,
-			UserId: userId,
-		})
-	}
-
-	resp, err := r.favorite.IsFavorite(ctx, &core.IsFavoriteReq{
-		Items: items,
-	})
-	if err != nil {
-		return nil, err
-	}
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]bool)
-	if len(resp.Items) == 0 {
-		return result, nil
-	}
-
-	for _, item := range resp.Items {
-		result[item.BizId] = item.IsFavorite
-	}
-	return result, nil
-}
-
 func (r *CoreAdapterImpl) Feed(ctx context.Context, userId string, num int64, latestTime int64) ([]*biz.Video, error) {
 	req := &core.FeedShortVideoReq{
 		LatestTime: latestTime,
@@ -157,26 +126,6 @@ func (r *CoreAdapterImpl) Feed(ctx context.Context, userId string, num int64, la
 		})
 	}
 	return videos, nil
-}
-
-func (r *CoreAdapterImpl) ListUserFavoriteVideo(ctx context.Context, userId string, pageStats *biz.PageStats) (int64, []string, error) {
-	resp, err := r.favorite.ListFavorite(ctx, &core.ListFavoriteReq{
-		Id:            userId,
-		AggregateType: core.FavoriteAggregateType_BY_USER,
-		FavoriteType:  core.FavoriteType_FAVORITE,
-		PageStats: &core.PageStatsReq{
-			Page: int32(pageStats.Page),
-			Size: int32(pageStats.PageSize),
-		},
-	})
-	if err != nil {
-		return 0, nil, err
-	}
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return 0, nil, err
-	}
-	return int64(resp.PageStats.Total), resp.Ids, nil
 }
 
 func (r *CoreAdapterImpl) GetVideoByIdList(ctx context.Context, videoIdList []string) ([]*biz.Video, error) {

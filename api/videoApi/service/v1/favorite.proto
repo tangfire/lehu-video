@@ -19,7 +19,8 @@ service FavoriteService {
 
 	rpc RemoveFavorite(RemoveFavoriteReq) returns (RemoveFavoriteResp) {
 		option (google.api.http) = {
-			delete: "/v1/favorite"
+			post: "/v1/favorite/del",
+			body: "*"
 		};
 	};
 
@@ -29,16 +30,31 @@ service FavoriteService {
 			body: "*"
 		};
 	};
+
+	rpc CheckFavoriteStatus(CheckFavoriteStatusReq) returns (CheckFavoriteStatusResp) {
+		option (google.api.http) = {
+			post: "/v1/favorite/check"
+			body: "*"
+		};
+	};
+
+
+	rpc GetFavoriteStats(GetFavoriteStatsReq) returns (GetFavoriteStatsResp) {
+		option (google.api.http) = {
+			post: "/v1/favorite/stats"
+			body: "*"
+		};
+	};
 }
 
 enum FavoriteTarget {
-	VIDEO = 0;
-	COMMENT = 1;
+	FAVORITE_TARGET_VIDEO = 0;
+	FAVORITE_TARGET_COMMENT = 1;
 }
 
 enum FavoriteType {
-	FAVORITE = 0; // 点赞
-	UNLIKE = 1; // 点踩
+	FAVORITE_TYPE_LIKE = 0;      // 点赞
+	FAVORITE_TYPE_DISLIKE = 1;   // 点踩
 }
 
 message AddFavoriteReq {
@@ -48,23 +64,62 @@ message AddFavoriteReq {
 	string id = 3;
 }
 
-message AddFavoriteResp {}
+message AddFavoriteResp {
+	bool already_favorited = 1;  // 是否已经点过赞
+	int64 total_count = 2;       // 当前总点赞数
+	int64 total_likes = 3;       // 当前点赞数
+	int64 total_dislikes = 4;    // 当前点踩数
+}
 
 message RemoveFavoriteReq {
 	FavoriteTarget target = 1;
 	FavoriteType type = 2;
 	// @gotags: json:"id,omitempty,string"
-	string id = 3;
+	string id = 3; // 业务ID（视频ID或评论ID）
 }
 
-message RemoveFavoriteResp {}
+message RemoveFavoriteResp {
+	bool not_favorited = 1;     // 是否本来就没点赞
+	int64 total_count = 2;      // 当前总点赞数
+	int64 total_likes = 3;      // 当前点赞数
+	int64 total_dislikes = 4;   // 当前点踩数
+}
 
 message ListFavoriteVideoReq {
 	string userId = 1; // 可传可不传,传0就是查自己
 	PageStatsReq page_stats = 2;
+	bool include_stats = 3; // 是否包含统计信息
 }
 
 message ListFavoriteVideoResp {
 	repeated Video videos = 1;
 	PageStatsResp page_stats = 2;
+	int64 total_count = 3; // 总点赞视频数
+}
+
+message CheckFavoriteStatusReq {
+	FavoriteTarget target = 1;
+	FavoriteType type = 2;
+	string id = 3;
+}
+
+message CheckFavoriteStatusResp {
+	bool is_favorite = 1;
+	FavoriteType favorite_type = 2;
+	int64 total_likes = 3;
+	int64 total_dislikes = 4;
+	int64 total_count = 5;
+}
+
+
+message GetFavoriteStatsReq {
+	FavoriteTarget target = 1;
+	string id = 2;
+}
+
+message GetFavoriteStatsResp {
+	int64 like_count = 1;
+	int64 dislike_count = 2;
+	int64 total_count = 3;
+	float hot_score = 4; // 热度分数
 }

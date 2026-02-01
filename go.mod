@@ -13,8 +13,10 @@ require (
 	github.com/hashicorp/consul/api v1.33.2
 	github.com/minio/minio-go/v7 v7.0.98
 	github.com/redis/go-redis/v9 v9.17.2
+	github.com/spf13/cast v1.10.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/zap v1.27.1
+	golang.org/x/time v0.14.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240528184218-531527333157
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.1
@@ -60,7 +62,6 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
-	github.com/spf13/cast v1.10.0 // indirect
 	github.com/tinylib/msgp v1.6.1 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect

@@ -106,7 +106,9 @@ func (a *VideoAssembler) getVideoCounts(ctx context.Context, videoIDs []string) 
 		return &VideoCountInfo{}, nil
 	}
 
-	var commentCounts, favoriteCounts, collectCounts map[string]int64
+	var commentCounts, collectCounts map[string]int64
+	var favoriteCounts map[string]FavoriteCount
+
 	var commentErr, favoriteErr, collectErr error
 
 	// 并行查询各种计数
@@ -125,9 +127,14 @@ func (a *VideoAssembler) getVideoCounts(ctx context.Context, videoIDs []string) 
 		a.log.WithContext(ctx).Warnf("failed to count collects: %v", collectErr)
 	}
 
+	likeCounts := make(map[string]int64)
+	for videoID, favoriteCount := range favoriteCounts {
+		likeCounts[videoID] = favoriteCount.LikeCount
+	}
+
 	return &VideoCountInfo{
 		CommentCounts:  commentCounts,
-		FavoriteCounts: favoriteCounts,
+		FavoriteCounts: likeCounts,
 		CollectCounts:  collectCounts,
 	}, nil
 }

@@ -332,6 +332,16 @@ type WSMessageResponse struct {
 	Error       string      `json:"error,omitempty"`
 }
 
+// SendMessageReq 发送消息请求结构
+type SendMessageReq struct {
+	ReceiverID  string                 `json:"receiver_id"`
+	ConvType    int32                  `json:"conv_type"`
+	MsgType     int32                  `json:"msg_type"`
+	Content     map[string]interface{} `json:"content"`
+	GroupID     string                 `json:"group_id,omitempty"`
+	ClientMsgID string                 `json:"client_msg_id"` // 关键：确保能解析到 data 内部的临时 ID
+}
+
 // handleMessage 处理收到的消息
 func (c *Client) handleMessage(message []byte) {
 	var req WSMessageRequest
@@ -356,26 +366,26 @@ func (c *Client) handleMessage(message []byte) {
 	}
 }
 
-// SendMessageReq 发送消息请求结构
-type SendMessageReq struct {
-	ReceiverID string                 `json:"receiver_id"`
-	ConvType   int32                  `json:"conv_type"`
-	MsgType    int32                  `json:"msg_type"`
-	Content    map[string]interface{} `json:"content"`
-	GroupID    string                 `json:"group_id,omitempty"`
-}
-
 // handleSendMessage 处理发送消息请求
-func (c *Client) handleSendMessage(data json.RawMessage, clientMsgID string) {
+func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string) {
 	var msg SendMessageReq
 	if err := json.Unmarshal(data, &msg); err != nil {
-		c.sendError("parse_error", "解析消息数据失败", clientMsgID)
+		c.sendError("parse_error", "解析消息数据失败", outerClientMsgID)
 		return
 	}
 
+	// --- 修复逻辑开始 ---
+	// 优先获取 data 内部的 client_msg_id（这是前端实际传的位置）
+	// 如果内部没有，再尝试使用 handleMessage 传进来的外层 ID
+	effectiveClientMsgID := msg.ClientMsgID
+	if effectiveClientMsgID == "" {
+		effectiveClientMsgID = outerClientMsgID
+	}
+	// --- 修复逻辑结束 ---
+
 	// 验证接收者
 	if cast.ToInt64(msg.ReceiverID) <= 0 {
-		c.sendError("invalid_receiver", "无效的接收者ID", clientMsgID)
+		c.sendError("invalid_receiver", "无效的接收者ID", effectiveClientMsgID)
 		return
 	}
 
@@ -388,11 +398,11 @@ func (c *Client) handleSendMessage(data json.RawMessage, clientMsgID string) {
 		if ok {
 			isFriend, _, err := checker.CheckFriendRelation(c.Ctx, c.UserID, msg.ReceiverID)
 			if err != nil {
-				c.sendError("relation_check_failed", "检查好友关系失败", clientMsgID)
+				c.sendError("relation_check_failed", "检查好友关系失败", effectiveClientMsgID)
 				return
 			}
 			if !isFriend {
-				c.sendError("not_friend", "你们不是好友，无法发送消息", clientMsgID)
+				c.sendError("not_friend", "你们不是好友，无法发送消息", effectiveClientMsgID)
 				return
 			}
 		}
@@ -405,11 +415,11 @@ func (c *Client) handleSendMessage(data json.RawMessage, clientMsgID string) {
 		if ok {
 			isMember, err := checker.CheckUserRelation(c.Ctx, c.UserID, msg.ReceiverID, msg.ConvType)
 			if err != nil {
-				c.sendError("relation_check_failed", "检查群成员关系失败", clientMsgID)
+				c.sendError("relation_check_failed", "检查群成员关系失败", effectiveClientMsgID)
 				return
 			}
 			if !isMember {
-				c.sendError("not_member", "你不是群成员，无法发送消息", clientMsgID)
+				c.sendError("not_member", "你不是群成员，无法发送消息", effectiveClientMsgID)
 				return
 			}
 		}
@@ -477,40 +487,35 @@ func (c *Client) handleSendMessage(data json.RawMessage, clientMsgID string) {
 			ConvType:    msg.ConvType,
 			MsgType:     msg.MsgType,
 			Content:     content,
-			ClientMsgID: clientMsgID,
+			ClientMsgID: effectiveClientMsgID, // 传入正确的 ID
 		}
 
 		output, err := c.messageUC.SendMessage(c.Ctx, input)
 		if err != nil {
-			c.sendError("send_failed", "发送消息失败: "+err.Error(), clientMsgID)
+			c.sendError("send_failed", "发送消息失败: "+err.Error(), effectiveClientMsgID)
 			return
 		}
 
-		// 发送成功响应
+		// 发送成功响应给发送者
 		c.sendResponse("message_sent", map[string]interface{}{
 			"message_id":      output.MessageID,
 			"conversation_id": output.ConversationId,
-			"status":          "sent",
-			"client_msg_id":   clientMsgID, // 确保返回客户端消息ID
-		}, clientMsgID)
+			"status":          1,                    // 建议改成数字 1 (代表已发送)，匹配前端 getStatusText 逻辑
+			"client_msg_id":   effectiveClientMsgID, // 关键：回传临时 ID，前端才能取消“发送中”状态
+		}, effectiveClientMsgID)
 
-		// 构建推送消息
+		// 构建推送消息给接收者
 		pushMsg := c.buildReceiveMessage(cast.ToInt64(output.MessageID), msg)
 
-		// 处理消息推送（根据会话类型）
+		// 处理消息推送
 		if msg.ConvType == 0 { // 单聊
-			// 立即更新消息状态为已送达（因为通过WebSocket直接推送）
-			go c.updateMessageStatus(cast.ToInt64(output.MessageID), 2) // DELIVERED
-
-			// 推送给接收方
+			go c.updateMessageStatus(cast.ToInt64(output.MessageID), 2) // 已送达
 			c.Manager.BroadcastToUser(msg.ReceiverID, pushMsg)
-
 		} else if msg.ConvType == 1 { // 群聊
-			// 获取群成员并推送
 			c.handleGroupMessage(msg.ReceiverID, output.MessageID, msg, pushMsg)
 		}
 	} else {
-		c.sendError("service_unavailable", "消息服务不可用", clientMsgID)
+		c.sendError("service_unavailable", "消息服务不可用", effectiveClientMsgID)
 	}
 }
 

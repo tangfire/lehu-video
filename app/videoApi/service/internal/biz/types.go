@@ -75,14 +75,10 @@ type Collection struct {
 	Description string
 }
 
-type FavoriteTarget int64
-
 var (
 	VIDEO   FavoriteTarget = 0
 	COMMENT FavoriteTarget = 1
 )
-
-type FavoriteType int64
 
 var (
 	FAVORITE FavoriteType = 0

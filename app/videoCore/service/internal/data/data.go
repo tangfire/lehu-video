@@ -1,6 +1,7 @@
 package data
 
 import (
+	"github.com/redis/go-redis/v9"
 	"lehu-video/app/videoCore/service/internal/conf"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -19,6 +20,7 @@ var ProviderSet = wire.NewSet(
 	NewFavoriteRepo,
 	NewCommentRepo,
 	NewCollectionRepo,
+	NewRedis,
 )
 
 // Data .
@@ -43,4 +45,13 @@ func NewDB(c *conf.Data, logger log.Logger) *gorm.DB {
 		log.Errorf("open db err:%v", err)
 	}
 	return db
+}
+
+func NewRedis(c *conf.Data) *redis.Client {
+	rds := redis.NewClient(&redis.Options{
+		Addr:     c.Redis.Addr,
+		Password: c.Redis.Password,
+		DB:       0,
+	})
+	return rds
 }

@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/registry"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
@@ -16,6 +17,7 @@ type CoreAdapterImpl struct {
 	comment    core.CommentServiceClient
 	favorite   core.FavoriteServiceClient
 	follow     core.FollowServiceClient
+	log        *log.Helper
 }
 
 func NewCoreAdapter(
@@ -24,7 +26,8 @@ func NewCoreAdapter(
 	collection core.CollectionServiceClient,
 	comment core.CommentServiceClient,
 	favorite core.FavoriteServiceClient,
-	follow core.FollowServiceClient) biz.CoreAdapter {
+	follow core.FollowServiceClient,
+	logger log.Logger) biz.CoreAdapter {
 	return &CoreAdapterImpl{
 		user:       user,
 		video:      video,
@@ -32,6 +35,7 @@ func NewCoreAdapter(
 		comment:    comment,
 		favorite:   favorite,
 		follow:     follow,
+		log:        log.NewHelper(logger),
 	}
 }
 

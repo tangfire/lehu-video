@@ -24,19 +24,19 @@ const (
 type FavoriteTarget int32
 
 const (
-	FavoriteTarget_VIDEO   FavoriteTarget = 0
-	FavoriteTarget_COMMENT FavoriteTarget = 1
+	FavoriteTarget_FAVORITE_TARGET_VIDEO   FavoriteTarget = 0
+	FavoriteTarget_FAVORITE_TARGET_COMMENT FavoriteTarget = 1
 )
 
 // Enum value maps for FavoriteTarget.
 var (
 	FavoriteTarget_name = map[int32]string{
-		0: "VIDEO",
-		1: "COMMENT",
+		0: "FAVORITE_TARGET_VIDEO",
+		1: "FAVORITE_TARGET_COMMENT",
 	}
 	FavoriteTarget_value = map[string]int32{
-		"VIDEO":   0,
-		"COMMENT": 1,
+		"FAVORITE_TARGET_VIDEO":   0,
+		"FAVORITE_TARGET_COMMENT": 1,
 	}
 )
 
@@ -70,19 +70,19 @@ func (FavoriteTarget) EnumDescriptor() ([]byte, []int) {
 type FavoriteType int32
 
 const (
-	FavoriteType_FAVORITE FavoriteType = 0 // 点赞
-	FavoriteType_UNLIKE   FavoriteType = 1 // 点踩
+	FavoriteType_FAVORITE_TYPE_LIKE    FavoriteType = 0 // 点赞
+	FavoriteType_FAVORITE_TYPE_DISLIKE FavoriteType = 1 // 点踩
 )
 
 // Enum value maps for FavoriteType.
 var (
 	FavoriteType_name = map[int32]string{
-		0: "FAVORITE",
-		1: "UNLIKE",
+		0: "FAVORITE_TYPE_LIKE",
+		1: "FAVORITE_TYPE_DISLIKE",
 	}
 	FavoriteType_value = map[string]int32{
-		"FAVORITE": 0,
-		"UNLIKE":   1,
+		"FAVORITE_TYPE_LIKE":    0,
+		"FAVORITE_TYPE_DISLIKE": 1,
 	}
 )
 
@@ -116,22 +116,22 @@ func (FavoriteType) EnumDescriptor() ([]byte, []int) {
 type FavoriteAggregateType int32
 
 const (
-	FavoriteAggregateType_BY_VIDEO   FavoriteAggregateType = 0
-	FavoriteAggregateType_BY_COMMENT FavoriteAggregateType = 1
-	FavoriteAggregateType_BY_USER    FavoriteAggregateType = 2
+	FavoriteAggregateType_FAVORITE_AGGREGATE_BY_VIDEO   FavoriteAggregateType = 0
+	FavoriteAggregateType_FAVORITE_AGGREGATE_BY_COMMENT FavoriteAggregateType = 1
+	FavoriteAggregateType_FAVORITE_AGGREGATE_BY_USER    FavoriteAggregateType = 2
 )
 
 // Enum value maps for FavoriteAggregateType.
 var (
 	FavoriteAggregateType_name = map[int32]string{
-		0: "BY_VIDEO",
-		1: "BY_COMMENT",
-		2: "BY_USER",
+		0: "FAVORITE_AGGREGATE_BY_VIDEO",
+		1: "FAVORITE_AGGREGATE_BY_COMMENT",
+		2: "FAVORITE_AGGREGATE_BY_USER",
 	}
 	FavoriteAggregateType_value = map[string]int32{
-		"BY_VIDEO":   0,
-		"BY_COMMENT": 1,
-		"BY_USER":    2,
+		"FAVORITE_AGGREGATE_BY_VIDEO":   0,
+		"FAVORITE_AGGREGATE_BY_COMMENT": 1,
+		"FAVORITE_AGGREGATE_BY_USER":    2,
 	}
 )
 
@@ -166,7 +166,7 @@ type AddFavoriteReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Target        FavoriteTarget         `protobuf:"varint,1,opt,name=target,proto3,enum=api.videoCore.service.v1.FavoriteTarget" json:"target,omitempty"`
 	Type          FavoriteType           `protobuf:"varint,2,opt,name=type,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"type,omitempty"`
-	Id            string                 `protobuf:"bytes,3,opt,name=id,proto3" json:"id,omitempty"`
+	BizId         string                 `protobuf:"bytes,3,opt,name=biz_id,json=bizId,proto3" json:"biz_id,omitempty"` // 业务ID（视频ID或评论ID）
 	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -206,19 +206,19 @@ func (x *AddFavoriteReq) GetTarget() FavoriteTarget {
 	if x != nil {
 		return x.Target
 	}
-	return FavoriteTarget_VIDEO
+	return FavoriteTarget_FAVORITE_TARGET_VIDEO
 }
 
 func (x *AddFavoriteReq) GetType() FavoriteType {
 	if x != nil {
 		return x.Type
 	}
-	return FavoriteType_FAVORITE
+	return FavoriteType_FAVORITE_TYPE_LIKE
 }
 
-func (x *AddFavoriteReq) GetId() string {
+func (x *AddFavoriteReq) GetBizId() string {
 	if x != nil {
-		return x.Id
+		return x.BizId
 	}
 	return ""
 }
@@ -231,10 +231,12 @@ func (x *AddFavoriteReq) GetUserId() string {
 }
 
 type AddFavoriteResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Meta             *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	AlreadyFavorited bool                   `protobuf:"varint,2,opt,name=already_favorited,json=alreadyFavorited,proto3" json:"already_favorited,omitempty"` // 是否已经点过赞
+	TotalCount       int64                  `protobuf:"varint,3,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`                   // 当前总点赞数
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AddFavoriteResp) Reset() {
@@ -274,11 +276,25 @@ func (x *AddFavoriteResp) GetMeta() *Metadata {
 	return nil
 }
 
+func (x *AddFavoriteResp) GetAlreadyFavorited() bool {
+	if x != nil {
+		return x.AlreadyFavorited
+	}
+	return false
+}
+
+func (x *AddFavoriteResp) GetTotalCount() int64 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
 type RemoveFavoriteReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Target        FavoriteTarget         `protobuf:"varint,1,opt,name=target,proto3,enum=api.videoCore.service.v1.FavoriteTarget" json:"target,omitempty"`
 	Type          FavoriteType           `protobuf:"varint,2,opt,name=type,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"type,omitempty"`
-	Id            string                 `protobuf:"bytes,3,opt,name=id,proto3" json:"id,omitempty"`
+	BizId         string                 `protobuf:"bytes,3,opt,name=biz_id,json=bizId,proto3" json:"biz_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -318,19 +334,19 @@ func (x *RemoveFavoriteReq) GetTarget() FavoriteTarget {
 	if x != nil {
 		return x.Target
 	}
-	return FavoriteTarget_VIDEO
+	return FavoriteTarget_FAVORITE_TARGET_VIDEO
 }
 
 func (x *RemoveFavoriteReq) GetType() FavoriteType {
 	if x != nil {
 		return x.Type
 	}
-	return FavoriteType_FAVORITE
+	return FavoriteType_FAVORITE_TYPE_LIKE
 }
 
-func (x *RemoveFavoriteReq) GetId() string {
+func (x *RemoveFavoriteReq) GetBizId() string {
 	if x != nil {
-		return x.Id
+		return x.BizId
 	}
 	return ""
 }
@@ -345,6 +361,8 @@ func (x *RemoveFavoriteReq) GetUserId() string {
 type RemoveFavoriteResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	NotFavorited  bool                   `protobuf:"varint,2,opt,name=not_favorited,json=notFavorited,proto3" json:"not_favorited,omitempty"` // 是否本来就没点赞
+	TotalCount    int64                  `protobuf:"varint,3,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`       // 当前总点赞数
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -386,14 +404,29 @@ func (x *RemoveFavoriteResp) GetMeta() *Metadata {
 	return nil
 }
 
+func (x *RemoveFavoriteResp) GetNotFavorited() bool {
+	if x != nil {
+		return x.NotFavorited
+	}
+	return false
+}
+
+func (x *RemoveFavoriteResp) GetTotalCount() int64 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
 type ListFavoriteReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	AggregateType FavoriteAggregateType  `protobuf:"varint,2,opt,name=aggregate_type,json=aggregateType,proto3,enum=api.videoCore.service.v1.FavoriteAggregateType" json:"aggregate_type,omitempty"`
-	FavoriteType  FavoriteType           `protobuf:"varint,3,opt,name=favorite_type,json=favoriteType,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"favorite_type,omitempty"`
-	PageStats     *PageStatsReq          `protobuf:"bytes,4,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	AggregateType  FavoriteAggregateType  `protobuf:"varint,2,opt,name=aggregate_type,json=aggregateType,proto3,enum=api.videoCore.service.v1.FavoriteAggregateType" json:"aggregate_type,omitempty"`
+	FavoriteType   FavoriteType           `protobuf:"varint,3,opt,name=favorite_type,json=favoriteType,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"favorite_type,omitempty"`
+	PageStats      *PageStatsReq          `protobuf:"bytes,4,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
+	IncludeDeleted bool                   `protobuf:"varint,5,opt,name=include_deleted,json=includeDeleted,proto3" json:"include_deleted,omitempty"` // 是否包含已删除的
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ListFavoriteReq) Reset() {
@@ -437,14 +470,14 @@ func (x *ListFavoriteReq) GetAggregateType() FavoriteAggregateType {
 	if x != nil {
 		return x.AggregateType
 	}
-	return FavoriteAggregateType_BY_VIDEO
+	return FavoriteAggregateType_FAVORITE_AGGREGATE_BY_VIDEO
 }
 
 func (x *ListFavoriteReq) GetFavoriteType() FavoriteType {
 	if x != nil {
 		return x.FavoriteType
 	}
-	return FavoriteType_FAVORITE
+	return FavoriteType_FAVORITE_TYPE_LIKE
 }
 
 func (x *ListFavoriteReq) GetPageStats() *PageStatsReq {
@@ -454,11 +487,19 @@ func (x *ListFavoriteReq) GetPageStats() *PageStatsReq {
 	return nil
 }
 
+func (x *ListFavoriteReq) GetIncludeDeleted() bool {
+	if x != nil {
+		return x.IncludeDeleted
+	}
+	return false
+}
+
 type ListFavoriteResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
 	Ids           []string               `protobuf:"bytes,2,rep,name=ids,proto3" json:"ids,omitempty"`
 	PageStats     *PageStatsResp         `protobuf:"bytes,3,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
+	TotalCount    int64                  `protobuf:"varint,4,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -514,6 +555,13 @@ func (x *ListFavoriteResp) GetPageStats() *PageStatsResp {
 	return nil
 }
 
+func (x *ListFavoriteResp) GetTotalCount() int64 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
 type CountFavoriteReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AggregateType FavoriteAggregateType  `protobuf:"varint,1,opt,name=aggregate_type,json=aggregateType,proto3,enum=api.videoCore.service.v1.FavoriteAggregateType" json:"aggregate_type,omitempty"`
@@ -557,7 +605,7 @@ func (x *CountFavoriteReq) GetAggregateType() FavoriteAggregateType {
 	if x != nil {
 		return x.AggregateType
 	}
-	return FavoriteAggregateType_BY_VIDEO
+	return FavoriteAggregateType_FAVORITE_AGGREGATE_BY_VIDEO
 }
 
 func (x *CountFavoriteReq) GetIds() []string {
@@ -571,13 +619,15 @@ func (x *CountFavoriteReq) GetFavoriteType() FavoriteType {
 	if x != nil {
 		return x.FavoriteType
 	}
-	return FavoriteType_FAVORITE
+	return FavoriteType_FAVORITE_TYPE_LIKE
 }
 
 type CountFavoriteRespItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BizId         string                 `protobuf:"bytes,1,opt,name=biz_id,json=bizId,proto3" json:"biz_id,omitempty"`
-	Count         int64                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	LikeCount     int64                  `protobuf:"varint,2,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`          // 点赞数
+	DislikeCount  int64                  `protobuf:"varint,3,opt,name=dislike_count,json=dislikeCount,proto3" json:"dislike_count,omitempty"` // 点踩数
+	TotalCount    int64                  `protobuf:"varint,4,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`       // 总数
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -619,9 +669,23 @@ func (x *CountFavoriteRespItem) GetBizId() string {
 	return ""
 }
 
-func (x *CountFavoriteRespItem) GetCount() int64 {
+func (x *CountFavoriteRespItem) GetLikeCount() int64 {
 	if x != nil {
-		return x.Count
+		return x.LikeCount
+	}
+	return 0
+}
+
+func (x *CountFavoriteRespItem) GetDislikeCount() int64 {
+	if x != nil {
+		return x.DislikeCount
+	}
+	return 0
+}
+
+func (x *CountFavoriteRespItem) GetTotalCount() int64 {
+	if x != nil {
+		return x.TotalCount
 	}
 	return 0
 }
@@ -678,70 +742,19 @@ func (x *CountFavoriteResp) GetItems() []*CountFavoriteRespItem {
 	return nil
 }
 
-type IsFavoriteReqItem struct {
+type IsFavoriteReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BizId         string                 `protobuf:"bytes,1,opt,name=biz_id,json=bizId,proto3" json:"biz_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *IsFavoriteReqItem) Reset() {
-	*x = IsFavoriteReqItem{}
-	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *IsFavoriteReqItem) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*IsFavoriteReqItem) ProtoMessage() {}
-
-func (x *IsFavoriteReqItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use IsFavoriteReqItem.ProtoReflect.Descriptor instead.
-func (*IsFavoriteReqItem) Descriptor() ([]byte, []int) {
-	return file_api_videoCore_service_v1_favorite_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *IsFavoriteReqItem) GetBizId() string {
-	if x != nil {
-		return x.BizId
-	}
-	return ""
-}
-
-func (x *IsFavoriteReqItem) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-type IsFavoriteReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Target        FavoriteTarget         `protobuf:"varint,1,opt,name=target,proto3,enum=api.videoCore.service.v1.FavoriteTarget" json:"target,omitempty"`
-	Type          FavoriteType           `protobuf:"varint,2,opt,name=type,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"type,omitempty"`
-	Items         []*IsFavoriteReqItem   `protobuf:"bytes,3,rep,name=items,proto3" json:"items,omitempty"`
+	Target        FavoriteTarget         `protobuf:"varint,3,opt,name=target,proto3,enum=api.videoCore.service.v1.FavoriteTarget" json:"target,omitempty"`
+	Type          FavoriteType           `protobuf:"varint,4,opt,name=type,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *IsFavoriteReq) Reset() {
 	*x = IsFavoriteReq{}
-	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[10]
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -753,7 +766,7 @@ func (x *IsFavoriteReq) String() string {
 func (*IsFavoriteReq) ProtoMessage() {}
 
 func (x *IsFavoriteReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[10]
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -766,101 +779,51 @@ func (x *IsFavoriteReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IsFavoriteReq.ProtoReflect.Descriptor instead.
 func (*IsFavoriteReq) Descriptor() ([]byte, []int) {
-	return file_api_videoCore_service_v1_favorite_proto_rawDescGZIP(), []int{10}
+	return file_api_videoCore_service_v1_favorite_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *IsFavoriteReq) GetTarget() FavoriteTarget {
-	if x != nil {
-		return x.Target
-	}
-	return FavoriteTarget_VIDEO
-}
-
-func (x *IsFavoriteReq) GetType() FavoriteType {
-	if x != nil {
-		return x.Type
-	}
-	return FavoriteType_FAVORITE
-}
-
-func (x *IsFavoriteReq) GetItems() []*IsFavoriteReqItem {
-	if x != nil {
-		return x.Items
-	}
-	return nil
-}
-
-type IsFavoriteRespItem struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	BizId         string                 `protobuf:"bytes,1,opt,name=biz_id,json=bizId,proto3" json:"biz_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	IsFavorite    bool                   `protobuf:"varint,3,opt,name=is_favorite,json=isFavorite,proto3" json:"is_favorite,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *IsFavoriteRespItem) Reset() {
-	*x = IsFavoriteRespItem{}
-	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *IsFavoriteRespItem) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*IsFavoriteRespItem) ProtoMessage() {}
-
-func (x *IsFavoriteRespItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use IsFavoriteRespItem.ProtoReflect.Descriptor instead.
-func (*IsFavoriteRespItem) Descriptor() ([]byte, []int) {
-	return file_api_videoCore_service_v1_favorite_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *IsFavoriteRespItem) GetBizId() string {
+func (x *IsFavoriteReq) GetBizId() string {
 	if x != nil {
 		return x.BizId
 	}
 	return ""
 }
 
-func (x *IsFavoriteRespItem) GetUserId() string {
+func (x *IsFavoriteReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
 	return ""
 }
 
-func (x *IsFavoriteRespItem) GetIsFavorite() bool {
+func (x *IsFavoriteReq) GetTarget() FavoriteTarget {
 	if x != nil {
-		return x.IsFavorite
+		return x.Target
 	}
-	return false
+	return FavoriteTarget_FAVORITE_TARGET_VIDEO
+}
+
+func (x *IsFavoriteReq) GetType() FavoriteType {
+	if x != nil {
+		return x.Type
+	}
+	return FavoriteType_FAVORITE_TYPE_LIKE
 }
 
 type IsFavoriteResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	Items         []*IsFavoriteRespItem  `protobuf:"bytes,2,rep,name=items,proto3" json:"items,omitempty"`
+	IsFavorite    bool                   `protobuf:"varint,2,opt,name=is_favorite,json=isFavorite,proto3" json:"is_favorite,omitempty"`
+	FavoriteType  FavoriteType           `protobuf:"varint,3,opt,name=favorite_type,json=favoriteType,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"favorite_type,omitempty"` // 当前点赞类型
+	TotalLikes    int64                  `protobuf:"varint,4,opt,name=total_likes,json=totalLikes,proto3" json:"total_likes,omitempty"`                                                  // 总点赞数
+	TotalDislikes int64                  `protobuf:"varint,5,opt,name=total_dislikes,json=totalDislikes,proto3" json:"total_dislikes,omitempty"`                                         // 总点踩数
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *IsFavoriteResp) Reset() {
 	*x = IsFavoriteResp{}
-	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[12]
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -872,7 +835,7 @@ func (x *IsFavoriteResp) String() string {
 func (*IsFavoriteResp) ProtoMessage() {}
 
 func (x *IsFavoriteResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[12]
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -885,7 +848,7 @@ func (x *IsFavoriteResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IsFavoriteResp.ProtoReflect.Descriptor instead.
 func (*IsFavoriteResp) Descriptor() ([]byte, []int) {
-	return file_api_videoCore_service_v1_favorite_proto_rawDescGZIP(), []int{12}
+	return file_api_videoCore_service_v1_favorite_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *IsFavoriteResp) GetMeta() *Metadata {
@@ -895,7 +858,216 @@ func (x *IsFavoriteResp) GetMeta() *Metadata {
 	return nil
 }
 
-func (x *IsFavoriteResp) GetItems() []*IsFavoriteRespItem {
+func (x *IsFavoriteResp) GetIsFavorite() bool {
+	if x != nil {
+		return x.IsFavorite
+	}
+	return false
+}
+
+func (x *IsFavoriteResp) GetFavoriteType() FavoriteType {
+	if x != nil {
+		return x.FavoriteType
+	}
+	return FavoriteType_FAVORITE_TYPE_LIKE
+}
+
+func (x *IsFavoriteResp) GetTotalLikes() int64 {
+	if x != nil {
+		return x.TotalLikes
+	}
+	return 0
+}
+
+func (x *IsFavoriteResp) GetTotalDislikes() int64 {
+	if x != nil {
+		return x.TotalDislikes
+	}
+	return 0
+}
+
+type BatchIsFavoriteReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BizIds        []string               `protobuf:"bytes,1,rep,name=biz_ids,json=bizIds,proto3" json:"biz_ids,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Target        FavoriteTarget         `protobuf:"varint,3,opt,name=target,proto3,enum=api.videoCore.service.v1.FavoriteTarget" json:"target,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchIsFavoriteReq) Reset() {
+	*x = BatchIsFavoriteReq{}
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchIsFavoriteReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchIsFavoriteReq) ProtoMessage() {}
+
+func (x *BatchIsFavoriteReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchIsFavoriteReq.ProtoReflect.Descriptor instead.
+func (*BatchIsFavoriteReq) Descriptor() ([]byte, []int) {
+	return file_api_videoCore_service_v1_favorite_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BatchIsFavoriteReq) GetBizIds() []string {
+	if x != nil {
+		return x.BizIds
+	}
+	return nil
+}
+
+func (x *BatchIsFavoriteReq) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *BatchIsFavoriteReq) GetTarget() FavoriteTarget {
+	if x != nil {
+		return x.Target
+	}
+	return FavoriteTarget_FAVORITE_TARGET_VIDEO
+}
+
+type BatchIsFavoriteItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BizId         string                 `protobuf:"bytes,1,opt,name=biz_id,json=bizId,proto3" json:"biz_id,omitempty"`
+	IsLiked       bool                   `protobuf:"varint,2,opt,name=is_liked,json=isLiked,proto3" json:"is_liked,omitempty"`
+	IsDisliked    bool                   `protobuf:"varint,3,opt,name=is_disliked,json=isDisliked,proto3" json:"is_disliked,omitempty"`
+	LikeCount     int64                  `protobuf:"varint,4,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`
+	DislikeCount  int64                  `protobuf:"varint,5,opt,name=dislike_count,json=dislikeCount,proto3" json:"dislike_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchIsFavoriteItem) Reset() {
+	*x = BatchIsFavoriteItem{}
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchIsFavoriteItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchIsFavoriteItem) ProtoMessage() {}
+
+func (x *BatchIsFavoriteItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchIsFavoriteItem.ProtoReflect.Descriptor instead.
+func (*BatchIsFavoriteItem) Descriptor() ([]byte, []int) {
+	return file_api_videoCore_service_v1_favorite_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *BatchIsFavoriteItem) GetBizId() string {
+	if x != nil {
+		return x.BizId
+	}
+	return ""
+}
+
+func (x *BatchIsFavoriteItem) GetIsLiked() bool {
+	if x != nil {
+		return x.IsLiked
+	}
+	return false
+}
+
+func (x *BatchIsFavoriteItem) GetIsDisliked() bool {
+	if x != nil {
+		return x.IsDisliked
+	}
+	return false
+}
+
+func (x *BatchIsFavoriteItem) GetLikeCount() int64 {
+	if x != nil {
+		return x.LikeCount
+	}
+	return 0
+}
+
+func (x *BatchIsFavoriteItem) GetDislikeCount() int64 {
+	if x != nil {
+		return x.DislikeCount
+	}
+	return 0
+}
+
+type BatchIsFavoriteResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	Items         []*BatchIsFavoriteItem `protobuf:"bytes,2,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchIsFavoriteResp) Reset() {
+	*x = BatchIsFavoriteResp{}
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchIsFavoriteResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchIsFavoriteResp) ProtoMessage() {}
+
+func (x *BatchIsFavoriteResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoCore_service_v1_favorite_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchIsFavoriteResp.ProtoReflect.Descriptor instead.
+func (*BatchIsFavoriteResp) Descriptor() ([]byte, []int) {
+	return file_api_videoCore_service_v1_favorite_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *BatchIsFavoriteResp) GetMeta() *Metadata {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
+func (x *BatchIsFavoriteResp) GetItems() []*BatchIsFavoriteItem {
 	if x != nil {
 		return x.Items
 	}
@@ -906,76 +1078,101 @@ var File_api_videoCore_service_v1_favorite_proto protoreflect.FileDescriptor
 
 const file_api_videoCore_service_v1_favorite_proto_rawDesc = "" +
 	"\n" +
-	"'api/videoCore/service/v1/favorite.proto\x12\x18api.videoCore.service.v1\x1a#api/videoCore/service/v1/base.proto\"\xb7\x01\n" +
+	"'api/videoCore/service/v1/favorite.proto\x12\x18api.videoCore.service.v1\x1a#api/videoCore/service/v1/base.proto\"\xbe\x01\n" +
 	"\x0eAddFavoriteReq\x12@\n" +
 	"\x06target\x18\x01 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\x12:\n" +
-	"\x04type\x18\x02 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\x12\x0e\n" +
-	"\x02id\x18\x03 \x01(\tR\x02id\x12\x17\n" +
-	"\auser_id\x18\x04 \x01(\tR\x06userId\"I\n" +
+	"\x04type\x18\x02 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\x12\x15\n" +
+	"\x06biz_id\x18\x03 \x01(\tR\x05bizId\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\"\x97\x01\n" +
 	"\x0fAddFavoriteResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\xba\x01\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12+\n" +
+	"\x11already_favorited\x18\x02 \x01(\bR\x10alreadyFavorited\x12\x1f\n" +
+	"\vtotal_count\x18\x03 \x01(\x03R\n" +
+	"totalCount\"\xc1\x01\n" +
 	"\x11RemoveFavoriteReq\x12@\n" +
 	"\x06target\x18\x01 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\x12:\n" +
-	"\x04type\x18\x02 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\x12\x0e\n" +
-	"\x02id\x18\x03 \x01(\tR\x02id\x12\x17\n" +
-	"\auser_id\x18\x04 \x01(\tR\x06userId\"L\n" +
+	"\x04type\x18\x02 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\x12\x15\n" +
+	"\x06biz_id\x18\x03 \x01(\tR\x05bizId\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\"\x92\x01\n" +
 	"\x12RemoveFavoriteResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\x8d\x02\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12#\n" +
+	"\rnot_favorited\x18\x02 \x01(\bR\fnotFavorited\x12\x1f\n" +
+	"\vtotal_count\x18\x03 \x01(\x03R\n" +
+	"totalCount\"\xb6\x02\n" +
 	"\x0fListFavoriteReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12V\n" +
 	"\x0eaggregate_type\x18\x02 \x01(\x0e2/.api.videoCore.service.v1.FavoriteAggregateTypeR\raggregateType\x12K\n" +
 	"\rfavorite_type\x18\x03 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\ffavoriteType\x12E\n" +
 	"\n" +
-	"page_stats\x18\x04 \x01(\v2&.api.videoCore.service.v1.PageStatsReqR\tpageStats\"\xa4\x01\n" +
+	"page_stats\x18\x04 \x01(\v2&.api.videoCore.service.v1.PageStatsReqR\tpageStats\x12'\n" +
+	"\x0finclude_deleted\x18\x05 \x01(\bR\x0eincludeDeleted\"\xc5\x01\n" +
 	"\x10ListFavoriteResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12\x10\n" +
 	"\x03ids\x18\x02 \x03(\tR\x03ids\x12F\n" +
 	"\n" +
-	"page_stats\x18\x03 \x01(\v2'.api.videoCore.service.v1.PageStatsRespR\tpageStats\"\xc9\x01\n" +
+	"page_stats\x18\x03 \x01(\v2'.api.videoCore.service.v1.PageStatsRespR\tpageStats\x12\x1f\n" +
+	"\vtotal_count\x18\x04 \x01(\x03R\n" +
+	"totalCount\"\xc9\x01\n" +
 	"\x10CountFavoriteReq\x12V\n" +
 	"\x0eaggregate_type\x18\x01 \x01(\x0e2/.api.videoCore.service.v1.FavoriteAggregateTypeR\raggregateType\x12\x10\n" +
 	"\x03ids\x18\x02 \x03(\tR\x03ids\x12K\n" +
-	"\rfavorite_type\x18\x03 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\ffavoriteType\"D\n" +
+	"\rfavorite_type\x18\x03 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\ffavoriteType\"\x93\x01\n" +
 	"\x15CountFavoriteRespItem\x12\x15\n" +
-	"\x06biz_id\x18\x01 \x01(\tR\x05bizId\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\x03R\x05count\"\x92\x01\n" +
+	"\x06biz_id\x18\x01 \x01(\tR\x05bizId\x12\x1d\n" +
+	"\n" +
+	"like_count\x18\x02 \x01(\x03R\tlikeCount\x12#\n" +
+	"\rdislike_count\x18\x03 \x01(\x03R\fdislikeCount\x12\x1f\n" +
+	"\vtotal_count\x18\x04 \x01(\x03R\n" +
+	"totalCount\"\x92\x01\n" +
 	"\x11CountFavoriteResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12E\n" +
-	"\x05items\x18\x02 \x03(\v2/.api.videoCore.service.v1.CountFavoriteRespItemR\x05items\"C\n" +
-	"\x11IsFavoriteReqItem\x12\x15\n" +
+	"\x05items\x18\x02 \x03(\v2/.api.videoCore.service.v1.CountFavoriteRespItemR\x05items\"\xbd\x01\n" +
+	"\rIsFavoriteReq\x12\x15\n" +
 	"\x06biz_id\x18\x01 \x01(\tR\x05bizId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xd0\x01\n" +
-	"\rIsFavoriteReq\x12@\n" +
-	"\x06target\x18\x01 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\x12:\n" +
-	"\x04type\x18\x02 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\x12A\n" +
-	"\x05items\x18\x03 \x03(\v2+.api.videoCore.service.v1.IsFavoriteReqItemR\x05items\"e\n" +
-	"\x12IsFavoriteRespItem\x12\x15\n" +
-	"\x06biz_id\x18\x01 \x01(\tR\x05bizId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1f\n" +
-	"\vis_favorite\x18\x03 \x01(\bR\n" +
-	"isFavorite\"\x8c\x01\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12@\n" +
+	"\x06target\x18\x03 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\x12:\n" +
+	"\x04type\x18\x04 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\"\xfe\x01\n" +
 	"\x0eIsFavoriteResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12B\n" +
-	"\x05items\x18\x02 \x03(\v2,.api.videoCore.service.v1.IsFavoriteRespItemR\x05items*(\n" +
-	"\x0eFavoriteTarget\x12\t\n" +
-	"\x05VIDEO\x10\x00\x12\v\n" +
-	"\aCOMMENT\x10\x01*(\n" +
-	"\fFavoriteType\x12\f\n" +
-	"\bFAVORITE\x10\x00\x12\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12\x1f\n" +
+	"\vis_favorite\x18\x02 \x01(\bR\n" +
+	"isFavorite\x12K\n" +
+	"\rfavorite_type\x18\x03 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\ffavoriteType\x12\x1f\n" +
+	"\vtotal_likes\x18\x04 \x01(\x03R\n" +
+	"totalLikes\x12%\n" +
+	"\x0etotal_dislikes\x18\x05 \x01(\x03R\rtotalDislikes\"\x88\x01\n" +
+	"\x12BatchIsFavoriteReq\x12\x17\n" +
+	"\abiz_ids\x18\x01 \x03(\tR\x06bizIds\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12@\n" +
+	"\x06target\x18\x03 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\"\xac\x01\n" +
+	"\x13BatchIsFavoriteItem\x12\x15\n" +
+	"\x06biz_id\x18\x01 \x01(\tR\x05bizId\x12\x19\n" +
+	"\bis_liked\x18\x02 \x01(\bR\aisLiked\x12\x1f\n" +
+	"\vis_disliked\x18\x03 \x01(\bR\n" +
+	"isDisliked\x12\x1d\n" +
 	"\n" +
-	"\x06UNLIKE\x10\x01*B\n" +
-	"\x15FavoriteAggregateType\x12\f\n" +
-	"\bBY_VIDEO\x10\x00\x12\x0e\n" +
-	"\n" +
-	"BY_COMMENT\x10\x01\x12\v\n" +
-	"\aBY_USER\x10\x022\x94\x04\n" +
+	"like_count\x18\x04 \x01(\x03R\tlikeCount\x12#\n" +
+	"\rdislike_count\x18\x05 \x01(\x03R\fdislikeCount\"\x92\x01\n" +
+	"\x13BatchIsFavoriteResp\x126\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12C\n" +
+	"\x05items\x18\x02 \x03(\v2-.api.videoCore.service.v1.BatchIsFavoriteItemR\x05items*H\n" +
+	"\x0eFavoriteTarget\x12\x19\n" +
+	"\x15FAVORITE_TARGET_VIDEO\x10\x00\x12\x1b\n" +
+	"\x17FAVORITE_TARGET_COMMENT\x10\x01*A\n" +
+	"\fFavoriteType\x12\x16\n" +
+	"\x12FAVORITE_TYPE_LIKE\x10\x00\x12\x19\n" +
+	"\x15FAVORITE_TYPE_DISLIKE\x10\x01*{\n" +
+	"\x15FavoriteAggregateType\x12\x1f\n" +
+	"\x1bFAVORITE_AGGREGATE_BY_VIDEO\x10\x00\x12!\n" +
+	"\x1dFAVORITE_AGGREGATE_BY_COMMENT\x10\x01\x12\x1e\n" +
+	"\x1aFAVORITE_AGGREGATE_BY_USER\x10\x022\x84\x05\n" +
 	"\x0fFavoriteService\x12b\n" +
 	"\vAddFavorite\x12(.api.videoCore.service.v1.AddFavoriteReq\x1a).api.videoCore.service.v1.AddFavoriteResp\x12k\n" +
 	"\x0eRemoveFavorite\x12+.api.videoCore.service.v1.RemoveFavoriteReq\x1a,.api.videoCore.service.v1.RemoveFavoriteResp\x12e\n" +
 	"\fListFavorite\x12).api.videoCore.service.v1.ListFavoriteReq\x1a*.api.videoCore.service.v1.ListFavoriteResp\x12h\n" +
 	"\rCountFavorite\x12*.api.videoCore.service.v1.CountFavoriteReq\x1a+.api.videoCore.service.v1.CountFavoriteResp\x12_\n" +
 	"\n" +
-	"IsFavorite\x12'.api.videoCore.service.v1.IsFavoriteReq\x1a(.api.videoCore.service.v1.IsFavoriteRespBD\n" +
+	"IsFavorite\x12'.api.videoCore.service.v1.IsFavoriteReq\x1a(.api.videoCore.service.v1.IsFavoriteResp\x12n\n" +
+	"\x0fBatchIsFavorite\x12,.api.videoCore.service.v1.BatchIsFavoriteReq\x1a-.api.videoCore.service.v1.BatchIsFavoriteRespBD\n" +
 	"\x18api.videoCore.service.v1P\x01Z&lehu-video/api/videoCore/service/v1;v1b\x06proto3"
 
 var (
@@ -991,7 +1188,7 @@ func file_api_videoCore_service_v1_favorite_proto_rawDescGZIP() []byte {
 }
 
 var file_api_videoCore_service_v1_favorite_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_api_videoCore_service_v1_favorite_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_api_videoCore_service_v1_favorite_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_api_videoCore_service_v1_favorite_proto_goTypes = []any{
 	(FavoriteTarget)(0),           // 0: api.videoCore.service.v1.FavoriteTarget
 	(FavoriteType)(0),             // 1: api.videoCore.service.v1.FavoriteType
@@ -1005,50 +1202,55 @@ var file_api_videoCore_service_v1_favorite_proto_goTypes = []any{
 	(*CountFavoriteReq)(nil),      // 9: api.videoCore.service.v1.CountFavoriteReq
 	(*CountFavoriteRespItem)(nil), // 10: api.videoCore.service.v1.CountFavoriteRespItem
 	(*CountFavoriteResp)(nil),     // 11: api.videoCore.service.v1.CountFavoriteResp
-	(*IsFavoriteReqItem)(nil),     // 12: api.videoCore.service.v1.IsFavoriteReqItem
-	(*IsFavoriteReq)(nil),         // 13: api.videoCore.service.v1.IsFavoriteReq
-	(*IsFavoriteRespItem)(nil),    // 14: api.videoCore.service.v1.IsFavoriteRespItem
-	(*IsFavoriteResp)(nil),        // 15: api.videoCore.service.v1.IsFavoriteResp
-	(*Metadata)(nil),              // 16: api.videoCore.service.v1.Metadata
-	(*PageStatsReq)(nil),          // 17: api.videoCore.service.v1.PageStatsReq
-	(*PageStatsResp)(nil),         // 18: api.videoCore.service.v1.PageStatsResp
+	(*IsFavoriteReq)(nil),         // 12: api.videoCore.service.v1.IsFavoriteReq
+	(*IsFavoriteResp)(nil),        // 13: api.videoCore.service.v1.IsFavoriteResp
+	(*BatchIsFavoriteReq)(nil),    // 14: api.videoCore.service.v1.BatchIsFavoriteReq
+	(*BatchIsFavoriteItem)(nil),   // 15: api.videoCore.service.v1.BatchIsFavoriteItem
+	(*BatchIsFavoriteResp)(nil),   // 16: api.videoCore.service.v1.BatchIsFavoriteResp
+	(*Metadata)(nil),              // 17: api.videoCore.service.v1.Metadata
+	(*PageStatsReq)(nil),          // 18: api.videoCore.service.v1.PageStatsReq
+	(*PageStatsResp)(nil),         // 19: api.videoCore.service.v1.PageStatsResp
 }
 var file_api_videoCore_service_v1_favorite_proto_depIdxs = []int32{
 	0,  // 0: api.videoCore.service.v1.AddFavoriteReq.target:type_name -> api.videoCore.service.v1.FavoriteTarget
 	1,  // 1: api.videoCore.service.v1.AddFavoriteReq.type:type_name -> api.videoCore.service.v1.FavoriteType
-	16, // 2: api.videoCore.service.v1.AddFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	17, // 2: api.videoCore.service.v1.AddFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
 	0,  // 3: api.videoCore.service.v1.RemoveFavoriteReq.target:type_name -> api.videoCore.service.v1.FavoriteTarget
 	1,  // 4: api.videoCore.service.v1.RemoveFavoriteReq.type:type_name -> api.videoCore.service.v1.FavoriteType
-	16, // 5: api.videoCore.service.v1.RemoveFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	17, // 5: api.videoCore.service.v1.RemoveFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
 	2,  // 6: api.videoCore.service.v1.ListFavoriteReq.aggregate_type:type_name -> api.videoCore.service.v1.FavoriteAggregateType
 	1,  // 7: api.videoCore.service.v1.ListFavoriteReq.favorite_type:type_name -> api.videoCore.service.v1.FavoriteType
-	17, // 8: api.videoCore.service.v1.ListFavoriteReq.page_stats:type_name -> api.videoCore.service.v1.PageStatsReq
-	16, // 9: api.videoCore.service.v1.ListFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	18, // 10: api.videoCore.service.v1.ListFavoriteResp.page_stats:type_name -> api.videoCore.service.v1.PageStatsResp
+	18, // 8: api.videoCore.service.v1.ListFavoriteReq.page_stats:type_name -> api.videoCore.service.v1.PageStatsReq
+	17, // 9: api.videoCore.service.v1.ListFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	19, // 10: api.videoCore.service.v1.ListFavoriteResp.page_stats:type_name -> api.videoCore.service.v1.PageStatsResp
 	2,  // 11: api.videoCore.service.v1.CountFavoriteReq.aggregate_type:type_name -> api.videoCore.service.v1.FavoriteAggregateType
 	1,  // 12: api.videoCore.service.v1.CountFavoriteReq.favorite_type:type_name -> api.videoCore.service.v1.FavoriteType
-	16, // 13: api.videoCore.service.v1.CountFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	17, // 13: api.videoCore.service.v1.CountFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
 	10, // 14: api.videoCore.service.v1.CountFavoriteResp.items:type_name -> api.videoCore.service.v1.CountFavoriteRespItem
 	0,  // 15: api.videoCore.service.v1.IsFavoriteReq.target:type_name -> api.videoCore.service.v1.FavoriteTarget
 	1,  // 16: api.videoCore.service.v1.IsFavoriteReq.type:type_name -> api.videoCore.service.v1.FavoriteType
-	12, // 17: api.videoCore.service.v1.IsFavoriteReq.items:type_name -> api.videoCore.service.v1.IsFavoriteReqItem
-	16, // 18: api.videoCore.service.v1.IsFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	14, // 19: api.videoCore.service.v1.IsFavoriteResp.items:type_name -> api.videoCore.service.v1.IsFavoriteRespItem
-	3,  // 20: api.videoCore.service.v1.FavoriteService.AddFavorite:input_type -> api.videoCore.service.v1.AddFavoriteReq
-	5,  // 21: api.videoCore.service.v1.FavoriteService.RemoveFavorite:input_type -> api.videoCore.service.v1.RemoveFavoriteReq
-	7,  // 22: api.videoCore.service.v1.FavoriteService.ListFavorite:input_type -> api.videoCore.service.v1.ListFavoriteReq
-	9,  // 23: api.videoCore.service.v1.FavoriteService.CountFavorite:input_type -> api.videoCore.service.v1.CountFavoriteReq
-	13, // 24: api.videoCore.service.v1.FavoriteService.IsFavorite:input_type -> api.videoCore.service.v1.IsFavoriteReq
-	4,  // 25: api.videoCore.service.v1.FavoriteService.AddFavorite:output_type -> api.videoCore.service.v1.AddFavoriteResp
-	6,  // 26: api.videoCore.service.v1.FavoriteService.RemoveFavorite:output_type -> api.videoCore.service.v1.RemoveFavoriteResp
-	8,  // 27: api.videoCore.service.v1.FavoriteService.ListFavorite:output_type -> api.videoCore.service.v1.ListFavoriteResp
-	11, // 28: api.videoCore.service.v1.FavoriteService.CountFavorite:output_type -> api.videoCore.service.v1.CountFavoriteResp
-	15, // 29: api.videoCore.service.v1.FavoriteService.IsFavorite:output_type -> api.videoCore.service.v1.IsFavoriteResp
-	25, // [25:30] is the sub-list for method output_type
-	20, // [20:25] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	17, // 17: api.videoCore.service.v1.IsFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	1,  // 18: api.videoCore.service.v1.IsFavoriteResp.favorite_type:type_name -> api.videoCore.service.v1.FavoriteType
+	0,  // 19: api.videoCore.service.v1.BatchIsFavoriteReq.target:type_name -> api.videoCore.service.v1.FavoriteTarget
+	17, // 20: api.videoCore.service.v1.BatchIsFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	15, // 21: api.videoCore.service.v1.BatchIsFavoriteResp.items:type_name -> api.videoCore.service.v1.BatchIsFavoriteItem
+	3,  // 22: api.videoCore.service.v1.FavoriteService.AddFavorite:input_type -> api.videoCore.service.v1.AddFavoriteReq
+	5,  // 23: api.videoCore.service.v1.FavoriteService.RemoveFavorite:input_type -> api.videoCore.service.v1.RemoveFavoriteReq
+	7,  // 24: api.videoCore.service.v1.FavoriteService.ListFavorite:input_type -> api.videoCore.service.v1.ListFavoriteReq
+	9,  // 25: api.videoCore.service.v1.FavoriteService.CountFavorite:input_type -> api.videoCore.service.v1.CountFavoriteReq
+	12, // 26: api.videoCore.service.v1.FavoriteService.IsFavorite:input_type -> api.videoCore.service.v1.IsFavoriteReq
+	14, // 27: api.videoCore.service.v1.FavoriteService.BatchIsFavorite:input_type -> api.videoCore.service.v1.BatchIsFavoriteReq
+	4,  // 28: api.videoCore.service.v1.FavoriteService.AddFavorite:output_type -> api.videoCore.service.v1.AddFavoriteResp
+	6,  // 29: api.videoCore.service.v1.FavoriteService.RemoveFavorite:output_type -> api.videoCore.service.v1.RemoveFavoriteResp
+	8,  // 30: api.videoCore.service.v1.FavoriteService.ListFavorite:output_type -> api.videoCore.service.v1.ListFavoriteResp
+	11, // 31: api.videoCore.service.v1.FavoriteService.CountFavorite:output_type -> api.videoCore.service.v1.CountFavoriteResp
+	13, // 32: api.videoCore.service.v1.FavoriteService.IsFavorite:output_type -> api.videoCore.service.v1.IsFavoriteResp
+	16, // 33: api.videoCore.service.v1.FavoriteService.BatchIsFavorite:output_type -> api.videoCore.service.v1.BatchIsFavoriteResp
+	28, // [28:34] is the sub-list for method output_type
+	22, // [22:28] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_api_videoCore_service_v1_favorite_proto_init() }
@@ -1063,7 +1265,7 @@ func file_api_videoCore_service_v1_favorite_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_videoCore_service_v1_favorite_proto_rawDesc), len(file_api_videoCore_service_v1_favorite_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   13,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
