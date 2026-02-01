@@ -8,8 +8,8 @@ import (
 )
 
 type AddVideo2CollectionInput struct {
-	CollectionId int64
-	VideoId      int64
+	CollectionId string
+	VideoId      string
 }
 
 type CreateCollectionInput struct {
@@ -27,7 +27,7 @@ type ListCollectionOutput struct {
 }
 
 type ListVideo4CollectionsInput struct {
-	CollectionId int64
+	CollectionId string
 	PageStats    *PageStats
 }
 
@@ -37,12 +37,12 @@ type ListVideo4CollectionsOutput struct {
 }
 
 type RemoveVideo4CollectionInput struct {
-	CollectionId int64
-	VideoId      int64
+	CollectionId string
+	VideoId      string
 }
 
 type UpdateCollectionInput struct {
-	Id          int64
+	Id          string
 	Name        string
 	Description string
 }
@@ -61,8 +61,8 @@ func NewCollectionUsecase(core CoreAdapter, assembler *VideoAssembler, logger lo
 	}
 }
 
-func (uc *CollectionUsecase) checkCollectionBelongUser(ctx context.Context, collectionId int64) error {
-	if collectionId == 0 {
+func (uc *CollectionUsecase) checkCollectionBelongUser(ctx context.Context, collectionId string) error {
+	if collectionId == "0" || collectionId == "" {
 		log.Context(ctx).Warnf("collectionId is empty")
 		return nil
 	}
@@ -108,7 +108,7 @@ func (uc *CollectionUsecase) CreateCollection(ctx context.Context, input *Create
 		return err
 	}
 	err = uc.core.AddCollection(ctx, &Collection{
-		Id:          0,
+		Id:          "0",
 		UserId:      userId,
 		Name:        input.Name,
 		Description: input.Description,
@@ -172,7 +172,7 @@ func (uc *CollectionUsecase) ListVideo4Collection(ctx context.Context, input *Li
 
 }
 
-func (uc *CollectionUsecase) RemoveCollection(ctx context.Context, collectionId int64) error {
+func (uc *CollectionUsecase) RemoveCollection(ctx context.Context, collectionId string) error {
 	err := uc.checkCollectionBelongUser(ctx, collectionId)
 	if err != nil {
 		return err

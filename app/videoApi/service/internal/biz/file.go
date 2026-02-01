@@ -14,11 +14,11 @@ type PreSignUploadPublicReq struct {
 
 type PreSignUploadPublicResp struct {
 	Url    string
-	FileId int64
+	FileId string
 }
 
 type ReportPublicFileUploadedReq struct {
-	FileId int64
+	FileId string
 }
 
 type ReportPublicFileUploadedResp struct {

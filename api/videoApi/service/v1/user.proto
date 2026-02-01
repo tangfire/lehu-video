@@ -8,7 +8,7 @@ option java_package = "api.videoApi.service.v1";
 import "google/api/annotations.proto";
 
 message User {
-	int64 id = 1; // 用户id
+	string id = 1; // 用户id
 	string name = 2; // 用户名称
 	string avatar = 3; // 用户头像Url
 	string background_image = 4; // 用户个人页顶部大图
@@ -100,7 +100,7 @@ message RegisterReq{
 }
 
 message RegisterResp {
-	int64 user_id = 1;
+	string user_id = 1;
 }
 
 
@@ -116,7 +116,7 @@ message LoginResp {
 }
 
 message GetUserInfoReq {
-	int64 user_id = 1;
+	string user_id = 1;
 }
 
 message GetUserInfoResp {
@@ -127,7 +127,7 @@ message GetUserInfoResp {
 
 
 message UpdateUserInfoReq {
-	int64 user_id = 1 ;
+	string user_id = 1 ;
 	string name = 2;
 	string avatar = 3;
 	string background_image = 4;

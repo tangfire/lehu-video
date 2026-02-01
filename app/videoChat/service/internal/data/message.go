@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -305,28 +306,32 @@ func (r *messageRepo) CountUnreadByConversations(ctx context.Context, userID int
 }
 
 // 清空聊天记录
-func (r *messageRepo) DeleteMessagesByConversation(ctx context.Context, userID, targetID int64, convType int32) error {
-	// 使用软删除，只标记为删除状态，不物理删除
-	// 注意：这里只删除用户接收的消息，发送的消息不删除（保留发送记录）
+func (r *messageRepo) DeleteMessagesByConversation(ctx context.Context, userID, conversationID, targetID int64, convType int32) error {
+	// 构建查询条件
+	query := r.data.db.WithContext(ctx).Model(&model.Message{})
 
-	return r.data.db.WithContext(ctx).
-		Model(&model.Message{}).
-		Where("receiver_id = ? AND ((sender_id = ? AND conv_type = ?) OR (receiver_id = ? AND conv_type = ?)) AND is_deleted = ?",
-			userID, targetID, convType, targetID, convType, false).
-		Updates(map[string]interface{}{
-			"is_deleted": true,
-			"updated_at": time.Now(),
-		}).Error
-}
+	if convType == 0 { // 单聊
+		// 单聊：删除用户发送给对方的和对方发送给用户的所有消息
+		query = query.Where("conversation_id = ? AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND is_deleted = ?",
+			conversationID,
+			userID, targetID, // 用户发送给对方的
+			targetID, userID, // 对方发送给用户的
+			false)
+	} else if convType == 1 { // 群聊
+		// 群聊：只删除用户在该群中发送的消息
+		// 注意：群聊的 receiver_id 是群ID
+		query = query.Where("conversation_id = ? AND sender_id = ? AND receiver_id = ? AND is_deleted = ?",
+			conversationID,
+			userID,
+			targetID, // 群ID
+			false)
+	} else {
+		return fmt.Errorf("不支持的会话类型")
+	}
 
-func (r *messageRepo) ClearMessages(ctx context.Context, userID, targetID int64, convType int32) error {
-	// 使用软删除，只标记为删除状态
-	return r.data.db.WithContext(ctx).
-		Model(&model.Message{}).
-		Where("((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND conv_type = ? AND is_deleted = ?",
-			userID, targetID, targetID, userID, convType, false).
-		Updates(map[string]interface{}{
-			"is_deleted": true,
-			"updated_at": time.Now(),
-		}).Error
+	// 软删除消息
+	return query.Updates(map[string]interface{}{
+		"is_deleted": true,
+		"updated_at": time.Now(),
+	}).Error
 }

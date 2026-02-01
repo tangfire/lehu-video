@@ -3,17 +3,18 @@ package biz
 import (
 	"context"
 	"errors"
+	"github.com/spf13/cast"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
 type Group struct {
-	ID        int64
+	ID        string
 	Name      string
 	Notice    string
 	MemberCnt int
-	OwnerID   int64
+	OwnerID   string
 	AddMode   int32
 	Avatar    string
 	Status    int32
@@ -39,7 +40,7 @@ type LoadMyGroupOutput struct {
 }
 
 type CheckGroupAddModeInput struct {
-	GroupID int64
+	GroupID string
 }
 
 type CheckGroupAddModeOutput struct {
@@ -47,24 +48,24 @@ type CheckGroupAddModeOutput struct {
 }
 
 type EnterGroupDirectlyInput struct {
-	GroupID int64
+	GroupID string
 }
 
 type ApplyJoinGroupInput struct {
-	GroupID     int64
+	GroupID     string
 	ApplyReason string
 }
 
 type LeaveGroupInput struct {
-	GroupID int64
+	GroupID string
 }
 
 type DismissGroupInput struct {
-	GroupID int64
+	GroupID string
 }
 
 type GetGroupInfoInput struct {
-	GroupID int64
+	GroupID string
 }
 
 type GetGroupInfoOutput struct {
@@ -93,27 +94,27 @@ func NewGroupUsecase(chat ChatAdapter, logger log.Logger) *GroupUsecase {
 	}
 }
 
-func (uc *GroupUsecase) CreateGroup(ctx context.Context, input *CreateGroupInput) (int64, error) {
+func (uc *GroupUsecase) CreateGroup(ctx context.Context, input *CreateGroupInput) (string, error) {
 	userId, err := claims.GetUserId(ctx)
 	if err != nil {
-		return 0, errors.New("获取用户信息失败")
+		return "0", errors.New("获取用户信息失败")
 	}
 
 	// 参数验证
 	if input.Name == "" {
-		return 0, errors.New("群聊名称不能为空")
+		return "0", errors.New("群聊名称不能为空")
 	}
 	if len(input.Name) > 20 {
-		return 0, errors.New("群聊名称不能超过20个字符")
+		return "0", errors.New("群聊名称不能超过20个字符")
 	}
 	if input.AddMode != 0 && input.AddMode != 1 {
-		return 0, errors.New("加群方式参数错误")
+		return "0", errors.New("加群方式参数错误")
 	}
 
-	groupID, err := uc.chat.CreateGroup(ctx, userId, input.Name, input.Notice, input.AddMode, input.Avatar)
+	groupID, err := uc.chat.CreateGroup(ctx, cast.ToString(userId), input.Name, input.Notice, input.AddMode, input.Avatar)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("创建群聊失败: %v", err)
-		return 0, errors.New("创建群聊失败")
+		return "0", errors.New("创建群聊失败")
 	}
 
 	return groupID, nil
@@ -130,7 +131,7 @@ func (uc *GroupUsecase) LoadMyGroup(ctx context.Context, input *LoadMyGroupInput
 		PageSize: int(input.PageSize),
 	}
 
-	total, groups, err := uc.chat.LoadMyGroup(ctx, userId, pageStats)
+	total, groups, err := uc.chat.LoadMyGroup(ctx, cast.ToString(userId), pageStats)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取我创建的群聊失败: %v", err)
 		return nil, errors.New("获取群聊列表失败")
@@ -160,7 +161,7 @@ func (uc *GroupUsecase) EnterGroupDirectly(ctx context.Context, input *EnterGrou
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.EnterGroupDirectly(ctx, userId, input.GroupID)
+	err = uc.chat.EnterGroupDirectly(ctx, cast.ToString(userId), input.GroupID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("直接进群失败: %v", err)
 		return errors.New("加入群聊失败")
@@ -175,7 +176,7 @@ func (uc *GroupUsecase) ApplyJoinGroup(ctx context.Context, input *ApplyJoinGrou
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.ApplyJoinGroup(ctx, userId, input.GroupID, input.ApplyReason)
+	err = uc.chat.ApplyJoinGroup(ctx, cast.ToString(userId), input.GroupID, input.ApplyReason)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("申请加群失败: %v", err)
 		return errors.New("申请加入失败")
@@ -190,7 +191,7 @@ func (uc *GroupUsecase) LeaveGroup(ctx context.Context, input *LeaveGroupInput) 
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.LeaveGroup(ctx, userId, input.GroupID)
+	err = uc.chat.LeaveGroup(ctx, cast.ToString(userId), input.GroupID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("退群失败: %v", err)
 		return errors.New("退群失败")
@@ -205,7 +206,7 @@ func (uc *GroupUsecase) DismissGroup(ctx context.Context, input *DismissGroupInp
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.DismissGroup(ctx, userId, input.GroupID)
+	err = uc.chat.DismissGroup(ctx, cast.ToString(userId), input.GroupID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("解散群聊失败: %v", err)
 		return errors.New("解散群聊失败")
@@ -241,7 +242,7 @@ func (uc *GroupUsecase) ListMyJoinedGroups(ctx context.Context, input *ListMyJoi
 		PageSize: int(input.PageSize),
 	}
 
-	total, groups, err := uc.chat.ListMyJoinedGroups(ctx, userId, pageStats)
+	total, groups, err := uc.chat.ListMyJoinedGroups(ctx, cast.ToString(userId), pageStats)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取我加入的群聊失败: %v", err)
 		return nil, errors.New("获取群聊列表失败")

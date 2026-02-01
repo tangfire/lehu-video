@@ -25,11 +25,11 @@ const (
 type Comment struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"id,omitempty,string"
-	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"` // 评论id
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // 评论id
 	// @gotags: json:"videoId,omitempty,string"
-	VideoId int64 `protobuf:"varint,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"` // 视频id
+	VideoId string `protobuf:"bytes,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"` // 视频id
 	// @gotags: json:"parentId,omitempty,string"
-	ParentId      int64        `protobuf:"varint,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`       // 父评论id
+	ParentId      string       `protobuf:"bytes,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`        // 父评论id
 	User          *CommentUser `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`                                // 评论用户
 	ReplyUser     *CommentUser `protobuf:"bytes,5,opt,name=reply_user,json=replyUser,proto3" json:"reply_user,omitempty"`     // 回复用户
 	Content       string       `protobuf:"bytes,6,opt,name=content,proto3" json:"content,omitempty"`                          // 评论内容
@@ -71,25 +71,25 @@ func (*Comment) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_comment_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Comment) GetId() int64 {
+func (x *Comment) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
-func (x *Comment) GetVideoId() int64 {
+func (x *Comment) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
 	}
-	return 0
+	return ""
 }
 
-func (x *Comment) GetParentId() int64 {
+func (x *Comment) GetParentId() string {
 	if x != nil {
 		return x.ParentId
 	}
-	return 0
+	return ""
 }
 
 func (x *Comment) GetUser() *CommentUser {
@@ -144,7 +144,7 @@ func (x *Comment) GetComments() []*Comment {
 type CommentUser struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"id,omitempty,string"
-	Id            int64  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                      // 用户id
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                       // 用户id
 	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                   // 用户名称
 	Avatar        string `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`                               // 用户头像
 	IsFollowing   bool   `protobuf:"varint,4,opt,name=is_following,json=isFollowing,proto3" json:"is_following,omitempty"` // 是否关注
@@ -182,11 +182,11 @@ func (*CommentUser) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_comment_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *CommentUser) GetId() int64 {
+func (x *CommentUser) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *CommentUser) GetName() string {
@@ -213,12 +213,12 @@ func (x *CommentUser) GetIsFollowing() bool {
 type CreateCommentReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"videoId,omitempty,string"
-	VideoId int64  `protobuf:"varint,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"` // 视频id
-	Content string `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`                 // 评论内容
+	VideoId string `protobuf:"bytes,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"` // 视频id
+	Content string `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`                // 评论内容
 	// @gotags: json:"parentId,omitempty,string"
-	ParentId int64 `protobuf:"varint,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	ParentId string `protobuf:"bytes,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	// @gotags: json:"replyUserId,omitempty,string"
-	ReplyUserId   int64 `protobuf:"varint,4,opt,name=reply_user_id,json=replyUserId,proto3" json:"reply_user_id,omitempty"`
+	ReplyUserId   string `protobuf:"bytes,4,opt,name=reply_user_id,json=replyUserId,proto3" json:"reply_user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -253,11 +253,11 @@ func (*CreateCommentReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_comment_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *CreateCommentReq) GetVideoId() int64 {
+func (x *CreateCommentReq) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
 	}
-	return 0
+	return ""
 }
 
 func (x *CreateCommentReq) GetContent() string {
@@ -267,18 +267,18 @@ func (x *CreateCommentReq) GetContent() string {
 	return ""
 }
 
-func (x *CreateCommentReq) GetParentId() int64 {
+func (x *CreateCommentReq) GetParentId() string {
 	if x != nil {
 		return x.ParentId
 	}
-	return 0
+	return ""
 }
 
-func (x *CreateCommentReq) GetReplyUserId() int64 {
+func (x *CreateCommentReq) GetReplyUserId() string {
 	if x != nil {
 		return x.ReplyUserId
 	}
-	return 0
+	return ""
 }
 
 type CreateCommentResp struct {
@@ -328,7 +328,7 @@ func (x *CreateCommentResp) GetComment() *Comment {
 type RemoveCommentReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"id,omitempty,string"
-	Id            int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"` // 评论id
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // 评论id
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -363,11 +363,11 @@ func (*RemoveCommentReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_comment_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *RemoveCommentReq) GetId() int64 {
+func (x *RemoveCommentReq) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 type RemoveCommentResp struct {
@@ -409,7 +409,7 @@ func (*RemoveCommentResp) Descriptor() ([]byte, []int) {
 type ListComment4VideoReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"videoId,omitempty,string"
-	VideoId       int64         `protobuf:"varint,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"` // 视频id
+	VideoId       string        `protobuf:"bytes,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"` // 视频id
 	PageStats     *PageStatsReq `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -445,11 +445,11 @@ func (*ListComment4VideoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_comment_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ListComment4VideoReq) GetVideoId() int64 {
+func (x *ListComment4VideoReq) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListComment4VideoReq) GetPageStats() *PageStatsReq {
@@ -514,7 +514,7 @@ func (x *ListComment4VideoResp) GetPageStats() *PageStatsResp {
 type ListChildCommentReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"commentId,omitempty,string"
-	CommentId     int64         `protobuf:"varint,1,opt,name=comment_id,json=commentId,proto3" json:"comment_id,omitempty"` // 评论id
+	CommentId     string        `protobuf:"bytes,1,opt,name=comment_id,json=commentId,proto3" json:"comment_id,omitempty"` // 评论id
 	PageStats     *PageStatsReq `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -550,11 +550,11 @@ func (*ListChildCommentReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_comment_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *ListChildCommentReq) GetCommentId() int64 {
+func (x *ListChildCommentReq) GetCommentId() string {
 	if x != nil {
 		return x.CommentId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListChildCommentReq) GetPageStats() *PageStatsReq {
@@ -622,9 +622,9 @@ const file_api_videoApi_service_v1_comment_proto_rawDesc = "" +
 	"\n" +
 	"%api/videoApi/service/v1/comment.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\x1a\"api/videoApi/service/v1/base.proto\"\xfc\x02\n" +
 	"\aComment\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x19\n" +
-	"\bvideo_id\x18\x02 \x01(\x03R\avideoId\x12\x1b\n" +
-	"\tparent_id\x18\x03 \x01(\x03R\bparentId\x128\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
+	"\bvideo_id\x18\x02 \x01(\tR\avideoId\x12\x1b\n" +
+	"\tparent_id\x18\x03 \x01(\tR\bparentId\x128\n" +
 	"\x04user\x18\x04 \x01(\v2$.api.videoApi.service.v1.CommentUserR\x04user\x12C\n" +
 	"\n" +
 	"reply_user\x18\x05 \x01(\v2$.api.videoApi.service.v1.CommentUserR\treplyUser\x12\x18\n" +
@@ -637,22 +637,22 @@ const file_api_videoApi_service_v1_comment_proto_rawDesc = "" +
 	"\bcomments\x18\n" +
 	" \x03(\v2 .api.videoApi.service.v1.CommentR\bcomments\"l\n" +
 	"\vCommentUser\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12!\n" +
 	"\fis_following\x18\x04 \x01(\bR\visFollowing\"\x88\x01\n" +
 	"\x10CreateCommentReq\x12\x19\n" +
-	"\bvideo_id\x18\x01 \x01(\x03R\avideoId\x12\x18\n" +
+	"\bvideo_id\x18\x01 \x01(\tR\avideoId\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x12\x1b\n" +
-	"\tparent_id\x18\x03 \x01(\x03R\bparentId\x12\"\n" +
-	"\rreply_user_id\x18\x04 \x01(\x03R\vreplyUserId\"O\n" +
+	"\tparent_id\x18\x03 \x01(\tR\bparentId\x12\"\n" +
+	"\rreply_user_id\x18\x04 \x01(\tR\vreplyUserId\"O\n" +
 	"\x11CreateCommentResp\x12:\n" +
 	"\acomment\x18\x01 \x01(\v2 .api.videoApi.service.v1.CommentR\acomment\"\"\n" +
 	"\x10RemoveCommentReq\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\x13\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x13\n" +
 	"\x11RemoveCommentResp\"w\n" +
 	"\x14ListComment4VideoReq\x12\x19\n" +
-	"\bvideo_id\x18\x01 \x01(\x03R\avideoId\x12D\n" +
+	"\bvideo_id\x18\x01 \x01(\tR\avideoId\x12D\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x9c\x01\n" +
 	"\x15ListComment4VideoResp\x12<\n" +
@@ -661,7 +661,7 @@ const file_api_videoApi_service_v1_comment_proto_rawDesc = "" +
 	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats\"z\n" +
 	"\x13ListChildCommentReq\x12\x1d\n" +
 	"\n" +
-	"comment_id\x18\x01 \x01(\x03R\tcommentId\x12D\n" +
+	"comment_id\x18\x01 \x01(\tR\tcommentId\x12D\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x9b\x01\n" +
 	"\x14ListChildCommentResp\x12<\n" +

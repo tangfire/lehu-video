@@ -70,7 +70,7 @@ func (UpdateUserImageType) EnumDescriptor() ([]byte, []int) {
 
 type User struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	Id              int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                                 // 用户id
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                  // 用户id
 	Name            string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                              // 用户名称
 	Avatar          string                 `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`                                          // 用户头像Url
 	BackgroundImage string                 `protobuf:"bytes,4,opt,name=background_image,json=backgroundImage,proto3" json:"background_image,omitempty"` // 用户个人页顶部大图
@@ -120,11 +120,11 @@ func (*User) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_user_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *User) GetId() int64 {
+func (x *User) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *User) GetName() string {
@@ -236,7 +236,7 @@ type CreateUserReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mobile        string                 `protobuf:"bytes,1,opt,name=mobile,proto3" json:"mobile,omitempty"`
 	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	AccountId     int64                  `protobuf:"varint,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountId     string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -285,17 +285,17 @@ func (x *CreateUserReq) GetEmail() string {
 	return ""
 }
 
-func (x *CreateUserReq) GetAccountId() int64 {
+func (x *CreateUserReq) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
-	return 0
+	return ""
 }
 
 type CreateUserResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -337,17 +337,17 @@ func (x *CreateUserResp) GetMeta() *Metadata {
 	return nil
 }
 
-func (x *CreateUserResp) GetUserId() int64 {
+func (x *CreateUserResp) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type GetUserInfoReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	AccountId     int64                  `protobuf:"varint,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -382,18 +382,18 @@ func (*GetUserInfoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_user_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *GetUserInfoReq) GetUserId() int64 {
+func (x *GetUserInfoReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *GetUserInfoReq) GetAccountId() int64 {
+func (x *GetUserInfoReq) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
-	return 0
+	return ""
 }
 
 type GetUserInfoResp struct {
@@ -450,7 +450,7 @@ func (x *GetUserInfoResp) GetUser() *User {
 
 type UpdateUserInfoReq struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	UserId          int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Name            string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Avatar          string                 `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	BackgroundImage string                 `protobuf:"bytes,4,opt,name=background_image,json=backgroundImage,proto3" json:"background_image,omitempty"`
@@ -489,11 +489,11 @@ func (*UpdateUserInfoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_user_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *UpdateUserInfoReq) GetUserId() int64 {
+func (x *UpdateUserInfoReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *UpdateUserInfoReq) GetName() string {
@@ -570,7 +570,7 @@ func (x *UpdateUserInfoResp) GetMeta() *Metadata {
 
 type GetUserByIdListReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserIdList    []int64                `protobuf:"varint,1,rep,packed,name=user_id_list,json=userIdList,proto3" json:"user_id_list,omitempty"`
+	UserIdList    []string               `protobuf:"bytes,1,rep,name=user_id_list,json=userIdList,proto3" json:"user_id_list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -605,7 +605,7 @@ func (*GetUserByIdListReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_user_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *GetUserByIdListReq) GetUserIdList() []int64 {
+func (x *GetUserByIdListReq) GetUserIdList() []string {
 	if x != nil {
 		return x.UserIdList
 	}
@@ -792,7 +792,7 @@ const file_api_videoCore_service_v1_user_proto_rawDesc = "" +
 	"\n" +
 	"#api/videoCore/service/v1/user.proto\x12\x18api.videoCore.service.v1\x1a\x1cgoogle/api/annotations.proto\x1a#api/videoCore/service/v1/base.proto\"\xf5\x03\n" +
 	"\x04User\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12)\n" +
 	"\x10background_image\x18\x04 \x01(\tR\x0fbackgroundImage\x12\x1c\n" +
@@ -814,19 +814,19 @@ const file_api_videoCore_service_v1_user_proto_rawDesc = "" +
 	"\x06mobile\x18\x01 \x01(\tR\x06mobile\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\x03R\taccountId\"a\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\"a\n" +
 	"\x0eCreateUserResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\"H\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"H\n" +
 	"\x0eGetUserInfoReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1d\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x02 \x01(\x03R\taccountId\"}\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\"}\n" +
 	"\x0fGetUserInfoResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x122\n" +
 	"\x04user\x18\x02 \x01(\v2\x1e.api.videoCore.service.v1.UserR\x04user\"\xa1\x01\n" +
 	"\x11UpdateUserInfoReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12)\n" +
 	"\x10background_image\x18\x04 \x01(\tR\x0fbackgroundImage\x12\x1c\n" +
@@ -834,7 +834,7 @@ const file_api_videoCore_service_v1_user_proto_rawDesc = "" +
 	"\x12UpdateUserInfoResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"6\n" +
 	"\x12GetUserByIdListReq\x12 \n" +
-	"\fuser_id_list\x18\x01 \x03(\x03R\n" +
+	"\fuser_id_list\x18\x01 \x03(\tR\n" +
 	"userIdList\"\x8a\x01\n" +
 	"\x13GetUserByIdListResp\x12;\n" +
 	"\tuser_list\x18\x01 \x03(\v2\x1e.api.videoCore.service.v1.UserR\buserList\x126\n" +

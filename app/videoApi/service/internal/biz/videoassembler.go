@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/spf13/cast"
 )
 
 // ============ VideoAssembler 视频组装器 ============
@@ -25,7 +26,7 @@ func NewVideoAssembler(
 }
 
 // AssembleVideo 组装单个视频信息
-func (a *VideoAssembler) AssembleVideo(ctx context.Context, video *Video, currentUserID int64) (*Video, error) {
+func (a *VideoAssembler) AssembleVideo(ctx context.Context, video *Video, currentUserID string) (*Video, error) {
 	if video == nil {
 		return nil, nil
 	}
@@ -44,14 +45,14 @@ func (a *VideoAssembler) AssembleVideo(ctx context.Context, video *Video, curren
 }
 
 // AssembleVideos 批量组装视频信息
-func (a *VideoAssembler) AssembleVideos(ctx context.Context, videos []*Video, currentUserID int64) ([]*Video, error) {
+func (a *VideoAssembler) AssembleVideos(ctx context.Context, videos []*Video, currentUserID string) ([]*Video, error) {
 	if len(videos) == 0 {
 		return videos, nil
 	}
 
 	// 收集需要查询的ID
-	videoIDs := make([]int64, 0, len(videos))
-	authorIDs := make([]int64, 0, len(videos))
+	videoIDs := make([]string, 0, len(videos))
+	authorIDs := make([]string, 0, len(videos))
 
 	for _, video := range videos {
 		videoIDs = append(videoIDs, video.ID)
@@ -81,9 +82,9 @@ func (a *VideoAssembler) AssembleVideos(ctx context.Context, videos []*Video, cu
 }
 
 // getUserInfos 批量获取用户信息
-func (a *VideoAssembler) getUserInfos(ctx context.Context, userIDs []int64) (map[int64]*UserInfo, error) {
+func (a *VideoAssembler) getUserInfos(ctx context.Context, userIDs []string) (map[string]*UserInfo, error) {
 	if len(userIDs) == 0 {
-		return map[int64]*UserInfo{}, nil
+		return map[string]*UserInfo{}, nil
 	}
 
 	userInfoList, err := a.core.GetUserInfoByIdList(ctx, userIDs)
@@ -91,7 +92,7 @@ func (a *VideoAssembler) getUserInfos(ctx context.Context, userIDs []int64) (map
 		return nil, err
 	}
 
-	userMap := make(map[int64]*UserInfo)
+	userMap := make(map[string]*UserInfo)
 	for _, user := range userInfoList {
 		userMap[user.Id] = user
 	}
@@ -100,12 +101,12 @@ func (a *VideoAssembler) getUserInfos(ctx context.Context, userIDs []int64) (map
 }
 
 // getVideoCounts 批量获取视频计数信息
-func (a *VideoAssembler) getVideoCounts(ctx context.Context, videoIDs []int64) (*VideoCountInfo, error) {
+func (a *VideoAssembler) getVideoCounts(ctx context.Context, videoIDs []string) (*VideoCountInfo, error) {
 	if len(videoIDs) == 0 {
 		return &VideoCountInfo{}, nil
 	}
 
-	var commentCounts, favoriteCounts, collectCounts map[int64]int64
+	var commentCounts, favoriteCounts, collectCounts map[string]int64
 	var commentErr, favoriteErr, collectErr error
 
 	// 并行查询各种计数
@@ -132,13 +133,13 @@ func (a *VideoAssembler) getVideoCounts(ctx context.Context, videoIDs []int64) (
 }
 
 // getUserInteractions 批量获取用户互动信息
-func (a *VideoAssembler) getUserInteractions(ctx context.Context, userID int64, videoIDs, authorIDs []int64) (*UserInteractionInfo, error) {
+func (a *VideoAssembler) getUserInteractions(ctx context.Context, userID string, videoIDs, authorIDs []string) (*UserInteractionInfo, error) {
 	// 如果是未登录用户，不查询互动信息
-	if userID <= 0 {
+	if cast.ToInt64(userID) <= 0 {
 		return &UserInteractionInfo{}, nil
 	}
 
-	var isFavoriteMap, isCollectMap, isFollowingMap map[int64]bool
+	var isFavoriteMap, isCollectMap, isFollowingMap map[string]bool
 	var favoriteErr, collectErr, followErr error
 
 	// 并行查询用户互动状态
@@ -172,7 +173,7 @@ func (a *VideoAssembler) getUserInteractions(ctx context.Context, userID int64, 
 // doAssembleVideos 执行视频组装
 func (a *VideoAssembler) doAssembleVideos(
 	videos []*Video,
-	userInfos map[int64]*UserInfo,
+	userInfos map[string]*UserInfo,
 	counts *VideoCountInfo,
 	interactions *UserInteractionInfo,
 ) []*Video {
@@ -189,7 +190,7 @@ func (a *VideoAssembler) doAssembleVideos(
 // assembleSingleVideo 组装单个视频
 func (a *VideoAssembler) assembleSingleVideo(
 	video *Video,
-	userInfos map[int64]*UserInfo,
+	userInfos map[string]*UserInfo,
 	counts *VideoCountInfo,
 	interactions *UserInteractionInfo,
 ) *Video {

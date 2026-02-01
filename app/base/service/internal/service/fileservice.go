@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/spf13/cast"
 	pb "lehu-video/api/base/service/v1"
 	"lehu-video/app/base/service/internal/biz"
 	"lehu-video/app/base/service/internal/pkg/utils"
@@ -19,7 +20,7 @@ func NewFileServiceService(uc *biz.FileUsecase) *FileServiceService {
 
 func PbToBiz(fileCtx *pb.FileContext) *biz.File {
 	return &biz.File{
-		Id:            fileCtx.FileId,
+		Id:            cast.ToInt64(fileCtx.FileId),
 		DomainName:    fileCtx.Domain,
 		BizName:       fileCtx.BizName,
 		Hash:          fileCtx.Hash,
@@ -55,14 +56,14 @@ func (s *FileServiceService) PreSignPut(ctx context.Context, req *pb.PreSignPutR
 		return &pb.PreSignPutResp{
 			Meta:   utils.GetMetaWithError(err),
 			Url:    "",
-			FileId: 0,
+			FileId: "0",
 		}, nil
 	}
 	if checkResult.Exists {
 		return &pb.PreSignPutResp{
 			Meta:   utils.GetSuccessMeta(),
 			Url:    "",
-			FileId: checkResult.FileId,
+			FileId: cast.ToString(checkResult.FileId),
 		}, nil
 	}
 
@@ -73,13 +74,13 @@ func (s *FileServiceService) PreSignPut(ctx context.Context, req *pb.PreSignPutR
 		return &pb.PreSignPutResp{
 			Meta:   utils.GetMetaWithError(err),
 			Url:    "",
-			FileId: 0,
+			FileId: "0",
 		}, nil
 	}
 	return &pb.PreSignPutResp{
 		Meta:   utils.GetSuccessMeta(),
 		Url:    result.Url,
-		FileId: result.FileId,
+		FileId: cast.ToString(result.FileId),
 	}, nil
 }
 
@@ -113,7 +114,7 @@ func (s *FileServiceService) PreSignSlicingPut(ctx context.Context, req *pb.PreS
 	if checkResult.Exists {
 		return &pb.PreSignSlicingPutResp{
 			Meta:     utils.GetSuccessMeta(),
-			FileId:   checkResult.FileId,
+			FileId:   cast.ToString(checkResult.FileId),
 			Uploaded: true,
 		}, nil
 	}
@@ -131,7 +132,7 @@ func (s *FileServiceService) PreSignSlicingPut(ctx context.Context, req *pb.PreS
 		Urls:     result.SlicingFile.UploadUrl,
 		UploadId: result.SlicingFile.UploadId,
 		Parts:    result.SlicingFile.TotalParts,
-		FileId:   result.FileId,
+		FileId:   cast.ToString(result.FileId),
 	}, nil
 }
 
@@ -210,7 +211,7 @@ func (s *FileServiceService) GetFileInfoById(ctx context.Context, req *pb.GetFil
 	query := &biz.GetFileInfoByIdQuery{
 		DomainName: req.DomainName,
 		BizName:    req.BizName,
-		FileId:     req.FileId,
+		FileId:     cast.ToInt64(req.FileId),
 	}
 	result, err := s.uc.GetFileInfoById(ctx, query)
 	if err != nil {

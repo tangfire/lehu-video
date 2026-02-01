@@ -45,7 +45,7 @@ message AddFavoriteReq {
 	FavoriteTarget target = 1;
 	FavoriteType type = 2;
 	// @gotags: json:"id,omitempty,string"
-	int64 id = 3;
+	string id = 3;
 }
 
 message AddFavoriteResp {}
@@ -54,13 +54,13 @@ message RemoveFavoriteReq {
 	FavoriteTarget target = 1;
 	FavoriteType type = 2;
 	// @gotags: json:"id,omitempty,string"
-	int64 id = 3;
+	string id = 3;
 }
 
 message RemoveFavoriteResp {}
 
 message ListFavoriteVideoReq {
-	int64 userId = 1; // 可传可不传,传0就是查自己
+	string userId = 1; // 可传可不传,传0就是查自己
 	PageStatsReq page_stats = 2;
 }
 

@@ -8,14 +8,14 @@ import (
 )
 
 type FollowUser struct {
-	Id          int64
+	Id          string
 	Name        string
 	Avatar      string
 	IsFollowing bool
 }
 
 type ListFollowingInput struct {
-	UserId    int64 // 暂时不传
+	UserId    string // 暂时不传
 	Type      *FollowType
 	PageStats *PageStats
 }
@@ -37,7 +37,7 @@ func NewFollowUsecase(core CoreAdapter, logger log.Logger) *FollowUsecase {
 	}
 }
 
-func (uc *FollowUsecase) AddFollow(ctx context.Context, targetUserId int64) error {
+func (uc *FollowUsecase) AddFollow(ctx context.Context, targetUserId string) error {
 	userId, err := claims.GetUserId(ctx)
 	if err != nil {
 		return errors.New("获取用户信息失败")
@@ -49,7 +49,7 @@ func (uc *FollowUsecase) AddFollow(ctx context.Context, targetUserId int64) erro
 	return nil
 }
 
-func (uc *FollowUsecase) RemoveFollow(ctx context.Context, targetUserId int64) error {
+func (uc *FollowUsecase) RemoveFollow(ctx context.Context, targetUserId string) error {
 	userId, err := claims.GetUserId(ctx)
 	if err != nil {
 		return errors.New("获取用户信息失败")
@@ -76,7 +76,7 @@ func (uc *FollowUsecase) ListFollowing(ctx context.Context, input *ListFollowing
 	if err != nil {
 		log.Context(ctx).Warnf("failed to get user info by id list: %v", err)
 	}
-	userInfoMap := make(map[int64]*UserInfo)
+	userInfoMap := make(map[string]*UserInfo)
 	for _, userInfo := range userInfos {
 		userInfoMap[userInfo.Id] = userInfo
 	}

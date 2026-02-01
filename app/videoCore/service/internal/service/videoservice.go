@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/spf13/cast"
 	pb "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/pkg/utils"
@@ -56,7 +57,7 @@ func (s *VideoServiceService) FeedShortVideo(ctx context.Context, req *pb.FeedSh
 func (s *VideoServiceService) GetVideoById(ctx context.Context, req *pb.GetVideoByIdReq) (*pb.GetVideoByIdResp, error) {
 	// ✅ 改为Query
 	query := &biz.GetVideoByIdQuery{
-		VideoId: req.VideoId,
+		VideoId: cast.ToInt64(req.VideoId),
 	}
 
 	result, err := s.uc.GetVideoById(ctx, query)
@@ -81,7 +82,7 @@ func (s *VideoServiceService) GetVideoById(ctx context.Context, req *pb.GetVideo
 func (s *VideoServiceService) PublishVideo(ctx context.Context, req *pb.PublishVideoReq) (*pb.PublishVideoResp, error) {
 	// ✅ 改为Command
 	cmd := &biz.PublishVideoCommand{
-		UserId:      req.UserId,
+		UserId:      cast.ToInt64(req.UserId),
 		Title:       req.Title,
 		Description: req.Description,
 		PlayUrl:     req.PlayUrl,
@@ -97,7 +98,7 @@ func (s *VideoServiceService) PublishVideo(ctx context.Context, req *pb.PublishV
 
 	return &pb.PublishVideoResp{
 		Meta:    utils.GetSuccessMeta(),
-		VideoId: result.VideoId,
+		VideoId: cast.ToString(result.VideoId),
 	}, nil
 }
 
@@ -110,7 +111,7 @@ func (s *VideoServiceService) ListPublishedVideo(ctx context.Context, req *pb.Li
 
 	// ✅ 改为Query
 	query := &biz.ListPublishedVideoQuery{
-		UserId:     req.UserId,
+		UserId:     cast.ToInt64(req.UserId),
 		LatestTime: req.LatestTime,
 		PageStats:  pageStats,
 	}
@@ -138,7 +139,7 @@ func (s *VideoServiceService) ListPublishedVideo(ctx context.Context, req *pb.Li
 func (s *VideoServiceService) GetVideoByIdList(ctx context.Context, req *pb.GetVideoByIdListReq) (*pb.GetVideoByIdListResp, error) {
 	// ✅ 改为Query
 	query := &biz.GetVideoByIdListQuery{
-		VideoIdList: req.VideoIdList,
+		VideoIdList: cast.ToInt64Slice(req.VideoIdList),
 	}
 
 	result, err := s.uc.GetVideoByIdList(ctx, query)
@@ -167,7 +168,7 @@ func convertBizVideoToPb(video *biz.Video) *pb.Video {
 	}
 
 	pbVideo := &pb.Video{
-		Id:            video.Id,
+		Id:            cast.ToString(video.Id),
 		Title:         video.Title,
 		Description:   video.Description,
 		PlayUrl:       video.VideoUrl,
@@ -179,7 +180,7 @@ func convertBizVideoToPb(video *biz.Video) *pb.Video {
 
 	if video.Author != nil {
 		pbVideo.Author = &pb.Author{
-			Id:     video.Author.Id,
+			Id:     cast.ToString(video.Author.Id),
 			Name:   video.Author.Name,
 			Avatar: video.Author.Avatar,
 			// TODO: 需要从用户服务获取is_following信息

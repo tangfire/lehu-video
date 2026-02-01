@@ -23,8 +23,8 @@ const (
 
 type Collection struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -61,18 +61,18 @@ func (*Collection) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Collection) GetId() int64 {
+func (x *Collection) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
-func (x *Collection) GetUserId() int64 {
+func (x *Collection) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *Collection) GetName() string {
@@ -93,7 +93,7 @@ type CreateCollectionReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -142,11 +142,11 @@ func (x *CreateCollectionReq) GetDescription() string {
 	return ""
 }
 
-func (x *CreateCollectionReq) GetUserId() int64 {
+func (x *CreateCollectionReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type CreateCollectionResp struct {
@@ -195,10 +195,10 @@ func (x *CreateCollectionResp) GetMeta() *Metadata {
 
 type UpdateCollectionReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	UserId        int64                  `protobuf:"varint,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -233,11 +233,11 @@ func (*UpdateCollectionReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *UpdateCollectionReq) GetId() int64 {
+func (x *UpdateCollectionReq) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *UpdateCollectionReq) GetName() string {
@@ -254,11 +254,11 @@ func (x *UpdateCollectionReq) GetDescription() string {
 	return ""
 }
 
-func (x *UpdateCollectionReq) GetUserId() int64 {
+func (x *UpdateCollectionReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type UpdateCollectionResp struct {
@@ -307,8 +307,8 @@ func (x *UpdateCollectionResp) GetMeta() *Metadata {
 
 type RemoveCollectionReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -343,18 +343,18 @@ func (*RemoveCollectionReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *RemoveCollectionReq) GetId() int64 {
+func (x *RemoveCollectionReq) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
-func (x *RemoveCollectionReq) GetUserId() int64 {
+func (x *RemoveCollectionReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type RemoveCollectionResp struct {
@@ -403,7 +403,7 @@ func (x *RemoveCollectionResp) GetMeta() *Metadata {
 
 type GetCollectionByIdReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -438,11 +438,11 @@ func (*GetCollectionByIdReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *GetCollectionByIdReq) GetId() int64 {
+func (x *GetCollectionByIdReq) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 type GetCollectionByIdResp struct {
@@ -499,7 +499,7 @@ func (x *GetCollectionByIdResp) GetMeta() *Metadata {
 
 type ListCollectionReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -535,11 +535,11 @@ func (*ListCollectionReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *ListCollectionReq) GetUserId() int64 {
+func (x *ListCollectionReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListCollectionReq) GetPageStats() *PageStatsReq {
@@ -611,9 +611,9 @@ func (x *ListCollectionResp) GetPageStats() *PageStatsResp {
 
 type AddVideo2CollectionReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	CollectionId  int64                  `protobuf:"varint,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"` // 不传则添加到默认收藏夹
-	VideoId       int64                  `protobuf:"varint,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
-	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	CollectionId  string                 `protobuf:"bytes,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"` // 不传则添加到默认收藏夹
+	VideoId       string                 `protobuf:"bytes,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -648,25 +648,25 @@ func (*AddVideo2CollectionReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *AddVideo2CollectionReq) GetCollectionId() int64 {
+func (x *AddVideo2CollectionReq) GetCollectionId() string {
 	if x != nil {
 		return x.CollectionId
 	}
-	return 0
+	return ""
 }
 
-func (x *AddVideo2CollectionReq) GetVideoId() int64 {
+func (x *AddVideo2CollectionReq) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
 	}
-	return 0
+	return ""
 }
 
-func (x *AddVideo2CollectionReq) GetUserId() int64 {
+func (x *AddVideo2CollectionReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type AddVideo2CollectionResp struct {
@@ -715,9 +715,9 @@ func (x *AddVideo2CollectionResp) GetMeta() *Metadata {
 
 type RemoveVideoFromCollectionReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	CollectionId  int64                  `protobuf:"varint,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
-	VideoId       int64                  `protobuf:"varint,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
-	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	CollectionId  string                 `protobuf:"bytes,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
+	VideoId       string                 `protobuf:"bytes,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -752,25 +752,25 @@ func (*RemoveVideoFromCollectionReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *RemoveVideoFromCollectionReq) GetCollectionId() int64 {
+func (x *RemoveVideoFromCollectionReq) GetCollectionId() string {
 	if x != nil {
 		return x.CollectionId
 	}
-	return 0
+	return ""
 }
 
-func (x *RemoveVideoFromCollectionReq) GetVideoId() int64 {
+func (x *RemoveVideoFromCollectionReq) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
 	}
-	return 0
+	return ""
 }
 
-func (x *RemoveVideoFromCollectionReq) GetUserId() int64 {
+func (x *RemoveVideoFromCollectionReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type RemoveVideoFromCollectionResp struct {
@@ -819,7 +819,7 @@ func (x *RemoveVideoFromCollectionResp) GetMeta() *Metadata {
 
 type ListVideo4CollectionReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	CollectionId  int64                  `protobuf:"varint,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
+	CollectionId  string                 `protobuf:"bytes,1,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
 	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -855,11 +855,11 @@ func (*ListVideo4CollectionReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *ListVideo4CollectionReq) GetCollectionId() int64 {
+func (x *ListVideo4CollectionReq) GetCollectionId() string {
 	if x != nil {
 		return x.CollectionId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListVideo4CollectionReq) GetPageStats() *PageStatsReq {
@@ -871,7 +871,7 @@ func (x *ListVideo4CollectionReq) GetPageStats() *PageStatsReq {
 
 type ListVideo4CollectionResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	VideoIdList   []int64                `protobuf:"varint,1,rep,packed,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
+	VideoIdList   []string               `protobuf:"bytes,1,rep,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
 	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	PageStats     *PageStatsResp         `protobuf:"bytes,3,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -908,7 +908,7 @@ func (*ListVideo4CollectionResp) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *ListVideo4CollectionResp) GetVideoIdList() []int64 {
+func (x *ListVideo4CollectionResp) GetVideoIdList() []string {
 	if x != nil {
 		return x.VideoIdList
 	}
@@ -931,8 +931,8 @@ func (x *ListVideo4CollectionResp) GetPageStats() *PageStatsResp {
 
 type IsCollectedReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	VideoIdList   []int64                `protobuf:"varint,2,rep,packed,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	VideoIdList   []string               `protobuf:"bytes,2,rep,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -967,14 +967,14 @@ func (*IsCollectedReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *IsCollectedReq) GetUserId() int64 {
+func (x *IsCollectedReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *IsCollectedReq) GetVideoIdList() []int64 {
+func (x *IsCollectedReq) GetVideoIdList() []string {
 	if x != nil {
 		return x.VideoIdList
 	}
@@ -983,7 +983,7 @@ func (x *IsCollectedReq) GetVideoIdList() []int64 {
 
 type IsCollectedResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	VideoIdList   []int64                `protobuf:"varint,1,rep,packed,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
+	VideoIdList   []string               `protobuf:"bytes,1,rep,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
 	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1019,7 +1019,7 @@ func (*IsCollectedResp) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{18}
 }
 
-func (x *IsCollectedResp) GetVideoIdList() []int64 {
+func (x *IsCollectedResp) GetVideoIdList() []string {
 	if x != nil {
 		return x.VideoIdList
 	}
@@ -1035,7 +1035,7 @@ func (x *IsCollectedResp) GetMeta() *Metadata {
 
 type CountCollect4VideoResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Count         int64                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1071,11 +1071,11 @@ func (*CountCollect4VideoResult) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *CountCollect4VideoResult) GetId() int64 {
+func (x *CountCollect4VideoResult) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *CountCollect4VideoResult) GetCount() int64 {
@@ -1087,7 +1087,7 @@ func (x *CountCollect4VideoResult) GetCount() int64 {
 
 type CountCollect4VideoReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	VideoIdList   []int64                `protobuf:"varint,1,rep,packed,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
+	VideoIdList   []string               `protobuf:"bytes,1,rep,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1122,7 +1122,7 @@ func (*CountCollect4VideoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_collection_proto_rawDescGZIP(), []int{20}
 }
 
-func (x *CountCollect4VideoReq) GetVideoIdList() []int64 {
+func (x *CountCollect4VideoReq) GetVideoIdList() []string {
 	if x != nil {
 		return x.VideoIdList
 	}
@@ -1188,37 +1188,37 @@ const file_api_videoCore_service_v1_collection_proto_rawDesc = "" +
 	")api/videoCore/service/v1/collection.proto\x12\x18api.videoCore.service.v1\x1a#api/videoCore/service/v1/base.proto\"k\n" +
 	"\n" +
 	"Collection\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\"d\n" +
 	"\x13CreateCollectionReq\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\x03R\x06userId\"N\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"N\n" +
 	"\x14CreateCollectionResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"t\n" +
 	"\x13UpdateCollectionReq\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x17\n" +
-	"\auser_id\x18\x04 \x01(\x03R\x06userId\"N\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\"N\n" +
 	"\x14UpdateCollectionResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\">\n" +
 	"\x13RemoveCollectionReq\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\"N\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"N\n" +
 	"\x14RemoveCollectionResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"&\n" +
 	"\x14GetCollectionByIdReq\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\x95\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x95\x01\n" +
 	"\x15GetCollectionByIdResp\x12D\n" +
 	"\n" +
 	"collection\x18\x01 \x01(\v2$.api.videoCore.service.v1.CollectionR\n" +
 	"collection\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"s\n" +
 	"\x11ListCollectionReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12E\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12E\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2&.api.videoCore.service.v1.PageStatsReqR\tpageStats\"\xdc\x01\n" +
 	"\x12ListCollectionResp\x12F\n" +
@@ -1227,37 +1227,37 @@ const file_api_videoCore_service_v1_collection_proto_rawDesc = "" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoCore.service.v1.PageStatsRespR\tpageStats\"q\n" +
 	"\x16AddVideo2CollectionReq\x12#\n" +
-	"\rcollection_id\x18\x01 \x01(\x03R\fcollectionId\x12\x19\n" +
-	"\bvideo_id\x18\x02 \x01(\x03R\avideoId\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\x03R\x06userId\"Q\n" +
+	"\rcollection_id\x18\x01 \x01(\tR\fcollectionId\x12\x19\n" +
+	"\bvideo_id\x18\x02 \x01(\tR\avideoId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"Q\n" +
 	"\x17AddVideo2CollectionResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"w\n" +
 	"\x1cRemoveVideoFromCollectionReq\x12#\n" +
-	"\rcollection_id\x18\x01 \x01(\x03R\fcollectionId\x12\x19\n" +
-	"\bvideo_id\x18\x02 \x01(\x03R\avideoId\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\x03R\x06userId\"W\n" +
+	"\rcollection_id\x18\x01 \x01(\tR\fcollectionId\x12\x19\n" +
+	"\bvideo_id\x18\x02 \x01(\tR\avideoId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"W\n" +
 	"\x1dRemoveVideoFromCollectionResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\x85\x01\n" +
 	"\x17ListVideo4CollectionReq\x12#\n" +
-	"\rcollection_id\x18\x01 \x01(\x03R\fcollectionId\x12E\n" +
+	"\rcollection_id\x18\x01 \x01(\tR\fcollectionId\x12E\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2&.api.videoCore.service.v1.PageStatsReqR\tpageStats\"\xbe\x01\n" +
 	"\x18ListVideo4CollectionResp\x12\"\n" +
-	"\rvideo_id_list\x18\x01 \x03(\x03R\vvideoIdList\x126\n" +
+	"\rvideo_id_list\x18\x01 \x03(\tR\vvideoIdList\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12F\n" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoCore.service.v1.PageStatsRespR\tpageStats\"M\n" +
 	"\x0eIsCollectedReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\"\n" +
-	"\rvideo_id_list\x18\x02 \x03(\x03R\vvideoIdList\"m\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\"\n" +
+	"\rvideo_id_list\x18\x02 \x03(\tR\vvideoIdList\"m\n" +
 	"\x0fIsCollectedResp\x12\"\n" +
-	"\rvideo_id_list\x18\x01 \x03(\x03R\vvideoIdList\x126\n" +
+	"\rvideo_id_list\x18\x01 \x03(\tR\vvideoIdList\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"@\n" +
 	"\x18CountCollect4VideoResult\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x14\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x03R\x05count\";\n" +
 	"\x15CountCollect4VideoReq\x12\"\n" +
-	"\rvideo_id_list\x18\x01 \x03(\x03R\vvideoIdList\"\xa7\x01\n" +
+	"\rvideo_id_list\x18\x01 \x03(\tR\vvideoIdList\"\xa7\x01\n" +
 	"\x16CountCollect4VideoResp\x12U\n" +
 	"\fcount_result\x18\x01 \x03(\v22.api.videoCore.service.v1.CountCollect4VideoResultR\vcountResult\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta2\xb6\t\n" +

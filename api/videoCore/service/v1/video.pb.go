@@ -25,7 +25,7 @@ const (
 type FeedShortVideoReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	LatestTime    int64                  `protobuf:"varint,1,opt,name=latest_time,json=latestTime,proto3" json:"latest_time,omitempty"`
-	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	FeedNum       int64                  `protobuf:"varint,3,opt,name=feed_num,json=feedNum,proto3" json:"feed_num,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -68,11 +68,11 @@ func (x *FeedShortVideoReq) GetLatestTime() int64 {
 	return 0
 }
 
-func (x *FeedShortVideoReq) GetUserId() int64 {
+func (x *FeedShortVideoReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *FeedShortVideoReq) GetFeedNum() int64 {
@@ -136,7 +136,7 @@ func (x *FeedShortResp) GetVideos() []*Video {
 
 type Video struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                            // 视频唯一标识
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                             // 视频唯一标识
 	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`                                       // 视频标题
 	Author        *Author                `protobuf:"bytes,3,opt,name=author,proto3" json:"author,omitempty"`                                     // 视频作者信息
 	PlayUrl       string                 `protobuf:"bytes,4,opt,name=play_url,json=playUrl,proto3" json:"play_url,omitempty"`                    // 视频播放地址
@@ -180,11 +180,11 @@ func (*Video) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_video_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Video) GetId() int64 {
+func (x *Video) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *Video) GetTitle() string {
@@ -252,7 +252,7 @@ func (x *Video) GetDescription() string {
 
 type Author struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                      // 作者唯一标识
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                       // 作者唯一标识
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                   // 作者昵称
 	Avatar        string                 `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`                               // 作者头像地址
 	IsFollowing   int64                  `protobuf:"varint,4,opt,name=is_following,json=isFollowing,proto3" json:"is_following,omitempty"` // 0-未关注，1-已关注
@@ -290,11 +290,11 @@ func (*Author) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_video_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *Author) GetId() int64 {
+func (x *Author) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *Author) GetName() string {
@@ -320,7 +320,7 @@ func (x *Author) GetIsFollowing() int64 {
 
 type GetVideoByIdReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	VideoId       int64                  `protobuf:"varint,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
+	VideoId       string                 `protobuf:"bytes,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -355,11 +355,11 @@ func (*GetVideoByIdReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_video_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *GetVideoByIdReq) GetVideoId() int64 {
+func (x *GetVideoByIdReq) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
 	}
-	return 0
+	return ""
 }
 
 type GetVideoByIdResp struct {
@@ -420,7 +420,7 @@ type PublishVideoReq struct {
 	CoverUrl      string                 `protobuf:"bytes,2,opt,name=cover_url,json=coverUrl,proto3" json:"cover_url,omitempty"` // 视频封面地址
 	PlayUrl       string                 `protobuf:"bytes,3,opt,name=play_url,json=playUrl,proto3" json:"play_url,omitempty"`    // 视频播放地址
 	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`           // 视频描述
-	UserId        int64                  `protobuf:"varint,5,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`      // 视频作者id
+	UserId        string                 `protobuf:"bytes,5,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`       // 视频作者id
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -483,17 +483,17 @@ func (x *PublishVideoReq) GetDescription() string {
 	return ""
 }
 
-func (x *PublishVideoReq) GetUserId() int64 {
+func (x *PublishVideoReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type PublishVideoResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	VideoId       int64                  `protobuf:"varint,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
+	VideoId       string                 `protobuf:"bytes,2,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -535,16 +535,16 @@ func (x *PublishVideoResp) GetMeta() *Metadata {
 	return nil
 }
 
-func (x *PublishVideoResp) GetVideoId() int64 {
+func (x *PublishVideoResp) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
 	}
-	return 0
+	return ""
 }
 
 type ListPublishedVideoReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	LatestTime    int64                  `protobuf:"varint,2,opt,name=latest_time,json=latestTime,proto3" json:"latest_time,omitempty"` // 可选参数，限制返回视频的最新投稿时间戳，精确到秒，不填表示当前时间
 	PageStats     *PageStatsReq          `protobuf:"bytes,3,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -581,11 +581,11 @@ func (*ListPublishedVideoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_video_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *ListPublishedVideoReq) GetUserId() int64 {
+func (x *ListPublishedVideoReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListPublishedVideoReq) GetLatestTime() int64 {
@@ -664,7 +664,7 @@ func (x *ListPublishedVideoResp) GetPageStats() *PageStatsResp {
 
 type GetVideoByIdListReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	VideoIdList   []int64                `protobuf:"varint,1,rep,packed,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
+	VideoIdList   []string               `protobuf:"bytes,1,rep,name=video_id_list,json=videoIdList,proto3" json:"video_id_list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -699,7 +699,7 @@ func (*GetVideoByIdListReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_video_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *GetVideoByIdListReq) GetVideoIdList() []int64 {
+func (x *GetVideoByIdListReq) GetVideoIdList() []string {
 	if x != nil {
 		return x.VideoIdList
 	}
@@ -766,13 +766,13 @@ const file_api_videoCore_service_v1_video_proto_rawDesc = "" +
 	"\x11FeedShortVideoReq\x12\x1f\n" +
 	"\vlatest_time\x18\x01 \x01(\x03R\n" +
 	"latestTime\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x19\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x19\n" +
 	"\bfeed_num\x18\x03 \x01(\x03R\afeedNum\"\x80\x01\n" +
 	"\rFeedShortResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x127\n" +
 	"\x06videos\x18\x02 \x03(\v2\x1f.api.videoCore.service.v1.VideoR\x06videos\"\xcf\x02\n" +
 	"\x05Video\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x14\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x128\n" +
 	"\x06author\x18\x03 \x01(\v2 .api.videoCore.service.v1.AuthorR\x06author\x12\x19\n" +
 	"\bplay_url\x18\x04 \x01(\tR\aplayUrl\x12\x1b\n" +
@@ -786,12 +786,12 @@ const file_api_videoCore_service_v1_video_proto_rawDesc = "" +
 	"\vdescription\x18\n" +
 	" \x01(\tR\vdescription\"g\n" +
 	"\x06Author\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12!\n" +
 	"\fis_following\x18\x04 \x01(\x03R\visFollowing\",\n" +
 	"\x0fGetVideoByIdReq\x12\x19\n" +
-	"\bvideo_id\x18\x01 \x01(\x03R\avideoId\"\x81\x01\n" +
+	"\bvideo_id\x18\x01 \x01(\tR\avideoId\"\x81\x01\n" +
 	"\x10GetVideoByIdResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x125\n" +
 	"\x05video\x18\x02 \x01(\v2\x1f.api.videoCore.service.v1.VideoR\x05video\"\x9a\x01\n" +
@@ -800,12 +800,12 @@ const file_api_videoCore_service_v1_video_proto_rawDesc = "" +
 	"\tcover_url\x18\x02 \x01(\tR\bcoverUrl\x12\x19\n" +
 	"\bplay_url\x18\x03 \x01(\tR\aplayUrl\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x17\n" +
-	"\auser_id\x18\x05 \x01(\x03R\x06userId\"e\n" +
+	"\auser_id\x18\x05 \x01(\tR\x06userId\"e\n" +
 	"\x10PublishVideoResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12\x19\n" +
-	"\bvideo_id\x18\x02 \x01(\x03R\avideoId\"\x98\x01\n" +
+	"\bvideo_id\x18\x02 \x01(\tR\avideoId\"\x98\x01\n" +
 	"\x15ListPublishedVideoReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1f\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1f\n" +
 	"\vlatest_time\x18\x02 \x01(\x03R\n" +
 	"latestTime\x12E\n" +
 	"\n" +
@@ -816,7 +816,7 @@ const file_api_videoCore_service_v1_video_proto_rawDesc = "" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoCore.service.v1.PageStatsRespR\tpageStats\"9\n" +
 	"\x13GetVideoByIdListReq\x12\"\n" +
-	"\rvideo_id_list\x18\x01 \x03(\x03R\vvideoIdList\"\x87\x01\n" +
+	"\rvideo_id_list\x18\x01 \x03(\tR\vvideoIdList\"\x87\x01\n" +
 	"\x14GetVideoByIdListResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x127\n" +
 	"\x06videos\x18\x02 \x03(\v2\x1f.api.videoCore.service.v1.VideoR\x06videos2\xa8\x05\n" +

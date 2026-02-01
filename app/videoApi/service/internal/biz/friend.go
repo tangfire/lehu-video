@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"errors"
+	"github.com/spf13/cast"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -11,7 +12,7 @@ import (
 
 // 好友信息
 type FriendInfo struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	Friend    *UserInfo `json:"friend"`
 	Remark    string    `json:"remark"`
 	GroupName string    `json:"group_name"`
@@ -21,9 +22,9 @@ type FriendInfo struct {
 
 // 好友申请
 type FriendApply struct {
-	ID          int64      `json:"id"`
-	ApplicantID int64      `json:"applicant_id"`
-	ReceiverID  int64      `json:"receiver_id"`
+	ID          string     `json:"id"`
+	ApplicantID string     `json:"applicant_id"`
+	ReceiverID  string     `json:"receiver_id"`
 	ApplyReason string     `json:"apply_reason"`
 	Status      int32      `json:"status"`
 	HandledAt   *time.Time `json:"handled_at,omitempty"`
@@ -43,16 +44,16 @@ type SearchUsersOutput struct {
 }
 
 type SendFriendApplyInput struct {
-	ReceiverID  int64
+	ReceiverID  string
 	ApplyReason string
 }
 
 type SendFriendApplyOutput struct {
-	ApplyID int64
+	ApplyID string
 }
 
 type HandleFriendApplyInput struct {
-	ApplyID int64
+	ApplyID string
 	Accept  bool
 }
 
@@ -79,21 +80,21 @@ type ListFriendsOutput struct {
 }
 
 type DeleteFriendInput struct {
-	FriendID int64
+	FriendID string
 }
 
 type UpdateFriendRemarkInput struct {
-	FriendID int64
+	FriendID string
 	Remark   string
 }
 
 type SetFriendGroupInput struct {
-	FriendID  int64
+	FriendID  string
 	GroupName string
 }
 
 type CheckFriendRelationInput struct {
-	TargetID int64
+	TargetID string
 }
 
 type CheckFriendRelationOutput struct {
@@ -102,7 +103,7 @@ type CheckFriendRelationOutput struct {
 }
 
 type GetUserOnlineStatusInput struct {
-	UserID int64
+	UserID string
 }
 
 type GetUserOnlineStatusOutput struct {
@@ -111,11 +112,11 @@ type GetUserOnlineStatusOutput struct {
 }
 
 type BatchGetUserOnlineStatusInput struct {
-	UserIDs []int64
+	UserIDs []string
 }
 
 type BatchGetUserOnlineStatusOutput struct {
-	OnlineStatus map[int64]int32
+	OnlineStatus map[string]int32
 }
 
 // FriendUsecase 好友用例
@@ -165,7 +166,7 @@ func (uc *FriendUsecase) SendFriendApply(ctx context.Context, input *SendFriendA
 		return nil, errors.New("获取用户信息失败")
 	}
 
-	applyID, err := uc.chat.SendFriendApply(ctx, userID, input.ReceiverID, input.ApplyReason)
+	applyID, err := uc.chat.SendFriendApply(ctx, cast.ToString(userID), input.ReceiverID, input.ApplyReason)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("发送好友申请失败: %v", err)
 		return nil, err
@@ -183,7 +184,7 @@ func (uc *FriendUsecase) HandleFriendApply(ctx context.Context, input *HandleFri
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.HandleFriendApply(ctx, input.ApplyID, userID, input.Accept)
+	err = uc.chat.HandleFriendApply(ctx, input.ApplyID, cast.ToString(userID), input.Accept)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("处理好友申请失败: %v", err)
 		return err
@@ -210,7 +211,10 @@ func (uc *FriendUsecase) ListFriendApplies(ctx context.Context, input *ListFrien
 		input.PageSize = 100
 	}
 
-	total, applies, err := uc.chat.ListFriendApplies(ctx, userID, input.Page, input.PageSize, input.Status)
+	total, applies, err := uc.chat.ListFriendApplies(ctx, cast.ToString(userID), input.Status, &PageStats{
+		Page:     int(input.Page),
+		PageSize: int(input.PageSize),
+	})
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取好友申请列表失败: %v", err)
 		return nil, errors.New("获取好友申请列表失败")
@@ -241,23 +245,26 @@ func (uc *FriendUsecase) ListFriends(ctx context.Context, input *ListFriendsInpu
 	}
 
 	// 1. 从chat服务获取好友列表
-	total, chatFriends, err := uc.chat.ListFriends(ctx, userID, input.Page, input.PageSize, input.GroupName)
+	total, chatFriends, err := uc.chat.ListFriends(ctx, cast.ToString(userID), input.GroupName, &PageStats{
+		Page:     int(input.Page),
+		PageSize: int(input.PageSize),
+	})
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取好友列表失败: %v", err)
 		return nil, errors.New("获取好友列表失败")
 	}
 
 	// 2. 提取好友ID列表
-	var friendIDs []int64
+	var friendIDs []string
 	for _, friend := range chatFriends {
-		friendIDs = append(friendIDs, friend.Friend.Id)
+		friendIDs = append(friendIDs, friend.ID)
 	}
 
 	// 3. 从core服务获取好友详细信息
 	userInfoList, err := uc.core.GetUserInfoByIdList(ctx, friendIDs)
 	userInfos := make(map[int64]*UserInfo)
 	for _, userInfo := range userInfoList {
-		userInfos[userInfo.Id] = userInfo
+		userInfos[cast.ToInt64(userInfo.Id)] = userInfo
 	}
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取好友详细信息失败: %v", err)
@@ -278,7 +285,7 @@ func (uc *FriendUsecase) ListFriends(ctx context.Context, input *ListFriendsInpu
 		}
 
 		// 填充好友信息
-		if userInfo, ok := userInfos[chatFriend.Friend.Id]; ok {
+		if userInfo, ok := userInfos[cast.ToInt64(chatFriend.Friend.Id)]; ok {
 			friendInfo.Friend = userInfo
 		} else {
 			// 如果没有获取到详细信息，使用基础信息
@@ -303,7 +310,7 @@ func (uc *FriendUsecase) DeleteFriend(ctx context.Context, input *DeleteFriendIn
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.DeleteFriend(ctx, userID, input.FriendID)
+	err = uc.chat.DeleteFriend(ctx, cast.ToString(userID), input.FriendID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("删除好友失败: %v", err)
 		return errors.New("删除好友失败")
@@ -319,7 +326,7 @@ func (uc *FriendUsecase) UpdateFriendRemark(ctx context.Context, input *UpdateFr
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.UpdateFriendRemark(ctx, userID, input.FriendID, input.Remark)
+	err = uc.chat.UpdateFriendRemark(ctx, cast.ToString(userID), input.FriendID, input.Remark)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("更新好友备注失败: %v", err)
 		return errors.New("更新好友备注失败")
@@ -335,7 +342,7 @@ func (uc *FriendUsecase) SetFriendGroup(ctx context.Context, input *SetFriendGro
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.SetFriendGroup(ctx, userID, input.FriendID, input.GroupName)
+	err = uc.chat.SetFriendGroup(ctx, cast.ToString(userID), input.FriendID, input.GroupName)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("设置好友分组失败: %v", err)
 		return errors.New("设置好友分组失败")
@@ -351,7 +358,7 @@ func (uc *FriendUsecase) CheckFriendRelation(ctx context.Context, input *CheckFr
 		return nil, errors.New("获取用户信息失败")
 	}
 
-	isFriend, status, err := uc.chat.CheckFriendRelation(ctx, userID, input.TargetID)
+	isFriend, status, err := uc.chat.CheckFriendRelation(ctx, cast.ToString(userID), input.TargetID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("检查好友关系失败: %v", err)
 		return nil, errors.New("检查好友关系失败")

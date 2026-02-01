@@ -24,7 +24,7 @@ const (
 // 简化用户信息
 type User struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // 改为 string
 	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Avatar         string                 `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	Nickname       string                 `protobuf:"bytes,4,opt,name=nickname,proto3" json:"nickname,omitempty"`
@@ -66,11 +66,11 @@ func (*User) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *User) GetId() int64 {
+func (x *User) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *User) GetName() string {
@@ -125,7 +125,7 @@ func (x *User) GetLastOnlineTime() string {
 // 好友信息
 type FriendInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Friend        *User                  `protobuf:"bytes,2,opt,name=friend,proto3" json:"friend,omitempty"`
 	Remark        string                 `protobuf:"bytes,3,opt,name=remark,proto3" json:"remark,omitempty"`
 	GroupName     string                 `protobuf:"bytes,4,opt,name=group_name,json=groupName,proto3" json:"group_name,omitempty"`
@@ -165,11 +165,11 @@ func (*FriendInfo) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *FriendInfo) GetId() int64 {
+func (x *FriendInfo) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *FriendInfo) GetFriend() *User {
@@ -210,7 +210,7 @@ func (x *FriendInfo) GetCreatedAt() string {
 // 好友申请信息
 type FriendApplyInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Applicant     *User                  `protobuf:"bytes,2,opt,name=applicant,proto3" json:"applicant,omitempty"`
 	Receiver      *User                  `protobuf:"bytes,3,opt,name=receiver,proto3" json:"receiver,omitempty"`
 	ApplyReason   string                 `protobuf:"bytes,4,opt,name=apply_reason,json=applyReason,proto3" json:"apply_reason,omitempty"`
@@ -251,11 +251,11 @@ func (*FriendApplyInfo) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *FriendApplyInfo) GetId() int64 {
+func (x *FriendApplyInfo) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *FriendApplyInfo) GetApplicant() *User {
@@ -416,8 +416,8 @@ func (x *SearchUsersResp) GetPageStats() *PageStatsResp {
 // 发送好友申请请求
 type SendFriendApplyReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ApplicantId   int64                  `protobuf:"varint,1,opt,name=applicant_id,json=applicantId,proto3" json:"applicant_id,omitempty"`
-	ReceiverId    int64                  `protobuf:"varint,2,opt,name=receiver_id,json=receiverId,proto3" json:"receiver_id,omitempty"`
+	ApplicantId   string                 `protobuf:"bytes,1,opt,name=applicant_id,json=applicantId,proto3" json:"applicant_id,omitempty"`
+	ReceiverId    string                 `protobuf:"bytes,2,opt,name=receiver_id,json=receiverId,proto3" json:"receiver_id,omitempty"`
 	ApplyReason   string                 `protobuf:"bytes,3,opt,name=apply_reason,json=applyReason,proto3" json:"apply_reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -453,18 +453,18 @@ func (*SendFriendApplyReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *SendFriendApplyReq) GetApplicantId() int64 {
+func (x *SendFriendApplyReq) GetApplicantId() string {
 	if x != nil {
 		return x.ApplicantId
 	}
-	return 0
+	return ""
 }
 
-func (x *SendFriendApplyReq) GetReceiverId() int64 {
+func (x *SendFriendApplyReq) GetReceiverId() string {
 	if x != nil {
 		return x.ReceiverId
 	}
-	return 0
+	return ""
 }
 
 func (x *SendFriendApplyReq) GetApplyReason() string {
@@ -476,7 +476,7 @@ func (x *SendFriendApplyReq) GetApplyReason() string {
 
 type SendFriendApplyResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ApplyId       int64                  `protobuf:"varint,1,opt,name=apply_id,json=applyId,proto3" json:"apply_id,omitempty"`
+	ApplyId       string                 `protobuf:"bytes,1,opt,name=apply_id,json=applyId,proto3" json:"apply_id,omitempty"`
 	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -512,11 +512,11 @@ func (*SendFriendApplyResp) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *SendFriendApplyResp) GetApplyId() int64 {
+func (x *SendFriendApplyResp) GetApplyId() string {
 	if x != nil {
 		return x.ApplyId
 	}
-	return 0
+	return ""
 }
 
 func (x *SendFriendApplyResp) GetMeta() *Metadata {
@@ -529,8 +529,8 @@ func (x *SendFriendApplyResp) GetMeta() *Metadata {
 // 处理好友申请请求
 type HandleFriendApplyReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ApplyId       int64                  `protobuf:"varint,1,opt,name=apply_id,json=applyId,proto3" json:"apply_id,omitempty"`
-	HandlerId     int64                  `protobuf:"varint,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
+	ApplyId       string                 `protobuf:"bytes,1,opt,name=apply_id,json=applyId,proto3" json:"apply_id,omitempty"`
+	HandlerId     string                 `protobuf:"bytes,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
 	Accept        bool                   `protobuf:"varint,3,opt,name=accept,proto3" json:"accept,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -566,18 +566,18 @@ func (*HandleFriendApplyReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *HandleFriendApplyReq) GetApplyId() int64 {
+func (x *HandleFriendApplyReq) GetApplyId() string {
 	if x != nil {
 		return x.ApplyId
 	}
-	return 0
+	return ""
 }
 
-func (x *HandleFriendApplyReq) GetHandlerId() int64 {
+func (x *HandleFriendApplyReq) GetHandlerId() string {
 	if x != nil {
 		return x.HandlerId
 	}
-	return 0
+	return ""
 }
 
 func (x *HandleFriendApplyReq) GetAccept() bool {
@@ -634,7 +634,7 @@ func (x *HandleFriendApplyResp) GetMeta() *Metadata {
 // 获取好友申请列表请求
 type ListFriendAppliesReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	Status        *int32                 `protobuf:"varint,3,opt,name=status,proto3,oneof" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -671,11 +671,11 @@ func (*ListFriendAppliesReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *ListFriendAppliesReq) GetUserId() int64 {
+func (x *ListFriendAppliesReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListFriendAppliesReq) GetPageStats() *PageStatsReq {
@@ -755,7 +755,7 @@ func (x *ListFriendAppliesResp) GetPageStats() *PageStatsResp {
 // 获取好友列表请求
 type ListFriendsReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	GroupName     *string                `protobuf:"bytes,3,opt,name=group_name,json=groupName,proto3,oneof" json:"group_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -792,11 +792,11 @@ func (*ListFriendsReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *ListFriendsReq) GetUserId() int64 {
+func (x *ListFriendsReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListFriendsReq) GetPageStats() *PageStatsReq {
@@ -876,8 +876,8 @@ func (x *ListFriendsResp) GetPageStats() *PageStatsResp {
 // 删除好友请求
 type DeleteFriendReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	FriendId      int64                  `protobuf:"varint,2,opt,name=friend_id,json=friendId,proto3" json:"friend_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	FriendId      string                 `protobuf:"bytes,2,opt,name=friend_id,json=friendId,proto3" json:"friend_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -912,18 +912,18 @@ func (*DeleteFriendReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *DeleteFriendReq) GetUserId() int64 {
+func (x *DeleteFriendReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *DeleteFriendReq) GetFriendId() int64 {
+func (x *DeleteFriendReq) GetFriendId() string {
 	if x != nil {
 		return x.FriendId
 	}
-	return 0
+	return ""
 }
 
 type DeleteFriendResp struct {
@@ -973,8 +973,8 @@ func (x *DeleteFriendResp) GetMeta() *Metadata {
 // 更新好友备注请求
 type UpdateFriendRemarkReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	FriendId      int64                  `protobuf:"varint,2,opt,name=friend_id,json=friendId,proto3" json:"friend_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	FriendId      string                 `protobuf:"bytes,2,opt,name=friend_id,json=friendId,proto3" json:"friend_id,omitempty"`
 	Remark        string                 `protobuf:"bytes,3,opt,name=remark,proto3" json:"remark,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1010,18 +1010,18 @@ func (*UpdateFriendRemarkReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *UpdateFriendRemarkReq) GetUserId() int64 {
+func (x *UpdateFriendRemarkReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *UpdateFriendRemarkReq) GetFriendId() int64 {
+func (x *UpdateFriendRemarkReq) GetFriendId() string {
 	if x != nil {
 		return x.FriendId
 	}
-	return 0
+	return ""
 }
 
 func (x *UpdateFriendRemarkReq) GetRemark() string {
@@ -1078,8 +1078,8 @@ func (x *UpdateFriendRemarkResp) GetMeta() *Metadata {
 // 设置好友分组请求
 type SetFriendGroupReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	FriendId      int64                  `protobuf:"varint,2,opt,name=friend_id,json=friendId,proto3" json:"friend_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	FriendId      string                 `protobuf:"bytes,2,opt,name=friend_id,json=friendId,proto3" json:"friend_id,omitempty"`
 	GroupName     string                 `protobuf:"bytes,3,opt,name=group_name,json=groupName,proto3" json:"group_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1115,18 +1115,18 @@ func (*SetFriendGroupReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *SetFriendGroupReq) GetUserId() int64 {
+func (x *SetFriendGroupReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *SetFriendGroupReq) GetFriendId() int64 {
+func (x *SetFriendGroupReq) GetFriendId() string {
 	if x != nil {
 		return x.FriendId
 	}
-	return 0
+	return ""
 }
 
 func (x *SetFriendGroupReq) GetGroupName() string {
@@ -1183,8 +1183,8 @@ func (x *SetFriendGroupResp) GetMeta() *Metadata {
 // 检查好友关系请求
 type CheckFriendRelationReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	TargetId      int64                  `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TargetId      string                 `protobuf:"bytes,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1219,18 +1219,18 @@ func (*CheckFriendRelationReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *CheckFriendRelationReq) GetUserId() int64 {
+func (x *CheckFriendRelationReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *CheckFriendRelationReq) GetTargetId() int64 {
+func (x *CheckFriendRelationReq) GetTargetId() string {
 	if x != nil {
 		return x.TargetId
 	}
-	return 0
+	return ""
 }
 
 type CheckFriendRelationResp struct {
@@ -1296,7 +1296,7 @@ func (x *CheckFriendRelationResp) GetMeta() *Metadata {
 // 获取用户在线状态请求
 type GetUserOnlineStatusReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1331,11 +1331,11 @@ func (*GetUserOnlineStatusReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{21}
 }
 
-func (x *GetUserOnlineStatusReq) GetUserId() int64 {
+func (x *GetUserOnlineStatusReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type GetUserOnlineStatusResp struct {
@@ -1401,7 +1401,7 @@ func (x *GetUserOnlineStatusResp) GetMeta() *Metadata {
 // 批量获取用户在线状态请求
 type BatchGetUserOnlineStatusReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserIds       []int64                `protobuf:"varint,1,rep,packed,name=user_ids,json=userIds,proto3" json:"user_ids,omitempty"`
+	UserIds       []string               `protobuf:"bytes,1,rep,name=user_ids,json=userIds,proto3" json:"user_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1436,7 +1436,7 @@ func (*BatchGetUserOnlineStatusReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{23}
 }
 
-func (x *BatchGetUserOnlineStatusReq) GetUserIds() []int64 {
+func (x *BatchGetUserOnlineStatusReq) GetUserIds() []string {
 	if x != nil {
 		return x.UserIds
 	}
@@ -1445,7 +1445,7 @@ func (x *BatchGetUserOnlineStatusReq) GetUserIds() []int64 {
 
 type BatchGetUserOnlineStatusResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	OnlineStatus  map[int64]int32        `protobuf:"bytes,1,rep,name=online_status,json=onlineStatus,proto3" json:"online_status,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	OnlineStatus  map[string]int32       `protobuf:"bytes,1,rep,name=online_status,json=onlineStatus,proto3" json:"online_status,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1481,7 +1481,7 @@ func (*BatchGetUserOnlineStatusResp) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{24}
 }
 
-func (x *BatchGetUserOnlineStatusResp) GetOnlineStatus() map[int64]int32 {
+func (x *BatchGetUserOnlineStatusResp) GetOnlineStatus() map[string]int32 {
 	if x != nil {
 		return x.OnlineStatus
 	}
@@ -1501,7 +1501,7 @@ const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\n" +
 	"%api/videoChat/service/v1/friend.proto\x12\x18api.videoChat.service.v1\x1a#api/videoChat/service/v1/base.proto\"\xe3\x01\n" +
 	"\x04User\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12\x1a\n" +
 	"\bnickname\x18\x04 \x01(\tR\bnickname\x12\x16\n" +
@@ -1511,7 +1511,7 @@ const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\x10last_online_time\x18\b \x01(\tR\x0elastOnlineTime\"\xc2\x01\n" +
 	"\n" +
 	"FriendInfo\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x126\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x126\n" +
 	"\x06friend\x18\x02 \x01(\v2\x1e.api.videoChat.service.v1.UserR\x06friend\x12\x16\n" +
 	"\x06remark\x18\x03 \x01(\tR\x06remark\x12\x1d\n" +
 	"\n" +
@@ -1520,7 +1520,7 @@ const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\tR\tcreatedAt\"\x94\x02\n" +
 	"\x0fFriendApplyInfo\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12<\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12<\n" +
 	"\tapplicant\x18\x02 \x01(\v2\x1e.api.videoChat.service.v1.UserR\tapplicant\x12:\n" +
 	"\breceiver\x18\x03 \x01(\v2\x1e.api.videoChat.service.v1.UserR\breceiver\x12!\n" +
 	"\fapply_reason\x18\x04 \x01(\tR\vapplyReason\x12\x16\n" +
@@ -1539,22 +1539,22 @@ const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoChat.service.v1.PageStatsRespR\tpageStats\"{\n" +
 	"\x12SendFriendApplyReq\x12!\n" +
-	"\fapplicant_id\x18\x01 \x01(\x03R\vapplicantId\x12\x1f\n" +
-	"\vreceiver_id\x18\x02 \x01(\x03R\n" +
+	"\fapplicant_id\x18\x01 \x01(\tR\vapplicantId\x12\x1f\n" +
+	"\vreceiver_id\x18\x02 \x01(\tR\n" +
 	"receiverId\x12!\n" +
 	"\fapply_reason\x18\x03 \x01(\tR\vapplyReason\"h\n" +
 	"\x13SendFriendApplyResp\x12\x19\n" +
-	"\bapply_id\x18\x01 \x01(\x03R\aapplyId\x126\n" +
+	"\bapply_id\x18\x01 \x01(\tR\aapplyId\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"h\n" +
 	"\x14HandleFriendApplyReq\x12\x19\n" +
-	"\bapply_id\x18\x01 \x01(\x03R\aapplyId\x12\x1d\n" +
+	"\bapply_id\x18\x01 \x01(\tR\aapplyId\x12\x1d\n" +
 	"\n" +
-	"handler_id\x18\x02 \x01(\x03R\thandlerId\x12\x16\n" +
+	"handler_id\x18\x02 \x01(\tR\thandlerId\x12\x16\n" +
 	"\x06accept\x18\x03 \x01(\bR\x06accept\"O\n" +
 	"\x15HandleFriendApplyResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\x9e\x01\n" +
 	"\x14ListFriendAppliesReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12E\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12E\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2&.api.videoChat.service.v1.PageStatsReqR\tpageStats\x12\x1b\n" +
 	"\x06status\x18\x03 \x01(\x05H\x00R\x06status\x88\x01\x01B\t\n" +
@@ -1565,7 +1565,7 @@ const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoChat.service.v1.PageStatsRespR\tpageStats\"\xa3\x01\n" +
 	"\x0eListFriendsReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12E\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12E\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2&.api.videoChat.service.v1.PageStatsReqR\tpageStats\x12\"\n" +
 	"\n" +
@@ -1577,43 +1577,43 @@ const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoChat.service.v1.PageStatsRespR\tpageStats\"G\n" +
 	"\x0fDeleteFriendReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1b\n" +
-	"\tfriend_id\x18\x02 \x01(\x03R\bfriendId\"J\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tfriend_id\x18\x02 \x01(\tR\bfriendId\"J\n" +
 	"\x10DeleteFriendResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"e\n" +
 	"\x15UpdateFriendRemarkReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1b\n" +
-	"\tfriend_id\x18\x02 \x01(\x03R\bfriendId\x12\x16\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tfriend_id\x18\x02 \x01(\tR\bfriendId\x12\x16\n" +
 	"\x06remark\x18\x03 \x01(\tR\x06remark\"P\n" +
 	"\x16UpdateFriendRemarkResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"h\n" +
 	"\x11SetFriendGroupReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1b\n" +
-	"\tfriend_id\x18\x02 \x01(\x03R\bfriendId\x12\x1d\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tfriend_id\x18\x02 \x01(\tR\bfriendId\x12\x1d\n" +
 	"\n" +
 	"group_name\x18\x03 \x01(\tR\tgroupName\"L\n" +
 	"\x12SetFriendGroupResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"N\n" +
 	"\x16CheckFriendRelationReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1b\n" +
-	"\ttarget_id\x18\x02 \x01(\x03R\btargetId\"\x86\x01\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\ttarget_id\x18\x02 \x01(\tR\btargetId\"\x86\x01\n" +
 	"\x17CheckFriendRelationResp\x12\x1b\n" +
 	"\tis_friend\x18\x01 \x01(\bR\bisFriend\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\x05R\x06status\x126\n" +
 	"\x04meta\x18\x03 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"1\n" +
 	"\x16GetUserOnlineStatusReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"\xa0\x01\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xa0\x01\n" +
 	"\x17GetUserOnlineStatusResp\x12#\n" +
 	"\ronline_status\x18\x01 \x01(\x05R\fonlineStatus\x12(\n" +
 	"\x10last_online_time\x18\x02 \x01(\tR\x0elastOnlineTime\x126\n" +
 	"\x04meta\x18\x03 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"8\n" +
 	"\x1bBatchGetUserOnlineStatusReq\x12\x19\n" +
-	"\buser_ids\x18\x01 \x03(\x03R\auserIds\"\x86\x02\n" +
+	"\buser_ids\x18\x01 \x03(\tR\auserIds\"\x86\x02\n" +
 	"\x1cBatchGetUserOnlineStatusResp\x12m\n" +
 	"\ronline_status\x18\x01 \x03(\v2H.api.videoChat.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntryR\fonlineStatus\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\x1a?\n" +
 	"\x11OnlineStatusEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\x03R\x03key\x12\x14\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x012\x84\n" +
 	"\n" +
 	"\rFriendService\x12b\n" +

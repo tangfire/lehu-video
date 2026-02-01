@@ -131,7 +131,7 @@ func (x *RegisterReq) GetPassword() string {
 type RegisterResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	AccountId     int64                  `protobuf:"varint,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"` // 账户id，通过此id绑定跨平台账号
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"` // 账户id，通过此id绑定跨平台账号
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -173,11 +173,11 @@ func (x *RegisterResp) GetMeta() *Metadata {
 	return nil
 }
 
-func (x *RegisterResp) GetAccountId() int64 {
+func (x *RegisterResp) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
-	return 0
+	return ""
 }
 
 // 手机号、邮箱、账户id三者至少要存在一个
@@ -185,7 +185,7 @@ type CheckAccountReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mobile        string                 `protobuf:"bytes,1,opt,name=mobile,proto3" json:"mobile,omitempty"`
 	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	AccountId     int64                  `protobuf:"varint,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountId     string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	Password      string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -235,11 +235,11 @@ func (x *CheckAccountReq) GetEmail() string {
 	return ""
 }
 
-func (x *CheckAccountReq) GetAccountId() int64 {
+func (x *CheckAccountReq) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
-	return 0
+	return ""
 }
 
 func (x *CheckAccountReq) GetPassword() string {
@@ -252,7 +252,7 @@ func (x *CheckAccountReq) GetPassword() string {
 type CheckAccountResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	AccountId     int64                  `protobuf:"varint,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"` // 账户id，通过此id绑定跨平台账号
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"` // 账户id，通过此id绑定跨平台账号
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -294,16 +294,16 @@ func (x *CheckAccountResp) GetMeta() *Metadata {
 	return nil
 }
 
-func (x *CheckAccountResp) GetAccountId() int64 {
+func (x *CheckAccountResp) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
-	return 0
+	return ""
 }
 
 type BindReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	VoucherType   VoucherType            `protobuf:"varint,2,opt,name=voucher_type,json=voucherType,proto3,enum=api.base.service.v1.VoucherType" json:"voucher_type,omitempty"`
 	Voucher       string                 `protobuf:"bytes,3,opt,name=voucher,proto3" json:"voucher,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -340,11 +340,11 @@ func (*BindReq) Descriptor() ([]byte, []int) {
 	return file_api_base_service_v1_account_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *BindReq) GetAccountId() int64 {
+func (x *BindReq) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
-	return 0
+	return ""
 }
 
 func (x *BindReq) GetVoucherType() VoucherType {
@@ -407,7 +407,7 @@ func (x *BindResp) GetMeta() *Metadata {
 
 type UnbindReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	VoucherType   VoucherType            `protobuf:"varint,2,opt,name=voucher_type,json=voucherType,proto3,enum=api.base.service.v1.VoucherType" json:"voucher_type,omitempty"`
 	Voucher       string                 `protobuf:"bytes,3,opt,name=voucher,proto3" json:"voucher,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -444,11 +444,11 @@ func (*UnbindReq) Descriptor() ([]byte, []int) {
 	return file_api_base_service_v1_account_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *UnbindReq) GetAccountId() int64 {
+func (x *UnbindReq) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
-	return 0
+	return ""
 }
 
 func (x *UnbindReq) GetVoucherType() VoucherType {
@@ -521,27 +521,27 @@ const file_api_base_service_v1_account_proto_rawDesc = "" +
 	"\fRegisterResp\x121\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1d.api.base.service.v1.MetadataR\x04meta\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x02 \x01(\x03R\taccountId\"z\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\"z\n" +
 	"\x0fCheckAccountReq\x12\x16\n" +
 	"\x06mobile\x18\x01 \x01(\tR\x06mobile\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\x03R\taccountId\x12\x1a\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\x12\x1a\n" +
 	"\bpassword\x18\x04 \x01(\tR\bpassword\"d\n" +
 	"\x10CheckAccountResp\x121\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1d.api.base.service.v1.MetadataR\x04meta\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x02 \x01(\x03R\taccountId\"\x87\x01\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\"\x87\x01\n" +
 	"\aBindReq\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\x03R\taccountId\x12C\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12C\n" +
 	"\fvoucher_type\x18\x02 \x01(\x0e2 .api.base.service.v1.VoucherTypeR\vvoucherType\x12\x18\n" +
 	"\avoucher\x18\x03 \x01(\tR\avoucher\"=\n" +
 	"\bBindResp\x121\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1d.api.base.service.v1.MetadataR\x04meta\"\x89\x01\n" +
 	"\tUnbindReq\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\x03R\taccountId\x12C\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12C\n" +
 	"\fvoucher_type\x18\x02 \x01(\x0e2 .api.base.service.v1.VoucherTypeR\vvoucherType\x12\x18\n" +
 	"\avoucher\x18\x03 \x01(\tR\avoucher\"?\n" +
 	"\n" +

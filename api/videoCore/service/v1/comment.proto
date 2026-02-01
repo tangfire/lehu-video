@@ -8,15 +8,15 @@ option java_package = "api.videoCore.service.v1";
 import "api/videoCore/service/v1/base.proto";
 
 message Comment{
-	int64 id = 1; // 评论id
-	int64 video_id = 2; // 视频id
+	string id = 1; // 评论id
+	string video_id = 2; // 视频id
 	string content = 3; // 评论内容
 	string date = 4; // 评论日期
 	int64 like_count = 5; // 点赞数
 	int64 reply_count = 6; // 回复数
-	int64 user_id = 7; // 用户id
-	int64 parent_id = 8; // 父评论id
-	int64 reply_user_id = 9; // 回复用户id
+	string user_id = 7; // 用户id
+	string parent_id = 8; // 父评论id
+	string reply_user_id = 9; // 回复用户id
 	repeated Comment comments = 10; // 子评论
 }
 
@@ -31,11 +31,11 @@ service CommentService {
 }
 
 message CreateCommentReq{
-	int64 video_id = 1; // 视频id
-	int64 user_id = 2; // 用户id
+	string video_id = 1; // 视频id
+	string user_id = 2; // 用户id
 	string content = 3; // 评论内容
-	int64 parent_id = 4; // 父评论id
-	int64 reply_user_id = 5; // 回复用户id
+	string parent_id = 4; // 父评论id
+	string reply_user_id = 5; // 回复用户id
 }
 
 message CreateCommentResp {
@@ -44,8 +44,8 @@ message CreateCommentResp {
 }
 
 message RemoveCommentReq{
-	int64 comment_id = 1; // 评论id
-	int64 user_id = 2; // 用户id
+	string comment_id = 1; // 评论id
+	string user_id = 2; // 用户id
 }
 
 message RemoveCommentResp {
@@ -53,7 +53,7 @@ message RemoveCommentResp {
 }
 
 message ListComment4VideoReq{
-	int64 video_id = 1; // 视频id
+	string video_id = 1; // 视频id
 	PageStatsReq page_stats = 2;
 }
 
@@ -65,7 +65,7 @@ message ListComment4VideoResp{
 
 
 message ListChildComment4CommentReq{
-	int64 comment_id = 1;
+	string comment_id = 1;
 	PageStatsReq page_stats = 2;
 }
 
@@ -76,7 +76,7 @@ message ListChildComment4CommentResp{
 }
 
 message GetCommentByIdReq{
-	int64 comment_id = 1; // 评论id
+	string comment_id = 1; // 评论id
 }
 
 message GetCommentByIdResp{
@@ -85,12 +85,12 @@ message GetCommentByIdResp{
 }
 
 message CountResult {
-	int64 id = 1;
+	string id = 1;
 	int64 count = 2;
 }
 
 message CountComment4VideoReq {
-	repeated int64 video_id = 1; // 视频id
+	repeated string video_id = 1; // 视频id
 }
 
 message CountComment4VideoResp {
@@ -99,7 +99,7 @@ message CountComment4VideoResp {
 }
 
 message CountComment4UserReq {
-	repeated int64 user_id = 1; // 用户id
+	repeated string user_id = 1; // 用户id
 }
 
 message CountComment4UserResp {

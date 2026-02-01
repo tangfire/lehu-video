@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/spf13/cast"
 	pb "lehu-video/api/videoChat/service/v1"
 	"lehu-video/app/videoChat/service/internal/biz"
 	"lehu-video/app/videoChat/service/internal/pkg/utils"
@@ -43,7 +44,7 @@ func (s *FriendServiceService) SearchUsers(ctx context.Context, req *pb.SearchUs
 	users := make([]*pb.User, 0, len(result.Users))
 	for _, user := range result.Users {
 		users = append(users, &pb.User{
-			Id:             user.ID,
+			Id:             cast.ToString(user.ID),
 			Name:           user.Username,
 			Nickname:       user.Nickname,
 			Avatar:         user.Avatar,
@@ -66,8 +67,8 @@ func (s *FriendServiceService) SearchUsers(ctx context.Context, req *pb.SearchUs
 func (s *FriendServiceService) SendFriendApply(ctx context.Context, req *pb.SendFriendApplyReq) (*pb.SendFriendApplyResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.SendFriendApplyCommand{
-		ApplicantID: req.ApplicantId,
-		ReceiverID:  req.ReceiverId,
+		ApplicantID: cast.ToInt64(req.ApplicantId),
+		ReceiverID:  cast.ToInt64(req.ReceiverId),
 		ApplyReason: req.ApplyReason,
 	}
 
@@ -81,15 +82,15 @@ func (s *FriendServiceService) SendFriendApply(ctx context.Context, req *pb.Send
 
 	return &pb.SendFriendApplyResp{
 		Meta:    utils.GetSuccessMeta(),
-		ApplyId: result.ApplyID,
+		ApplyId: cast.ToString(result.ApplyID),
 	}, nil
 }
 
 func (s *FriendServiceService) HandleFriendApply(ctx context.Context, req *pb.HandleFriendApplyReq) (*pb.HandleFriendApplyResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.HandleFriendApplyCommand{
-		ApplyID:   req.ApplyId,
-		HandlerID: req.HandlerId,
+		ApplyID:   cast.ToInt64(req.ApplyId),
+		HandlerID: cast.ToInt64(req.HandlerId),
 		Accept:    req.Accept,
 	}
 
@@ -109,7 +110,7 @@ func (s *FriendServiceService) HandleFriendApply(ctx context.Context, req *pb.Ha
 func (s *FriendServiceService) ListFriendApplies(ctx context.Context, req *pb.ListFriendAppliesReq) (*pb.ListFriendAppliesResp, error) {
 	// ✅ 构建Query
 	query := &biz.ListFriendAppliesQuery{
-		UserID: req.UserId,
+		UserID: cast.ToInt64(req.UserId),
 		PageStats: &biz.PageStats{
 			Page:     int(req.PageStats.Page),
 			PageSize: int(req.PageStats.Size),
@@ -118,7 +119,7 @@ func (s *FriendServiceService) ListFriendApplies(ctx context.Context, req *pb.Li
 
 	// 处理可选参数
 	if req.Status != nil {
-		status := int32(*req.Status)
+		status := *req.Status
 		query.Status = &status
 	}
 
@@ -144,15 +145,15 @@ func (s *FriendServiceService) ListFriendApplies(ctx context.Context, req *pb.Li
 		}
 
 		applies = append(applies, &pb.FriendApplyInfo{
-			Id: apply.ID,
+			Id: cast.ToString(apply.ID),
 			Applicant: &pb.User{
-				Id:       apply.ApplicantID,
+				Id:       cast.ToString(apply.ID),
 				Name:     applicantInfo.Username,
 				Nickname: applicantInfo.Nickname,
 				Avatar:   applicantInfo.Avatar,
 			},
 			Receiver: &pb.User{
-				Id:       apply.ReceiverID,
+				Id:       cast.ToString(apply.ReceiverID),
 				Name:     receiverInfo.Username,
 				Nickname: receiverInfo.Nickname,
 				Avatar:   receiverInfo.Avatar,
@@ -176,7 +177,7 @@ func (s *FriendServiceService) ListFriendApplies(ctx context.Context, req *pb.Li
 func (s *FriendServiceService) ListFriends(ctx context.Context, req *pb.ListFriendsReq) (*pb.ListFriendsResp, error) {
 	// ✅ 构建Query
 	query := &biz.ListFriendsQuery{
-		UserID: req.UserId,
+		UserID: cast.ToInt64(req.UserId),
 		PageStats: &biz.PageStats{
 			Page:     int(req.PageStats.Page),
 			PageSize: int(req.PageStats.Size),
@@ -200,9 +201,9 @@ func (s *FriendServiceService) ListFriends(ctx context.Context, req *pb.ListFrie
 	friends := make([]*pb.FriendInfo, 0, len(result.Friends))
 	for _, friend := range result.Friends {
 		friends = append(friends, &pb.FriendInfo{
-			Id: friend.ID,
+			Id: cast.ToString(friend.ID),
 			Friend: &pb.User{
-				Id:             friend.Friend.ID,
+				Id:             cast.ToString(friend.ID),
 				Name:           friend.Friend.Username,
 				Nickname:       friend.Friend.Nickname,
 				Avatar:         friend.Friend.Avatar,
@@ -230,8 +231,8 @@ func (s *FriendServiceService) ListFriends(ctx context.Context, req *pb.ListFrie
 func (s *FriendServiceService) DeleteFriend(ctx context.Context, req *pb.DeleteFriendReq) (*pb.DeleteFriendResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.DeleteFriendCommand{
-		UserID:   req.UserId,
-		FriendID: req.FriendId,
+		UserID:   cast.ToInt64(req.UserId),
+		FriendID: cast.ToInt64(req.FriendId),
 	}
 
 	// ✅ 调用业务层
@@ -250,8 +251,8 @@ func (s *FriendServiceService) DeleteFriend(ctx context.Context, req *pb.DeleteF
 func (s *FriendServiceService) UpdateFriendRemark(ctx context.Context, req *pb.UpdateFriendRemarkReq) (*pb.UpdateFriendRemarkResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.UpdateFriendRemarkCommand{
-		UserID:   req.UserId,
-		FriendID: req.FriendId,
+		UserID:   cast.ToInt64(req.UserId),
+		FriendID: cast.ToInt64(req.FriendId),
 		Remark:   req.Remark,
 	}
 
@@ -271,8 +272,8 @@ func (s *FriendServiceService) UpdateFriendRemark(ctx context.Context, req *pb.U
 func (s *FriendServiceService) SetFriendGroup(ctx context.Context, req *pb.SetFriendGroupReq) (*pb.SetFriendGroupResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.SetFriendGroupCommand{
-		UserID:    req.UserId,
-		FriendID:  req.FriendId,
+		UserID:    cast.ToInt64(req.UserId),
+		FriendID:  cast.ToInt64(req.FriendId),
 		GroupName: req.GroupName,
 	}
 
@@ -291,7 +292,7 @@ func (s *FriendServiceService) SetFriendGroup(ctx context.Context, req *pb.SetFr
 
 func (s *FriendServiceService) CheckFriendRelation(ctx context.Context, req *pb.CheckFriendRelationReq) (*pb.CheckFriendRelationResp, error) {
 	// ✅ 调用业务层
-	isFriend, status, err := s.uc.CheckFriendRelation(ctx, req.UserId, req.TargetId)
+	isFriend, status, err := s.uc.CheckFriendRelation(ctx, cast.ToInt64(req.UserId), cast.ToInt64(req.TargetId))
 	if err != nil {
 		return &pb.CheckFriendRelationResp{
 			Meta: utils.GetMetaWithError(err),
@@ -308,7 +309,7 @@ func (s *FriendServiceService) CheckFriendRelation(ctx context.Context, req *pb.
 func (s *FriendServiceService) GetUserOnlineStatus(ctx context.Context, req *pb.GetUserOnlineStatusReq) (*pb.GetUserOnlineStatusResp, error) {
 	// ✅ 构建Query
 	query := &biz.GetUserOnlineStatusQuery{
-		UserID: req.UserId,
+		UserID: cast.ToInt64(req.UserId),
 	}
 
 	// ✅ 调用业务层
@@ -328,8 +329,13 @@ func (s *FriendServiceService) GetUserOnlineStatus(ctx context.Context, req *pb.
 
 func (s *FriendServiceService) BatchGetUserOnlineStatus(ctx context.Context, req *pb.BatchGetUserOnlineStatusReq) (*pb.BatchGetUserOnlineStatusResp, error) {
 	// ✅ 构建Query
+	ids := make([]int64, 0, len(req.UserIds))
+	for _, userID := range req.UserIds {
+		ids = append(ids, cast.ToInt64(userID))
+	}
+
 	query := &biz.BatchGetUserOnlineStatusQuery{
-		UserIDs: req.UserIds,
+		UserIDs: ids,
 	}
 
 	// ✅ 调用业务层
@@ -339,9 +345,13 @@ func (s *FriendServiceService) BatchGetUserOnlineStatus(ctx context.Context, req
 			Meta: utils.GetMetaWithError(err),
 		}, nil
 	}
+	os := make(map[string]int32)
+	for k, v := range result.OnlineStatus {
+		os[cast.ToString(k)] = v
+	}
 
 	return &pb.BatchGetUserOnlineStatusResp{
 		Meta:         utils.GetSuccessMeta(),
-		OnlineStatus: result.OnlineStatus,
+		OnlineStatus: os,
 	}, nil
 }

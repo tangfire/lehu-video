@@ -81,11 +81,11 @@ service GroupService {
 
 // 群聊信息
 message GroupInfo {
-  int64 id = 1;
+  string id = 1;
   string name = 2;
   string notice = 3;
   int32 member_cnt = 4;
-  int64 owner_id = 5;
+  string owner_id = 5;
   int32 add_mode = 6;
   string avatar = 7;
   int32 status = 8;
@@ -102,7 +102,7 @@ message CreateGroupReq {
 }
 
 message CreateGroupResp {
-  int64 group_id = 1;
+  string group_id = 1;
 }
 
 // 获取我创建的群聊请求
@@ -117,7 +117,7 @@ message LoadMyGroupResp {
 
 // 检查群聊加群方式请求
 message CheckGroupAddModeReq {
-  int64 group_id = 1;
+  string group_id = 1;
 }
 
 message CheckGroupAddModeResp {
@@ -126,14 +126,14 @@ message CheckGroupAddModeResp {
 
 // 直接进群请求
 message EnterGroupDirectlyReq {
-  int64 group_id = 1;
+  string group_id = 1;
 }
 
 message EnterGroupDirectlyResp {}
 
 // 申请加群请求
 message ApplyJoinGroupReq {
-  int64 group_id = 1;
+  string group_id = 1;
   string apply_reason = 2;
 }
 
@@ -141,21 +141,21 @@ message ApplyJoinGroupResp {}
 
 // 退群请求
 message LeaveGroupReq {
-  int64 group_id = 1;
+  string group_id = 1;
 }
 
 message LeaveGroupResp {}
 
 // 解散群聊请求
 message DismissGroupReq {
-  int64 group_id = 1;
+  string group_id = 1;
 }
 
 message DismissGroupResp {}
 
 // 获取群聊信息请求
 message GetGroupInfoReq {
-  int64 group_id = 1;
+  string group_id = 1;
 }
 
 message GetGroupInfoResp {

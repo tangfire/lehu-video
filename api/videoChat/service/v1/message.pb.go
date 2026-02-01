@@ -328,10 +328,10 @@ func (x *MessageContent) GetExtra() string {
 
 type Message struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	ConversationId int64                  `protobuf:"varint,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	SenderId       int64                  `protobuf:"varint,3,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
-	ReceiverId     int64                  `protobuf:"varint,4,opt,name=receiver_id,json=receiverId,proto3" json:"receiver_id,omitempty"` // 用户ID 或 群ID
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	SenderId       string                 `protobuf:"bytes,3,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
+	ReceiverId     string                 `protobuf:"bytes,4,opt,name=receiver_id,json=receiverId,proto3" json:"receiver_id,omitempty"` // 用户ID 或 群ID
 	ConvType       ConversationType       `protobuf:"varint,5,opt,name=conv_type,json=convType,proto3,enum=api.videoChat.service.v1.ConversationType" json:"conv_type,omitempty"`
 	MsgType        MessageType            `protobuf:"varint,6,opt,name=msg_type,json=msgType,proto3,enum=api.videoChat.service.v1.MessageType" json:"msg_type,omitempty"`
 	Content        *MessageContent        `protobuf:"bytes,7,opt,name=content,proto3" json:"content,omitempty"`
@@ -373,32 +373,32 @@ func (*Message) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *Message) GetId() int64 {
+func (x *Message) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
-func (x *Message) GetConversationId() int64 {
+func (x *Message) GetConversationId() string {
 	if x != nil {
 		return x.ConversationId
 	}
-	return 0
+	return ""
 }
 
-func (x *Message) GetSenderId() int64 {
+func (x *Message) GetSenderId() string {
 	if x != nil {
 		return x.SenderId
 	}
-	return 0
+	return ""
 }
 
-func (x *Message) GetReceiverId() int64 {
+func (x *Message) GetReceiverId() string {
 	if x != nil {
 		return x.ReceiverId
 	}
-	return 0
+	return ""
 }
 
 func (x *Message) GetConvType() ConversationType {
@@ -452,15 +452,15 @@ func (x *Message) GetUpdatedAt() string {
 
 type Conversation struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Type          ConversationType       `protobuf:"varint,2,opt,name=type,proto3,enum=api.videoChat.service.v1.ConversationType" json:"type,omitempty"`
-	TargetId      *int64                 `protobuf:"varint,3,opt,name=target_id,json=targetId,proto3,oneof" json:"target_id,omitempty"` // 单聊对方
-	GroupId       *int64                 `protobuf:"varint,4,opt,name=group_id,json=groupId,proto3,oneof" json:"group_id,omitempty"`    // 群聊ID
+	TargetId      *string                `protobuf:"bytes,3,opt,name=target_id,json=targetId,proto3,oneof" json:"target_id,omitempty"`
+	GroupId       *string                `protobuf:"bytes,4,opt,name=group_id,json=groupId,proto3,oneof" json:"group_id,omitempty"`
 	Name          string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
 	Avatar        string                 `protobuf:"bytes,6,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	LastMessage   string                 `protobuf:"bytes,7,opt,name=last_message,json=lastMessage,proto3" json:"last_message,omitempty"`
 	LastMsgType   *MessageType           `protobuf:"varint,8,opt,name=last_msg_type,json=lastMsgType,proto3,enum=api.videoChat.service.v1.MessageType,oneof" json:"last_msg_type,omitempty"`
-	LastMsgTime   *int64                 `protobuf:"varint,9,opt,name=last_msg_time,json=lastMsgTime,proto3,oneof" json:"last_msg_time,omitempty"`
+	LastMsgTime   *int64                 `protobuf:"varint,9,opt,name=last_msg_time,json=lastMsgTime,proto3,oneof" json:"last_msg_time,omitempty"` // 时间戳通常不需要 string，除非超过 16 位
 	MemberCount   int64                  `protobuf:"varint,10,opt,name=member_count,json=memberCount,proto3" json:"member_count,omitempty"`
 	CreatedAt     string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     string                 `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
@@ -498,11 +498,11 @@ func (*Conversation) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Conversation) GetId() int64 {
+func (x *Conversation) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *Conversation) GetType() ConversationType {
@@ -512,18 +512,18 @@ func (x *Conversation) GetType() ConversationType {
 	return ConversationType_SINGLE
 }
 
-func (x *Conversation) GetTargetId() int64 {
+func (x *Conversation) GetTargetId() string {
 	if x != nil && x.TargetId != nil {
 		return *x.TargetId
 	}
-	return 0
+	return ""
 }
 
-func (x *Conversation) GetGroupId() int64 {
+func (x *Conversation) GetGroupId() string {
 	if x != nil && x.GroupId != nil {
 		return *x.GroupId
 	}
-	return 0
+	return ""
 }
 
 func (x *Conversation) GetName() string {
@@ -653,8 +653,8 @@ func (x *ConversationView) GetIsMuted() bool {
 // 发送消息
 type SendMessageReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	SenderId      int64                  `protobuf:"varint,1,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
-	ReceiverId    int64                  `protobuf:"varint,2,opt,name=receiver_id,json=receiverId,proto3" json:"receiver_id,omitempty"`
+	SenderId      string                 `protobuf:"bytes,1,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
+	ReceiverId    string                 `protobuf:"bytes,2,opt,name=receiver_id,json=receiverId,proto3" json:"receiver_id,omitempty"`
 	ConvType      ConversationType       `protobuf:"varint,3,opt,name=conv_type,json=convType,proto3,enum=api.videoChat.service.v1.ConversationType" json:"conv_type,omitempty"`
 	MsgType       MessageType            `protobuf:"varint,4,opt,name=msg_type,json=msgType,proto3,enum=api.videoChat.service.v1.MessageType" json:"msg_type,omitempty"`
 	Content       *MessageContent        `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
@@ -693,18 +693,18 @@ func (*SendMessageReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *SendMessageReq) GetSenderId() int64 {
+func (x *SendMessageReq) GetSenderId() string {
 	if x != nil {
 		return x.SenderId
 	}
-	return 0
+	return ""
 }
 
-func (x *SendMessageReq) GetReceiverId() int64 {
+func (x *SendMessageReq) GetReceiverId() string {
 	if x != nil {
 		return x.ReceiverId
 	}
-	return 0
+	return ""
 }
 
 func (x *SendMessageReq) GetConvType() ConversationType {
@@ -737,8 +737,8 @@ func (x *SendMessageReq) GetClientMsgId() string {
 
 type SendMessageResp struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	MessageId      int64                  `protobuf:"varint,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
-	ConversationId int64                  `protobuf:"varint,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	MessageId      string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
 	Meta           *Metadata              `protobuf:"bytes,3,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -774,18 +774,18 @@ func (*SendMessageResp) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *SendMessageResp) GetMessageId() int64 {
+func (x *SendMessageResp) GetMessageId() string {
 	if x != nil {
 		return x.MessageId
 	}
-	return 0
+	return ""
 }
 
-func (x *SendMessageResp) GetConversationId() int64 {
+func (x *SendMessageResp) GetConversationId() string {
 	if x != nil {
 		return x.ConversationId
 	}
-	return 0
+	return ""
 }
 
 func (x *SendMessageResp) GetMeta() *Metadata {
@@ -796,11 +796,12 @@ func (x *SendMessageResp) GetMeta() *Metadata {
 }
 
 // 获取消息列表
+// 请求响应部分
 type ListMessagesReq struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	ConversationId int64                  `protobuf:"varint,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	LastMsgId      int64                  `protobuf:"varint,3,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	LastMsgId      string                 `protobuf:"bytes,3,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"` // 改为 string
 	Limit          int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -836,25 +837,25 @@ func (*ListMessagesReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ListMessagesReq) GetUserId() int64 {
+func (x *ListMessagesReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *ListMessagesReq) GetConversationId() int64 {
+func (x *ListMessagesReq) GetConversationId() string {
 	if x != nil {
 		return x.ConversationId
 	}
-	return 0
+	return ""
 }
 
-func (x *ListMessagesReq) GetLastMsgId() int64 {
+func (x *ListMessagesReq) GetLastMsgId() string {
 	if x != nil {
 		return x.LastMsgId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListMessagesReq) GetLimit() int32 {
@@ -868,7 +869,7 @@ type ListMessagesResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Messages      []*Message             `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
 	HasMore       bool                   `protobuf:"varint,2,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
-	LastMsgId     int64                  `protobuf:"varint,3,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"`
+	LastMsgId     string                 `protobuf:"bytes,3,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"` // 改为 string
 	Meta          *Metadata              `protobuf:"bytes,4,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -918,11 +919,11 @@ func (x *ListMessagesResp) GetHasMore() bool {
 	return false
 }
 
-func (x *ListMessagesResp) GetLastMsgId() int64 {
+func (x *ListMessagesResp) GetLastMsgId() string {
 	if x != nil {
 		return x.LastMsgId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListMessagesResp) GetMeta() *Metadata {
@@ -935,8 +936,8 @@ func (x *ListMessagesResp) GetMeta() *Metadata {
 // 撤回消息
 type RecallMessageReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MessageId     int64                  `protobuf:"varint,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
-	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"` // 改为 string
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`          // 改为 string
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -971,18 +972,18 @@ func (*RecallMessageReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *RecallMessageReq) GetMessageId() int64 {
+func (x *RecallMessageReq) GetMessageId() string {
 	if x != nil {
 		return x.MessageId
 	}
-	return 0
+	return ""
 }
 
-func (x *RecallMessageReq) GetUserId() int64 {
+func (x *RecallMessageReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type RecallMessageResp struct {
@@ -1032,9 +1033,9 @@ func (x *RecallMessageResp) GetMeta() *Metadata {
 // 标记已读
 type MarkMessagesReadReq struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	ConversationId int64                  `protobuf:"varint,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	LastMsgId      int64                  `protobuf:"varint,3,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	LastMsgId      string                 `protobuf:"bytes,3,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1069,25 +1070,25 @@ func (*MarkMessagesReadReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *MarkMessagesReadReq) GetUserId() int64 {
+func (x *MarkMessagesReadReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *MarkMessagesReadReq) GetConversationId() int64 {
+func (x *MarkMessagesReadReq) GetConversationId() string {
 	if x != nil {
 		return x.ConversationId
 	}
-	return 0
+	return ""
 }
 
-func (x *MarkMessagesReadReq) GetLastMsgId() int64 {
+func (x *MarkMessagesReadReq) GetLastMsgId() string {
 	if x != nil {
 		return x.LastMsgId
 	}
-	return 0
+	return ""
 }
 
 type MarkMessagesReadResp struct {
@@ -1137,7 +1138,7 @@ func (x *MarkMessagesReadResp) GetMeta() *Metadata {
 // 未读数
 type GetUnreadCountReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1172,17 +1173,17 @@ func (*GetUnreadCountReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *GetUnreadCountReq) GetUserId() int64 {
+func (x *GetUnreadCountReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type GetUnreadCountResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TotalUnread   int64                  `protobuf:"varint,1,opt,name=total_unread,json=totalUnread,proto3" json:"total_unread,omitempty"`
-	ConvUnread    map[int64]int64        `protobuf:"bytes,2,rep,name=conv_unread,json=convUnread,proto3" json:"conv_unread,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // conversation_id -> unread
+	ConvUnread    map[string]int64       `protobuf:"bytes,2,rep,name=conv_unread,json=convUnread,proto3" json:"conv_unread,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // conversation_id -> unread
 	Meta          *Metadata              `protobuf:"bytes,3,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1225,7 +1226,7 @@ func (x *GetUnreadCountResp) GetTotalUnread() int64 {
 	return 0
 }
 
-func (x *GetUnreadCountResp) GetConvUnread() map[int64]int64 {
+func (x *GetUnreadCountResp) GetConvUnread() map[string]int64 {
 	if x != nil {
 		return x.ConvUnread
 	}
@@ -1242,7 +1243,7 @@ func (x *GetUnreadCountResp) GetMeta() *Metadata {
 // 会话列表（核心）
 type ListConversationsReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1278,11 +1279,11 @@ func (*ListConversationsReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *ListConversationsReq) GetUserId() int64 {
+func (x *ListConversationsReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListConversationsReq) GetPageStats() *PageStatsReq {
@@ -1355,8 +1356,8 @@ func (x *ListConversationsResp) GetPageStats() *PageStatsResp {
 // 删除会话
 type DeleteConversationReq struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	ConversationId int64                  `protobuf:"varint,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1391,18 +1392,18 @@ func (*DeleteConversationReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *DeleteConversationReq) GetUserId() int64 {
+func (x *DeleteConversationReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *DeleteConversationReq) GetConversationId() int64 {
+func (x *DeleteConversationReq) GetConversationId() string {
 	if x != nil {
 		return x.ConversationId
 	}
-	return 0
+	return ""
 }
 
 type DeleteConversationResp struct {
@@ -1452,8 +1453,8 @@ func (x *DeleteConversationResp) GetMeta() *Metadata {
 // 获取会话
 type GetConversationReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	TargetId      int64                  `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TargetId      string                 `protobuf:"bytes,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
 	ConvType      ConversationType       `protobuf:"varint,3,opt,name=conv_type,json=convType,proto3,enum=api.videoChat.service.v1.ConversationType" json:"conv_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1489,18 +1490,18 @@ func (*GetConversationReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{18}
 }
 
-func (x *GetConversationReq) GetUserId() int64 {
+func (x *GetConversationReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *GetConversationReq) GetTargetId() int64 {
+func (x *GetConversationReq) GetTargetId() string {
 	if x != nil {
 		return x.TargetId
 	}
-	return 0
+	return ""
 }
 
 func (x *GetConversationReq) GetConvType() ConversationType {
@@ -1565,8 +1566,8 @@ func (x *GetConversationResp) GetMeta() *Metadata {
 // 清空消息
 type ClearMessagesReq struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	ConversationId int64                  `protobuf:"varint,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1601,18 +1602,18 @@ func (*ClearMessagesReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{20}
 }
 
-func (x *ClearMessagesReq) GetUserId() int64 {
+func (x *ClearMessagesReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *ClearMessagesReq) GetConversationId() int64 {
+func (x *ClearMessagesReq) GetConversationId() string {
 	if x != nil {
 		return x.ConversationId
 	}
-	return 0
+	return ""
 }
 
 type ClearMessagesResp struct {
@@ -1661,9 +1662,9 @@ func (x *ClearMessagesResp) GetMeta() *Metadata {
 
 type UpdateMessageStatusReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MessageId     int64                  `protobuf:"varint,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
+	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	Status        MessageStatus          `protobuf:"varint,2,opt,name=status,proto3,enum=api.videoChat.service.v1.MessageStatus" json:"status,omitempty"`
-	OperatorId    int64                  `protobuf:"varint,3,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"` // 操作者ID
+	OperatorId    string                 `protobuf:"bytes,3,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"` // 操作者ID
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1698,11 +1699,11 @@ func (*UpdateMessageStatusReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{22}
 }
 
-func (x *UpdateMessageStatusReq) GetMessageId() int64 {
+func (x *UpdateMessageStatusReq) GetMessageId() string {
 	if x != nil {
 		return x.MessageId
 	}
-	return 0
+	return ""
 }
 
 func (x *UpdateMessageStatusReq) GetStatus() MessageStatus {
@@ -1712,11 +1713,11 @@ func (x *UpdateMessageStatusReq) GetStatus() MessageStatus {
 	return MessageStatus_SENDING
 }
 
-func (x *UpdateMessageStatusReq) GetOperatorId() int64 {
+func (x *UpdateMessageStatusReq) GetOperatorId() string {
 	if x != nil {
 		return x.OperatorId
 	}
-	return 0
+	return ""
 }
 
 type UpdateMessageStatusResp struct {
@@ -1765,7 +1766,7 @@ func (x *UpdateMessageStatusResp) GetMeta() *Metadata {
 
 type GetMessageReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MessageId     int64                  `protobuf:"varint,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
+	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1800,11 +1801,11 @@ func (*GetMessageReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{24}
 }
 
-func (x *GetMessageReq) GetMessageId() int64 {
+func (x *GetMessageReq) GetMessageId() string {
 	if x != nil {
 		return x.MessageId
 	}
-	return 0
+	return ""
 }
 
 type GetMessageResp struct {
@@ -1861,8 +1862,8 @@ func (x *GetMessageResp) GetMeta() *Metadata {
 
 type CreateConversationReq struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	TargetId       int64                  `protobuf:"varint,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TargetId       string                 `protobuf:"bytes,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
 	ConvType       ConversationType       `protobuf:"varint,3,opt,name=conv_type,json=convType,proto3,enum=api.videoChat.service.v1.ConversationType" json:"conv_type,omitempty"`
 	InitialMessage string                 `protobuf:"bytes,4,opt,name=initial_message,json=initialMessage,proto3" json:"initial_message,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -1899,18 +1900,18 @@ func (*CreateConversationReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{26}
 }
 
-func (x *CreateConversationReq) GetUserId() int64 {
+func (x *CreateConversationReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *CreateConversationReq) GetTargetId() int64 {
+func (x *CreateConversationReq) GetTargetId() string {
 	if x != nil {
 		return x.TargetId
 	}
-	return 0
+	return ""
 }
 
 func (x *CreateConversationReq) GetConvType() ConversationType {
@@ -1929,7 +1930,7 @@ func (x *CreateConversationReq) GetInitialMessage() string {
 
 type CreateConversationResp struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	ConversationId int64                  `protobuf:"varint,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
 	Meta           *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -1965,11 +1966,11 @@ func (*CreateConversationResp) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_message_proto_rawDescGZIP(), []int{27}
 }
 
-func (x *CreateConversationResp) GetConversationId() int64 {
+func (x *CreateConversationResp) GetConversationId() string {
 	if x != nil {
 		return x.ConversationId
 	}
-	return 0
+	return ""
 }
 
 func (x *CreateConversationResp) GetMeta() *Metadata {
@@ -2002,10 +2003,10 @@ const file_api_videoChat_service_v1_message_proto_rawDesc = "" +
 	"\tfile_size\x18\f \x01(\x03R\bfileSize\x12\x14\n" +
 	"\x05extra\x18\r \x01(\tR\x05extra\"\xef\x03\n" +
 	"\aMessage\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12'\n" +
-	"\x0fconversation_id\x18\x02 \x01(\x03R\x0econversationId\x12\x1b\n" +
-	"\tsender_id\x18\x03 \x01(\x03R\bsenderId\x12\x1f\n" +
-	"\vreceiver_id\x18\x04 \x01(\x03R\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\x1b\n" +
+	"\tsender_id\x18\x03 \x01(\tR\bsenderId\x12\x1f\n" +
+	"\vreceiver_id\x18\x04 \x01(\tR\n" +
 	"receiverId\x12G\n" +
 	"\tconv_type\x18\x05 \x01(\x0e2*.api.videoChat.service.v1.ConversationTypeR\bconvType\x12@\n" +
 	"\bmsg_type\x18\x06 \x01(\x0e2%.api.videoChat.service.v1.MessageTypeR\amsgType\x12B\n" +
@@ -2019,10 +2020,10 @@ const file_api_videoChat_service_v1_message_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\v \x01(\tR\tupdatedAt\"\x88\x04\n" +
 	"\fConversation\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12>\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12>\n" +
 	"\x04type\x18\x02 \x01(\x0e2*.api.videoChat.service.v1.ConversationTypeR\x04type\x12 \n" +
-	"\ttarget_id\x18\x03 \x01(\x03H\x00R\btargetId\x88\x01\x01\x12\x1e\n" +
-	"\bgroup_id\x18\x04 \x01(\x03H\x01R\agroupId\x88\x01\x01\x12\x12\n" +
+	"\ttarget_id\x18\x03 \x01(\tH\x00R\btargetId\x88\x01\x01\x12\x1e\n" +
+	"\bgroup_id\x18\x04 \x01(\tH\x01R\agroupId\x88\x01\x01\x12\x12\n" +
 	"\x04name\x18\x05 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x06 \x01(\tR\x06avatar\x12!\n" +
 	"\flast_message\x18\a \x01(\tR\vlastMessage\x12N\n" +
@@ -2045,8 +2046,8 @@ const file_api_videoChat_service_v1_message_proto_rawDesc = "" +
 	"\tis_pinned\x18\x03 \x01(\bR\bisPinned\x12\x19\n" +
 	"\bis_muted\x18\x04 \x01(\bR\aisMuted\"\xc1\x02\n" +
 	"\x0eSendMessageReq\x12\x1b\n" +
-	"\tsender_id\x18\x01 \x01(\x03R\bsenderId\x12\x1f\n" +
-	"\vreceiver_id\x18\x02 \x01(\x03R\n" +
+	"\tsender_id\x18\x01 \x01(\tR\bsenderId\x12\x1f\n" +
+	"\vreceiver_id\x18\x02 \x01(\tR\n" +
 	"receiverId\x12G\n" +
 	"\tconv_type\x18\x03 \x01(\x0e2*.api.videoChat.service.v1.ConversationTypeR\bconvType\x12@\n" +
 	"\bmsg_type\x18\x04 \x01(\x0e2%.api.videoChat.service.v1.MessageTypeR\amsgType\x12B\n" +
@@ -2054,43 +2055,43 @@ const file_api_videoChat_service_v1_message_proto_rawDesc = "" +
 	"\rclient_msg_id\x18\x06 \x01(\tR\vclientMsgId\"\x91\x01\n" +
 	"\x0fSendMessageResp\x12\x1d\n" +
 	"\n" +
-	"message_id\x18\x01 \x01(\x03R\tmessageId\x12'\n" +
-	"\x0fconversation_id\x18\x02 \x01(\x03R\x0econversationId\x126\n" +
+	"message_id\x18\x01 \x01(\tR\tmessageId\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x126\n" +
 	"\x04meta\x18\x03 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\x89\x01\n" +
 	"\x0fListMessagesReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12'\n" +
-	"\x0fconversation_id\x18\x02 \x01(\x03R\x0econversationId\x12\x1e\n" +
-	"\vlast_msg_id\x18\x03 \x01(\x03R\tlastMsgId\x12\x14\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\x1e\n" +
+	"\vlast_msg_id\x18\x03 \x01(\tR\tlastMsgId\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\xc4\x01\n" +
 	"\x10ListMessagesResp\x12=\n" +
 	"\bmessages\x18\x01 \x03(\v2!.api.videoChat.service.v1.MessageR\bmessages\x12\x19\n" +
 	"\bhas_more\x18\x02 \x01(\bR\ahasMore\x12\x1e\n" +
-	"\vlast_msg_id\x18\x03 \x01(\x03R\tlastMsgId\x126\n" +
+	"\vlast_msg_id\x18\x03 \x01(\tR\tlastMsgId\x126\n" +
 	"\x04meta\x18\x04 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"J\n" +
 	"\x10RecallMessageReq\x12\x1d\n" +
 	"\n" +
-	"message_id\x18\x01 \x01(\x03R\tmessageId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\"K\n" +
+	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"K\n" +
 	"\x11RecallMessageResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"w\n" +
 	"\x13MarkMessagesReadReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12'\n" +
-	"\x0fconversation_id\x18\x02 \x01(\x03R\x0econversationId\x12\x1e\n" +
-	"\vlast_msg_id\x18\x03 \x01(\x03R\tlastMsgId\"N\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\x1e\n" +
+	"\vlast_msg_id\x18\x03 \x01(\tR\tlastMsgId\"N\n" +
 	"\x14MarkMessagesReadResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\",\n" +
 	"\x11GetUnreadCountReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"\x8d\x02\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x8d\x02\n" +
 	"\x12GetUnreadCountResp\x12!\n" +
 	"\ftotal_unread\x18\x01 \x01(\x03R\vtotalUnread\x12]\n" +
 	"\vconv_unread\x18\x02 \x03(\v2<.api.videoChat.service.v1.GetUnreadCountResp.ConvUnreadEntryR\n" +
 	"convUnread\x126\n" +
 	"\x04meta\x18\x03 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\x1a=\n" +
 	"\x0fConvUnreadEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\x03R\x03key\x12\x14\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"v\n" +
 	"\x14ListConversationsReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12E\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12E\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2&.api.videoChat.service.v1.PageStatsReqR\tpageStats\"\xe9\x01\n" +
 	"\x15ListConversationsResp\x12P\n" +
@@ -2099,43 +2100,43 @@ const file_api_videoChat_service_v1_message_proto_rawDesc = "" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoChat.service.v1.PageStatsRespR\tpageStats\"Y\n" +
 	"\x15DeleteConversationReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12'\n" +
-	"\x0fconversation_id\x18\x02 \x01(\x03R\x0econversationId\"P\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\"P\n" +
 	"\x16DeleteConversationResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\x93\x01\n" +
 	"\x12GetConversationReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1b\n" +
-	"\ttarget_id\x18\x02 \x01(\x03R\btargetId\x12G\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\ttarget_id\x18\x02 \x01(\tR\btargetId\x12G\n" +
 	"\tconv_type\x18\x03 \x01(\x0e2*.api.videoChat.service.v1.ConversationTypeR\bconvType\"\x99\x01\n" +
 	"\x13GetConversationResp\x12J\n" +
 	"\fconversation\x18\x01 \x01(\v2&.api.videoChat.service.v1.ConversationR\fconversation\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"T\n" +
 	"\x10ClearMessagesReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12'\n" +
-	"\x0fconversation_id\x18\x02 \x01(\x03R\x0econversationId\"K\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\"K\n" +
 	"\x11ClearMessagesResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\x99\x01\n" +
 	"\x16UpdateMessageStatusReq\x12\x1d\n" +
 	"\n" +
-	"message_id\x18\x01 \x01(\x03R\tmessageId\x12?\n" +
+	"message_id\x18\x01 \x01(\tR\tmessageId\x12?\n" +
 	"\x06status\x18\x02 \x01(\x0e2'.api.videoChat.service.v1.MessageStatusR\x06status\x12\x1f\n" +
-	"\voperator_id\x18\x03 \x01(\x03R\n" +
+	"\voperator_id\x18\x03 \x01(\tR\n" +
 	"operatorId\"Q\n" +
 	"\x17UpdateMessageStatusResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\".\n" +
 	"\rGetMessageReq\x12\x1d\n" +
 	"\n" +
-	"message_id\x18\x01 \x01(\x03R\tmessageId\"\x85\x01\n" +
+	"message_id\x18\x01 \x01(\tR\tmessageId\"\x85\x01\n" +
 	"\x0eGetMessageResp\x12;\n" +
 	"\amessage\x18\x01 \x01(\v2!.api.videoChat.service.v1.MessageR\amessage\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\xbf\x01\n" +
 	"\x15CreateConversationReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1b\n" +
-	"\ttarget_id\x18\x02 \x01(\x03R\btargetId\x12G\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\ttarget_id\x18\x02 \x01(\tR\btargetId\x12G\n" +
 	"\tconv_type\x18\x03 \x01(\x0e2*.api.videoChat.service.v1.ConversationTypeR\bconvType\x12'\n" +
 	"\x0finitial_message\x18\x04 \x01(\tR\x0einitialMessage\"y\n" +
 	"\x16CreateConversationResp\x12'\n" +
-	"\x0fconversation_id\x18\x01 \x01(\x03R\x0econversationId\x126\n" +
+	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta*)\n" +
 	"\x10ConversationType\x12\n" +
 	"\n" +

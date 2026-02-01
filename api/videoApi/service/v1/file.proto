@@ -35,11 +35,11 @@ message PreSignUploadPublicFileReq {
 message PreSignUploadPublicFileResp {
 	string url = 1;
 	// @gotags: json:"file_id,omitempty,string"
-	int64 file_id = 2;
+	string file_id = 2;
 }
 
 message ReportPublicFileUploadedReq {
-	int64 file_id = 1;
+	string file_id = 1;
 }
 
 message ReportPublicFileUploadedResp {

@@ -4,23 +4,24 @@ import (
 	"context"
 	"errors"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/spf13/cast"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
 type AddFavoriteInput struct {
 	Target *FavoriteTarget
 	Type   *FavoriteType
-	Id     int64
+	Id     string
 }
 
 type RemoveFavoriteInput struct {
 	Target *FavoriteTarget
 	Type   *FavoriteType
-	Id     int64
+	Id     string
 }
 
 type ListFavoriteVideoInput struct {
-	UserId    int64
+	UserId    string
 	PageStats *PageStats
 }
 
@@ -69,7 +70,7 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, input *RemoveFavo
 }
 
 func (uc *FavoriteUsecase) ListFavoriteVideo(ctx context.Context, input *ListFavoriteVideoInput) (int64, []*Video, error) {
-	if input.UserId == 0 {
+	if cast.ToInt64(input.UserId) <= 0 {
 		userId, err := claims.GetUserId(ctx)
 		if err != nil {
 			return 0, nil, errors.New("获取用户信息失败")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/spf13/cast"
 	v1 "lehu-video/api/videoApi/service/v1"
 	"lehu-video/app/videoApi/service/internal/biz"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
@@ -149,12 +150,12 @@ func (s *MessageServiceService) ListConversations(ctx context.Context, req *v1.L
 	// 转换会话
 	var conversations []*v1.Conversation
 	for _, conv := range output.Conversations {
-		var targetID int64
+		var targetID string
 		if conv.TargetID != nil {
 			targetID = *conv.TargetID
 		}
 
-		var groupID int64
+		var groupID string
 		if conv.GroupID != nil {
 			groupID = *conv.GroupID
 		}
@@ -206,13 +207,9 @@ func (s *MessageServiceService) DeleteConversation(ctx context.Context, req *v1.
 // ClearMessages - 清空聊天记录
 // 在 service/messageservice.go 中完善 ClearMessages 方法
 func (s *MessageServiceService) ClearMessages(ctx context.Context, req *v1.ClearMessagesReq) (*v1.ClearMessagesResp, error) {
-	userID, err := claims.GetUserId(ctx)
-	if err != nil {
-		return &v1.ClearMessagesResp{}, errors.New("获取用户信息失败")
-	}
 
 	// 调用chat适配器清空消息
-	err = s.uc.ClearMessages(ctx, userID, req.ConversationId)
+	err := s.uc.ClearMessages(ctx, req.ConversationId)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("清空聊天记录失败: %v", err)
 		return &v1.ClearMessagesResp{}, errors.New("清空聊天记录失败")
@@ -235,12 +232,12 @@ func (s *MessageServiceService) GetConversation(ctx context.Context, req *v1.Get
 
 	c := conversation
 
-	var targetID int64
+	var targetID string
 	if c.TargetID != nil {
 		targetID = *c.TargetID
 	}
 
-	var groupID int64
+	var groupID string
 	if c.GroupID != nil {
 		groupID = *c.GroupID
 	}
@@ -290,10 +287,10 @@ func (s *MessageServiceService) GetUnreadCount(ctx context.Context, req *v1.GetU
 	}
 
 	// 如果请求了特定会话的未读数
-	if req.TargetId > 0 {
+	if req.TargetId != "" {
 		// 生成会话key，与chat服务保持一致
-		convKey := req.TargetId*10 + int64(req.ConvType)
-		if count, ok := convUnreadMap[convKey]; ok {
+		convKey := cast.ToInt64(req.TargetId)*10 + int64(req.ConvType)
+		if count, ok := convUnreadMap[cast.ToString(convKey)]; ok {
 			convUnread = count
 		}
 	}

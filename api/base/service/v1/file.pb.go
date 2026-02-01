@@ -27,7 +27,7 @@ type FileContext struct {
 	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
 	// 所属业务名称
 	BizName string `protobuf:"bytes,2,opt,name=biz_name,json=bizName,proto3" json:"biz_name,omitempty"`
-	FileId  int64  `protobuf:"varint,3,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId  string `protobuf:"bytes,3,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	// 文件md5
 	Hash string `protobuf:"bytes,4,opt,name=hash,proto3" json:"hash,omitempty"`
 	// 文件类型
@@ -86,11 +86,11 @@ func (x *FileContext) GetBizName() string {
 	return ""
 }
 
-func (x *FileContext) GetFileId() int64 {
+func (x *FileContext) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 func (x *FileContext) GetHash() string {
@@ -273,7 +273,7 @@ type PreSignPutResp struct {
 	Meta  *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
 	Url   string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
 	// file_id will be not null if the put request file hash has been uploaded
-	FileId        int64 `protobuf:"varint,3,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId        string `protobuf:"bytes,3,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -322,11 +322,11 @@ func (x *PreSignPutResp) GetUrl() string {
 	return ""
 }
 
-func (x *PreSignPutResp) GetFileId() int64 {
+func (x *PreSignPutResp) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 type ReportUploadedReq struct {
@@ -475,7 +475,7 @@ type PreSignSlicingPutResp struct {
 	Urls     []string               `protobuf:"bytes,2,rep,name=urls,proto3" json:"urls,omitempty"`
 	UploadId string                 `protobuf:"bytes,3,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	Parts    int64                  `protobuf:"varint,4,opt,name=parts,proto3" json:"parts,omitempty"`
-	FileId   int64                  `protobuf:"varint,5,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId   string                 `protobuf:"bytes,5,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	// if a file has been uploaded, this field will be true
 	Uploaded      bool `protobuf:"varint,6,opt,name=uploaded,proto3" json:"uploaded,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -540,11 +540,11 @@ func (x *PreSignSlicingPutResp) GetParts() int64 {
 	return 0
 }
 
-func (x *PreSignSlicingPutResp) GetFileId() int64 {
+func (x *PreSignSlicingPutResp) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 func (x *PreSignSlicingPutResp) GetUploaded() bool {
@@ -671,7 +671,7 @@ func (x *GetProgressRate4SlicingPutResp) GetParts() map[string]bool {
 type ReportUploadedFilePartsReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UploadId      string                 `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
-	FileId        int64                  `protobuf:"varint,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId        string                 `protobuf:"bytes,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	PartNumber    int64                  `protobuf:"varint,3,opt,name=part_number,json=partNumber,proto3" json:"part_number,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -714,11 +714,11 @@ func (x *ReportUploadedFilePartsReq) GetUploadId() string {
 	return ""
 }
 
-func (x *ReportUploadedFilePartsReq) GetFileId() int64 {
+func (x *ReportUploadedFilePartsReq) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 func (x *ReportUploadedFilePartsReq) GetPartNumber() int64 {
@@ -958,7 +958,7 @@ func (x *RemoveFileResp) GetMeta() *Metadata {
 
 type GetFileInfoByIdReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	FileId        int64                  `protobuf:"varint,1,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId        string                 `protobuf:"bytes,1,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	DomainName    string                 `protobuf:"bytes,2,opt,name=domain_name,json=domainName,proto3" json:"domain_name,omitempty"`
 	BizName       string                 `protobuf:"bytes,3,opt,name=biz_name,json=bizName,proto3" json:"biz_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -995,11 +995,11 @@ func (*GetFileInfoByIdReq) Descriptor() ([]byte, []int) {
 	return file_api_base_service_v1_file_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *GetFileInfoByIdReq) GetFileId() int64 {
+func (x *GetFileInfoByIdReq) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 func (x *GetFileInfoByIdReq) GetDomainName() string {
@@ -1084,7 +1084,7 @@ const file_api_base_service_v1_file_proto_rawDesc = "" +
 	"\vFileContext\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x19\n" +
 	"\bbiz_name\x18\x02 \x01(\tR\abizName\x12\x17\n" +
-	"\afile_id\x18\x03 \x01(\x03R\x06fileId\x12\x12\n" +
+	"\afile_id\x18\x03 \x01(\tR\x06fileId\x12\x12\n" +
 	"\x04hash\x18\x04 \x01(\tR\x04hash\x12\x1b\n" +
 	"\tfile_type\x18\x05 \x01(\tR\bfileType\x12\x12\n" +
 	"\x04size\x18\x06 \x01(\x03R\x04size\x12%\n" +
@@ -1100,7 +1100,7 @@ const file_api_base_service_v1_file_proto_rawDesc = "" +
 	"\x0ePreSignPutResp\x121\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1d.api.base.service.v1.MetadataR\x04meta\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12\x17\n" +
-	"\afile_id\x18\x03 \x01(\x03R\x06fileId\"X\n" +
+	"\afile_id\x18\x03 \x01(\tR\x06fileId\"X\n" +
 	"\x11ReportUploadedReq\x12C\n" +
 	"\ffile_context\x18\x01 \x01(\v2 .api.base.service.v1.FileContextR\vfileContext\"Y\n" +
 	"\x12ReportUploadedResp\x121\n" +
@@ -1113,7 +1113,7 @@ const file_api_base_service_v1_file_proto_rawDesc = "" +
 	"\x04urls\x18\x02 \x03(\tR\x04urls\x12\x1b\n" +
 	"\tupload_id\x18\x03 \x01(\tR\buploadId\x12\x14\n" +
 	"\x05parts\x18\x04 \x01(\x03R\x05parts\x12\x17\n" +
-	"\afile_id\x18\x05 \x01(\x03R\x06fileId\x12\x1a\n" +
+	"\afile_id\x18\x05 \x01(\tR\x06fileId\x12\x1a\n" +
 	"\buploaded\x18\x06 \x01(\bR\buploaded\"\x81\x01\n" +
 	"\x1dGetProgressRate4SlicingPutReq\x12C\n" +
 	"\ffile_context\x18\x01 \x01(\v2 .api.base.service.v1.FileContextR\vfileContext\x12\x1b\n" +
@@ -1128,7 +1128,7 @@ const file_api_base_service_v1_file_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\"s\n" +
 	"\x1aReportUploadedFilePartsReq\x12\x1b\n" +
 	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x17\n" +
-	"\afile_id\x18\x02 \x01(\x03R\x06fileId\x12\x1f\n" +
+	"\afile_id\x18\x02 \x01(\tR\x06fileId\x12\x1f\n" +
 	"\vpart_number\x18\x03 \x01(\x03R\n" +
 	"partNumber\"P\n" +
 	"\x1bReportUploadedFilePartsResp\x121\n" +
@@ -1143,7 +1143,7 @@ const file_api_base_service_v1_file_proto_rawDesc = "" +
 	"\x0eRemoveFileResp\x121\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1d.api.base.service.v1.MetadataR\x04meta\"i\n" +
 	"\x12GetFileInfoByIdReq\x12\x17\n" +
-	"\afile_id\x18\x01 \x01(\x03R\x06fileId\x12\x1f\n" +
+	"\afile_id\x18\x01 \x01(\tR\x06fileId\x12\x1f\n" +
 	"\vdomain_name\x18\x02 \x01(\tR\n" +
 	"domainName\x12\x19\n" +
 	"\bbiz_name\x18\x03 \x01(\tR\abizName\"}\n" +

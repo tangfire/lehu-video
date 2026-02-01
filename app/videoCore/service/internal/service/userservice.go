@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/spf13/cast"
 	pb "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/pkg/utils"
@@ -18,7 +19,7 @@ func NewUserServiceService(uc *biz.UserUsecase) *UserServiceService {
 
 func (s *UserServiceService) CreateUser(ctx context.Context, req *pb.CreateUserReq) (*pb.CreateUserResp, error) {
 	cmd := &biz.CreateUserCommand{
-		AccountId: req.AccountId,
+		AccountId: cast.ToInt64(req.AccountId),
 		Mobile:    req.Mobile,
 		Email:     req.Email,
 	}
@@ -32,13 +33,13 @@ func (s *UserServiceService) CreateUser(ctx context.Context, req *pb.CreateUserR
 
 	return &pb.CreateUserResp{
 		Meta:   utils.GetSuccessMeta(),
-		UserId: result.UserId,
+		UserId: cast.ToString(result.UserId),
 	}, nil
 }
 
 func (s *UserServiceService) UpdateUser(ctx context.Context, req *pb.UpdateUserInfoReq) (*pb.UpdateUserInfoResp, error) {
 	cmd := &biz.UpdateUserInfoCommand{
-		UserId:          req.UserId,
+		UserId:          cast.ToInt64(req.UserId),
 		Name:            req.Name,
 		Avatar:          req.Avatar,
 		BackgroundImage: req.BackgroundImage,
@@ -59,8 +60,8 @@ func (s *UserServiceService) UpdateUser(ctx context.Context, req *pb.UpdateUserI
 
 func (s *UserServiceService) GetUserInfo(ctx context.Context, req *pb.GetUserInfoReq) (*pb.GetUserInfoResp, error) {
 	query := &biz.GetUserInfoQuery{
-		UserId:    req.UserId,
-		AccountId: req.AccountId,
+		UserId:    cast.ToInt64(req.UserId),
+		AccountId: cast.ToInt64(req.AccountId),
 	}
 
 	result, err := s.uc.GetUserInfo(ctx, query)
@@ -71,7 +72,7 @@ func (s *UserServiceService) GetUserInfo(ctx context.Context, req *pb.GetUserInf
 	}
 
 	user := &pb.User{
-		Id:              result.User.Id,
+		Id:              cast.ToString(result.User.Id),
 		Name:            result.User.Name,
 		Avatar:          result.User.Avatar,
 		BackgroundImage: result.User.BackgroundImage,
@@ -87,8 +88,12 @@ func (s *UserServiceService) GetUserInfo(ctx context.Context, req *pb.GetUserInf
 }
 
 func (s *UserServiceService) GetUserByIdList(ctx context.Context, req *pb.GetUserByIdListReq) (*pb.GetUserByIdListResp, error) {
+	ids := make([]int64, 0, len(req.UserIdList))
+	for _, id := range req.UserIdList {
+		ids = append(ids, cast.ToInt64(id))
+	}
 	query := &biz.GetUserByIdListQuery{
-		UserIdList: req.UserIdList,
+		UserIdList: ids,
 	}
 
 	result, err := s.uc.GetUserByIdList(ctx, query)
@@ -101,7 +106,7 @@ func (s *UserServiceService) GetUserByIdList(ctx context.Context, req *pb.GetUse
 	var retList []*pb.User
 	for _, user := range result.UserList {
 		retList = append(retList, &pb.User{
-			Id:              user.Id,
+			Id:              cast.ToString(user.Id),
 			Name:            user.Name,
 			Avatar:          user.Avatar,
 			BackgroundImage: user.BackgroundImage,
@@ -135,7 +140,7 @@ func (s *UserServiceService) SearchUsers(ctx context.Context, req *pb.SearchUser
 	var users []*pb.User
 	for _, u := range result.Users {
 		users = append(users, &pb.User{
-			Id:              u.Id,
+			Id:              cast.ToString(u.Id),
 			Name:            u.Name,
 			Avatar:          u.Avatar,
 			BackgroundImage: u.BackgroundImage,

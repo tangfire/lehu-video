@@ -74,7 +74,7 @@ func (FollowType) EnumDescriptor() ([]byte, []int) {
 type FollowUser struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"id,omitempty,string"
-	Id            int64  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                      // 用户id
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                       // 用户id
 	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                   // 用户名称
 	Avatar        string `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`                               // 用户头像
 	IsFollowing   bool   `protobuf:"varint,4,opt,name=is_following,json=isFollowing,proto3" json:"is_following,omitempty"` // 当前用户是否关注
@@ -112,11 +112,11 @@ func (*FollowUser) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_follow_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *FollowUser) GetId() int64 {
+func (x *FollowUser) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *FollowUser) GetName() string {
@@ -143,7 +143,7 @@ func (x *FollowUser) GetIsFollowing() bool {
 type AddFollowReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"userId,omitempty,string"
-	UserId        int64 `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // 用户id
+	UserId        string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // 用户id
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -178,11 +178,11 @@ func (*AddFollowReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_follow_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *AddFollowReq) GetUserId() int64 {
+func (x *AddFollowReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type AddFollowResp struct {
@@ -224,7 +224,7 @@ func (*AddFollowResp) Descriptor() ([]byte, []int) {
 type RemoveFollowReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"userId,omitempty,string"
-	UserId        int64 `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // 用户id
+	UserId        string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // 用户id
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,11 +259,11 @@ func (*RemoveFollowReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_follow_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *RemoveFollowReq) GetUserId() int64 {
+func (x *RemoveFollowReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type RemoveFollowResp struct {
@@ -305,7 +305,7 @@ func (*RemoveFollowResp) Descriptor() ([]byte, []int) {
 type ListFollowingReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"userId,omitempty,string"
-	UserId        int64         `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // 用户id
+	UserId        string        `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // 用户id
 	Type          FollowType    `protobuf:"varint,2,opt,name=type,proto3,enum=api.videoApi.service.v1.FollowType" json:"type,omitempty"`
 	PageStats     *PageStatsReq `protobuf:"bytes,3,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -342,11 +342,11 @@ func (*ListFollowingReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_follow_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *ListFollowingReq) GetUserId() int64 {
+func (x *ListFollowingReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListFollowingReq) GetType() FollowType {
@@ -422,18 +422,18 @@ const file_api_videoApi_service_v1_follow_proto_rawDesc = "" +
 	"$api/videoApi/service/v1/follow.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\x1a\"api/videoApi/service/v1/base.proto\"k\n" +
 	"\n" +
 	"FollowUser\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12!\n" +
 	"\fis_following\x18\x04 \x01(\bR\visFollowing\"'\n" +
 	"\fAddFollowReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"\x0f\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x0f\n" +
 	"\rAddFollowResp\"*\n" +
 	"\x0fRemoveFollowReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"\x12\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x12\n" +
 	"\x10RemoveFollowResp\"\xaa\x01\n" +
 	"\x10ListFollowingReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x127\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x127\n" +
 	"\x04type\x18\x02 \x01(\x0e2#.api.videoApi.service.v1.FollowTypeR\x04type\x12D\n" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x95\x01\n" +

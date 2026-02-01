@@ -117,7 +117,7 @@ func (s *VideoServiceService) FeedShortVideo(ctx context.Context, req *pb.FeedSh
 	// 获取当前用户ID
 	userID, err := claims.GetUserId(ctx)
 	if err != nil {
-		userID = 0 // 未登录用户
+		userID = "0"
 	}
 
 	// 构建输入
@@ -150,7 +150,7 @@ func (s *VideoServiceService) GetVideoById(ctx context.Context, req *pb.GetVideo
 	// 获取当前用户ID
 	userID, err := claims.GetUserId(ctx)
 	if err != nil {
-		userID = 0 // 未登录用户
+		userID = "0" // 未登录用户
 	}
 
 	// 构建输入
@@ -175,7 +175,7 @@ func (s *VideoServiceService) ListPublishedVideo(ctx context.Context, req *pb.Li
 	// 获取当前用户ID
 	currentUserID, err := claims.GetUserId(ctx)
 	if err != nil {
-		currentUserID = 0
+		currentUserID = "0"
 	}
 
 	// 构建输入

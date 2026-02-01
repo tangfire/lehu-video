@@ -111,44 +111,30 @@ message MessageContent {
 }
 
 message Message {
-  int64 id = 1;
-  int64 conversation_id = 2;
-
-  int64 sender_id = 3;
-  int64 receiver_id = 4; // 用户ID 或 群ID
-
+  string id = 1;
+  string conversation_id = 2;
+  string sender_id = 3;
+  string receiver_id = 4; // 用户ID 或 群ID
   ConversationType conv_type = 5;
   MessageType msg_type = 6;
-
   MessageContent content = 7;
   MessageStatus status = 8;
   bool is_recalled = 9;
-
   string created_at = 10;
   string updated_at = 11;
 }
 
-
-// =======================
-// 会话模型（纯“会话态”）
-// =======================
-
 message Conversation {
-  int64 id = 1;
+  string id = 1;
   ConversationType type = 2;
-
-  optional int64 target_id = 3; // 单聊对方
-  optional int64 group_id = 4;  // 群聊ID
-
+  optional string target_id = 3;
+  optional string group_id = 4;
   string name = 5;
   string avatar = 6;
-
   string last_message = 7;
   optional MessageType last_msg_type = 8;
-  optional int64 last_msg_time = 9;
-
+  optional int64 last_msg_time = 9; // 时间戳通常不需要 string，除非超过 16 位
   int64 member_count = 10;
-
   string created_at = 11;
   string updated_at = 12;
 }
@@ -173,8 +159,8 @@ message ConversationView {
 
 // 发送消息
 message SendMessageReq {
-  int64 sender_id = 1;
-  int64 receiver_id = 2;
+  string sender_id = 1;
+  string receiver_id = 2;
   ConversationType conv_type = 3;
 
   MessageType msg_type = 4;
@@ -184,33 +170,32 @@ message SendMessageReq {
 }
 
 message SendMessageResp {
-  int64 message_id = 1;
-  int64 conversation_id = 2;
+  string message_id = 1;
+  string conversation_id = 2;
   Metadata meta = 3;
 }
 
 
 // 获取消息列表
+// 请求响应部分
 message ListMessagesReq {
-  int64 user_id = 1;
-  int64 conversation_id = 2;
-
-  int64 last_msg_id = 3;
+  string user_id = 1;
+  string conversation_id = 2;
+  string last_msg_id = 3; // 改为 string
   int32 limit = 4;
 }
 
 message ListMessagesResp {
   repeated Message messages = 1;
   bool has_more = 2;
-  int64 last_msg_id = 3;
+  string last_msg_id = 3; // 改为 string
   Metadata meta = 4;
 }
 
-
 // 撤回消息
 message RecallMessageReq {
-  int64 message_id = 1;
-  int64 user_id = 2;
+  string message_id = 1; // 改为 string
+  string user_id = 2;    // 改为 string
 }
 
 message RecallMessageResp {
@@ -220,9 +205,9 @@ message RecallMessageResp {
 
 // 标记已读
 message MarkMessagesReadReq {
-  int64 user_id = 1;
-  int64 conversation_id = 2;
-  int64 last_msg_id = 3;
+  string user_id = 1;
+  string conversation_id = 2;
+  string last_msg_id = 3;
 }
 
 message MarkMessagesReadResp {
@@ -232,19 +217,19 @@ message MarkMessagesReadResp {
 
 // 未读数
 message GetUnreadCountReq {
-  int64 user_id = 1;
+  string user_id = 1;
 }
 
 message GetUnreadCountResp {
   int64 total_unread = 1;
-  map<int64, int64> conv_unread = 2; // conversation_id -> unread
+  map<string, int64> conv_unread = 2; // conversation_id -> unread
   Metadata meta = 3;
 }
 
 
 // 会话列表（核心）
 message ListConversationsReq {
-  int64 user_id = 1;
+  string user_id = 1;
   PageStatsReq page_stats = 2;
 }
 
@@ -257,8 +242,8 @@ message ListConversationsResp {
 
 // 删除会话
 message DeleteConversationReq {
-  int64 user_id = 1;
-  int64 conversation_id = 2;
+  string user_id = 1;
+  string conversation_id = 2;
 }
 
 message DeleteConversationResp {
@@ -268,8 +253,8 @@ message DeleteConversationResp {
 
 // 获取会话
 message GetConversationReq {
-  int64 user_id = 1;
-  int64 target_id = 2;
+  string user_id = 1;
+  string target_id = 2;
   ConversationType conv_type = 3;
 }
 
@@ -281,8 +266,8 @@ message GetConversationResp {
 
 // 清空消息
 message ClearMessagesReq {
-  int64 user_id = 1;
-  int64 conversation_id = 2;
+  string user_id = 1;
+  string conversation_id = 2;
 }
 
 message ClearMessagesResp {
@@ -290,9 +275,9 @@ message ClearMessagesResp {
 }
 
 message UpdateMessageStatusReq {
-  int64 message_id = 1;
+  string message_id = 1;
   MessageStatus status = 2;
-  int64 operator_id = 3; // 操作者ID
+  string operator_id = 3; // 操作者ID
 }
 
 message UpdateMessageStatusResp {
@@ -300,7 +285,7 @@ message UpdateMessageStatusResp {
 }
 
 message GetMessageReq {
-  int64 message_id = 1;
+  string message_id = 1;
 }
 
 message GetMessageResp {
@@ -309,14 +294,14 @@ message GetMessageResp {
 }
 
 message CreateConversationReq {
-  int64 user_id = 1;
-  int64 target_id = 2;
+  string user_id = 1;
+  string target_id = 2;
   ConversationType conv_type = 3;
   string initial_message = 4;
 }
 
 message CreateConversationResp {
-  int64 conversation_id = 1;
+  string conversation_id = 1;
   Metadata meta = 2;
 }
 

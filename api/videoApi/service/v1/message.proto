@@ -145,10 +145,10 @@ message MessageContent {
 }
 
 message Message {
-  int64 id = 1;
-  int64 conversation_id = 2;
-  int64 sender_id = 3;
-  int64 receiver_id = 4;   // 用户ID或群ID
+  string id = 1;              // 改为 string
+  string conversation_id = 2; // 改为 string
+  string sender_id = 3;       // 改为 string
+  string receiver_id = 4;     // 改为 string
   ConversationType conv_type = 5;
   MessageType msg_type = 6;
   MessageContent content = 7;
@@ -162,15 +162,15 @@ message Message {
 // 会话模型
 // =======================
 message Conversation {
-  int64 id = 1;
+  string id = 1;              // 改为 string
   ConversationType type = 2;
-  int64 target_id = 3;       // 单聊对方ID
-  int64 group_id = 4;        // 群聊ID
+  string target_id = 3;       // 改为 string
+  string group_id = 4;        // 改为 string
   string name = 5;
   string avatar = 6;
   string last_message = 7;
   MessageType last_msg_type = 8;
-  int64 last_msg_time = 9;
+  int64 last_msg_time = 9;    // 时间戳 int64 没问题，不会溢出
   int64 unread_count = 10;
   int64 member_count = 11;
   string created_at = 12;
@@ -183,7 +183,7 @@ message Conversation {
 
 // 发送消息
 message SendMessageReq {
-  int64 receiver_id = 1;      // 用户ID或群ID
+  string receiver_id = 1;      // 改为 string
   ConversationType conv_type = 2;
   MessageType msg_type = 3;
   MessageContent content = 4;
@@ -191,34 +191,34 @@ message SendMessageReq {
 }
 
 message SendMessageResp {
-  int64 message_id = 1;
-  int64 conversation_id = 2;
+  string message_id = 1;       // 改为 string
+  string conversation_id = 2;  // 改为 string
 }
 
 // 获取消息列表
 message ListMessagesReq {
-  int64 conversation_id = 1;
-  int64 last_msg_id = 2;   // 分页
+  string conversation_id = 1;  // 改为 string
+  string last_msg_id = 2;      // 改为 string
   int32 limit = 3;
 }
 
 message ListMessagesResp {
   repeated Message messages = 1;
   bool has_more = 2;
-  int64 last_msg_id = 3;
+  string last_msg_id = 3;      // 改为 string
 }
 
 // 撤回消息
 message RecallMessageReq {
-  int64 message_id = 1;
+  string message_id = 1;
 }
 
 message RecallMessageResp {}
 
 // 标记已读
 message MarkMessagesReadReq {
-  int64 conversation_id = 1;
-  int64 last_msg_id = 2;
+  string conversation_id = 1;
+  string last_msg_id = 2;
 }
 
 message MarkMessagesReadResp {}
@@ -235,14 +235,14 @@ message ListConversationsResp {
 
 // 删除会话
 message DeleteConversationReq {
-  int64 conversation_id = 1;
+  string conversation_id = 1;
 }
 
 message DeleteConversationResp {}
 
 // 清空消息
 message ClearMessagesReq {
-  int64 conversation_id = 1;
+  string conversation_id = 1;
 }
 
 message ClearMessagesResp {}
@@ -251,7 +251,7 @@ message ClearMessagesResp {}
 
 // 获取会话详情
 message GetConversationReq {
-  int64 target_id = 1;
+  string target_id = 1;
   ConversationType conv_type = 2;
 }
 
@@ -261,7 +261,7 @@ message GetConversationResp {
 
 // 获取未读消息数
 message GetUnreadCountReq {
-  int64 target_id = 1;          // 可选，会话ID
+  string target_id = 1;          // 可选，会话ID
   ConversationType conv_type = 2;
 }
 
@@ -272,7 +272,7 @@ message GetUnreadCountResp {
 
 // 更新消息状态
 message UpdateMessageStatusReq {
-  int64 message_id = 1;
+  string message_id = 1;
   MessageStatus status = 2;
 }
 
@@ -280,11 +280,11 @@ message UpdateMessageStatusResp {}
 
 // 创建会话
 message CreateConversationReq {
-  int64 target_id = 1;          // 用户ID或群ID
+  string target_id = 1;          // 用户ID或群ID
   ConversationType conv_type = 2;
   string initial_message = 3;
 }
 
 message CreateConversationResp {
-  int64 conversation_id = 1;
+  string conversation_id = 1;
 }

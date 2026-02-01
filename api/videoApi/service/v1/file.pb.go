@@ -95,7 +95,7 @@ type PreSignUploadPublicFileResp struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Url   string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	// @gotags: json:"file_id,omitempty,string"
-	FileId        int64 `protobuf:"varint,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId        string `protobuf:"bytes,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -137,16 +137,16 @@ func (x *PreSignUploadPublicFileResp) GetUrl() string {
 	return ""
 }
 
-func (x *PreSignUploadPublicFileResp) GetFileId() int64 {
+func (x *PreSignUploadPublicFileResp) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 type ReportPublicFileUploadedReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	FileId        int64                  `protobuf:"varint,1,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId        string                 `protobuf:"bytes,1,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -181,11 +181,11 @@ func (*ReportPublicFileUploadedReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_file_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ReportPublicFileUploadedReq) GetFileId() int64 {
+func (x *ReportPublicFileUploadedReq) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 type ReportPublicFileUploadedResp struct {
@@ -244,9 +244,9 @@ const file_api_videoApi_service_v1_file_proto_rawDesc = "" +
 	"\bfilename\x18\x04 \x01(\tR\bfilename\"H\n" +
 	"\x1bPreSignUploadPublicFileResp\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x17\n" +
-	"\afile_id\x18\x02 \x01(\x03R\x06fileId\"6\n" +
+	"\afile_id\x18\x02 \x01(\tR\x06fileId\"6\n" +
 	"\x1bReportPublicFileUploadedReq\x12\x17\n" +
-	"\afile_id\x18\x01 \x01(\x03R\x06fileId\"?\n" +
+	"\afile_id\x18\x01 \x01(\tR\x06fileId\"?\n" +
 	"\x1cReportPublicFileUploadedResp\x12\x1f\n" +
 	"\vobject_name\x18\x01 \x01(\tR\n" +
 	"objectName2\xd2\x02\n" +

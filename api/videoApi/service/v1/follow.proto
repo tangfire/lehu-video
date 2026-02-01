@@ -10,7 +10,7 @@ import "api/videoApi/service/v1/base.proto";
 
 message FollowUser {
 	// @gotags: json:"id,omitempty,string"
-	int64 id = 1; // 用户id
+	string id = 1; // 用户id
 	string name = 2; // 用户名称
 	string avatar = 3; // 用户头像
 	bool is_following = 4; // 当前用户是否关注  
@@ -41,14 +41,14 @@ service FollowService {
 
 message AddFollowReq {
 	// @gotags: json:"userId,omitempty,string"
-	int64 user_id = 1; // 用户id
+	string user_id = 1; // 用户id
 }
 
 message AddFollowResp {}
 
 message RemoveFollowReq {
 	// @gotags: json:"userId,omitempty,string"
-	int64 user_id = 1; // 用户id
+	string user_id = 1; // 用户id
 }
 
 message RemoveFollowResp {}
@@ -61,7 +61,7 @@ enum FollowType {
 
 message ListFollowingReq {
 	// @gotags: json:"userId,omitempty,string"
-	int64 user_id = 1; // 用户id
+	string user_id = 1; // 用户id
 	FollowType type = 2;
 	PageStatsReq page_stats = 3;
 }

@@ -11,7 +11,7 @@ type PageStats struct {
 
 // UserInfo 用户信息
 type UserInfo struct {
-	Id              int64
+	Id              string
 	Name            string
 	Nickname        string
 	Avatar          string
@@ -26,7 +26,7 @@ type UserInfo struct {
 
 // Video 视频
 type Video struct {
-	ID             int64
+	ID             string
 	Author         *VideoAuthor
 	PlayURL        string
 	CoverURL       string
@@ -40,16 +40,16 @@ type Video struct {
 
 // VideoAuthor 视频作者
 type VideoAuthor struct {
-	ID          int64
+	ID          string
 	Name        string
 	Avatar      string
 	IsFollowing bool
 }
 
 type Comment struct {
-	Id         int64
-	VideoId    int64
-	ParentId   int64
+	Id         string
+	VideoId    string
+	ParentId   string
 	User       *CommentUser
 	ReplyUser  *CommentUser
 	Content    string
@@ -61,7 +61,7 @@ type Comment struct {
 
 // CommentUser 评论用户
 type CommentUser struct {
-	Id          int64
+	Id          string
 	Name        string
 	Avatar      string
 	IsFollowing bool
@@ -69,8 +69,8 @@ type CommentUser struct {
 
 // Collection 收藏夹
 type Collection struct {
-	Id          int64
-	UserId      int64
+	Id          string
+	UserId      string
 	Name        string
 	Description string
 }

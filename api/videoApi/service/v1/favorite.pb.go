@@ -119,7 +119,7 @@ type AddFavoriteReq struct {
 	Target FavoriteTarget         `protobuf:"varint,1,opt,name=target,proto3,enum=api.videoApi.service.v1.FavoriteTarget" json:"target,omitempty"`
 	Type   FavoriteType           `protobuf:"varint,2,opt,name=type,proto3,enum=api.videoApi.service.v1.FavoriteType" json:"type,omitempty"`
 	// @gotags: json:"id,omitempty,string"
-	Id            int64 `protobuf:"varint,3,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string `protobuf:"bytes,3,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -168,11 +168,11 @@ func (x *AddFavoriteReq) GetType() FavoriteType {
 	return FavoriteType_FAVORITE
 }
 
-func (x *AddFavoriteReq) GetId() int64 {
+func (x *AddFavoriteReq) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 type AddFavoriteResp struct {
@@ -216,7 +216,7 @@ type RemoveFavoriteReq struct {
 	Target FavoriteTarget         `protobuf:"varint,1,opt,name=target,proto3,enum=api.videoApi.service.v1.FavoriteTarget" json:"target,omitempty"`
 	Type   FavoriteType           `protobuf:"varint,2,opt,name=type,proto3,enum=api.videoApi.service.v1.FavoriteType" json:"type,omitempty"`
 	// @gotags: json:"id,omitempty,string"
-	Id            int64 `protobuf:"varint,3,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string `protobuf:"bytes,3,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -265,11 +265,11 @@ func (x *RemoveFavoriteReq) GetType() FavoriteType {
 	return FavoriteType_FAVORITE
 }
 
-func (x *RemoveFavoriteReq) GetId() int64 {
+func (x *RemoveFavoriteReq) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 type RemoveFavoriteResp struct {
@@ -310,7 +310,7 @@ func (*RemoveFavoriteResp) Descriptor() ([]byte, []int) {
 
 type ListFavoriteVideoReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=userId,proto3" json:"userId,omitempty"` // 可传可不传,传0就是查自己
+	UserId        string                 `protobuf:"bytes,1,opt,name=userId,proto3" json:"userId,omitempty"` // 可传可不传,传0就是查自己
 	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -346,11 +346,11 @@ func (*ListFavoriteVideoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_favorite_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *ListFavoriteVideoReq) GetUserId() int64 {
+func (x *ListFavoriteVideoReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListFavoriteVideoReq) GetPageStats() *PageStatsReq {
@@ -420,15 +420,15 @@ const file_api_videoApi_service_v1_favorite_proto_rawDesc = "" +
 	"\x0eAddFavoriteReq\x12?\n" +
 	"\x06target\x18\x01 \x01(\x0e2'.api.videoApi.service.v1.FavoriteTargetR\x06target\x129\n" +
 	"\x04type\x18\x02 \x01(\x0e2%.api.videoApi.service.v1.FavoriteTypeR\x04type\x12\x0e\n" +
-	"\x02id\x18\x03 \x01(\x03R\x02id\"\x11\n" +
+	"\x02id\x18\x03 \x01(\tR\x02id\"\x11\n" +
 	"\x0fAddFavoriteResp\"\x9f\x01\n" +
 	"\x11RemoveFavoriteReq\x12?\n" +
 	"\x06target\x18\x01 \x01(\x0e2'.api.videoApi.service.v1.FavoriteTargetR\x06target\x129\n" +
 	"\x04type\x18\x02 \x01(\x0e2%.api.videoApi.service.v1.FavoriteTypeR\x04type\x12\x0e\n" +
-	"\x02id\x18\x03 \x01(\x03R\x02id\"\x14\n" +
+	"\x02id\x18\x03 \x01(\tR\x02id\"\x14\n" +
 	"\x12RemoveFavoriteResp\"t\n" +
 	"\x14ListFavoriteVideoReq\x12\x16\n" +
-	"\x06userId\x18\x01 \x01(\x03R\x06userId\x12D\n" +
+	"\x06userId\x18\x01 \x01(\tR\x06userId\x12D\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x96\x01\n" +
 	"\x15ListFavoriteVideoResp\x126\n" +

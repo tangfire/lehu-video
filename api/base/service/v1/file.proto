@@ -31,7 +31,7 @@ message FileContext {
 	string domain = 1;
 	// 所属业务名称
 	string biz_name = 2;
-	int64 file_id = 3;
+	string file_id = 3;
 	// 文件md5
 	string hash = 4;
 	// 文件类型
@@ -61,7 +61,7 @@ message PreSignPutResp {
 	Metadata meta = 1;
 	string url = 2;
 	// file_id will be not null if the put request file hash has been uploaded
-	int64 file_id = 3;
+	string file_id = 3;
 }
 
 message ReportUploadedReq {
@@ -82,7 +82,7 @@ message PreSignSlicingPutResp {
 	repeated string urls = 2;
 	string upload_id = 3;
 	int64 parts = 4;
-	int64 file_id = 5;
+	string file_id = 5;
 	// if a file has been uploaded, this field will be true
 	bool uploaded = 6;
 }
@@ -102,7 +102,7 @@ message GetProgressRate4SlicingPutResp {
 
 message ReportUploadedFilePartsReq {
 	string upload_id = 1;
-	int64 file_id = 2;
+	string file_id = 2;
 	int64 part_number = 3;
 }
 
@@ -128,7 +128,7 @@ message RemoveFileResp {
 }
 
 message GetFileInfoByIdReq {
-	int64 file_id = 1;
+	string file_id = 1;
 	string domain_name = 2;
 	string biz_name = 3;
 }

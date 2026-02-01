@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"errors"
+	"github.com/spf13/cast"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -27,12 +28,12 @@ type PreSignUploadInput struct {
 // PreSignUploadOutput 预签名上传输出
 type PreSignUploadOutput struct {
 	URL    string
-	FileID int64
+	FileID string
 }
 
 // ReportFinishUploadInput 报告上传完成输入
 type ReportFinishUploadInput struct {
-	FileID int64
+	FileID string
 }
 
 // ReportFinishUploadOutput 报告上传完成输出
@@ -42,23 +43,23 @@ type ReportFinishUploadOutput struct {
 
 // ReportVideoFinishUploadInput 报告视频上传完成输入
 type ReportVideoFinishUploadInput struct {
-	FileID      int64
+	FileID      string
 	Title       string
 	CoverURL    string
 	Description string
 	VideoURL    string
-	UserID      int64
+	UserID      string
 }
 
 // ReportVideoFinishUploadOutput 报告视频上传完成输出
 type ReportVideoFinishUploadOutput struct {
-	VideoID int64
+	VideoID string
 }
 
 // GetVideoInput 获取视频输入
 type GetVideoInput struct {
-	VideoID int64
-	UserID  int64 // 当前用户ID，用于判断是否点赞、关注等
+	VideoID string
+	UserID  string // 当前用户ID，用于判断是否点赞、关注等
 }
 
 // GetVideoOutput 获取视频输出
@@ -69,7 +70,7 @@ type GetVideoOutput struct {
 // FeedVideoInput 视频流输入
 type FeedVideoInput struct {
 	LatestTime int64
-	UserID     int64
+	UserID     string
 	FeedNum    int64
 }
 
@@ -81,7 +82,7 @@ type FeedVideoOutput struct {
 
 // ListPublishedVideoInput 获取已发布视频列表输入
 type ListPublishedVideoInput struct {
-	UserID   int64 // 要查询的用户ID
+	UserID   string // 要查询的用户ID
 	Page     int64
 	PageSize int64
 }
@@ -138,7 +139,7 @@ func (uc *VideoUsecase) PreSignUpload(ctx context.Context, input *PreSignUploadI
 
 // ReportFinishUpload 报告上传完成
 func (uc *VideoUsecase) ReportFinishUpload(ctx context.Context, input *ReportFinishUploadInput) (*ReportFinishUploadOutput, error) {
-	if input.FileID <= 0 {
+	if input.FileID == "" || cast.ToInt64(input.FileID) <= 0 {
 		return nil, ErrInvalidParams
 	}
 
@@ -155,10 +156,10 @@ func (uc *VideoUsecase) ReportFinishUpload(ctx context.Context, input *ReportFin
 // ReportVideoFinishUpload 报告视频上传完成
 func (uc *VideoUsecase) ReportVideoFinishUpload(ctx context.Context, input *ReportVideoFinishUploadInput) (*ReportVideoFinishUploadOutput, error) {
 	// 参数验证
-	if input.FileID <= 0 || input.Title == "" || input.VideoURL == "" || input.CoverURL == "" {
+	if input.FileID == "" || cast.ToInt64(input.FileID) <= 0 || input.Title == "" || input.VideoURL == "" || input.CoverURL == "" {
 		return nil, ErrInvalidParams
 	}
-	if input.UserID <= 0 {
+	if input.UserID == "" || cast.ToInt64(input.UserID) <= 0 {
 		return nil, ErrUnauthorized
 	}
 
@@ -181,7 +182,7 @@ func (uc *VideoUsecase) ReportVideoFinishUpload(ctx context.Context, input *Repo
 
 // GetVideo 获取视频
 func (uc *VideoUsecase) GetVideo(ctx context.Context, input *GetVideoInput) (*GetVideoOutput, error) {
-	if input.VideoID <= 0 {
+	if input.VideoID == "" || cast.ToInt64(input.VideoID) <= 0 {
 		return nil, ErrInvalidParams
 	}
 
@@ -239,7 +240,7 @@ func (uc *VideoUsecase) FeedVideo(ctx context.Context, input *FeedVideoInput) (*
 
 // ListPublishedVideo 获取已发布视频列表
 func (uc *VideoUsecase) ListPublishedVideo(ctx context.Context, input *ListPublishedVideoInput) (*ListPublishedVideoOutput, error) {
-	if input.UserID <= 0 {
+	if cast.ToInt64(input.UserID) <= 0 {
 		return nil, ErrInvalidParams
 	}
 
@@ -276,16 +277,16 @@ func (uc *VideoUsecase) ListPublishedVideo(ctx context.Context, input *ListPubli
 
 // VideoCountInfo 视频计数信息
 type VideoCountInfo struct {
-	CommentCounts  map[int64]int64
-	FavoriteCounts map[int64]int64
-	CollectCounts  map[int64]int64
+	CommentCounts  map[string]int64
+	FavoriteCounts map[string]int64
+	CollectCounts  map[string]int64
 }
 
 // UserInteractionInfo 用户互动信息
 type UserInteractionInfo struct {
-	IsFavoriteMap  map[int64]bool
-	IsCollectMap   map[int64]bool
-	IsFollowingMap map[int64]bool
+	IsFavoriteMap  map[string]bool
+	IsCollectMap   map[string]bool
+	IsFollowingMap map[string]bool
 }
 
 // ============ 错误定义 ============

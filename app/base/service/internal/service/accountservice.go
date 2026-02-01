@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/spf13/cast"
 	pb "lehu-video/api/base/service/v1"
 	"lehu-video/app/base/service/internal/biz"
 	"lehu-video/app/base/service/internal/pkg/utils"
@@ -34,14 +35,14 @@ func (s *AccountServiceService) Register(ctx context.Context, req *pb.RegisterRe
 
 	return &pb.RegisterResp{
 		Meta:      utils.GetSuccessMeta(),
-		AccountId: result.AccountId,
+		AccountId: cast.ToString(result.AccountId),
 	}, nil
 }
 
 func (s *AccountServiceService) CheckAccount(ctx context.Context, req *pb.CheckAccountReq) (*pb.CheckAccountResp, error) {
 	// ✅ 改为Query
 	query := &biz.CheckAccountQuery{
-		AccountId: req.AccountId,
+		AccountId: cast.ToInt64(req.AccountId),
 		Mobile:    req.Mobile,
 		Email:     req.Email,
 		Password:  req.Password,
@@ -56,7 +57,7 @@ func (s *AccountServiceService) CheckAccount(ctx context.Context, req *pb.CheckA
 
 	return &pb.CheckAccountResp{
 		Meta:      utils.GetSuccessMeta(),
-		AccountId: result.AccountId,
+		AccountId: cast.ToString(result.AccountId),
 	}, nil
 }
 
@@ -75,7 +76,7 @@ func (s *AccountServiceService) Bind(ctx context.Context, req *pb.BindReq) (*pb.
 
 	// ✅ 改为Command
 	cmd := &biz.BindCommand{
-		AccountId:   req.AccountId,
+		AccountId:   cast.ToInt64(req.AccountId),
 		VoucherType: voucherType,
 		Voucher:     req.Voucher,
 	}
@@ -107,7 +108,7 @@ func (s *AccountServiceService) Unbind(ctx context.Context, req *pb.UnbindReq) (
 
 	// ✅ 改为Command
 	cmd := &biz.UnbindCommand{
-		AccountId:   req.AccountId,
+		AccountId:   cast.ToInt64(req.AccountId),
 		VoucherType: voucherType,
 	}
 

@@ -3,16 +3,17 @@ package biz
 import (
 	"context"
 	"errors"
+	"github.com/spf13/cast"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
 type CreateCommentInput struct {
-	VideoId     int64
+	VideoId     string
 	Content     string
-	ParentId    int64
-	ReplyUserId int64
+	ParentId    string
+	ReplyUserId string
 }
 
 type CreateCommentOutput struct {
@@ -20,11 +21,11 @@ type CreateCommentOutput struct {
 }
 
 type RemoveCommentInput struct {
-	Id int64
+	Id string
 }
 
 type ListChildCommentInput struct {
-	CommentId int64
+	CommentId string
 	PageStats *PageStats
 }
 
@@ -34,7 +35,7 @@ type ListChildCommentOutput struct {
 }
 
 type ListComment4VideoInput struct {
-	VideoId   int64
+	VideoId   string
 	PageStats *PageStats
 }
 
@@ -68,7 +69,7 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, input *CreateCommen
 	}
 
 	// 获取用户信息
-	userInfo, err := uc.core.GetUserInfo(ctx, userId, 0)
+	userInfo, err := uc.core.GetUserInfo(ctx, userId, "0")
 	if err != nil {
 		// 弱依赖
 		log.Context(ctx).Warnf("failed to get user info: %v", err)
@@ -77,8 +78,8 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, input *CreateCommen
 	}
 
 	// 获取回复用户信息
-	if comment.ReplyUser != nil && comment.ReplyUser.Id != 0 {
-		replyUserInfo, err := uc.core.GetUserInfo(ctx, comment.ReplyUser.Id, 0)
+	if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 {
+		replyUserInfo, err := uc.core.GetUserInfo(ctx, comment.ReplyUser.Id, "0")
 		if err != nil {
 			// 弱依赖
 			log.Context(ctx).Warnf("failed to get reply user info: %v", err)
@@ -118,12 +119,12 @@ func (uc *CommentUsecase) enrichCommentsWithUserInfo(ctx context.Context, commen
 	}
 
 	// 收集所有需要查询的用户ID
-	var userIds []int64
+	var userIds []string
 	for _, comment := range comments {
 		if comment.User != nil {
 			userIds = append(userIds, comment.User.Id)
 		}
-		if comment.ReplyUser != nil && comment.ReplyUser.Id != 0 {
+		if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 {
 			userIds = append(userIds, comment.ReplyUser.Id)
 		}
 		// 递归处理子评论
@@ -145,7 +146,7 @@ func (uc *CommentUsecase) enrichCommentsWithUserInfo(ctx context.Context, commen
 	}
 
 	// 创建用户信息映射
-	userInfoMap := make(map[int64]*UserInfo)
+	userInfoMap := make(map[string]*UserInfo)
 	for _, user := range userInfos {
 		userInfoMap[user.Id] = user
 	}
@@ -157,7 +158,7 @@ func (uc *CommentUsecase) enrichCommentsWithUserInfo(ctx context.Context, commen
 				comment.User = uc.generateCommentUserInfo(userInfo)
 			}
 		}
-		if comment.ReplyUser != nil && comment.ReplyUser.Id != 0 {
+		if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 {
 			if userInfo, ok := userInfoMap[comment.ReplyUser.Id]; ok {
 				comment.ReplyUser = uc.generateCommentUserInfo(userInfo)
 			}
@@ -223,12 +224,12 @@ func (uc *CommentUsecase) assembleCommentListResult(ctx context.Context, comment
 	}
 
 	// 收集所有需要查询的用户ID
-	var userIds []int64
+	var userIds []string
 	for _, comment := range commentList {
 		if comment.User != nil {
 			userIds = append(userIds, comment.User.Id)
 		}
-		if comment.ReplyUser != nil && comment.ReplyUser.Id != 0 {
+		if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 {
 			userIds = append(userIds, comment.ReplyUser.Id)
 		}
 		// 递归处理子评论
@@ -238,7 +239,7 @@ func (uc *CommentUsecase) assembleCommentListResult(ctx context.Context, comment
 				if child.User != nil {
 					userIds = append(userIds, child.User.Id)
 				}
-				if child.ReplyUser != nil && child.ReplyUser.Id != 0 {
+				if child.ReplyUser != nil && cast.ToInt64(child.ReplyUser.Id) != 0 {
 					userIds = append(userIds, child.ReplyUser.Id)
 				}
 			}
@@ -246,14 +247,14 @@ func (uc *CommentUsecase) assembleCommentListResult(ctx context.Context, comment
 	}
 
 	// 获取用户信息
-	var userInfoMap map[int64]*UserInfo
+	var userInfoMap map[string]*UserInfo
 	if len(userIds) > 0 {
 		userInfos, err := uc.core.GetUserInfoByIdList(ctx, userIds)
 		if err != nil {
 			// 弱依赖
 			log.Context(ctx).Warnf("failed to get user info list: %v", err)
 		} else {
-			userInfoMap = make(map[int64]*UserInfo)
+			userInfoMap = make(map[string]*UserInfo)
 			for _, user := range userInfos {
 				userInfoMap[user.Id] = user
 			}
@@ -271,7 +272,7 @@ func (uc *CommentUsecase) assembleCommentListResult(ctx context.Context, comment
 		}
 
 		var replyUserResp *CommentUser
-		if comment.ReplyUser != nil && comment.ReplyUser.Id != 0 && userInfoMap != nil {
+		if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 && userInfoMap != nil {
 			if userInfo, ok := userInfoMap[comment.ReplyUser.Id]; ok {
 				replyUserResp = uc.generateCommentUserInfo(userInfo)
 			}

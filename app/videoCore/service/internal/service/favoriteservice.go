@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/spf13/cast"
 	pb "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/pkg/utils"
@@ -18,8 +19,8 @@ func NewFavoriteServiceService(uc *biz.FavoriteUsecase) *FavoriteServiceService 
 
 func (s *FavoriteServiceService) AddFavorite(ctx context.Context, req *pb.AddFavoriteReq) (*pb.AddFavoriteResp, error) {
 	cmd := &biz.AddFavoriteCommand{
-		UserId:       req.UserId,
-		TargetId:     req.Id,
+		UserId:       cast.ToInt64(req.UserId),
+		TargetId:     cast.ToInt64(req.Id),
 		TargetType:   int32(req.Target),
 		FavoriteType: int32(req.Type),
 	}
@@ -38,8 +39,8 @@ func (s *FavoriteServiceService) AddFavorite(ctx context.Context, req *pb.AddFav
 
 func (s *FavoriteServiceService) RemoveFavorite(ctx context.Context, req *pb.RemoveFavoriteReq) (*pb.RemoveFavoriteResp, error) {
 	cmd := &biz.RemoveFavoriteCommand{
-		UserId:       req.UserId,
-		TargetId:     req.Id,
+		UserId:       cast.ToInt64(req.UserId),
+		TargetId:     cast.ToInt64(req.Id),
 		TargetType:   int32(req.Target),
 		FavoriteType: int32(req.Type),
 	}
@@ -58,7 +59,7 @@ func (s *FavoriteServiceService) RemoveFavorite(ctx context.Context, req *pb.Rem
 
 func (s *FavoriteServiceService) ListFavorite(ctx context.Context, req *pb.ListFavoriteReq) (*pb.ListFavoriteResp, error) {
 	query := &biz.ListFavoriteQuery{
-		Id:            req.Id,
+		Id:            cast.ToInt64(req.Id),
 		AggregateType: int32(req.AggregateType),
 		FavoriteType:  int32(req.FavoriteType),
 		PageStats: biz.PageStats{
@@ -76,14 +77,14 @@ func (s *FavoriteServiceService) ListFavorite(ctx context.Context, req *pb.ListF
 
 	return &pb.ListFavoriteResp{
 		Meta:      utils.GetSuccessMeta(),
-		Ids:       result.TargetIds,
+		Ids:       cast.ToStringSlice(result.TargetIds),
 		PageStats: &pb.PageStatsResp{Total: int32(result.Total)},
 	}, nil
 }
 
 func (s *FavoriteServiceService) CountFavorite(ctx context.Context, req *pb.CountFavoriteReq) (*pb.CountFavoriteResp, error) {
 	query := &biz.CountFavoriteQuery{
-		Ids:           req.Id,
+		Ids:           cast.ToInt64Slice(req.Ids),
 		AggregateType: int32(req.AggregateType),
 		FavoriteType:  int32(req.FavoriteType),
 	}
@@ -98,7 +99,7 @@ func (s *FavoriteServiceService) CountFavorite(ctx context.Context, req *pb.Coun
 	var pbItems []*pb.CountFavoriteRespItem
 	for _, item := range result.Items {
 		pbItems = append(pbItems, &pb.CountFavoriteRespItem{
-			BizId: item.BizId,
+			BizId: cast.ToString(item.BizId),
 			Count: item.Count,
 		})
 	}
@@ -113,8 +114,8 @@ func (s *FavoriteServiceService) IsFavorite(ctx context.Context, req *pb.IsFavor
 	var queryItems []biz.IsFavoriteQueryItem
 	for _, item := range req.Items {
 		queryItems = append(queryItems, biz.IsFavoriteQueryItem{
-			BizId:  item.BizId,
-			UserId: item.UserId,
+			BizId:  cast.ToInt64(item.BizId),
+			UserId: cast.ToInt64(item.UserId),
 		})
 	}
 
@@ -134,8 +135,8 @@ func (s *FavoriteServiceService) IsFavorite(ctx context.Context, req *pb.IsFavor
 	var pbItems []*pb.IsFavoriteRespItem
 	for _, item := range result.Items {
 		pbItems = append(pbItems, &pb.IsFavoriteRespItem{
-			BizId:      item.BizId,
-			UserId:     item.UserId,
+			BizId:      cast.ToString(item.BizId),
+			UserId:     cast.ToString(item.UserId),
 			IsFavorite: item.IsFavorite,
 		})
 	}

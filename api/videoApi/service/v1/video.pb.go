@@ -25,7 +25,7 @@ const (
 type Video struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"id,omitempty,string"
-	Id       int64        `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                            // 视频唯一标识
+	Id       string       `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                             // 视频唯一标识
 	Author   *VideoAuthor `protobuf:"bytes,2,opt,name=author,proto3" json:"author,omitempty"`                     // 视频作者信息
 	PlayUrl  string       `protobuf:"bytes,3,opt,name=play_url,json=playUrl,proto3" json:"play_url,omitempty"`    // 视频播放地址
 	CoverUrl string       `protobuf:"bytes,4,opt,name=cover_url,json=coverUrl,proto3" json:"cover_url,omitempty"` // 视频封面地址
@@ -72,11 +72,11 @@ func (*Video) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_video_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Video) GetId() int64 {
+func (x *Video) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *Video) GetAuthor() *VideoAuthor {
@@ -145,7 +145,7 @@ func (x *Video) GetCollectedCount() int64 {
 type VideoAuthor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"id,omitempty,string"
-	Id            int64  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Avatar        string `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	IsFollowing   bool   `protobuf:"varint,4,opt,name=isFollowing,proto3" json:"isFollowing,omitempty"`
@@ -183,11 +183,11 @@ func (*VideoAuthor) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_video_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *VideoAuthor) GetId() int64 {
+func (x *VideoAuthor) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *VideoAuthor) GetName() string {
@@ -290,7 +290,7 @@ type PreSign4UploadVideoResp struct {
 	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	// 文件id
 	// @gotags: json:"file_id,omitempty,string"
-	FileId        int64 `protobuf:"varint,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId        string `protobuf:"bytes,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -332,11 +332,11 @@ func (x *PreSign4UploadVideoResp) GetUrl() string {
 	return ""
 }
 
-func (x *PreSign4UploadVideoResp) GetFileId() int64 {
+func (x *PreSign4UploadVideoResp) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 type PreSign4UploadCoverReq struct {
@@ -418,7 +418,7 @@ type PreSign4UploadCoverResp struct {
 	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	// 文件id
 	// @gotags: json:"file_id,omitempty,string"
-	FileId        int64 `protobuf:"varint,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId        string `protobuf:"bytes,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -460,18 +460,18 @@ func (x *PreSign4UploadCoverResp) GetUrl() string {
 	return ""
 }
 
-func (x *PreSign4UploadCoverResp) GetFileId() int64 {
+func (x *PreSign4UploadCoverResp) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 type ReportFinishUploadReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// 文件id
 	// @gotags: json:"file_id,omitempty,string"
-	FileId        int64 `protobuf:"varint,1,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId        string `protobuf:"bytes,1,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -506,11 +506,11 @@ func (*ReportFinishUploadReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_video_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ReportFinishUploadReq) GetFileId() int64 {
+func (x *ReportFinishUploadReq) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 type ReportFinishUploadResp struct {
@@ -562,7 +562,7 @@ type ReportVideoFinishUploadReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// 文件id
 	// @gotags: json:"file_id,omitempty,string"
-	FileId int64 `protobuf:"varint,1,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	FileId string `protobuf:"bytes,1,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
 	// 视频标题
 	Title string `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
 	// 视频封面地址
@@ -605,11 +605,11 @@ func (*ReportVideoFinishUploadReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_video_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *ReportVideoFinishUploadReq) GetFileId() int64 {
+func (x *ReportVideoFinishUploadReq) GetFileId() string {
 	if x != nil {
 		return x.FileId
 	}
-	return 0
+	return ""
 }
 
 func (x *ReportVideoFinishUploadReq) GetTitle() string {
@@ -644,7 +644,7 @@ type ReportVideoFinishUploadResp struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// 视频id
 	// @gotags: json:"video_id,omitempty,string"
-	VideoId       int64 `protobuf:"varint,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
+	VideoId       string `protobuf:"bytes,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -679,11 +679,11 @@ func (*ReportVideoFinishUploadResp) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_video_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *ReportVideoFinishUploadResp) GetVideoId() int64 {
+func (x *ReportVideoFinishUploadResp) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
 	}
-	return 0
+	return ""
 }
 
 type FeedShortVideoReq struct {
@@ -691,7 +691,7 @@ type FeedShortVideoReq struct {
 	// @gotags: json:"latest_time,omitempty,string"
 	LatestTime int64 `protobuf:"varint,1,opt,name=latest_time,json=latestTime,proto3" json:"latest_time,omitempty"` // 可选参数，限制返回视频的最新投稿时间戳，精确到秒，不填表示当前时间
 	// @gotags: json:"user_id,omitempty,string"
-	UserId int64 `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId string `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	// @gotags: json:"feed_num,omitempty,string"
 	FeedNum       int64 `protobuf:"varint,3,opt,name=feed_num,json=feedNum,proto3" json:"feed_num,omitempty"` // 返回视频的数量
 	unknownFields protoimpl.UnknownFields
@@ -735,11 +735,11 @@ func (x *FeedShortVideoReq) GetLatestTime() int64 {
 	return 0
 }
 
-func (x *FeedShortVideoReq) GetUserId() int64 {
+func (x *FeedShortVideoReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *FeedShortVideoReq) GetFeedNum() int64 {
@@ -805,7 +805,7 @@ func (x *FeedShortVideoResp) GetNextTime() int64 {
 type GetVideoByIdReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// @gotags: json:"video_id,omitempty,string"
-	VideoId       int64 `protobuf:"varint,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
+	VideoId       string `protobuf:"bytes,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -840,11 +840,11 @@ func (*GetVideoByIdReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_video_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *GetVideoByIdReq) GetVideoId() int64 {
+func (x *GetVideoByIdReq) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
 	}
-	return 0
+	return ""
 }
 
 type GetVideoByIdResp struct {
@@ -994,7 +994,7 @@ const file_api_videoApi_service_v1_video_proto_rawDesc = "" +
 	"\n" +
 	"#api/videoApi/service/v1/video.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\x1a\"api/videoApi/service/v1/base.proto\"\xd7\x02\n" +
 	"\x05Video\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12<\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12<\n" +
 	"\x06author\x18\x02 \x01(\v2$.api.videoApi.service.v1.VideoAuthorR\x06author\x12\x19\n" +
 	"\bplay_url\x18\x03 \x01(\tR\aplayUrl\x12\x1b\n" +
 	"\tcover_url\x18\x04 \x01(\tR\bcoverUrl\x12$\n" +
@@ -1008,7 +1008,7 @@ const file_api_videoApi_service_v1_video_proto_rawDesc = "" +
 	"\x0ecollectedCount\x18\n" +
 	" \x01(\x03R\x0ecollectedCount\"k\n" +
 	"\vVideoAuthor\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12 \n" +
 	"\visFollowing\x18\x04 \x01(\bR\visFollowing\"y\n" +
@@ -1019,7 +1019,7 @@ const file_api_videoApi_service_v1_video_proto_rawDesc = "" +
 	"\bfilename\x18\x04 \x01(\tR\bfilename\"D\n" +
 	"\x17PreSign4UploadVideoResp\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x17\n" +
-	"\afile_id\x18\x02 \x01(\x03R\x06fileId\"y\n" +
+	"\afile_id\x18\x02 \x01(\tR\x06fileId\"y\n" +
 	"\x16PreSign4UploadCoverReq\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\x12\x1b\n" +
 	"\tfile_type\x18\x02 \x01(\tR\bfileType\x12\x12\n" +
@@ -1027,29 +1027,29 @@ const file_api_videoApi_service_v1_video_proto_rawDesc = "" +
 	"\bfilename\x18\x04 \x01(\tR\bfilename\"D\n" +
 	"\x17PreSign4UploadCoverResp\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x17\n" +
-	"\afile_id\x18\x02 \x01(\x03R\x06fileId\"0\n" +
+	"\afile_id\x18\x02 \x01(\tR\x06fileId\"0\n" +
 	"\x15ReportFinishUploadReq\x12\x17\n" +
-	"\afile_id\x18\x01 \x01(\x03R\x06fileId\"*\n" +
+	"\afile_id\x18\x01 \x01(\tR\x06fileId\"*\n" +
 	"\x16ReportFinishUploadResp\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\"\xa7\x01\n" +
 	"\x1aReportVideoFinishUploadReq\x12\x17\n" +
-	"\afile_id\x18\x01 \x01(\x03R\x06fileId\x12\x14\n" +
+	"\afile_id\x18\x01 \x01(\tR\x06fileId\x12\x14\n" +
 	"\x05title\x18\x03 \x01(\tR\x05title\x12\x1b\n" +
 	"\tcover_url\x18\x04 \x01(\tR\bcoverUrl\x12 \n" +
 	"\vdescription\x18\x05 \x01(\tR\vdescription\x12\x1b\n" +
 	"\tvideo_url\x18\x06 \x01(\tR\bvideoUrl\"8\n" +
 	"\x1bReportVideoFinishUploadResp\x12\x19\n" +
-	"\bvideo_id\x18\x01 \x01(\x03R\avideoId\"h\n" +
+	"\bvideo_id\x18\x01 \x01(\tR\avideoId\"h\n" +
 	"\x11FeedShortVideoReq\x12\x1f\n" +
 	"\vlatest_time\x18\x01 \x01(\x03R\n" +
 	"latestTime\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x19\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x19\n" +
 	"\bfeed_num\x18\x03 \x01(\x03R\afeedNum\"i\n" +
 	"\x12FeedShortVideoResp\x126\n" +
 	"\x06videos\x18\x01 \x03(\v2\x1e.api.videoApi.service.v1.VideoR\x06videos\x12\x1b\n" +
 	"\tnext_time\x18\x02 \x01(\x03R\bnextTime\",\n" +
 	"\x0fGetVideoByIdReq\x12\x19\n" +
-	"\bvideo_id\x18\x01 \x01(\x03R\avideoId\"H\n" +
+	"\bvideo_id\x18\x01 \x01(\tR\avideoId\"H\n" +
 	"\x10GetVideoByIdResp\x124\n" +
 	"\x05video\x18\x01 \x01(\v2\x1e.api.videoApi.service.v1.VideoR\x05video\"]\n" +
 	"\x15ListPublishedVideoReq\x12D\n" +

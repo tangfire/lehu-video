@@ -70,7 +70,7 @@ func (VoucherType) EnumDescriptor() ([]byte, []int) {
 
 type User struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	Id              int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                                 // 用户id
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                  // 用户id
 	Name            string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                              // 用户名称
 	Avatar          string                 `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`                                          // 用户头像Url
 	BackgroundImage string                 `protobuf:"bytes,4,opt,name=background_image,json=backgroundImage,proto3" json:"background_image,omitempty"` // 用户个人页顶部大图
@@ -120,11 +120,11 @@ func (*User) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *User) GetId() int64 {
+func (x *User) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *User) GetName() string {
@@ -406,7 +406,7 @@ func (x *RegisterReq) GetCode() string {
 
 type RegisterResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -441,11 +441,11 @@ func (*RegisterResp) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *RegisterResp) GetUserId() int64 {
+func (x *RegisterResp) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type LoginReq struct {
@@ -562,7 +562,7 @@ func (x *LoginResp) GetUser() *User {
 
 type GetUserInfoReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -597,11 +597,11 @@ func (*GetUserInfoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *GetUserInfoReq) GetUserId() int64 {
+func (x *GetUserInfoReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type GetUserInfoResp struct {
@@ -650,7 +650,7 @@ func (x *GetUserInfoResp) GetUser() *User {
 
 type UpdateUserInfoReq struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	UserId          int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Name            string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Avatar          string                 `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	BackgroundImage string                 `protobuf:"bytes,4,opt,name=background_image,json=backgroundImage,proto3" json:"background_image,omitempty"`
@@ -689,11 +689,11 @@ func (*UpdateUserInfoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *UpdateUserInfoReq) GetUserId() int64 {
+func (x *UpdateUserInfoReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *UpdateUserInfoReq) GetName() string {
@@ -942,7 +942,7 @@ const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\n" +
 	"\"api/videoApi/service/v1/user.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\"\xf5\x03\n" +
 	"\x04User\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12)\n" +
 	"\x10background_image\x18\x04 \x01(\tR\x0fbackgroundImage\x12\x1c\n" +
@@ -972,7 +972,7 @@ const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\acode_id\x18\x04 \x01(\x03R\x06codeId\x12\x12\n" +
 	"\x04code\x18\x05 \x01(\tR\x04code\"'\n" +
 	"\fRegisterResp\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"T\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"T\n" +
 	"\bLoginReq\x12\x16\n" +
 	"\x06mobile\x18\x01 \x01(\tR\x06mobile\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -981,11 +981,11 @@ const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x121\n" +
 	"\x04user\x18\x02 \x01(\v2\x1d.api.videoApi.service.v1.UserR\x04user\")\n" +
 	"\x0eGetUserInfoReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"D\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"D\n" +
 	"\x0fGetUserInfoResp\x121\n" +
 	"\x04user\x18\x02 \x01(\v2\x1d.api.videoApi.service.v1.UserR\x04user\"\xa1\x01\n" +
 	"\x11UpdateUserInfoReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12)\n" +
 	"\x10background_image\x18\x04 \x01(\tR\x0fbackgroundImage\x12\x1c\n" +

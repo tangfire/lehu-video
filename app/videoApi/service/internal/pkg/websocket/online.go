@@ -8,12 +8,12 @@ import (
 // OnlineManager 在线状态管理器
 type OnlineManager struct {
 	sync.RWMutex
-	onlineUsers map[int64]*UserOnlineStatus // userID -> 在线状态
+	onlineUsers map[string]*UserOnlineStatus // userID -> 在线状态
 }
 
 // UserOnlineStatus 用户在线状态
 type UserOnlineStatus struct {
-	UserID     int64     `json:"user_id"`
+	UserID     string    `json:"user_id"`
 	IsOnline   bool      `json:"is_online"`
 	LastActive time.Time `json:"last_active"`
 	DeviceType string    `json:"device_type"` // web/mobile/desktop
@@ -23,12 +23,12 @@ type UserOnlineStatus struct {
 // NewOnlineManager 创建在线状态管理器
 func NewOnlineManager() *OnlineManager {
 	return &OnlineManager{
-		onlineUsers: make(map[int64]*UserOnlineStatus),
+		onlineUsers: make(map[string]*UserOnlineStatus),
 	}
 }
 
 // SetUserOnline 设置用户在线
-func (m *OnlineManager) SetUserOnline(userID int64, deviceType, connID string) {
+func (m *OnlineManager) SetUserOnline(userID string, deviceType, connID string) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -42,7 +42,7 @@ func (m *OnlineManager) SetUserOnline(userID int64, deviceType, connID string) {
 }
 
 // SetUserOffline 设置用户离线
-func (m *OnlineManager) SetUserOffline(userID int64, connID string) {
+func (m *OnlineManager) SetUserOffline(userID string, connID string) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -55,7 +55,7 @@ func (m *OnlineManager) SetUserOffline(userID int64, connID string) {
 }
 
 // IsUserOnline 检查用户是否在线
-func (m *OnlineManager) IsUserOnline(userID int64) bool {
+func (m *OnlineManager) IsUserOnline(userID string) bool {
 	m.RLock()
 	defer m.RUnlock()
 
@@ -64,11 +64,11 @@ func (m *OnlineManager) IsUserOnline(userID int64) bool {
 }
 
 // GetOnlineUsers 获取在线用户列表
-func (m *OnlineManager) GetOnlineUsers(userIDs []int64) map[int64]bool {
+func (m *OnlineManager) GetOnlineUsers(userIDs []string) map[string]bool {
 	m.RLock()
 	defer m.RUnlock()
 
-	result := make(map[int64]bool)
+	result := make(map[string]bool)
 	for _, userID := range userIDs {
 		status, exists := m.onlineUsers[userID]
 		result[userID] = exists && status.IsOnline
@@ -78,7 +78,7 @@ func (m *OnlineManager) GetOnlineUsers(userIDs []int64) map[int64]bool {
 }
 
 // UpdateLastActive 更新最后活跃时间
-func (m *OnlineManager) UpdateLastActive(userID int64) {
+func (m *OnlineManager) UpdateLastActive(userID string) {
 	m.Lock()
 	defer m.Unlock()
 

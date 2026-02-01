@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/spf13/cast"
 	pb "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/pkg/utils"
@@ -22,8 +23,8 @@ func NewFollowServiceService(uc *biz.FollowUsecase) *FollowServiceService {
 func (s *FollowServiceService) AddFollow(ctx context.Context, req *pb.AddFollowReq) (*pb.AddFollowResp, error) {
 	// ✅ 改为Command
 	cmd := &biz.AddFollowCommand{
-		UserId:       req.UserId,
-		TargetUserId: req.TargetUserId,
+		UserId:       cast.ToInt64(req.UserId),
+		TargetUserId: cast.ToInt64(req.TargetUserId),
 	}
 
 	_, err := s.uc.AddFollow(ctx, cmd)
@@ -41,8 +42,8 @@ func (s *FollowServiceService) AddFollow(ctx context.Context, req *pb.AddFollowR
 func (s *FollowServiceService) RemoveFollow(ctx context.Context, req *pb.RemoveFollowReq) (*pb.RemoveFollowResp, error) {
 	// ✅ 改为Command
 	cmd := &biz.RemoveFollowCommand{
-		UserId:       req.UserId,
-		TargetUserId: req.TargetUserId,
+		UserId:       cast.ToInt64(req.UserId),
+		TargetUserId: cast.ToInt64(req.TargetUserId),
 	}
 
 	_, err := s.uc.RemoveFollow(ctx, cmd)
@@ -60,7 +61,7 @@ func (s *FollowServiceService) RemoveFollow(ctx context.Context, req *pb.RemoveF
 func (s *FollowServiceService) ListFollowing(ctx context.Context, req *pb.ListFollowingReq) (*pb.ListFollowingResp, error) {
 	// ✅ 改为Query
 	query := &biz.ListFollowingQuery{
-		UserId:     req.UserId,
+		UserId:     cast.ToInt64(req.UserId),
 		FollowType: int32(req.FollowType),
 		PageStats: biz.PageStats{
 			Page:     req.PageStats.Page,
@@ -77,7 +78,7 @@ func (s *FollowServiceService) ListFollowing(ctx context.Context, req *pb.ListFo
 
 	return &pb.ListFollowingResp{
 		Meta:       utils.GetSuccessMeta(),
-		UserIdList: result.UserIdList,
+		UserIdList: cast.ToStringSlice(result.UserIdList),
 		PageStats: &pb.PageStatsResp{
 			Total: int32(result.Total),
 		},
@@ -87,8 +88,8 @@ func (s *FollowServiceService) ListFollowing(ctx context.Context, req *pb.ListFo
 func (s *FollowServiceService) IsFollowing(ctx context.Context, req *pb.IsFollowingReq) (*pb.IsFollowingResp, error) {
 	// ✅ 改为Query
 	query := &biz.IsFollowingQuery{
-		UserId:           req.UserId,
-		TargetUserIdList: req.TargetUserIdList,
+		UserId:           cast.ToInt64(req.UserId),
+		TargetUserIdList: cast.ToInt64Slice(req.TargetUserIdList),
 	}
 
 	result, err := s.uc.IsFollowing(ctx, query)
@@ -100,14 +101,14 @@ func (s *FollowServiceService) IsFollowing(ctx context.Context, req *pb.IsFollow
 
 	return &pb.IsFollowingResp{
 		Meta:          utils.GetSuccessMeta(),
-		FollowingList: result.FollowingList,
+		FollowingList: cast.ToStringSlice(result.FollowingList),
 	}, nil
 }
 
 func (s *FollowServiceService) CountFollow(ctx context.Context, req *pb.CountFollowReq) (*pb.CountFollowResp, error) {
 	// ✅ 改为Query
 	query := &biz.CountFollowQuery{
-		UserId: req.UserId,
+		UserId: cast.ToInt64(req.UserId),
 	}
 
 	result, err := s.uc.CountFollow(ctx, query)

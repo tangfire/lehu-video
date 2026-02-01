@@ -23,7 +23,7 @@ type RegisterInput struct {
 }
 
 type RegisterOutput struct {
-	UserId int64
+	UserId string
 }
 
 type LoginInput struct {
@@ -38,7 +38,7 @@ type LoginOutput struct {
 }
 
 type GetUserInfoInput struct {
-	UserId int64
+	UserId string
 }
 
 type GetUserInfoOutput struct {
@@ -46,7 +46,7 @@ type GetUserInfoOutput struct {
 }
 
 type UpdateUserInfoInput struct {
-	UserId          int64
+	UserId          string
 	Name            string
 	Avatar          string
 	BackgroundImage string
@@ -135,7 +135,7 @@ func (uc *UserUsecase) AuthenticateUser(ctx context.Context, input *LoginInput) 
 	}
 
 	// 2. 获取用户信息
-	user, err := uc.core.GetUserInfo(ctx, 0, accountId)
+	user, err := uc.core.GetUserInfo(ctx, "0", accountId)
 	if err != nil {
 		return nil, err
 	}

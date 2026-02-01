@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/spf13/cast"
 
 	"github.com/go-kratos/kratos/v2/log"
 	pb "lehu-video/api/videoChat/service/v1"
@@ -25,7 +26,7 @@ func NewGroupServiceService(uc *biz.GroupUsecase, logger log.Logger) *GroupServi
 func (s *GroupServiceService) CreateGroup(ctx context.Context, req *pb.CreateGroupReq) (*pb.CreateGroupResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.CreateGroupCommand{
-		OwnerID: req.OwnerId,
+		OwnerID: cast.ToInt64(req.OwnerId),
 		Name:    req.Name,
 		Notice:  req.Notice,
 		AddMode: req.AddMode,
@@ -42,14 +43,14 @@ func (s *GroupServiceService) CreateGroup(ctx context.Context, req *pb.CreateGro
 
 	return &pb.CreateGroupResp{
 		Meta:    utils.GetSuccessMeta(),
-		GroupId: result.GroupID,
+		GroupId: cast.ToString(result.GroupID),
 	}, nil
 }
 
 func (s *GroupServiceService) LoadMyGroup(ctx context.Context, req *pb.LoadMyGroupReq) (*pb.LoadMyGroupResp, error) {
 	// ✅ 构建Query
 	query := &biz.LoadMyGroupQuery{
-		OwnerID: req.OwnerId,
+		OwnerID: cast.ToInt64(req.OwnerId),
 		PageStats: biz.PageStats{
 			Page:     int(req.PageStats.Page),
 			PageSize: int(req.PageStats.Size),
@@ -68,11 +69,11 @@ func (s *GroupServiceService) LoadMyGroup(ctx context.Context, req *pb.LoadMyGro
 	groups := make([]*pb.GroupInfo, 0, len(result.Groups))
 	for _, group := range result.Groups {
 		groups = append(groups, &pb.GroupInfo{
-			Id:        group.ID,
+			Id:        cast.ToString(group.ID),
 			Name:      group.Name,
 			Notice:    group.Notice,
 			MemberCnt: int32(group.MemberCnt),
-			OwnerId:   group.OwnerID,
+			OwnerId:   cast.ToString(group.OwnerID),
 			AddMode:   group.AddMode,
 			Avatar:    group.Avatar,
 			Status:    group.Status,
@@ -93,7 +94,7 @@ func (s *GroupServiceService) LoadMyGroup(ctx context.Context, req *pb.LoadMyGro
 func (s *GroupServiceService) CheckGroupAddMode(ctx context.Context, req *pb.CheckGroupAddModeReq) (*pb.CheckGroupAddModeResp, error) {
 	// ✅ 构建Query
 	query := &biz.CheckGroupAddModeQuery{
-		GroupID: req.GroupId,
+		GroupID: cast.ToInt64(req.GroupId),
 	}
 
 	// ✅ 调用业务层
@@ -113,8 +114,8 @@ func (s *GroupServiceService) CheckGroupAddMode(ctx context.Context, req *pb.Che
 func (s *GroupServiceService) EnterGroupDirectly(ctx context.Context, req *pb.EnterGroupDirectlyReq) (*pb.EnterGroupDirectlyResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.EnterGroupDirectlyCommand{
-		UserID:  req.UserId,
-		GroupID: req.GroupId,
+		UserID:  cast.ToInt64(req.UserId),
+		GroupID: cast.ToInt64(req.GroupId),
 	}
 
 	// ✅ 调用业务层
@@ -133,8 +134,8 @@ func (s *GroupServiceService) EnterGroupDirectly(ctx context.Context, req *pb.En
 func (s *GroupServiceService) ApplyJoinGroup(ctx context.Context, req *pb.ApplyJoinGroupReq) (*pb.ApplyJoinGroupResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.ApplyJoinGroupCommand{
-		UserID:      req.UserId,
-		GroupID:     req.GroupId,
+		UserID:      cast.ToInt64(req.UserId),
+		GroupID:     cast.ToInt64(req.GroupId),
 		ApplyReason: req.ApplyReason,
 	}
 
@@ -154,8 +155,8 @@ func (s *GroupServiceService) ApplyJoinGroup(ctx context.Context, req *pb.ApplyJ
 func (s *GroupServiceService) LeaveGroup(ctx context.Context, req *pb.LeaveGroupReq) (*pb.LeaveGroupResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.LeaveGroupCommand{
-		UserID:  req.UserId,
-		GroupID: req.GroupId,
+		UserID:  cast.ToInt64(req.UserId),
+		GroupID: cast.ToInt64(req.GroupId),
 	}
 
 	// ✅ 调用业务层
@@ -174,8 +175,8 @@ func (s *GroupServiceService) LeaveGroup(ctx context.Context, req *pb.LeaveGroup
 func (s *GroupServiceService) DismissGroup(ctx context.Context, req *pb.DismissGroupReq) (*pb.DismissGroupResp, error) {
 	// ✅ 构建Command
 	cmd := &biz.DismissGroupCommand{
-		OwnerID: req.OwnerId,
-		GroupID: req.GroupId,
+		OwnerID: cast.ToInt64(req.OwnerId),
+		GroupID: cast.ToInt64(req.GroupId),
 	}
 
 	// ✅ 调用业务层
@@ -194,7 +195,7 @@ func (s *GroupServiceService) DismissGroup(ctx context.Context, req *pb.DismissG
 func (s *GroupServiceService) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoReq) (*pb.GetGroupInfoResp, error) {
 	// ✅ 构建Query
 	query := &biz.GetGroupInfoQuery{
-		GroupID: req.GroupId,
+		GroupID: cast.ToInt64(req.GroupId),
 	}
 
 	// ✅ 调用业务层
@@ -217,11 +218,11 @@ func (s *GroupServiceService) GetGroupInfo(ctx context.Context, req *pb.GetGroup
 	return &pb.GetGroupInfoResp{
 		Meta: utils.GetSuccessMeta(),
 		Group: &pb.GroupInfo{
-			Id:        result.Group.ID,
+			Id:        cast.ToString(result.Group.ID),
 			Name:      result.Group.Name,
 			Notice:    result.Group.Notice,
 			MemberCnt: int32(result.Group.MemberCnt),
-			OwnerId:   result.Group.OwnerID,
+			OwnerId:   cast.ToString(result.Group.OwnerID),
 			AddMode:   result.Group.AddMode,
 			Avatar:    result.Group.Avatar,
 			Status:    result.Group.Status,
@@ -234,7 +235,7 @@ func (s *GroupServiceService) GetGroupInfo(ctx context.Context, req *pb.GetGroup
 func (s *GroupServiceService) ListMyJoinedGroups(ctx context.Context, req *pb.ListMyJoinedGroupsReq) (*pb.ListMyJoinedGroupsResp, error) {
 	// ✅ 构建Query
 	query := &biz.ListMyJoinedGroupsQuery{
-		UserID: req.UserId,
+		UserID: cast.ToInt64(req.UserId),
 		PageStats: biz.PageStats{
 			Page:     int(req.PageStats.Page),
 			PageSize: int(req.PageStats.Size),
@@ -253,11 +254,11 @@ func (s *GroupServiceService) ListMyJoinedGroups(ctx context.Context, req *pb.Li
 	groups := make([]*pb.GroupInfo, 0, len(result.Groups))
 	for _, group := range result.Groups {
 		groups = append(groups, &pb.GroupInfo{
-			Id:        group.ID,
+			Id:        cast.ToString(group.ID),
 			Name:      group.Name,
 			Notice:    group.Notice,
 			MemberCnt: int32(group.MemberCnt),
-			OwnerId:   group.OwnerID,
+			OwnerId:   cast.ToString(group.OwnerID),
 			AddMode:   group.AddMode,
 			Avatar:    group.Avatar,
 			Status:    group.Status,
@@ -279,7 +280,7 @@ func (s *GroupServiceService) ListMyJoinedGroups(ctx context.Context, req *pb.Li
 func (s *GroupServiceService) GetGroupMembers(ctx context.Context, req *pb.GetGroupMembersReq) (*pb.GetGroupMembersResp, error) {
 	// ✅ 构建Query
 	query := &biz.GetGroupMembersQuery{
-		GroupID: req.GroupId,
+		GroupID: cast.ToInt64(req.GroupId),
 	}
 
 	// ✅ 调用业务层
@@ -290,9 +291,14 @@ func (s *GroupServiceService) GetGroupMembers(ctx context.Context, req *pb.GetGr
 		}, nil
 	}
 
+	ids := make([]string, len(result.MemberIDs))
+	for i, id := range result.MemberIDs {
+		ids[i] = cast.ToString(id)
+	}
+
 	return &pb.GetGroupMembersResp{
 		Meta:      utils.GetSuccessMeta(),
-		MemberIds: result.MemberIDs,
+		MemberIds: ids,
 	}, nil
 }
 
@@ -300,8 +306,8 @@ func (s *GroupServiceService) GetGroupMembers(ctx context.Context, req *pb.GetGr
 func (s *GroupServiceService) IsGroupMember(ctx context.Context, req *pb.IsGroupMemberReq) (*pb.IsGroupMemberResp, error) {
 	// ✅ 构建Query
 	query := &biz.IsGroupMemberQuery{
-		GroupID: req.GroupId,
-		UserID:  req.UserId,
+		GroupID: cast.ToInt64(req.GroupId),
+		UserID:  cast.ToInt64(req.UserId),
 	}
 
 	// ✅ 调用业务层

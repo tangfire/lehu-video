@@ -23,11 +23,11 @@ const (
 
 type GroupInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // 改为 string
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Notice        string                 `protobuf:"bytes,3,opt,name=notice,proto3" json:"notice,omitempty"`
 	MemberCnt     int32                  `protobuf:"varint,4,opt,name=member_cnt,json=memberCnt,proto3" json:"member_cnt,omitempty"`
-	OwnerId       int64                  `protobuf:"varint,5,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,5,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"` // 改为 string
 	AddMode       int32                  `protobuf:"varint,6,opt,name=add_mode,json=addMode,proto3" json:"add_mode,omitempty"`
 	Avatar        string                 `protobuf:"bytes,7,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	Status        int32                  `protobuf:"varint,8,opt,name=status,proto3" json:"status,omitempty"`
@@ -67,11 +67,11 @@ func (*GroupInfo) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GroupInfo) GetId() int64 {
+func (x *GroupInfo) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *GroupInfo) GetName() string {
@@ -95,11 +95,11 @@ func (x *GroupInfo) GetMemberCnt() int32 {
 	return 0
 }
 
-func (x *GroupInfo) GetOwnerId() int64 {
+func (x *GroupInfo) GetOwnerId() string {
 	if x != nil {
 		return x.OwnerId
 	}
-	return 0
+	return ""
 }
 
 func (x *GroupInfo) GetAddMode() int32 {
@@ -139,7 +139,7 @@ func (x *GroupInfo) GetUpdatedAt() string {
 
 type CreateGroupReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Notice        string                 `protobuf:"bytes,3,opt,name=notice,proto3" json:"notice,omitempty"`
 	AddMode       int32                  `protobuf:"varint,4,opt,name=add_mode,json=addMode,proto3" json:"add_mode,omitempty"`
@@ -178,11 +178,11 @@ func (*CreateGroupReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *CreateGroupReq) GetOwnerId() int64 {
+func (x *CreateGroupReq) GetOwnerId() string {
 	if x != nil {
 		return x.OwnerId
 	}
-	return 0
+	return ""
 }
 
 func (x *CreateGroupReq) GetName() string {
@@ -215,7 +215,7 @@ func (x *CreateGroupReq) GetAvatar() string {
 
 type CreateGroupResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -251,11 +251,11 @@ func (*CreateGroupResp) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *CreateGroupResp) GetGroupId() int64 {
+func (x *CreateGroupResp) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 func (x *CreateGroupResp) GetMeta() *Metadata {
@@ -267,7 +267,7 @@ func (x *CreateGroupResp) GetMeta() *Metadata {
 
 type LoadMyGroupReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -303,11 +303,11 @@ func (*LoadMyGroupReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *LoadMyGroupReq) GetOwnerId() int64 {
+func (x *LoadMyGroupReq) GetOwnerId() string {
 	if x != nil {
 		return x.OwnerId
 	}
-	return 0
+	return ""
 }
 
 func (x *LoadMyGroupReq) GetPageStats() *PageStatsReq {
@@ -379,7 +379,7 @@ func (x *LoadMyGroupResp) GetPageStats() *PageStatsResp {
 
 type CheckGroupAddModeReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -414,11 +414,11 @@ func (*CheckGroupAddModeReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *CheckGroupAddModeReq) GetGroupId() int64 {
+func (x *CheckGroupAddModeReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type CheckGroupAddModeResp struct {
@@ -475,8 +475,8 @@ func (x *CheckGroupAddModeResp) GetMeta() *Metadata {
 
 type EnterGroupDirectlyReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	GroupId       int64                  `protobuf:"varint,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -511,18 +511,18 @@ func (*EnterGroupDirectlyReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *EnterGroupDirectlyReq) GetUserId() int64 {
+func (x *EnterGroupDirectlyReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *EnterGroupDirectlyReq) GetGroupId() int64 {
+func (x *EnterGroupDirectlyReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type EnterGroupDirectlyResp struct {
@@ -571,8 +571,8 @@ func (x *EnterGroupDirectlyResp) GetMeta() *Metadata {
 
 type ApplyJoinGroupReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	GroupId       int64                  `protobuf:"varint,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	ApplyReason   string                 `protobuf:"bytes,3,opt,name=apply_reason,json=applyReason,proto3" json:"apply_reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -608,18 +608,18 @@ func (*ApplyJoinGroupReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *ApplyJoinGroupReq) GetUserId() int64 {
+func (x *ApplyJoinGroupReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *ApplyJoinGroupReq) GetGroupId() int64 {
+func (x *ApplyJoinGroupReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 func (x *ApplyJoinGroupReq) GetApplyReason() string {
@@ -675,8 +675,8 @@ func (x *ApplyJoinGroupResp) GetMeta() *Metadata {
 
 type LeaveGroupReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	GroupId       int64                  `protobuf:"varint,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -711,18 +711,18 @@ func (*LeaveGroupReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *LeaveGroupReq) GetUserId() int64 {
+func (x *LeaveGroupReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *LeaveGroupReq) GetGroupId() int64 {
+func (x *LeaveGroupReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type LeaveGroupResp struct {
@@ -771,8 +771,8 @@ func (x *LeaveGroupResp) GetMeta() *Metadata {
 
 type DismissGroupReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
-	GroupId       int64                  `protobuf:"varint,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -807,18 +807,18 @@ func (*DismissGroupReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *DismissGroupReq) GetOwnerId() int64 {
+func (x *DismissGroupReq) GetOwnerId() string {
 	if x != nil {
 		return x.OwnerId
 	}
-	return 0
+	return ""
 }
 
-func (x *DismissGroupReq) GetGroupId() int64 {
+func (x *DismissGroupReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type DismissGroupResp struct {
@@ -867,7 +867,7 @@ func (x *DismissGroupResp) GetMeta() *Metadata {
 
 type GetGroupInfoReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -902,11 +902,11 @@ func (*GetGroupInfoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *GetGroupInfoReq) GetGroupId() int64 {
+func (x *GetGroupInfoReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type GetGroupInfoResp struct {
@@ -963,7 +963,7 @@ func (x *GetGroupInfoResp) GetMeta() *Metadata {
 
 type ListMyJoinedGroupsReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -999,11 +999,11 @@ func (*ListMyJoinedGroupsReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *ListMyJoinedGroupsReq) GetUserId() int64 {
+func (x *ListMyJoinedGroupsReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListMyJoinedGroupsReq) GetPageStats() *PageStatsReq {
@@ -1075,7 +1075,7 @@ func (x *ListMyJoinedGroupsResp) GetPageStats() *PageStatsResp {
 
 type GetGroupMembersReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1110,16 +1110,16 @@ func (*GetGroupMembersReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *GetGroupMembersReq) GetGroupId() int64 {
+func (x *GetGroupMembersReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type GetGroupMembersResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MemberIds     []int64                `protobuf:"varint,1,rep,packed,name=member_ids,json=memberIds,proto3" json:"member_ids,omitempty"`
+	MemberIds     []string               `protobuf:"bytes,1,rep,name=member_ids,json=memberIds,proto3" json:"member_ids,omitempty"`
 	Meta          *Metadata              `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1155,7 +1155,7 @@ func (*GetGroupMembersResp) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{20}
 }
 
-func (x *GetGroupMembersResp) GetMemberIds() []int64 {
+func (x *GetGroupMembersResp) GetMemberIds() []string {
 	if x != nil {
 		return x.MemberIds
 	}
@@ -1171,8 +1171,8 @@ func (x *GetGroupMembersResp) GetMeta() *Metadata {
 
 type IsGroupMemberReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1207,18 +1207,18 @@ func (*IsGroupMemberReq) Descriptor() ([]byte, []int) {
 	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{21}
 }
 
-func (x *IsGroupMemberReq) GetGroupId() int64 {
+func (x *IsGroupMemberReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
-func (x *IsGroupMemberReq) GetUserId() int64 {
+func (x *IsGroupMemberReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type IsGroupMemberResp struct {
@@ -1279,12 +1279,12 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\n" +
 	"$api/videoChat/service/v1/group.proto\x12\x18api.videoChat.service.v1\x1a#api/videoChat/service/v1/base.proto\"\x8a\x02\n" +
 	"\tGroupInfo\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06notice\x18\x03 \x01(\tR\x06notice\x12\x1d\n" +
 	"\n" +
 	"member_cnt\x18\x04 \x01(\x05R\tmemberCnt\x12\x19\n" +
-	"\bowner_id\x18\x05 \x01(\x03R\aownerId\x12\x19\n" +
+	"\bowner_id\x18\x05 \x01(\tR\aownerId\x12\x19\n" +
 	"\badd_mode\x18\x06 \x01(\x05R\aaddMode\x12\x16\n" +
 	"\x06avatar\x18\a \x01(\tR\x06avatar\x12\x16\n" +
 	"\x06status\x18\b \x01(\x05R\x06status\x12\x1d\n" +
@@ -1294,16 +1294,16 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"updated_at\x18\n" +
 	" \x01(\tR\tupdatedAt\"\x8a\x01\n" +
 	"\x0eCreateGroupReq\x12\x19\n" +
-	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x12\n" +
+	"\bowner_id\x18\x01 \x01(\tR\aownerId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06notice\x18\x03 \x01(\tR\x06notice\x12\x19\n" +
 	"\badd_mode\x18\x04 \x01(\x05R\aaddMode\x12\x16\n" +
 	"\x06avatar\x18\x05 \x01(\tR\x06avatar\"d\n" +
 	"\x0fCreateGroupResp\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\x126\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"r\n" +
 	"\x0eLoadMyGroupReq\x12\x19\n" +
-	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12E\n" +
+	"\bowner_id\x18\x01 \x01(\tR\aownerId\x12E\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2&.api.videoChat.service.v1.PageStatsReqR\tpageStats\"\xce\x01\n" +
 	"\x0fLoadMyGroupResp\x12;\n" +
@@ -1312,38 +1312,38 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoChat.service.v1.PageStatsRespR\tpageStats\"1\n" +
 	"\x14CheckGroupAddModeReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"j\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"j\n" +
 	"\x15CheckGroupAddModeResp\x12\x19\n" +
 	"\badd_mode\x18\x01 \x01(\x05R\aaddMode\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"K\n" +
 	"\x15EnterGroupDirectlyReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x19\n" +
-	"\bgroup_id\x18\x02 \x01(\x03R\agroupId\"P\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x19\n" +
+	"\bgroup_id\x18\x02 \x01(\tR\agroupId\"P\n" +
 	"\x16EnterGroupDirectlyResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"j\n" +
 	"\x11ApplyJoinGroupReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x19\n" +
-	"\bgroup_id\x18\x02 \x01(\x03R\agroupId\x12!\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x19\n" +
+	"\bgroup_id\x18\x02 \x01(\tR\agroupId\x12!\n" +
 	"\fapply_reason\x18\x03 \x01(\tR\vapplyReason\"L\n" +
 	"\x12ApplyJoinGroupResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"C\n" +
 	"\rLeaveGroupReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x19\n" +
-	"\bgroup_id\x18\x02 \x01(\x03R\agroupId\"H\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x19\n" +
+	"\bgroup_id\x18\x02 \x01(\tR\agroupId\"H\n" +
 	"\x0eLeaveGroupResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"G\n" +
 	"\x0fDismissGroupReq\x12\x19\n" +
-	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x19\n" +
-	"\bgroup_id\x18\x02 \x01(\x03R\agroupId\"J\n" +
+	"\bowner_id\x18\x01 \x01(\tR\aownerId\x12\x19\n" +
+	"\bgroup_id\x18\x02 \x01(\tR\agroupId\"J\n" +
 	"\x10DismissGroupResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\",\n" +
 	"\x0fGetGroupInfoReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"\x85\x01\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"\x85\x01\n" +
 	"\x10GetGroupInfoResp\x129\n" +
 	"\x05group\x18\x01 \x01(\v2#.api.videoChat.service.v1.GroupInfoR\x05group\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"w\n" +
 	"\x15ListMyJoinedGroupsReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12E\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12E\n" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2&.api.videoChat.service.v1.PageStatsReqR\tpageStats\"\xd5\x01\n" +
 	"\x16ListMyJoinedGroupsResp\x12;\n" +
@@ -1352,14 +1352,14 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoChat.service.v1.PageStatsRespR\tpageStats\"/\n" +
 	"\x12GetGroupMembersReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"l\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"l\n" +
 	"\x13GetGroupMembersResp\x12\x1d\n" +
 	"\n" +
-	"member_ids\x18\x01 \x03(\x03R\tmemberIds\x126\n" +
+	"member_ids\x18\x01 \x03(\tR\tmemberIds\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"F\n" +
 	"\x10IsGroupMemberReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x03R\x06userId\"h\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"h\n" +
 	"\x11IsGroupMemberResp\x12\x1b\n" +
 	"\tis_member\x18\x01 \x01(\bR\bisMember\x126\n" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta2\xb4\t\n" +

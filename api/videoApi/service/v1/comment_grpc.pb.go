@@ -35,6 +35,7 @@ type CommentServiceClient interface {
 	RemoveComment(ctx context.Context, in *RemoveCommentReq, opts ...grpc.CallOption) (*RemoveCommentResp, error)
 	// 列出视频的评论
 	ListComment4Video(ctx context.Context, in *ListComment4VideoReq, opts ...grpc.CallOption) (*ListComment4VideoResp, error)
+	// 列出该评论的子评论
 	ListChildComment(ctx context.Context, in *ListChildCommentReq, opts ...grpc.CallOption) (*ListChildCommentResp, error)
 }
 
@@ -96,6 +97,7 @@ type CommentServiceServer interface {
 	RemoveComment(context.Context, *RemoveCommentReq) (*RemoveCommentResp, error)
 	// 列出视频的评论
 	ListComment4Video(context.Context, *ListComment4VideoReq) (*ListComment4VideoResp, error)
+	// 列出该评论的子评论
 	ListChildComment(context.Context, *ListChildCommentReq) (*ListChildCommentResp, error)
 	mustEmbedUnimplementedCommentServiceServer()
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/spf13/cast"
 	"gorm.io/gorm"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 	"time"
@@ -30,9 +31,9 @@ type MessageContent struct {
 
 // Message 消息结构体
 type Message struct {
-	ID         int64           `json:"id"`                                // 消息唯一标识ID
-	SenderID   int64           `json:"sender_id"`                         // 发送者用户ID
-	ReceiverID int64           `json:"receiver_id"`                       // 接收者ID
+	ID         string          `json:"id"`                                // 消息唯一标识ID
+	SenderID   string          `json:"sender_id"`                         // 发送者用户ID
+	ReceiverID string          `json:"receiver_id"`                       // 接收者ID
 	ConvType   int8            `json:"conv_type"`                         // 会话类型: 0=单聊, 1=群聊
 	MsgType    int8            `json:"msg_type"`                          // 消息类型: 0=文本, 1=图片, 2=语音, 3=视频, 4=文件
 	Content    *MessageContent `json:"content"`                           // 消息内容
@@ -59,11 +60,11 @@ func (m *Message) FromJSON(jsonStr string) error {
 
 // Conversation 会话结构体
 type Conversation struct {
-	ID          int64
-	UserID      int64
+	ID          string
+	UserID      string
 	Type        int32
-	TargetID    *int64 // 注意这里用指针，匹配 data 层实现
-	GroupID     *int64 // 注意这里用指针
+	TargetID    *string // 注意这里用指针，匹配 data 层实现
+	GroupID     *string // 注意这里用指针
 	Name        string
 	Avatar      string
 	LastMessage string
@@ -77,7 +78,7 @@ type Conversation struct {
 
 // 消息相关输入输出（修复版）
 type SendMessageInput struct {
-	ReceiverID  int64
+	ReceiverID  string
 	ConvType    int32
 	MsgType     int32
 	Content     *MessageContent
@@ -85,29 +86,29 @@ type SendMessageInput struct {
 }
 
 type SendMessageOutput struct {
-	MessageID      int64
-	ConversationId int64
+	MessageID      string
+	ConversationId string
 }
 
 type ListMessagesInput struct {
-	ConversationID int64 // 重点：对应 proto 中的 conversation_id
-	LastMsgID      int64
+	ConversationID string // 重点：对应 proto 中的 conversation_id
+	LastMsgID      string
 	Limit          int32
 }
 
 type ListMessagesOutput struct {
 	Messages  []*Message
 	HasMore   bool
-	LastMsgID int64
+	LastMsgID string
 }
 
 type RecallMessageInput struct {
-	MessageID int64
+	MessageID string
 }
 
 type MarkMessagesReadInput struct {
-	ConversationID int64 // 对应 proto 的 conversation_id
-	LastMsgID      int64
+	ConversationID string // 对应 proto 的 conversation_id
+	LastMsgID      string
 }
 
 type ListConversationsInput struct {
@@ -120,17 +121,17 @@ type ListConversationsOutput struct {
 }
 
 type DeleteConversationInput struct {
-	ConversationID int64
+	ConversationID string
 }
 
 type CreateConversationInput struct {
-	TargetID       int64
+	TargetID       string
 	ConvType       int32
 	InitialMessage string
 }
 
 type CreateConversationOutput struct {
-	ConversationID int64
+	ConversationID string
 }
 
 // MessageUsecase（修复版）
@@ -185,7 +186,7 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, input *SendMessageInp
 	}
 
 	// 发送消息
-	messageID, conversationId, err := uc.chat.SendMessage(ctx, userID, input.ReceiverID, input.ConvType, input.MsgType, input.Content, input.ClientMsgID)
+	messageID, conversationId, err := uc.chat.SendMessage(ctx, cast.ToString(userID), input.ReceiverID, input.ConvType, input.MsgType, input.Content, input.ClientMsgID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("发送消息失败: %v", err)
 		return nil, err
@@ -212,7 +213,7 @@ func (uc *MessageUsecase) ListMessages(ctx context.Context, input *ListMessagesI
 	}
 
 	// 注意：这里需要chat适配器支持按会话ID查询消息
-	messages, hasMore, lastMsgID, err := uc.chat.ListMessages(ctx, userID, input.ConversationID, input.LastMsgID, input.Limit)
+	messages, hasMore, lastMsgID, err := uc.chat.ListMessages(ctx, cast.ToString(userID), input.ConversationID, input.LastMsgID, input.Limit)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取消息列表失败: %v", err)
 		return nil, errors.New("获取消息失败")
@@ -231,7 +232,7 @@ func (uc *MessageUsecase) RecallMessage(ctx context.Context, input *RecallMessag
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.RecallMessage(ctx, input.MessageID, userID)
+	err = uc.chat.RecallMessage(ctx, input.MessageID, cast.ToString(userID))
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("撤回消息失败: %v", err)
 		return errors.New("撤回消息失败")
@@ -247,7 +248,7 @@ func (uc *MessageUsecase) MarkMessagesRead(ctx context.Context, input *MarkMessa
 	}
 
 	// 调用 chatAdapter
-	err = uc.chat.MarkMessagesRead(ctx, userID, input.ConversationID, input.LastMsgID)
+	err = uc.chat.MarkMessagesRead(ctx, cast.ToString(userID), input.ConversationID, input.LastMsgID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("标记消息已读失败: %v", err)
 		return errors.New("标记消息已读失败")
@@ -262,7 +263,7 @@ func (uc *MessageUsecase) ListConversations(ctx context.Context, input *ListConv
 		return nil, errors.New("获取用户信息失败")
 	}
 
-	total, conversations, err := uc.chat.ListConversations(ctx, userID, input.PageStats)
+	total, conversations, err := uc.chat.ListConversations(ctx, cast.ToString(userID), input.PageStats)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取会话列表失败: %v", err)
 		return nil, errors.New("获取会话列表失败")
@@ -280,7 +281,7 @@ func (uc *MessageUsecase) DeleteConversation(ctx context.Context, input *DeleteC
 		return errors.New("获取用户信息失败")
 	}
 
-	err = uc.chat.DeleteConversation(ctx, userID, input.ConversationID)
+	err = uc.chat.DeleteConversation(ctx, cast.ToString(userID), input.ConversationID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("删除会话失败: %v", err)
 		return errors.New("删除会话失败")
@@ -290,7 +291,7 @@ func (uc *MessageUsecase) DeleteConversation(ctx context.Context, input *DeleteC
 }
 
 // 新增：更新消息状态
-func (uc *MessageUsecase) UpdateMessageStatus(ctx context.Context, messageID int64, status int32) error {
+func (uc *MessageUsecase) UpdateMessageStatus(ctx context.Context, messageID string, status int32) error {
 	// 验证状态值
 	if status < 0 || status > 99 {
 		return errors.New("无效的消息状态")
@@ -307,13 +308,13 @@ func (uc *MessageUsecase) UpdateMessageStatus(ctx context.Context, messageID int
 }
 
 // 新增：获取会话详情
-func (uc *MessageUsecase) GetConversation(ctx context.Context, targetID int64, convType int32) (*Conversation, error) {
+func (uc *MessageUsecase) GetConversation(ctx context.Context, targetID string, convType int32) (*Conversation, error) {
 	userID, err := claims.GetUserId(ctx)
 	if err != nil {
 		return nil, errors.New("获取用户信息失败")
 	}
 
-	conversation, err := uc.chat.GetConversation(ctx, userID, targetID, convType)
+	conversation, err := uc.chat.GetConversation(ctx, cast.ToString(userID), targetID, convType)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取会话详情失败: %v", err)
 		return nil, errors.New("获取会话失败")
@@ -322,16 +323,20 @@ func (uc *MessageUsecase) GetConversation(ctx context.Context, targetID int64, c
 	return conversation, nil
 }
 
-func (uc *MessageUsecase) GetUnreadCount(ctx context.Context, userID int64) (int64, map[int64]int64, error) {
-	total, results, err := uc.chat.GetUnreadCount(ctx, userID)
+func (uc *MessageUsecase) GetUnreadCount(ctx context.Context, userID string) (int64, map[string]int64, error) {
+	total, results, err := uc.chat.GetUnreadCount(ctx, cast.ToString(userID))
 	if err != nil {
 		return 0, nil, err
 	}
 	return total, results, nil
 }
 
-func (uc *MessageUsecase) ClearMessages(ctx context.Context, userID, conversationId int64) error {
-	err := uc.chat.ClearMessages(ctx, userID, conversationId)
+func (uc *MessageUsecase) ClearMessages(ctx context.Context, conversationId string) error {
+	userID, err := claims.GetUserId(ctx)
+	if err != nil {
+		return errors.New("获取用户信息失败")
+	}
+	err = uc.chat.ClearMessages(ctx, cast.ToString(userID), conversationId)
 	if err != nil {
 		return err
 	}
@@ -350,7 +355,7 @@ func (uc *MessageUsecase) CreateConversation(ctx context.Context, input *CreateC
 		// 检查是否是好友关系
 		if uc.chat != nil {
 			// 检查是否有 CheckFriendRelation 方法
-			isFriend, _, err := uc.chat.CheckFriendRelation(ctx, userID, input.TargetID)
+			isFriend, _, err := uc.chat.CheckFriendRelation(ctx, cast.ToString(userID), input.TargetID)
 			if err != nil {
 				return nil, fmt.Errorf("检查好友关系失败: %v", err)
 			}
@@ -363,10 +368,10 @@ func (uc *MessageUsecase) CreateConversation(ctx context.Context, input *CreateC
 		if uc.chat != nil {
 			// 检查是否有 CheckUserRelation 方法
 			checker, ok := uc.chat.(interface {
-				CheckUserRelation(ctx context.Context, userID, targetID int64, convType int32) (bool, error)
+				CheckUserRelation(ctx context.Context, userID, targetID string, convType int32) (bool, error)
 			})
 			if ok {
-				isMember, err := checker.CheckUserRelation(ctx, userID, input.TargetID, input.ConvType)
+				isMember, err := checker.CheckUserRelation(ctx, cast.ToString(userID), input.TargetID, input.ConvType)
 				if err != nil {
 					return nil, fmt.Errorf("检查群成员关系失败: %v", err)
 				}
@@ -379,7 +384,7 @@ func (uc *MessageUsecase) CreateConversation(ctx context.Context, input *CreateC
 
 	// 如果是单聊，检查是否已经存在会话
 	if input.ConvType == 0 {
-		existingConv, err := uc.chat.GetConversation(ctx, userID, input.TargetID, input.ConvType)
+		existingConv, err := uc.chat.GetConversation(ctx, cast.ToString(userID), input.TargetID, input.ConvType)
 		if err == nil && existingConv != nil {
 			return &CreateConversationOutput{
 				ConversationID: existingConv.ID,
@@ -389,7 +394,7 @@ func (uc *MessageUsecase) CreateConversation(ctx context.Context, input *CreateC
 
 	// 通过 chat 适配器创建会话
 	if uc.chat != nil {
-		conversationID, err := uc.chat.CreateConversation(ctx, userID, input.TargetID, input.ConvType, input.InitialMessage)
+		conversationID, err := uc.chat.CreateConversation(ctx, cast.ToString(userID), input.TargetID, input.ConvType, input.InitialMessage)
 		if err != nil {
 			uc.log.WithContext(ctx).Errorf("创建会话失败: %v", err)
 			return nil, fmt.Errorf("创建会话失败: %v", err)

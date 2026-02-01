@@ -12,9 +12,9 @@ import (
 
 // OfflineMessage 离线消息结构
 type OfflineMessage struct {
-	MessageID  int64           `json:"message_id"`
-	SenderID   int64           `json:"sender_id"`
-	ReceiverID int64           `json:"receiver_id"`
+	MessageID  string          `json:"message_id"`
+	SenderID   string          `json:"sender_id"`
+	ReceiverID string          `json:"receiver_id"`
 	ConvType   int32           `json:"conv_type"`
 	MsgType    int32           `json:"msg_type"`
 	Content    json.RawMessage `json:"content"`
@@ -24,7 +24,7 @@ type OfflineMessage struct {
 // OfflineManager 离线消息管理器
 type OfflineManager struct {
 	sync.RWMutex
-	messages  map[int64][]*OfflineMessage // userID -> 离线消息列表
+	messages  map[string][]*OfflineMessage // userID -> 离线消息列表
 	logger    log.Logger
 	messageUC *biz.MessageUsecase
 	chat      biz.ChatAdapter
@@ -33,7 +33,7 @@ type OfflineManager struct {
 // NewOfflineManager 创建离线消息管理器
 func NewOfflineManager(logger log.Logger, messageUC *biz.MessageUsecase, chat biz.ChatAdapter) *OfflineManager {
 	return &OfflineManager{
-		messages:  make(map[int64][]*OfflineMessage),
+		messages:  make(map[string][]*OfflineMessage),
 		logger:    logger,
 		messageUC: messageUC,
 		chat:      chat,
@@ -41,7 +41,7 @@ func NewOfflineManager(logger log.Logger, messageUC *biz.MessageUsecase, chat bi
 }
 
 // StoreOfflineMessage 存储离线消息
-func (om *OfflineManager) StoreOfflineMessage(userID int64, message *OfflineMessage) {
+func (om *OfflineManager) StoreOfflineMessage(userID string, message *OfflineMessage) {
 	om.Lock()
 	defer om.Unlock()
 
@@ -54,7 +54,7 @@ func (om *OfflineManager) StoreOfflineMessage(userID int64, message *OfflineMess
 }
 
 // GetOfflineMessages 获取用户的所有离线消息
-func (om *OfflineManager) GetOfflineMessages(userID int64) []*OfflineMessage {
+func (om *OfflineManager) GetOfflineMessages(userID string) []*OfflineMessage {
 	om.RLock()
 	defer om.RUnlock()
 
@@ -62,7 +62,7 @@ func (om *OfflineManager) GetOfflineMessages(userID int64) []*OfflineMessage {
 }
 
 // ClearOfflineMessages 清除用户的离线消息
-func (om *OfflineManager) ClearOfflineMessages(userID int64) {
+func (om *OfflineManager) ClearOfflineMessages(userID string) {
 	om.Lock()
 	defer om.Unlock()
 
@@ -71,7 +71,7 @@ func (om *OfflineManager) ClearOfflineMessages(userID int64) {
 }
 
 // DeliverOfflineMessages 投递离线消息
-func (om *OfflineManager) DeliverOfflineMessages(userID int64, client *Client) {
+func (om *OfflineManager) DeliverOfflineMessages(userID string, client *Client) {
 	om.RLock()
 	messages := om.messages[userID]
 	om.RUnlock()
@@ -127,7 +127,7 @@ func (om *OfflineManager) buildPushMessage(msg *OfflineMessage) []byte {
 }
 
 // updateMessageStatus 更新消息状态
-func (om *OfflineManager) updateMessageStatus(messageID int64, status int32) {
+func (om *OfflineManager) updateMessageStatus(messageID string, status int32) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

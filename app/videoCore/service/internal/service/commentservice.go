@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/spf13/cast"
 	"time"
 
 	pb "lehu-video/api/videoCore/service/v1"
@@ -23,10 +24,10 @@ func NewCommentServiceService(uc *biz.CommentUsecase) *CommentServiceService {
 func (s *CommentServiceService) CreateComment(ctx context.Context, req *pb.CreateCommentReq) (*pb.CreateCommentResp, error) {
 	// 构建Command
 	cmd := &biz.CreateCommentCommand{
-		VideoID:     req.VideoId,
-		UserID:      req.UserId,
-		ParentID:    req.ParentId,
-		ReplyUserID: req.ReplyUserId,
+		VideoID:     cast.ToInt64(req.VideoId),
+		UserID:      cast.ToInt64(req.UserId),
+		ParentID:    cast.ToInt64(req.ParentId),
+		ReplyUserID: cast.ToInt64(req.ReplyUserId),
 		Content:     req.Content,
 	}
 
@@ -49,8 +50,8 @@ func (s *CommentServiceService) CreateComment(ctx context.Context, req *pb.Creat
 func (s *CommentServiceService) RemoveComment(ctx context.Context, req *pb.RemoveCommentReq) (*pb.RemoveCommentResp, error) {
 	// 构建Command
 	cmd := &biz.RemoveCommentCommand{
-		CommentID: req.CommentId,
-		UserID:    req.UserId,
+		CommentID: cast.ToInt64(req.CommentId),
+		UserID:    cast.ToInt64(req.UserId),
 	}
 
 	// 调用业务层
@@ -69,7 +70,7 @@ func (s *CommentServiceService) RemoveComment(ctx context.Context, req *pb.Remov
 func (s *CommentServiceService) ListComment4Video(ctx context.Context, req *pb.ListComment4VideoReq) (*pb.ListComment4VideoResp, error) {
 	// 构建Query
 	query := &biz.ListVideoCommentsQuery{
-		VideoID: req.VideoId,
+		VideoID: cast.ToInt64(req.VideoId),
 		PageStats: biz.PageStats{
 			Page:     req.PageStats.Page,
 			PageSize: req.PageStats.Size,
@@ -104,7 +105,7 @@ func (s *CommentServiceService) ListComment4Video(ctx context.Context, req *pb.L
 func (s *CommentServiceService) ListChildComment4Comment(ctx context.Context, req *pb.ListChildComment4CommentReq) (*pb.ListChildComment4CommentResp, error) {
 	// 构建Query
 	query := &biz.ListChildCommentsQuery{
-		ParentID: req.CommentId,
+		ParentID: cast.ToInt64(req.CommentId),
 		PageStats: biz.PageStats{
 			Page:     req.PageStats.Page,
 			PageSize: req.PageStats.Size,
@@ -136,7 +137,7 @@ func (s *CommentServiceService) ListChildComment4Comment(ctx context.Context, re
 func (s *CommentServiceService) GetCommentById(ctx context.Context, req *pb.GetCommentByIdReq) (*pb.GetCommentByIdResp, error) {
 	// 构建Query
 	query := &biz.GetCommentQuery{
-		CommentID: req.CommentId,
+		CommentID: cast.ToInt64(req.CommentId),
 	}
 
 	// 调用业务层
@@ -160,9 +161,11 @@ func (s *CommentServiceService) GetCommentById(ctx context.Context, req *pb.GetC
 }
 
 func (s *CommentServiceService) CountComment4Video(ctx context.Context, req *pb.CountComment4VideoReq) (*pb.CountComment4VideoResp, error) {
+
+	ids := cast.ToInt64Slice(req.VideoId)
 	// 构建Query
 	query := &biz.CountVideoCommentsQuery{
-		VideoIDs: req.VideoId,
+		VideoIDs: ids,
 	}
 
 	// 调用业务层
@@ -177,7 +180,7 @@ func (s *CommentServiceService) CountComment4Video(ctx context.Context, req *pb.
 	results := make([]*pb.CountResult, 0, len(result.Counts))
 	for videoID, count := range result.Counts {
 		results = append(results, &pb.CountResult{
-			Id:    videoID,
+			Id:    cast.ToString(videoID),
 			Count: count,
 		})
 	}
@@ -191,7 +194,7 @@ func (s *CommentServiceService) CountComment4Video(ctx context.Context, req *pb.
 func (s *CommentServiceService) CountComment4User(ctx context.Context, req *pb.CountComment4UserReq) (*pb.CountComment4UserResp, error) {
 	// 构建Query
 	query := &biz.CountUserCommentsQuery{
-		UserIDs: req.UserId,
+		UserIDs: cast.ToInt64Slice(req.UserId),
 	}
 
 	// 调用业务层
@@ -206,7 +209,7 @@ func (s *CommentServiceService) CountComment4User(ctx context.Context, req *pb.C
 	results := make([]*pb.CountResult, 0, len(result.Counts))
 	for userID, count := range result.Counts {
 		results = append(results, &pb.CountResult{
-			Id:    userID,
+			Id:    cast.ToString(userID),
 			Count: count,
 		})
 	}
@@ -224,15 +227,15 @@ func (s *CommentServiceService) toPBComment(comment *biz.Comment) *pb.Comment {
 	}
 
 	pbComment := &pb.Comment{
-		Id:          comment.ID,
-		VideoId:     comment.VideoID,
+		Id:          cast.ToString(comment.ID),
+		VideoId:     cast.ToString(comment.VideoID),
 		Content:     comment.Content,
 		Date:        comment.CreateTime.Format(time.DateTime),
 		LikeCount:   comment.LikeCount,
 		ReplyCount:  comment.ReplyCount,
-		UserId:      comment.UserID,
-		ParentId:    comment.ParentID,
-		ReplyUserId: comment.ReplyUserID,
+		UserId:      cast.ToString(comment.UserID),
+		ParentId:    cast.ToString(comment.ParentID),
+		ReplyUserId: cast.ToString(comment.ReplyUserID),
 		Comments:    []*pb.Comment{},
 	}
 

@@ -72,8 +72,8 @@ func (FollowType) EnumDescriptor() ([]byte, []int) {
 
 type AddFollowReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	TargetUserId  int64                  `protobuf:"varint,2,opt,name=target_user_id,json=targetUserId,proto3" json:"target_user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TargetUserId  string                 `protobuf:"bytes,2,opt,name=target_user_id,json=targetUserId,proto3" json:"target_user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -108,18 +108,18 @@ func (*AddFollowReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_follow_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *AddFollowReq) GetUserId() int64 {
+func (x *AddFollowReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *AddFollowReq) GetTargetUserId() int64 {
+func (x *AddFollowReq) GetTargetUserId() string {
 	if x != nil {
 		return x.TargetUserId
 	}
-	return 0
+	return ""
 }
 
 type AddFollowResp struct {
@@ -168,8 +168,8 @@ func (x *AddFollowResp) GetMeta() *Metadata {
 
 type RemoveFollowReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	TargetUserId  int64                  `protobuf:"varint,2,opt,name=target_user_id,json=targetUserId,proto3" json:"target_user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TargetUserId  string                 `protobuf:"bytes,2,opt,name=target_user_id,json=targetUserId,proto3" json:"target_user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -204,18 +204,18 @@ func (*RemoveFollowReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_follow_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *RemoveFollowReq) GetUserId() int64 {
+func (x *RemoveFollowReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *RemoveFollowReq) GetTargetUserId() int64 {
+func (x *RemoveFollowReq) GetTargetUserId() string {
 	if x != nil {
 		return x.TargetUserId
 	}
-	return 0
+	return ""
 }
 
 type RemoveFollowResp struct {
@@ -264,7 +264,7 @@ func (x *RemoveFollowResp) GetMeta() *Metadata {
 
 type ListFollowingReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	FollowType    FollowType             `protobuf:"varint,2,opt,name=follow_type,json=followType,proto3,enum=api.videoCore.service.v1.FollowType" json:"follow_type,omitempty"`
 	PageStats     *PageStatsReq          `protobuf:"bytes,3,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -301,11 +301,11 @@ func (*ListFollowingReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_follow_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *ListFollowingReq) GetUserId() int64 {
+func (x *ListFollowingReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 func (x *ListFollowingReq) GetFollowType() FollowType {
@@ -325,7 +325,7 @@ func (x *ListFollowingReq) GetPageStats() *PageStatsReq {
 type ListFollowingResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	UserIdList    []int64                `protobuf:"varint,2,rep,packed,name=user_id_list,json=userIdList,proto3" json:"user_id_list,omitempty"`
+	UserIdList    []string               `protobuf:"bytes,2,rep,name=user_id_list,json=userIdList,proto3" json:"user_id_list,omitempty"`
 	PageStats     *PageStatsResp         `protobuf:"bytes,3,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -368,7 +368,7 @@ func (x *ListFollowingResp) GetMeta() *Metadata {
 	return nil
 }
 
-func (x *ListFollowingResp) GetUserIdList() []int64 {
+func (x *ListFollowingResp) GetUserIdList() []string {
 	if x != nil {
 		return x.UserIdList
 	}
@@ -384,8 +384,8 @@ func (x *ListFollowingResp) GetPageStats() *PageStatsResp {
 
 type IsFollowingReq struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
-	UserId           int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	TargetUserIdList []int64                `protobuf:"varint,2,rep,packed,name=target_user_id_list,json=targetUserIdList,proto3" json:"target_user_id_list,omitempty"`
+	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TargetUserIdList []string               `protobuf:"bytes,2,rep,name=target_user_id_list,json=targetUserIdList,proto3" json:"target_user_id_list,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -420,14 +420,14 @@ func (*IsFollowingReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_follow_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *IsFollowingReq) GetUserId() int64 {
+func (x *IsFollowingReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
-func (x *IsFollowingReq) GetTargetUserIdList() []int64 {
+func (x *IsFollowingReq) GetTargetUserIdList() []string {
 	if x != nil {
 		return x.TargetUserIdList
 	}
@@ -437,7 +437,7 @@ func (x *IsFollowingReq) GetTargetUserIdList() []int64 {
 type IsFollowingResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	FollowingList []int64                `protobuf:"varint,2,rep,packed,name=following_list,json=followingList,proto3" json:"following_list,omitempty"`
+	FollowingList []string               `protobuf:"bytes,2,rep,name=following_list,json=followingList,proto3" json:"following_list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -479,7 +479,7 @@ func (x *IsFollowingResp) GetMeta() *Metadata {
 	return nil
 }
 
-func (x *IsFollowingResp) GetFollowingList() []int64 {
+func (x *IsFollowingResp) GetFollowingList() []string {
 	if x != nil {
 		return x.FollowingList
 	}
@@ -488,7 +488,7 @@ func (x *IsFollowingResp) GetFollowingList() []int64 {
 
 type CountFollowReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -523,11 +523,11 @@ func (*CountFollowReq) Descriptor() ([]byte, []int) {
 	return file_api_videoCore_service_v1_follow_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *CountFollowReq) GetUserId() int64 {
+func (x *CountFollowReq) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
-	return 0
+	return ""
 }
 
 type CountFollowResp struct {
@@ -596,35 +596,35 @@ const file_api_videoCore_service_v1_follow_proto_rawDesc = "" +
 	"\n" +
 	"%api/videoCore/service/v1/follow.proto\x12\x18api.videoCore.service.v1\x1a#api/videoCore/service/v1/base.proto\"M\n" +
 	"\fAddFollowReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12$\n" +
-	"\x0etarget_user_id\x18\x02 \x01(\x03R\ftargetUserId\"G\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12$\n" +
+	"\x0etarget_user_id\x18\x02 \x01(\tR\ftargetUserId\"G\n" +
 	"\rAddFollowResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"P\n" +
 	"\x0fRemoveFollowReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12$\n" +
-	"\x0etarget_user_id\x18\x02 \x01(\x03R\ftargetUserId\"J\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12$\n" +
+	"\x0etarget_user_id\x18\x02 \x01(\tR\ftargetUserId\"J\n" +
 	"\x10RemoveFollowResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\xb9\x01\n" +
 	"\x10ListFollowingReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12E\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12E\n" +
 	"\vfollow_type\x18\x02 \x01(\x0e2$.api.videoCore.service.v1.FollowTypeR\n" +
 	"followType\x12E\n" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2&.api.videoCore.service.v1.PageStatsReqR\tpageStats\"\xb5\x01\n" +
 	"\x11ListFollowingResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12 \n" +
-	"\fuser_id_list\x18\x02 \x03(\x03R\n" +
+	"\fuser_id_list\x18\x02 \x03(\tR\n" +
 	"userIdList\x12F\n" +
 	"\n" +
 	"page_stats\x18\x03 \x01(\v2'.api.videoCore.service.v1.PageStatsRespR\tpageStats\"X\n" +
 	"\x0eIsFollowingReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12-\n" +
-	"\x13target_user_id_list\x18\x02 \x03(\x03R\x10targetUserIdList\"p\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12-\n" +
+	"\x13target_user_id_list\x18\x02 \x03(\tR\x10targetUserIdList\"p\n" +
 	"\x0fIsFollowingResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12%\n" +
-	"\x0efollowing_list\x18\x02 \x03(\x03R\rfollowingList\")\n" +
+	"\x0efollowing_list\x18\x02 \x03(\tR\rfollowingList\")\n" +
 	"\x0eCountFollowReq\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"\x99\x01\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x99\x01\n" +
 	"\x0fCountFollowResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12'\n" +
 	"\x0ffollowing_count\x18\x02 \x01(\x03R\x0efollowingCount\x12%\n" +

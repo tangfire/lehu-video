@@ -128,11 +128,9 @@ type UpdateMessageStatusCommand struct {
 
 type UpdateMessageStatusResult struct{}
 
-// 新增：清空消息Command
 type ClearMessagesCommand struct {
-	UserID   int64
-	TargetID int64
-	ConvType int32
+	UserID         int64
+	ConversationID int64
 }
 
 type ClearMessagesResult struct{}
@@ -159,11 +157,10 @@ type MessageRepo interface {
 	ListMessages(ctx context.Context, conversationID, lastMsgID int64, limit int) ([]*Message, bool, error)
 	CountUnreadMessages(ctx context.Context, userID, targetID int64, convType int32) (int64, error)
 	MarkMessagesAsRead(ctx context.Context, conversationID, userID, lastMsgID int64) error
-	DeleteMessagesByConversation(ctx context.Context, userID, targetID int64, convType int32) error
+	DeleteMessagesByConversation(ctx context.Context, userID, conversationID, targetID int64, convType int32) error
 	CountTotalUnread(ctx context.Context, userID int64) (int64, error)
 	CountUnreadByConversations(ctx context.Context, userID int64) (map[int64]int64, error)
 	BatchUpdateMessageStatus(ctx context.Context, messageIDs []int64, status int32) error
-	ClearMessages(ctx context.Context, userID, targetID int64, convType int32) error
 }
 
 type MessageUsecase struct {
@@ -709,13 +706,72 @@ func (uc *MessageUsecase) GetMessage(ctx context.Context, messageID int64) (*Mes
 }
 
 // ClearMessages 修复清空聊天记录
-func (uc *MessageUsecase) ClearMessages(ctx context.Context, userID, targetID int64, convType int32) (*ClearMessagesResult, error) {
-	// 调用正确的方法名
-	err := uc.messageRepo.DeleteMessagesByConversation(ctx, userID, targetID, convType)
+func (uc *MessageUsecase) ClearMessages(ctx context.Context, cmd *ClearMessagesCommand) (*ClearMessagesResult, error) {
+	// 1. 验证参数
+	if cmd.UserID == 0 || cmd.ConversationID == 0 {
+		return nil, fmt.Errorf("参数错误")
+	}
+
+	// 2. 验证用户是否属于该会话
+	member, err := uc.conversationRepo.GetConversationMember(ctx, cmd.ConversationID, cmd.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("验证会话成员失败: %v", err)
+	}
+
+	if member == nil {
+		return nil, fmt.Errorf("用户不属于该会话")
+	}
+
+	// 3. 获取会话信息
+	conversation, err := uc.conversationRepo.GetConversation(ctx, cmd.ConversationID)
+	if err != nil {
+		return nil, fmt.Errorf("获取会话信息失败: %v", err)
+	}
+
+	if conversation == nil {
+		return nil, fmt.Errorf("会话不存在")
+	}
+
+	// 4. 清空该用户在该会话中的消息
+	// 注意：这里应该只清空该用户的消息，而不是整个会话的消息
+	// 单聊：清空自己发送的和接收的消息
+	// 群聊：清空自己发送的消息
+	var targetID int64
+	var convType int32
+
+	if conversation.Type == 0 { // 单聊
+		// 获取对方ID
+		if conversation.TargetID == nil {
+			return nil, fmt.Errorf("单聊会话缺少对方ID")
+		}
+		targetID = *conversation.TargetID
+		convType = 0
+	} else if conversation.Type == 1 { // 群聊
+		// 群聊的目标ID就是群ID
+		if conversation.GroupID == nil {
+			return nil, fmt.Errorf("群聊会话缺少群ID")
+		}
+		targetID = *conversation.GroupID
+		convType = 1
+	} else {
+		return nil, fmt.Errorf("不支持的会话类型")
+	}
+
+	// 5. 调用仓储层清空消息
+	err = uc.messageRepo.DeleteMessagesByConversation(ctx, cmd.UserID, cmd.ConversationID, targetID, convType)
 	if err != nil {
 		uc.log.Errorf("清空聊天记录失败: %v", err)
 		return nil, fmt.Errorf("清空聊天记录失败")
 	}
+
+	// 6. 重置未读计数（重要！）
+	err = uc.conversationRepo.ResetMemberUnreadCount(ctx, cmd.ConversationID, cmd.UserID)
+	if err != nil {
+		uc.log.Warnf("重置未读计数失败: %v", err)
+	}
+
+	// 7. 更新会话的最后消息（可选，可以考虑将最后消息置空或设为系统提示）
+	// 这里可以添加逻辑：更新会话最后消息为 "聊天记录已清空" 等系统提示
 
 	return &ClearMessagesResult{}, nil
 }

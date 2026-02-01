@@ -17,8 +17,8 @@ service FollowService {
 }
 
 message AddFollowReq{
-	int64 user_id = 1;
-	int64 target_user_id = 2;
+	string user_id = 1;
+	string target_user_id = 2;
 }
 
 message AddFollowResp{
@@ -26,8 +26,8 @@ message AddFollowResp{
 }
 
 message RemoveFollowReq{
-	int64 user_id = 1;
-	int64 target_user_id = 2;
+	string user_id = 1;
+	string target_user_id = 2;
 }
 
 message RemoveFollowResp{
@@ -41,29 +41,29 @@ enum FollowType{
 }
 
 message ListFollowingReq{
-	int64 user_id = 1;
+	string user_id = 1;
 	FollowType follow_type = 2;
 	PageStatsReq page_stats = 3;
 }
 
 message ListFollowingResp{
 	Metadata meta = 1;
-	repeated int64 user_id_list = 2;
+	repeated string user_id_list = 2;
 	PageStatsResp page_stats = 3;
 }
 
 message IsFollowingReq{
-	int64 user_id = 1;
-	repeated int64 target_user_id_list = 2;
+	string user_id = 1;
+	repeated string target_user_id_list = 2;
 }
 
 message IsFollowingResp{
 	Metadata meta = 1;
-	repeated int64 following_list = 2;
+	repeated string following_list = 2;
 }
 
 message CountFollowReq{
-	int64 user_id = 1;
+	string user_id = 1;
 }
 
 message CountFollowResp{

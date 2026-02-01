@@ -35,8 +35,8 @@ enum FavoriteAggregateType{
 message AddFavoriteReq{
 	FavoriteTarget target = 1;
 	FavoriteType type = 2;
-	int64 id = 3;
-	int64 user_id = 4;
+	string id = 3;
+	string user_id = 4;
 }
 
 message AddFavoriteResp{
@@ -46,8 +46,8 @@ message AddFavoriteResp{
 message RemoveFavoriteReq{
 	FavoriteTarget target = 1;
 	FavoriteType type = 2;
-	int64 id = 3;
-	int64 user_id = 4;
+	string id = 3;
+	string user_id = 4;
 }
 
 message RemoveFavoriteResp{
@@ -55,7 +55,7 @@ message RemoveFavoriteResp{
 }
 
 message ListFavoriteReq{
-	int64 id = 1;
+	string id = 1;
 	FavoriteAggregateType aggregate_type = 2;
 	FavoriteType favorite_type = 3;
 	PageStatsReq page_stats = 4;
@@ -63,19 +63,19 @@ message ListFavoriteReq{
 
 message ListFavoriteResp{
 	Metadata meta = 1;
-	repeated int64 ids = 2;
+	repeated string ids = 2;
 	PageStatsResp page_stats = 3;
 }
 
 
 message CountFavoriteReq{
 	FavoriteAggregateType aggregate_type = 1;
-	repeated int64 id = 2;
+	repeated string ids = 2;
 	FavoriteType favorite_type = 3;
 }
 
 message CountFavoriteRespItem{
-	int64 biz_id = 1;
+	string biz_id = 1;
 	int64 count = 2;
 }
 
@@ -85,8 +85,8 @@ message CountFavoriteResp{
 }
 
 message IsFavoriteReqItem{
-	int64 biz_id = 1;
-	int64 user_id = 2;
+	string biz_id = 1;
+	string user_id = 2;
 
 }
 
@@ -97,8 +97,8 @@ message IsFavoriteReq{
 }
 
 message IsFavoriteRespItem{
-	int64 biz_id = 1;
-	int64 user_id = 2;
+	string biz_id = 1;
+	string user_id = 2;
 	bool is_favorite = 3;
 }
 

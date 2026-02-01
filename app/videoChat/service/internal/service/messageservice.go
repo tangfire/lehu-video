@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/spf13/cast"
 
 	"github.com/go-kratos/kratos/v2/log"
 
@@ -33,15 +34,19 @@ func (s *MessageServiceService) SendMessage(
 	req *pb.SendMessageReq,
 ) (*pb.SendMessageResp, error) {
 
-	if req.SenderId == 0 || req.ReceiverId == 0 {
+	// 使用 cast.ToInt64 转换 string ID
+	senderID := cast.ToInt64(req.SenderId)
+	receiverID := cast.ToInt64(req.ReceiverId)
+
+	if senderID == 0 || receiverID == 0 {
 		return &pb.SendMessageResp{
 			Meta: utils.GetMetaWithError(errors.New("invalid sender or receiver")),
 		}, nil
 	}
 
 	cmd := &biz.SendMessageCommand{
-		SenderID:    req.SenderId,
-		ReceiverID:  req.ReceiverId,
+		SenderID:    senderID,
+		ReceiverID:  receiverID,
 		ConvType:    int32(req.ConvType),
 		MsgType:     int32(req.MsgType),
 		ClientMsgID: req.ClientMsgId,
@@ -74,8 +79,8 @@ func (s *MessageServiceService) SendMessage(
 
 	return &pb.SendMessageResp{
 		Meta:           utils.GetSuccessMeta(),
-		MessageId:      result.MessageID,
-		ConversationId: result.ConversationID,
+		MessageId:      cast.ToString(result.MessageID),
+		ConversationId: cast.ToString(result.ConversationID),
 	}, nil
 }
 
@@ -89,9 +94,9 @@ func (s *MessageServiceService) ListMessages(
 ) (*pb.ListMessagesResp, error) {
 
 	query := &biz.ListMessagesQuery{
-		UserID:         req.UserId,
-		ConversationID: req.ConversationId,
-		LastMsgID:      req.LastMsgId,
+		UserID:         cast.ToInt64(req.UserId),
+		ConversationID: cast.ToInt64(req.ConversationId),
+		LastMsgID:      cast.ToInt64(req.LastMsgId),
 		Limit:          int(req.Limit),
 	}
 
@@ -105,10 +110,10 @@ func (s *MessageServiceService) ListMessages(
 	messages := make([]*pb.Message, 0, len(result.Messages))
 	for _, msg := range result.Messages {
 		pbMsg := &pb.Message{
-			Id:             msg.ID,
-			ConversationId: msg.ConversationID,
-			SenderId:       msg.SenderID,
-			ReceiverId:     msg.ReceiverID,
+			Id:             cast.ToString(msg.ID),             // 转 string
+			ConversationId: cast.ToString(msg.ConversationID), // 转 string
+			SenderId:       cast.ToString(msg.SenderID),       // 转 string
+			ReceiverId:     cast.ToString(msg.ReceiverID),     // 转 string
 			ConvType:       pb.ConversationType(msg.ConvType),
 			MsgType:        pb.MessageType(msg.MsgType),
 			Status:         pb.MessageStatus(msg.Status),
@@ -142,7 +147,7 @@ func (s *MessageServiceService) ListMessages(
 		Meta:      utils.GetSuccessMeta(),
 		Messages:  messages,
 		HasMore:   result.HasMore,
-		LastMsgId: result.LastMsgID,
+		LastMsgId: cast.ToString(result.LastMsgID),
 	}, nil
 }
 
@@ -156,7 +161,7 @@ func (s *MessageServiceService) ListConversations(
 ) (*pb.ListConversationsResp, error) {
 
 	query := &biz.ListConversationsQuery{
-		UserID: req.UserId,
+		UserID: cast.ToInt64(req.UserId),
 		PageStats: &biz.PageStats{
 			Page:     int(req.PageStats.Page),
 			PageSize: int(req.PageStats.Size),
@@ -174,7 +179,7 @@ func (s *MessageServiceService) ListConversations(
 	for _, conv := range result.Conversations {
 
 		pbConv := &pb.Conversation{
-			Id:          conv.ID,
+			Id:          cast.ToString(conv.ID),
 			Type:        pb.ConversationType(conv.Type),
 			Name:        conv.Name,
 			Avatar:      conv.Avatar,
@@ -185,10 +190,12 @@ func (s *MessageServiceService) ListConversations(
 		}
 
 		if conv.TargetID != nil {
-			pbConv.TargetId = conv.TargetID
+			targetID := cast.ToString(conv.TargetID)
+			pbConv.TargetId = &targetID
 		}
 		if conv.GroupID != nil {
-			pbConv.GroupId = conv.GroupID
+			groupID := cast.ToString(conv.GroupID)
+			pbConv.GroupId = &groupID
 		}
 		if conv.LastMsgType != nil {
 			v := pb.MessageType(*conv.LastMsgType)
@@ -224,15 +231,18 @@ func (s *MessageServiceService) RecallMessage(
 	req *pb.RecallMessageReq,
 ) (*pb.RecallMessageResp, error) {
 
-	if req.MessageId == 0 || req.UserId == 0 {
+	messageID := cast.ToInt64(req.MessageId)
+	userID := cast.ToInt64(req.UserId)
+
+	if messageID == 0 || userID == 0 {
 		return &pb.RecallMessageResp{
 			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
 	cmd := &biz.RecallMessageCommand{
-		MessageID: req.MessageId,
-		UserID:    req.UserId,
+		MessageID: messageID, // 转换
+		UserID:    userID,    // 转换
 	}
 
 	_, err := s.uc.RecallMessage(ctx, cmd)
@@ -253,16 +263,19 @@ func (s *MessageServiceService) MarkMessagesRead(
 	req *pb.MarkMessagesReadReq,
 ) (*pb.MarkMessagesReadResp, error) {
 
-	if req.UserId == 0 || req.ConversationId == 0 {
+	userID := cast.ToInt64(req.UserId)
+	conversationID := cast.ToInt64(req.ConversationId)
+
+	if userID == 0 || conversationID == 0 {
 		return &pb.MarkMessagesReadResp{
 			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
 	cmd := &biz.MarkMessagesReadCommand{
-		UserID:         req.UserId,
-		ConversationID: req.ConversationId,
-		LastMsgID:      req.LastMsgId,
+		UserID:         userID,                      // 转换
+		ConversationID: conversationID,              // 转换
+		LastMsgID:      cast.ToInt64(req.LastMsgId), // 转换
 	}
 
 	_, err := s.uc.MarkMessagesRead(ctx, cmd)
@@ -283,14 +296,15 @@ func (s *MessageServiceService) GetUnreadCount(
 	req *pb.GetUnreadCountReq,
 ) (*pb.GetUnreadCountResp, error) {
 
-	if req.UserId == 0 {
+	userID := cast.ToInt64(req.UserId)
+	if userID == 0 {
 		return &pb.GetUnreadCountResp{
 			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
 	query := &biz.GetUnreadCountQuery{
-		UserID: req.UserId,
+		UserID: userID, // 转换
 	}
 
 	result, err := s.uc.GetUnreadCount(ctx, query)
@@ -301,9 +315,9 @@ func (s *MessageServiceService) GetUnreadCount(
 	}
 
 	// 转换conv_unread为proto格式
-	convUnread := make(map[int64]int64)
+	convUnread := make(map[string]int64)
 	for k, v := range result.ConvUnread {
-		convUnread[k] = v
+		convUnread[cast.ToString(k)] = v
 	}
 
 	return &pb.GetUnreadCountResp{
@@ -319,15 +333,18 @@ func (s *MessageServiceService) DeleteConversation(
 	req *pb.DeleteConversationReq,
 ) (*pb.DeleteConversationResp, error) {
 
-	if req.UserId == 0 || req.ConversationId == 0 {
+	userID := cast.ToInt64(req.UserId)
+	conversationID := cast.ToInt64(req.ConversationId)
+
+	if userID == 0 || conversationID == 0 {
 		return &pb.DeleteConversationResp{
 			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
 	cmd := &biz.DeleteConversationCommand{
-		UserID:         req.UserId,
-		ConversationID: req.ConversationId,
+		UserID:         userID,         // 转换
+		ConversationID: conversationID, // 转换
 	}
 
 	_, err := s.uc.DeleteConversation(ctx, cmd)
@@ -348,13 +365,16 @@ func (s *MessageServiceService) GetConversation(
 	req *pb.GetConversationReq,
 ) (*pb.GetConversationResp, error) {
 
-	if req.UserId == 0 || req.TargetId == 0 {
+	userID := cast.ToInt64(req.UserId)
+	targetID := cast.ToInt64(req.TargetId)
+
+	if userID == 0 || targetID == 0 {
 		return &pb.GetConversationResp{
 			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
-	conversation, err := s.uc.GetConversation(ctx, req.UserId, req.TargetId, int32(req.ConvType))
+	conversation, err := s.uc.GetConversation(ctx, cast.ToInt64(req.UserId), cast.ToInt64(req.TargetId), int32(req.ConvType))
 	if err != nil {
 		return &pb.GetConversationResp{
 			Meta: utils.GetMetaWithError(err),
@@ -369,7 +389,7 @@ func (s *MessageServiceService) GetConversation(
 
 	// 转换为proto结构
 	pbConv := &pb.Conversation{
-		Id:          conversation.ID,
+		Id:          cast.ToString(conversation.ID),
 		Type:        pb.ConversationType(conversation.Type),
 		Name:        conversation.Name,
 		Avatar:      conversation.Avatar,
@@ -380,10 +400,12 @@ func (s *MessageServiceService) GetConversation(
 	}
 
 	if conversation.TargetID != nil {
-		pbConv.TargetId = conversation.TargetID
+		targetIDStr := cast.ToString(conversation.TargetID)
+		pbConv.TargetId = &targetIDStr
 	}
 	if conversation.GroupID != nil {
-		pbConv.GroupId = conversation.GroupID
+		groupIDStr := cast.ToString(conversation.GroupID)
+		pbConv.GroupId = &groupIDStr
 	}
 	if conversation.LastMsgType != nil {
 		v := pb.MessageType(*conversation.LastMsgType)
@@ -406,20 +428,160 @@ func (s *MessageServiceService) ClearMessages(
 	req *pb.ClearMessagesReq,
 ) (*pb.ClearMessagesResp, error) {
 
-	if req.UserId == 0 || req.ConversationId == 0 {
+	userID := cast.ToInt64(req.UserId)
+	conversationID := cast.ToInt64(req.ConversationId)
+
+	if userID == 0 || conversationID == 0 {
 		return &pb.ClearMessagesResp{
 			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
-	// 获取会话信息
-	// 这里需要先获取会话，然后根据会话类型调用不同的方法
-	// 由于ClearMessagesReq只有conversation_id，我们需要先获取会话信息
-	// 为了简化，我们可以添加一个新的UseCase方法
-	// 或者修改proto，添加target_id和conv_type参数
+	// 调用修复后的业务逻辑
+	cmd := &biz.ClearMessagesCommand{
+		UserID:         userID,
+		ConversationID: conversationID,
+	}
 
-	// 暂时返回未实现
+	_, err := s.uc.ClearMessages(ctx, cmd)
+	if err != nil {
+		return &pb.ClearMessagesResp{
+			Meta: utils.GetMetaWithError(err),
+		}, nil
+	}
+
 	return &pb.ClearMessagesResp{
-		Meta: utils.GetMetaWithError(errors.New("暂未实现")),
+		Meta: utils.GetSuccessMeta(),
+	}, nil
+}
+
+// UpdateMessageStatus 更新消息状态
+func (s *MessageServiceService) UpdateMessageStatus(
+	ctx context.Context,
+	req *pb.UpdateMessageStatusReq,
+) (*pb.UpdateMessageStatusResp, error) {
+
+	messageID := cast.ToInt64(req.MessageId)
+	operatorID := cast.ToInt64(req.OperatorId)
+
+	if messageID == 0 {
+		return &pb.UpdateMessageStatusResp{
+			Meta: utils.GetMetaWithError(errors.New("参数错误")),
+		}, nil
+	}
+
+	cmd := &biz.UpdateMessageStatusCommand{
+		MessageID:  messageID,
+		Status:     int32(req.Status),
+		OperatorID: operatorID,
+	}
+
+	_, err := s.uc.UpdateMessageStatus(ctx, cmd)
+	if err != nil {
+		return &pb.UpdateMessageStatusResp{
+			Meta: utils.GetMetaWithError(err),
+		}, nil
+	}
+
+	return &pb.UpdateMessageStatusResp{
+		Meta: utils.GetSuccessMeta(),
+	}, nil
+}
+
+// GetMessage 获取单条消息
+func (s *MessageServiceService) GetMessage(
+	ctx context.Context,
+	req *pb.GetMessageReq,
+) (*pb.GetMessageResp, error) {
+
+	messageID := cast.ToInt64(req.MessageId)
+	if messageID == 0 {
+		return &pb.GetMessageResp{
+			Meta: utils.GetMetaWithError(errors.New("参数错误")),
+		}, nil
+	}
+
+	message, err := s.uc.GetMessage(ctx, messageID)
+	if err != nil {
+		return &pb.GetMessageResp{
+			Meta: utils.GetMetaWithError(err),
+		}, nil
+	}
+
+	if message == nil {
+		return &pb.GetMessageResp{
+			Meta: utils.GetMetaWithError(errors.New("消息不存在")),
+		}, nil
+	}
+
+	pbMsg := &pb.Message{
+		Id:             cast.ToString(message.ID),
+		ConversationId: cast.ToString(message.ConversationID),
+		SenderId:       cast.ToString(message.SenderID),
+		ReceiverId:     cast.ToString(message.ReceiverID),
+		ConvType:       pb.ConversationType(message.ConvType),
+		MsgType:        pb.MessageType(message.MsgType),
+		Status:         pb.MessageStatus(message.Status),
+		IsRecalled:     message.IsRecalled,
+		CreatedAt:      message.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:      message.UpdatedAt.Format("2006-01-02 15:04:05"),
+	}
+
+	if message.Content != nil {
+		pbMsg.Content = &pb.MessageContent{
+			Text:          message.Content.Text,
+			ImageUrl:      message.Content.ImageURL,
+			ImageWidth:    message.Content.ImageWidth,
+			ImageHeight:   message.Content.ImageHeight,
+			VoiceUrl:      message.Content.VoiceURL,
+			VoiceDuration: message.Content.VoiceDuration,
+			VideoUrl:      message.Content.VideoURL,
+			VideoCover:    message.Content.VideoCover,
+			VideoDuration: message.Content.VideoDuration,
+			FileUrl:       message.Content.FileURL,
+			FileName:      message.Content.FileName,
+			FileSize:      message.Content.FileSize,
+			Extra:         message.Content.Extra,
+		}
+	}
+
+	return &pb.GetMessageResp{
+		Meta:    utils.GetSuccessMeta(),
+		Message: pbMsg,
+	}, nil
+}
+
+// CreateConversation 创建会话
+func (s *MessageServiceService) CreateConversation(
+	ctx context.Context,
+	req *pb.CreateConversationReq,
+) (*pb.CreateConversationResp, error) {
+
+	userID := cast.ToInt64(req.UserId)
+	targetID := cast.ToInt64(req.TargetId)
+
+	if userID == 0 || targetID == 0 {
+		return &pb.CreateConversationResp{
+			Meta: utils.GetMetaWithError(errors.New("参数错误")),
+		}, nil
+	}
+
+	cmd := &biz.CreateConversationCommand{
+		UserID:         userID,
+		TargetID:       targetID,
+		ConvType:       int32(req.ConvType),
+		InitialMessage: req.InitialMessage,
+	}
+
+	result, err := s.uc.CreateConversation(ctx, cmd)
+	if err != nil {
+		return &pb.CreateConversationResp{
+			Meta: utils.GetMetaWithError(err),
+		}, nil
+	}
+
+	return &pb.CreateConversationResp{
+		Meta:           utils.GetSuccessMeta(),
+		ConversationId: cast.ToString(result.ConversationID),
 	}, nil
 }

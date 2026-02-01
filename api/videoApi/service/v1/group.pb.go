@@ -25,11 +25,11 @@ const (
 // 群聊信息
 type GroupInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Notice        string                 `protobuf:"bytes,3,opt,name=notice,proto3" json:"notice,omitempty"`
 	MemberCnt     int32                  `protobuf:"varint,4,opt,name=member_cnt,json=memberCnt,proto3" json:"member_cnt,omitempty"`
-	OwnerId       int64                  `protobuf:"varint,5,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,5,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	AddMode       int32                  `protobuf:"varint,6,opt,name=add_mode,json=addMode,proto3" json:"add_mode,omitempty"`
 	Avatar        string                 `protobuf:"bytes,7,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	Status        int32                  `protobuf:"varint,8,opt,name=status,proto3" json:"status,omitempty"`
@@ -69,11 +69,11 @@ func (*GroupInfo) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GroupInfo) GetId() int64 {
+func (x *GroupInfo) GetId() string {
 	if x != nil {
 		return x.Id
 	}
-	return 0
+	return ""
 }
 
 func (x *GroupInfo) GetName() string {
@@ -97,11 +97,11 @@ func (x *GroupInfo) GetMemberCnt() int32 {
 	return 0
 }
 
-func (x *GroupInfo) GetOwnerId() int64 {
+func (x *GroupInfo) GetOwnerId() string {
 	if x != nil {
 		return x.OwnerId
 	}
-	return 0
+	return ""
 }
 
 func (x *GroupInfo) GetAddMode() int32 {
@@ -210,7 +210,7 @@ func (x *CreateGroupReq) GetAvatar() string {
 
 type CreateGroupResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -245,11 +245,11 @@ func (*CreateGroupResp) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *CreateGroupResp) GetGroupId() int64 {
+func (x *CreateGroupResp) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 // 获取我创建的群聊请求
@@ -352,7 +352,7 @@ func (x *LoadMyGroupResp) GetPageStats() *PageStatsResp {
 // 检查群聊加群方式请求
 type CheckGroupAddModeReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -387,11 +387,11 @@ func (*CheckGroupAddModeReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *CheckGroupAddModeReq) GetGroupId() int64 {
+func (x *CheckGroupAddModeReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type CheckGroupAddModeResp struct {
@@ -441,7 +441,7 @@ func (x *CheckGroupAddModeResp) GetAddMode() int32 {
 // 直接进群请求
 type EnterGroupDirectlyReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -476,11 +476,11 @@ func (*EnterGroupDirectlyReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *EnterGroupDirectlyReq) GetGroupId() int64 {
+func (x *EnterGroupDirectlyReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type EnterGroupDirectlyResp struct {
@@ -522,7 +522,7 @@ func (*EnterGroupDirectlyResp) Descriptor() ([]byte, []int) {
 // 申请加群请求
 type ApplyJoinGroupReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	ApplyReason   string                 `protobuf:"bytes,2,opt,name=apply_reason,json=applyReason,proto3" json:"apply_reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -558,11 +558,11 @@ func (*ApplyJoinGroupReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *ApplyJoinGroupReq) GetGroupId() int64 {
+func (x *ApplyJoinGroupReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 func (x *ApplyJoinGroupReq) GetApplyReason() string {
@@ -611,7 +611,7 @@ func (*ApplyJoinGroupResp) Descriptor() ([]byte, []int) {
 // 退群请求
 type LeaveGroupReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -646,11 +646,11 @@ func (*LeaveGroupReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *LeaveGroupReq) GetGroupId() int64 {
+func (x *LeaveGroupReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type LeaveGroupResp struct {
@@ -692,7 +692,7 @@ func (*LeaveGroupResp) Descriptor() ([]byte, []int) {
 // 解散群聊请求
 type DismissGroupReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -727,11 +727,11 @@ func (*DismissGroupReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *DismissGroupReq) GetGroupId() int64 {
+func (x *DismissGroupReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type DismissGroupResp struct {
@@ -773,7 +773,7 @@ func (*DismissGroupResp) Descriptor() ([]byte, []int) {
 // 获取群聊信息请求
 type GetGroupInfoReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       int64                  `protobuf:"varint,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -808,11 +808,11 @@ func (*GetGroupInfoReq) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *GetGroupInfoReq) GetGroupId() int64 {
+func (x *GetGroupInfoReq) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
 	}
-	return 0
+	return ""
 }
 
 type GetGroupInfoResp struct {
@@ -962,12 +962,12 @@ const file_api_videoApi_service_v1_group_proto_rawDesc = "" +
 	"\n" +
 	"#api/videoApi/service/v1/group.proto\x12\x17api.videoApi.service.v1\x1a\"api/videoApi/service/v1/base.proto\x1a\x1cgoogle/api/annotations.proto\"\x8a\x02\n" +
 	"\tGroupInfo\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06notice\x18\x03 \x01(\tR\x06notice\x12\x1d\n" +
 	"\n" +
 	"member_cnt\x18\x04 \x01(\x05R\tmemberCnt\x12\x19\n" +
-	"\bowner_id\x18\x05 \x01(\x03R\aownerId\x12\x19\n" +
+	"\bowner_id\x18\x05 \x01(\tR\aownerId\x12\x19\n" +
 	"\badd_mode\x18\x06 \x01(\x05R\aaddMode\x12\x16\n" +
 	"\x06avatar\x18\a \x01(\tR\x06avatar\x12\x16\n" +
 	"\x06status\x18\b \x01(\x05R\x06status\x12\x1d\n" +
@@ -982,7 +982,7 @@ const file_api_videoApi_service_v1_group_proto_rawDesc = "" +
 	"\badd_mode\x18\x03 \x01(\x05R\aaddMode\x12\x16\n" +
 	"\x06avatar\x18\x04 \x01(\tR\x06avatar\",\n" +
 	"\x0fCreateGroupResp\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"V\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"V\n" +
 	"\x0eLoadMyGroupReq\x12D\n" +
 	"\n" +
 	"page_stats\x18\x01 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x94\x01\n" +
@@ -991,24 +991,24 @@ const file_api_videoApi_service_v1_group_proto_rawDesc = "" +
 	"\n" +
 	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats\"1\n" +
 	"\x14CheckGroupAddModeReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"2\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"2\n" +
 	"\x15CheckGroupAddModeResp\x12\x19\n" +
 	"\badd_mode\x18\x01 \x01(\x05R\aaddMode\"2\n" +
 	"\x15EnterGroupDirectlyReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"\x18\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"\x18\n" +
 	"\x16EnterGroupDirectlyResp\"Q\n" +
 	"\x11ApplyJoinGroupReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\x12!\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12!\n" +
 	"\fapply_reason\x18\x02 \x01(\tR\vapplyReason\"\x14\n" +
 	"\x12ApplyJoinGroupResp\"*\n" +
 	"\rLeaveGroupReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"\x10\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"\x10\n" +
 	"\x0eLeaveGroupResp\",\n" +
 	"\x0fDismissGroupReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"\x12\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"\x12\n" +
 	"\x10DismissGroupResp\",\n" +
 	"\x0fGetGroupInfoReq\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\x03R\agroupId\"L\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"L\n" +
 	"\x10GetGroupInfoResp\x128\n" +
 	"\x05group\x18\x01 \x01(\v2\".api.videoApi.service.v1.GroupInfoR\x05group\"]\n" +
 	"\x15ListMyJoinedGroupsReq\x12D\n" +

@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"errors"
+	"github.com/spf13/cast"
 	core "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoChat/service/internal/pkg/utils/respcheck"
 	"time"
@@ -329,9 +330,9 @@ func (r *friendRepo) BatchGetUserOnlineStatus(ctx context.Context, userIDs []int
 	return result, nil
 }
 
-func (r *friendRepo) GetUserInfo(ctx context.Context, userID int64) (*biz.UserInfo, error) {
+func (r *friendRepo) GetUserInfo(ctx context.Context, userId int64) (*biz.UserInfo, error) {
 	resp, err := r.data.user.GetUserInfo(ctx, &core.GetUserInfoReq{
-		UserId: userID,
+		UserId: cast.ToString(userId),
 	})
 	if err != nil {
 		r.log.Errorf("RPC调用GetUserInfo失败: %v", err)
@@ -351,7 +352,7 @@ func (r *friendRepo) GetUserInfo(ctx context.Context, userID int64) (*biz.UserIn
 	}
 
 	return &biz.UserInfo{
-		ID:             resp.User.Id,
+		ID:             cast.ToInt64(resp.User.Id),
 		Username:       resp.User.Name,
 		Nickname:       resp.User.Nickname,
 		Avatar:         resp.User.Avatar,
@@ -364,7 +365,7 @@ func (r *friendRepo) GetUserInfo(ctx context.Context, userID int64) (*biz.UserIn
 
 func (r *friendRepo) BatchGetUserInfo(ctx context.Context, userIDs []int64) (map[int64]*biz.UserInfo, error) {
 	resp, err := r.data.user.GetUserByIdList(ctx, &core.GetUserByIdListReq{
-		UserIdList: userIDs,
+		UserIdList: cast.ToStringSlice(userIDs),
 	})
 	if err != nil {
 		r.log.Errorf("RPC调用GetUserByIdList失败: %v", err)
@@ -386,8 +387,8 @@ func (r *friendRepo) BatchGetUserInfo(ctx context.Context, userIDs []int64) (map
 			}
 		}
 
-		result[user.Id] = &biz.UserInfo{
-			ID:             user.Id,
+		result[cast.ToInt64(user.Id)] = &biz.UserInfo{
+			ID:             cast.ToInt64(user.Id),
 			Username:       user.Name,
 			Nickname:       user.Nickname,
 			Avatar:         user.Avatar,
@@ -434,7 +435,7 @@ func (r *friendRepo) SearchUsers(ctx context.Context, keyword string, offset, li
 		}
 
 		users = append(users, &biz.UserInfo{
-			ID:             user.Id,
+			ID:             cast.ToInt64(user.Id),
 			Username:       user.Name,
 			Nickname:       user.Nickname,
 			Avatar:         user.Avatar,

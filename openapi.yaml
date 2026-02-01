@@ -3,24 +3,20 @@
 
 openapi: 3.0.3
 info:
-    title: MessageService API
-    description: |-
-        =======================
-         消息服务 API
-         =======================
+    title: VideoService API
     version: 0.0.1
 paths:
-    /v1/conversation:
+    /v1/cover/upload:
         post:
             tags:
-                - MessageService
-            description: 创建会话（可选发送初始消息）
-            operationId: MessageService_CreateConversation
+                - VideoService
+            description: 预注册上传封面
+            operationId: VideoService_PreSign4UploadCover
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/CreateConversationReq'
+                            $ref: '#/components/schemas/PreSign4UploadCoverReq'
                 required: true
             responses:
                 "200":
@@ -28,74 +24,33 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/CreateConversationResp'
+                                $ref: '#/components/schemas/PreSign4UploadCoverResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/conversation/detail:
+    /v1/file/{fileId}/finish:
         post:
             tags:
-                - MessageService
-            description: 获取会话详情
-            operationId: MessageService_GetConversation
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GetConversationReq'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/GetConversationResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/conversation/{conversationId}:
-        delete:
-            tags:
-                - MessageService
-            description: 删除会话
-            operationId: MessageService_DeleteConversation
+                - VideoService
+            description: 通用确认上传完成
+            operationId: VideoService_ReportFinishUpload
             parameters:
-                - name: conversationId
+                - name: fileId
                   in: path
+                  description: |-
+                    文件id
+                     @gotags: json:"file_id,omitempty,string"
                   required: true
                   schema:
                     type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/DeleteConversationResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/conversations:
-        post:
-            tags:
-                - MessageService
-            description: 获取会话列表
-            operationId: MessageService_ListConversations
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/ListConversationsReq'
+                            $ref: '#/components/schemas/ReportFinishUploadReq'
                 required: true
             responses:
                 "200":
@@ -103,24 +58,24 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ListConversationsResp'
+                                $ref: '#/components/schemas/ReportFinishUploadResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/message:
+    /v1/video/feed:
         post:
             tags:
-                - MessageService
-            description: 发送消息
-            operationId: MessageService_SendMessage
+                - VideoService
+            description: 刷视频
+            operationId: VideoService_FeedShortVideo
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/SendMessageReq'
+                            $ref: '#/components/schemas/FeedShortVideoReq'
                 required: true
             responses:
                 "200":
@@ -128,24 +83,24 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SendMessageResp'
+                                $ref: '#/components/schemas/FeedShortVideoResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/message/status:
+    /v1/video/finish:
         post:
             tags:
-                - MessageService
-            description: 更新消息状态（WebSocket 回调）
-            operationId: MessageService_UpdateMessageStatus
+                - VideoService
+            description: 确认视频上传完成
+            operationId: VideoService_ReportVideoFinishUpload
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/UpdateMessageStatusReq'
+                            $ref: '#/components/schemas/ReportVideoFinishUploadReq'
                 required: true
             responses:
                 "200":
@@ -153,73 +108,24 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/UpdateMessageStatusResp'
+                                $ref: '#/components/schemas/ReportVideoFinishUploadResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/message/{messageId}:
-        delete:
-            tags:
-                - MessageService
-            description: 撤回消息
-            operationId: MessageService_RecallMessage
-            parameters:
-                - name: messageId
-                  in: path
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/RecallMessageResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/messages:
-        delete:
-            tags:
-                - MessageService
-            description: 清空聊天记录
-            operationId: MessageService_ClearMessages
-            parameters:
-                - name: conversationId
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ClearMessagesResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/messages/list:
+    /v1/video/list:
         post:
             tags:
-                - MessageService
-            description: 获取消息列表
-            operationId: MessageService_ListMessages
+                - VideoService
+            description: 获取当前用户的发布视频列表
+            operationId: VideoService_ListPublishedVideo
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/ListMessagesReq'
+                            $ref: '#/components/schemas/ListPublishedVideoReq'
                 required: true
             responses:
                 "200":
@@ -227,24 +133,24 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ListMessagesResp'
+                                $ref: '#/components/schemas/ListPublishedVideoResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/messages/read:
+    /v1/video/upload:
         post:
             tags:
-                - MessageService
-            description: 标记消息已读
-            operationId: MessageService_MarkMessagesRead
+                - VideoService
+            description: 预注册上传视频
+            operationId: VideoService_PreSign4UploadVideo
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/MarkMessagesReadReq'
+                            $ref: '#/components/schemas/PreSign4UploadVideoReq'
                 required: true
             responses:
                 "200":
@@ -252,36 +158,33 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/MarkMessagesReadResp'
+                                $ref: '#/components/schemas/PreSign4UploadVideoResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/messages/unread-count:
+    /v1/video/{videoId}:
         get:
             tags:
-                - MessageService
-            description: 获取未读消息数
-            operationId: MessageService_GetUnreadCount
+                - VideoService
+            description: 获取视频信息
+            operationId: VideoService_GetVideoById
             parameters:
-                - name: targetId
-                  in: query
+                - name: videoId
+                  in: path
+                  description: '@gotags: json:"video_id,omitempty,string"'
+                  required: true
                   schema:
                     type: string
-                - name: convType
-                  in: query
-                  schema:
-                    type: integer
-                    format: enum
             responses:
                 "200":
                     description: OK
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/GetUnreadCountResp'
+                                $ref: '#/components/schemas/GetVideoByIdResp'
                 default:
                     description: Default error response
                     content:
@@ -290,84 +193,33 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
-        ClearMessagesResp:
-            type: object
-            properties: {}
-        Conversation:
+        FeedShortVideoReq:
             type: object
             properties:
-                id:
+                latestTime:
                     type: string
-                type:
-                    type: integer
-                    format: enum
-                targetId:
+                    description: '@gotags: json:"latest_time,omitempty,string"'
+                userId:
                     type: string
-                groupId:
+                    description: '@gotags: json:"user_id,omitempty,string"'
+                feedNum:
                     type: string
-                name:
-                    type: string
-                avatar:
-                    type: string
-                lastMessage:
-                    type: string
-                lastMsgType:
-                    type: integer
-                    format: enum
-                lastMsgTime:
-                    type: string
-                unreadCount:
-                    type: string
-                memberCount:
-                    type: string
-                createdAt:
-                    type: string
-                updatedAt:
-                    type: string
-            description: |-
-                =======================
-                 会话模型
-                 =======================
-        CreateConversationReq:
+                    description: '@gotags: json:"feed_num,omitempty,string"'
+        FeedShortVideoResp:
             type: object
             properties:
-                targetId:
+                videos:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Video'
+                nextTime:
                     type: string
-                convType:
-                    type: integer
-                    format: enum
-                initialMessage:
-                    type: string
-            description: 创建会话
-        CreateConversationResp:
+                    description: '@gotags: json:"next_time,omitempty,string"'
+        GetVideoByIdResp:
             type: object
             properties:
-                conversationId:
-                    type: string
-        DeleteConversationResp:
-            type: object
-            properties: {}
-        GetConversationReq:
-            type: object
-            properties:
-                targetId:
-                    type: string
-                convType:
-                    type: integer
-                    format: enum
-            description: 获取会话详情
-        GetConversationResp:
-            type: object
-            properties:
-                conversation:
-                    $ref: '#/components/schemas/Conversation'
-        GetUnreadCountResp:
-            type: object
-            properties:
-                totalUnread:
-                    type: string
-                convUnread:
-                    type: string
+                video:
+                    $ref: '#/components/schemas/Video'
         GoogleProtobufAny:
             type: object
             properties:
@@ -376,115 +228,22 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
-        ListConversationsReq:
+        ListPublishedVideoReq:
             type: object
             properties:
                 pageStats:
-                    $ref: '#/components/schemas/PageStatsReq'
-            description: 获取会话列表
-        ListConversationsResp:
+                    allOf:
+                        - $ref: '#/components/schemas/PageStatsReq'
+                    description: '@gotags: json:"user_id,omitempty,string"'
+        ListPublishedVideoResp:
             type: object
             properties:
-                conversations:
+                videoList:
                     type: array
                     items:
-                        $ref: '#/components/schemas/Conversation'
+                        $ref: '#/components/schemas/Video'
                 pageStats:
                     $ref: '#/components/schemas/PageStatsResp'
-        ListMessagesReq:
-            type: object
-            properties:
-                conversationId:
-                    type: string
-                lastMsgId:
-                    type: string
-                limit:
-                    type: integer
-                    format: int32
-            description: 获取消息列表
-        ListMessagesResp:
-            type: object
-            properties:
-                messages:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/Message'
-                hasMore:
-                    type: boolean
-                lastMsgId:
-                    type: string
-        MarkMessagesReadReq:
-            type: object
-            properties:
-                conversationId:
-                    type: string
-                lastMsgId:
-                    type: string
-            description: 标记已读
-        MarkMessagesReadResp:
-            type: object
-            properties: {}
-        Message:
-            type: object
-            properties:
-                id:
-                    type: string
-                conversationId:
-                    type: string
-                senderId:
-                    type: string
-                receiverId:
-                    type: string
-                convType:
-                    type: integer
-                    format: enum
-                msgType:
-                    type: integer
-                    format: enum
-                content:
-                    $ref: '#/components/schemas/MessageContent'
-                status:
-                    type: integer
-                    format: enum
-                isRecalled:
-                    type: boolean
-                createdAt:
-                    type: string
-                updatedAt:
-                    type: string
-        MessageContent:
-            type: object
-            properties:
-                text:
-                    type: string
-                imageUrl:
-                    type: string
-                imageWidth:
-                    type: string
-                imageHeight:
-                    type: string
-                voiceUrl:
-                    type: string
-                voiceDuration:
-                    type: string
-                videoUrl:
-                    type: string
-                videoCover:
-                    type: string
-                videoDuration:
-                    type: string
-                fileUrl:
-                    type: string
-                fileName:
-                    type: string
-                fileSize:
-                    type: string
-                extra:
-                    type: string
-            description: |-
-                =======================
-                 消息模型
-                 =======================
         PageStatsReq:
             type: object
             properties:
@@ -502,32 +261,104 @@ components:
                 total:
                     type: integer
                     format: int32
-        RecallMessageResp:
-            type: object
-            properties: {}
-        SendMessageReq:
+        PreSign4UploadCoverReq:
             type: object
             properties:
-                receiverId:
+                hash:
                     type: string
-                convType:
-                    type: integer
-                    format: enum
-                msgType:
-                    type: integer
-                    format: enum
-                content:
-                    $ref: '#/components/schemas/MessageContent'
-                clientMsgId:
+                    description: md5 hash
+                fileType:
                     type: string
-            description: 发送消息
-        SendMessageResp:
+                    description: 文件类型，默认png
+                size:
+                    type: string
+                    description: |-
+                        文件大小，单位byte
+                         @gotags: json:"size,omitempty,string"
+                filename:
+                    type: string
+                    description: 文件名
+        PreSign4UploadCoverResp:
             type: object
             properties:
-                messageId:
+                url:
                     type: string
-                conversationId:
+                    description: minio上传地址
+                fileId:
                     type: string
+                    description: |-
+                        文件id
+                         @gotags: json:"file_id,omitempty,string"
+        PreSign4UploadVideoReq:
+            type: object
+            properties:
+                hash:
+                    type: string
+                    description: md5 hash
+                fileType:
+                    type: string
+                    description: 文件类型，默认mp4
+                size:
+                    type: string
+                    description: |-
+                        文件大小，单位byte
+                         @gotags: json:"size,omitempty,string"
+                filename:
+                    type: string
+                    description: 文件名
+        PreSign4UploadVideoResp:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: minio上传地址
+                fileId:
+                    type: string
+                    description: |-
+                        文件id
+                         @gotags: json:"file_id,omitempty,string"
+        ReportFinishUploadReq:
+            type: object
+            properties:
+                fileId:
+                    type: string
+                    description: |-
+                        文件id
+                         @gotags: json:"file_id,omitempty,string"
+        ReportFinishUploadResp:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: url
+        ReportVideoFinishUploadReq:
+            type: object
+            properties:
+                fileId:
+                    type: string
+                    description: |-
+                        文件id
+                         @gotags: json:"file_id,omitempty,string"
+                title:
+                    type: string
+                    description: 视频标题
+                coverUrl:
+                    type: string
+                    description: 视频封面地址
+                description:
+                    type: string
+                    description: 视频描述
+                videoUrl:
+                    type: string
+                    description: 视频地址
+        ReportVideoFinishUploadResp:
+            type: object
+            properties:
+                videoId:
+                    type: string
+                    description: |-
+                        视频id
+                         @gotags: json:"video_id,omitempty,string"
         Status:
             type: object
             properties:
@@ -544,17 +375,44 @@ components:
                         $ref: '#/components/schemas/GoogleProtobufAny'
                     description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
             description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
-        UpdateMessageStatusReq:
+        Video:
             type: object
             properties:
-                messageId:
+                id:
                     type: string
-                status:
-                    type: integer
-                    format: enum
-            description: 更新消息状态
-        UpdateMessageStatusResp:
+                    description: '@gotags: json:"id,omitempty,string"'
+                author:
+                    $ref: '#/components/schemas/VideoAuthor'
+                playUrl:
+                    type: string
+                coverUrl:
+                    type: string
+                favoriteCount:
+                    type: string
+                    description: '@gotags: json:"favoriteCount,omitempty,string"'
+                commentCount:
+                    type: string
+                    description: '@gotags: json:"commentCount,omitempty,string"'
+                isFavorite:
+                    type: boolean
+                title:
+                    type: string
+                isCollected:
+                    type: boolean
+                collectedCount:
+                    type: string
+                    description: '@gotags: json:"collectedCount,omitempty,string"'
+        VideoAuthor:
             type: object
-            properties: {}
+            properties:
+                id:
+                    type: string
+                    description: '@gotags: json:"id,omitempty,string"'
+                name:
+                    type: string
+                avatar:
+                    type: string
+                isFollowing:
+                    type: boolean
 tags:
-    - name: MessageService
+    - name: VideoService

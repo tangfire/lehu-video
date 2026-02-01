@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/spf13/cast"
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/pkg/utils"
 
@@ -21,7 +22,7 @@ func NewCollectionServiceService(uc *biz.CollectionUsecase) *CollectionServiceSe
 func (s *CollectionServiceService) CreateCollection(ctx context.Context, req *pb.CreateCollectionReq) (*pb.CreateCollectionResp, error) {
 	// ✅ 改为Command
 	cmd := &biz.CreateCollectionCommand{
-		UserId:      req.UserId,
+		UserId:      cast.ToInt64(req.UserId),
 		Name:        req.Name,
 		Description: req.Description,
 	}
@@ -41,8 +42,8 @@ func (s *CollectionServiceService) CreateCollection(ctx context.Context, req *pb
 func (s *CollectionServiceService) UpdateCollection(ctx context.Context, req *pb.UpdateCollectionReq) (*pb.UpdateCollectionResp, error) {
 	// ✅ 改为Command
 	cmd := &biz.UpdateCollectionCommand{
-		CollectionId: req.Id,
-		UserId:       req.UserId,
+		CollectionId: cast.ToInt64(req.Id),
+		UserId:       cast.ToInt64(req.UserId),
 		Name:         req.Name,
 		Description:  req.Description,
 	}
@@ -60,8 +61,8 @@ func (s *CollectionServiceService) UpdateCollection(ctx context.Context, req *pb
 func (s *CollectionServiceService) RemoveCollection(ctx context.Context, req *pb.RemoveCollectionReq) (*pb.RemoveCollectionResp, error) {
 	// ✅ 改为Command
 	cmd := &biz.RemoveCollectionCommand{
-		CollectionId: req.Id,
-		UserId:       req.UserId,
+		CollectionId: cast.ToInt64(req.Id),
+		UserId:       cast.ToInt64(req.UserId),
 	}
 
 	_, err := s.uc.RemoveCollection(ctx, cmd)
@@ -77,7 +78,7 @@ func (s *CollectionServiceService) RemoveCollection(ctx context.Context, req *pb
 func (s *CollectionServiceService) GetCollectionById(ctx context.Context, req *pb.GetCollectionByIdReq) (*pb.GetCollectionByIdResp, error) {
 	// ✅ 改为Query
 	query := &biz.GetCollectionByIdQuery{
-		CollectionId: req.Id,
+		CollectionId: cast.ToInt64(req.Id),
 	}
 
 	result, err := s.uc.GetCollectionById(ctx, query)
@@ -93,8 +94,8 @@ func (s *CollectionServiceService) GetCollectionById(ctx context.Context, req *p
 
 	return &pb.GetCollectionByIdResp{
 		Collection: &pb.Collection{
-			Id:          result.Collection.Id,
-			UserId:      result.Collection.UserId,
+			Id:          cast.ToString(result.Collection.Id),
+			UserId:      cast.ToString(result.Collection.UserId),
 			Name:        result.Collection.Title,
 			Description: result.Collection.Description,
 		},
@@ -105,7 +106,7 @@ func (s *CollectionServiceService) GetCollectionById(ctx context.Context, req *p
 func (s *CollectionServiceService) ListCollection(ctx context.Context, req *pb.ListCollectionReq) (*pb.ListCollectionResp, error) {
 	// ✅ 改为Query
 	query := &biz.ListCollectionQuery{
-		UserId: req.UserId,
+		UserId: cast.ToInt64(req.UserId),
 		PageStats: biz.PageStats{
 			Page:     req.PageStats.Page,
 			PageSize: req.PageStats.Size,
@@ -120,8 +121,8 @@ func (s *CollectionServiceService) ListCollection(ctx context.Context, req *pb.L
 	var collections []*pb.Collection
 	for _, c := range result.Collections {
 		collections = append(collections, &pb.Collection{
-			Id:          c.Id,
-			UserId:      c.UserId,
+			Id:          cast.ToString(c.Id),
+			UserId:      cast.ToString(c.UserId),
 			Name:        c.Title,
 			Description: c.Description,
 		})
@@ -137,9 +138,9 @@ func (s *CollectionServiceService) ListCollection(ctx context.Context, req *pb.L
 func (s *CollectionServiceService) AddVideo2Collection(ctx context.Context, req *pb.AddVideo2CollectionReq) (*pb.AddVideo2CollectionResp, error) {
 	// ✅ 改为Command
 	cmd := &biz.AddVideoToCollectionCommand{
-		UserId:       req.UserId,
-		CollectionId: req.CollectionId,
-		VideoId:      req.VideoId,
+		UserId:       cast.ToInt64(req.UserId),
+		CollectionId: cast.ToInt64(req.CollectionId),
+		VideoId:      cast.ToInt64(req.VideoId),
 	}
 
 	_, err := s.uc.AddVideoToCollection(ctx, cmd)
@@ -155,9 +156,9 @@ func (s *CollectionServiceService) AddVideo2Collection(ctx context.Context, req 
 func (s *CollectionServiceService) RemoveVideoFromCollection(ctx context.Context, req *pb.RemoveVideoFromCollectionReq) (*pb.RemoveVideoFromCollectionResp, error) {
 	// ✅ 改为Command
 	cmd := &biz.RemoveVideoFromCollectionCommand{
-		UserId:       req.UserId,
-		CollectionId: req.CollectionId,
-		VideoId:      req.VideoId,
+		UserId:       cast.ToInt64(req.UserId),
+		CollectionId: cast.ToInt64(req.CollectionId),
+		VideoId:      cast.ToInt64(req.VideoId),
 	}
 
 	_, err := s.uc.RemoveVideoFromCollection(ctx, cmd)
@@ -173,7 +174,7 @@ func (s *CollectionServiceService) RemoveVideoFromCollection(ctx context.Context
 func (s *CollectionServiceService) ListVideo4Collection(ctx context.Context, req *pb.ListVideo4CollectionReq) (*pb.ListVideo4CollectionResp, error) {
 	// ✅ 改为Query
 	query := &biz.ListVideo4CollectionQuery{
-		CollectionId: req.CollectionId,
+		CollectionId: cast.ToInt64(req.CollectionId),
 		PageStats: biz.PageStats{
 			Page:     req.PageStats.Page,
 			PageSize: req.PageStats.Size,
@@ -185,18 +186,28 @@ func (s *CollectionServiceService) ListVideo4Collection(ctx context.Context, req
 		return &pb.ListVideo4CollectionResp{Meta: utils.GetMetaWithError(err)}, nil
 	}
 
+	ids := make([]string, len(result.VideoIds))
+	for i, id := range result.VideoIds {
+		ids[i] = cast.ToString(id)
+	}
+
 	return &pb.ListVideo4CollectionResp{
 		Meta:        utils.GetSuccessMeta(),
-		VideoIdList: result.VideoIds,
+		VideoIdList: ids,
 		PageStats:   &pb.PageStatsResp{Total: int32(result.Total)},
 	}, nil
 }
 
 func (s *CollectionServiceService) IsCollected(ctx context.Context, req *pb.IsCollectedReq) (*pb.IsCollectedResp, error) {
 	// ✅ 改为Query
+	ids := make([]int64, len(req.VideoIdList))
+	for i, id := range req.VideoIdList {
+		ids[i] = cast.ToInt64(id)
+	}
+
 	query := &biz.IsCollectedQuery{
-		UserId:   req.UserId,
-		VideoIds: req.VideoIdList,
+		UserId:   cast.ToInt64(req.UserId),
+		VideoIds: ids,
 	}
 
 	result, err := s.uc.IsCollected(ctx, query)
@@ -204,16 +215,24 @@ func (s *CollectionServiceService) IsCollected(ctx context.Context, req *pb.IsCo
 		return &pb.IsCollectedResp{Meta: utils.GetMetaWithError(err)}, nil
 	}
 
+	retIds := make([]string, len(result.CollectedVideoIds))
+	for i, id := range result.CollectedVideoIds {
+		retIds[i] = cast.ToString(id)
+	}
 	return &pb.IsCollectedResp{
 		Meta:        utils.GetSuccessMeta(),
-		VideoIdList: result.CollectedVideoIds,
+		VideoIdList: retIds,
 	}, nil
 }
 
 func (s *CollectionServiceService) CountCollect4Video(ctx context.Context, req *pb.CountCollect4VideoReq) (*pb.CountCollect4VideoResp, error) {
+	ids := make([]int64, len(req.VideoIdList))
+	for i, id := range req.VideoIdList {
+		ids[i] = cast.ToInt64(id)
+	}
 	// ✅ 改为Query
 	query := &biz.CountCollect4VideoQuery{
-		VideoIds: req.VideoIdList,
+		VideoIds: ids,
 	}
 
 	result, err := s.uc.CountCollectedNumber4Video(ctx, query)
@@ -224,7 +243,7 @@ func (s *CollectionServiceService) CountCollect4Video(ctx context.Context, req *
 	var results []*pb.CountCollect4VideoResult
 	for _, item := range result.Counts {
 		results = append(results, &pb.CountCollect4VideoResult{
-			Id:    item.Id,
+			Id:    cast.ToString(item.Id),
 			Count: item.Count,
 		})
 	}
