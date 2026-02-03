@@ -10,6 +10,16 @@ import (
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
+var (
+	VIDEO   FavoriteTarget = 0
+	COMMENT FavoriteTarget = 1
+)
+
+var (
+	FAVORITE FavoriteType = 0
+	UNLIKE   FavoriteType = 1
+)
+
 type AddFavoriteInput struct {
 	Target *FavoriteTarget
 	Type   *FavoriteType

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/spf13/cast"
+	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 
@@ -37,6 +38,7 @@ func (s *MessageServiceService) SendMessage(
 	// 使用 cast.ToInt64 转换 string ID
 	senderID := cast.ToInt64(req.SenderId)
 	receiverID := cast.ToInt64(req.ReceiverId)
+	conversationID := cast.ToInt64(req.ConversationId)
 
 	if senderID == 0 || receiverID == 0 {
 		return &pb.SendMessageResp{
@@ -45,11 +47,12 @@ func (s *MessageServiceService) SendMessage(
 	}
 
 	cmd := &biz.SendMessageCommand{
-		SenderID:    senderID,
-		ReceiverID:  receiverID,
-		ConvType:    int32(req.ConvType),
-		MsgType:     int32(req.MsgType),
-		ClientMsgID: req.ClientMsgId,
+		SenderID:       senderID,
+		ReceiverID:     receiverID,
+		ConversationID: conversationID,
+		ConvType:       int32(req.ConvType),
+		MsgType:        int32(req.MsgType),
+		ClientMsgID:    req.ClientMsgId,
 	}
 
 	if req.Content != nil {
@@ -181,21 +184,21 @@ func (s *MessageServiceService) ListConversations(
 		pbConv := &pb.Conversation{
 			Id:          cast.ToString(conv.ID),
 			Type:        pb.ConversationType(conv.Type),
+			GroupId:     cast.ToString(conv.GroupID),
 			Name:        conv.Name,
 			Avatar:      conv.Avatar,
 			LastMessage: conv.LastMessage,
+			LastMsgType: (*pb.MessageType)(conv.LastMsgType),
+			LastMsgTime: &[]int64{conv.LastMsgTime.Unix()}[0], // 简洁写法,
 			MemberCount: conv.MemberCount,
-			UpdatedAt:   conv.UpdatedAt.Format("2006-01-02 15:04:05"),
 			CreatedAt:   conv.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:   conv.UpdatedAt.Format("2006-01-02 15:04:05"),
+			MemberIds:   cast.ToStringSlice(conv.MemberIDs),
 		}
 
-		if conv.TargetID != nil {
-			targetID := cast.ToString(conv.TargetID)
-			pbConv.TargetId = &targetID
-		}
-		if conv.GroupID != nil {
+		if conv.GroupID != 0 {
 			groupID := cast.ToString(conv.GroupID)
-			pbConv.GroupId = &groupID
+			pbConv.GroupId = groupID
 		}
 		if conv.LastMsgType != nil {
 			v := pb.MessageType(*conv.LastMsgType)
@@ -359,66 +362,82 @@ func (s *MessageServiceService) DeleteConversation(
 	}, nil
 }
 
-// GetConversation 获取会话详情
 func (s *MessageServiceService) GetConversation(
 	ctx context.Context,
 	req *pb.GetConversationReq,
 ) (*pb.GetConversationResp, error) {
 
-	userID := cast.ToInt64(req.UserId)
-	targetID := cast.ToInt64(req.TargetId)
+	conversationID := cast.ToInt64(req.ConversationId)
+	userID := cast.ToInt64(req.UserId) // 使用新增的 user_id 参数
 
-	if userID == 0 || targetID == 0 {
+	if conversationID == 0 {
 		return &pb.GetConversationResp{
-			Meta: utils.GetMetaWithError(errors.New("参数错误")),
+			Meta: utils.GetMetaWithError(errors.New("conversation_id is required")),
 		}, nil
 	}
 
-	conversation, err := s.uc.GetConversation(ctx, cast.ToInt64(req.UserId), cast.ToInt64(req.TargetId), int32(req.ConvType))
+	if userID == 0 {
+		return &pb.GetConversationResp{
+			Meta: utils.GetMetaWithError(errors.New("user_id is required")),
+		}, nil
+	}
+
+	// 调用 usecase 获取带用户状态的会话视图
+	convView, err := s.uc.GetConversationView(ctx, conversationID, userID)
 	if err != nil {
 		return &pb.GetConversationResp{
 			Meta: utils.GetMetaWithError(err),
 		}, nil
 	}
 
-	if conversation == nil {
+	if convView == nil {
 		return &pb.GetConversationResp{
 			Meta: utils.GetMetaWithError(errors.New("会话不存在")),
 		}, nil
 	}
 
-	// 转换为proto结构
+	// 转换为 proto 结构
 	pbConv := &pb.Conversation{
-		Id:          cast.ToString(conversation.ID),
-		Type:        pb.ConversationType(conversation.Type),
-		Name:        conversation.Name,
-		Avatar:      conversation.Avatar,
-		LastMessage: conversation.LastMessage,
-		MemberCount: conversation.MemberCount,
-		UpdatedAt:   conversation.UpdatedAt.Format("2006-01-02 15:04:05"),
-		CreatedAt:   conversation.CreatedAt.Format("2006-01-02 15:04:05"),
+		Id:          cast.ToString(convView.ID),
+		Type:        pb.ConversationType(convView.Type),
+		Name:        convView.Name,
+		Avatar:      convView.Avatar,
+		LastMessage: convView.LastMessage,
+		MemberCount: convView.MemberCount,
+		CreatedAt:   convView.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   convView.UpdatedAt.Format(time.RFC3339),
 	}
 
-	if conversation.TargetID != nil {
-		targetIDStr := cast.ToString(conversation.TargetID)
-		pbConv.TargetId = &targetIDStr
+	// 处理可选字段
+	if convView.GroupID != 0 {
+		groupIDStr := cast.ToString(convView.GroupID)
+		pbConv.GroupId = groupIDStr
 	}
-	if conversation.GroupID != nil {
-		groupIDStr := cast.ToString(conversation.GroupID)
-		pbConv.GroupId = &groupIDStr
+	if convView.LastMsgType != nil {
+		msgType := pb.MessageType(*convView.LastMsgType)
+		pbConv.LastMsgType = &msgType
 	}
-	if conversation.LastMsgType != nil {
-		v := pb.MessageType(*conversation.LastMsgType)
-		pbConv.LastMsgType = &v
+	if convView.LastMsgTime != nil {
+		timestamp := convView.LastMsgTime.Unix()
+		pbConv.LastMsgTime = &timestamp
 	}
-	if conversation.LastMsgTime != nil {
-		t := conversation.LastMsgTime.Unix()
-		pbConv.LastMsgTime = &t
+
+	// 添加成员ID列表
+	if len(convView.MemberIDs) > 0 {
+		pbConv.MemberIds = cast.ToStringSlice(convView.MemberIDs)
+	}
+
+	// 构建 ConversationView
+	conversationView := &pb.ConversationView{
+		Conversation: pbConv,
+		UnreadCount:  convView.UnreadCount,
+		IsPinned:     convView.IsPinned,
+		IsMuted:      convView.IsMuted,
 	}
 
 	return &pb.GetConversationResp{
-		Meta:         utils.GetSuccessMeta(),
-		Conversation: pbConv,
+		Meta:             utils.GetSuccessMeta(),
+		ConversationView: conversationView, // 返回 ConversationView
 	}, nil
 }
 
@@ -557,18 +576,18 @@ func (s *MessageServiceService) CreateConversation(
 	req *pb.CreateConversationReq,
 ) (*pb.CreateConversationResp, error) {
 
-	userID := cast.ToInt64(req.UserId)
-	targetID := cast.ToInt64(req.TargetId)
+	userIDs := cast.ToInt64Slice(req.UserIds)
+	GroupID := cast.ToInt64(req.GroupId)
 
-	if userID == 0 || targetID == 0 {
+	if len(userIDs) <= 1 {
 		return &pb.CreateConversationResp{
 			Meta: utils.GetMetaWithError(errors.New("参数错误")),
 		}, nil
 	}
 
 	cmd := &biz.CreateConversationCommand{
-		UserID:         userID,
-		TargetID:       targetID,
+		UserIDs:        userIDs,
+		GroupID:        GroupID,
 		ConvType:       int32(req.ConvType),
 		InitialMessage: req.InitialMessage,
 	}

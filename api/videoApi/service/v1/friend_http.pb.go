@@ -26,7 +26,6 @@ const OperationFriendServiceGetUserOnlineStatus = "/api.videoApi.service.v1.Frie
 const OperationFriendServiceHandleFriendApply = "/api.videoApi.service.v1.FriendService/HandleFriendApply"
 const OperationFriendServiceListFriendApplies = "/api.videoApi.service.v1.FriendService/ListFriendApplies"
 const OperationFriendServiceListFriends = "/api.videoApi.service.v1.FriendService/ListFriends"
-const OperationFriendServiceSearchUsers = "/api.videoApi.service.v1.FriendService/SearchUsers"
 const OperationFriendServiceSendFriendApply = "/api.videoApi.service.v1.FriendService/SendFriendApply"
 const OperationFriendServiceSetFriendGroup = "/api.videoApi.service.v1.FriendService/SetFriendGroup"
 const OperationFriendServiceUpdateFriendRemark = "/api.videoApi.service.v1.FriendService/UpdateFriendRemark"
@@ -46,8 +45,6 @@ type FriendServiceHTTPServer interface {
 	ListFriendApplies(context.Context, *ListFriendAppliesReq) (*ListFriendAppliesResp, error)
 	// ListFriends 获取好友列表
 	ListFriends(context.Context, *ListFriendsReq) (*ListFriendsResp, error)
-	// SearchUsers 搜索用户
-	SearchUsers(context.Context, *SearchUsersReq) (*SearchUsersResp, error)
 	// SendFriendApply 发送好友申请
 	SendFriendApply(context.Context, *SendFriendApplyReq) (*SendFriendApplyResp, error)
 	// SetFriendGroup 设置好友分组
@@ -58,7 +55,6 @@ type FriendServiceHTTPServer interface {
 
 func RegisterFriendServiceHTTPServer(s *http.Server, srv FriendServiceHTTPServer) {
 	r := s.Route("/")
-	r.POST("/v1/friends/search", _FriendService_SearchUsers0_HTTP_Handler(srv))
 	r.POST("/v1/friend/apply", _FriendService_SendFriendApply0_HTTP_Handler(srv))
 	r.PUT("/v1/friend/apply/{apply_id}", _FriendService_HandleFriendApply0_HTTP_Handler(srv))
 	r.POST("/v1/friend/applies", _FriendService_ListFriendApplies0_HTTP_Handler(srv))
@@ -69,28 +65,6 @@ func RegisterFriendServiceHTTPServer(s *http.Server, srv FriendServiceHTTPServer
 	r.GET("/v1/friend/{target_id}/relation", _FriendService_CheckFriendRelation0_HTTP_Handler(srv))
 	r.GET("/v1/user/{user_id}/online-status", _FriendService_GetUserOnlineStatus0_HTTP_Handler(srv))
 	r.POST("/v1/users/online-status", _FriendService_BatchGetUserOnlineStatus0_HTTP_Handler(srv))
-}
-
-func _FriendService_SearchUsers0_HTTP_Handler(srv FriendServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in SearchUsersReq
-		if err := ctx.Bind(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationFriendServiceSearchUsers)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.SearchUsers(ctx, req.(*SearchUsersReq))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*SearchUsersResp)
-		return ctx.Result(200, reply)
-	}
 }
 
 func _FriendService_SendFriendApply0_HTTP_Handler(srv FriendServiceHTTPServer) func(ctx http.Context) error {
@@ -330,7 +304,6 @@ type FriendServiceHTTPClient interface {
 	HandleFriendApply(ctx context.Context, req *HandleFriendApplyReq, opts ...http.CallOption) (rsp *HandleFriendApplyResp, err error)
 	ListFriendApplies(ctx context.Context, req *ListFriendAppliesReq, opts ...http.CallOption) (rsp *ListFriendAppliesResp, err error)
 	ListFriends(ctx context.Context, req *ListFriendsReq, opts ...http.CallOption) (rsp *ListFriendsResp, err error)
-	SearchUsers(ctx context.Context, req *SearchUsersReq, opts ...http.CallOption) (rsp *SearchUsersResp, err error)
 	SendFriendApply(ctx context.Context, req *SendFriendApplyReq, opts ...http.CallOption) (rsp *SendFriendApplyResp, err error)
 	SetFriendGroup(ctx context.Context, req *SetFriendGroupReq, opts ...http.CallOption) (rsp *SetFriendGroupResp, err error)
 	UpdateFriendRemark(ctx context.Context, req *UpdateFriendRemarkReq, opts ...http.CallOption) (rsp *UpdateFriendRemarkResp, err error)
@@ -427,19 +400,6 @@ func (c *FriendServiceHTTPClientImpl) ListFriends(ctx context.Context, in *ListF
 	pattern := "/v1/friends"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationFriendServiceListFriends))
-	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *FriendServiceHTTPClientImpl) SearchUsers(ctx context.Context, in *SearchUsersReq, opts ...http.CallOption) (*SearchUsersResp, error) {
-	var out SearchUsersResp
-	pattern := "/v1/friends/search"
-	path := binding.EncodeURL(pattern, in, false)
-	opts = append(opts, http.Operation(OperationFriendServiceSearchUsers))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {

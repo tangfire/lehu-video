@@ -9,6 +9,28 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 )
 
+// Video 视频
+type Video struct {
+	ID             string
+	Author         *VideoAuthor
+	PlayURL        string
+	CoverURL       string
+	FavoriteCount  int64
+	CommentCount   int64
+	IsFavorite     bool
+	Title          string
+	IsCollected    bool
+	CollectedCount int64
+}
+
+// VideoAuthor 视频作者
+type VideoAuthor struct {
+	ID          string
+	Name        string
+	Avatar      string
+	IsFollowing bool
+}
+
 // ============ Input/Output 结构体 ============
 
 // PageInput 分页输入

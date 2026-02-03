@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	kjwt "github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	jwtv5 "github.com/golang-jwt/jwt/v5"
 	"github.com/spf13/cast"
@@ -219,33 +218,6 @@ func NewClient(
 	}
 }
 
-func parseJWTFromRequest(r *http.Request, secret string) (*claims.Claims, error) {
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		return nil, errors.New("missing Authorization header")
-	}
-
-	parts := strings.SplitN(auth, " ", 2)
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return nil, errors.New("invalid Authorization format")
-	}
-
-	tokenStr := parts[1]
-	token, err := jwtv5.ParseWithClaims(tokenStr, &claims.Claims{}, func(token *jwtv5.Token) (interface{}, error) {
-		return []byte(secret), nil
-	})
-	if err != nil || !token.Valid {
-		return nil, fmt.Errorf("invalid token: %v", err)
-	}
-
-	claim, ok := token.Claims.(*claims.Claims)
-	if !ok {
-		return nil, errors.New("claims type error")
-	}
-
-	return claim, nil
-}
-
 // ReadPump 读取客户端消息
 func (c *Client) ReadPump() {
 	defer func() {
@@ -334,12 +306,12 @@ type WSMessageResponse struct {
 
 // SendMessageReq 发送消息请求结构
 type SendMessageReq struct {
-	ReceiverID  string                 `json:"receiver_id"`
-	ConvType    int32                  `json:"conv_type"`
-	MsgType     int32                  `json:"msg_type"`
-	Content     map[string]interface{} `json:"content"`
-	GroupID     string                 `json:"group_id,omitempty"`
-	ClientMsgID string                 `json:"client_msg_id"` // 关键：确保能解析到 data 内部的临时 ID
+	ConversationID string                 `json:"conversation_id"`
+	ReceiverID     string                 `json:"receiver_id"`
+	ConvType       int32                  `json:"conv_type"`
+	MsgType        int32                  `json:"msg_type"`
+	Content        map[string]interface{} `json:"content"`
+	ClientMsgID    string                 `json:"client_msg_id"`
 }
 
 // handleMessage 处理收到的消息
@@ -374,16 +346,18 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 		return
 	}
 
-	// --- 修复逻辑开始 ---
-	// 优先获取 data 内部的 client_msg_id（这是前端实际传的位置）
-	// 如果内部没有，再尝试使用 handleMessage 传进来的外层 ID
+	// 优先使用 data 内部的 client_msg_id
 	effectiveClientMsgID := msg.ClientMsgID
 	if effectiveClientMsgID == "" {
 		effectiveClientMsgID = outerClientMsgID
 	}
-	// --- 修复逻辑结束 ---
 
-	// 验证接收者
+	// 验证必需字段
+	if msg.ConversationID == "" {
+		c.sendError("invalid_conversation", "会话ID不能为空", effectiveClientMsgID)
+		return
+	}
+
 	if cast.ToInt64(msg.ReceiverID) <= 0 {
 		c.sendError("invalid_receiver", "无效的接收者ID", effectiveClientMsgID)
 		return
@@ -391,20 +365,14 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 
 	// 检查用户关系（仅在单聊时检查好友关系）
 	if msg.ConvType == 0 && c.chat != nil {
-		checker, ok := c.chat.(interface {
-			CheckFriendRelation(ctx context.Context, userID, targetID string) (bool, int32, error)
-		})
-
-		if ok {
-			isFriend, _, err := checker.CheckFriendRelation(c.Ctx, c.UserID, msg.ReceiverID)
-			if err != nil {
-				c.sendError("relation_check_failed", "检查好友关系失败", effectiveClientMsgID)
-				return
-			}
-			if !isFriend {
-				c.sendError("not_friend", "你们不是好友，无法发送消息", effectiveClientMsgID)
-				return
-			}
+		isFriend, _, err := c.chat.CheckFriendRelation(c.Ctx, c.UserID, msg.ReceiverID)
+		if err != nil {
+			c.sendError("relation_check_failed", "检查好友关系失败", effectiveClientMsgID)
+			return
+		}
+		if !isFriend {
+			c.sendError("not_friend", "你们不是好友，无法发送消息", effectiveClientMsgID)
+			return
 		}
 	} else if msg.ConvType == 1 && c.chat != nil {
 		// 群聊检查群成员关系
@@ -483,11 +451,12 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 	// 调用MessageUsecase发送消息
 	if c.messageUC != nil {
 		input := &biz.SendMessageInput{
-			ReceiverID:  cast.ToString(msg.ReceiverID),
-			ConvType:    msg.ConvType,
-			MsgType:     msg.MsgType,
-			Content:     content,
-			ClientMsgID: effectiveClientMsgID, // 传入正确的 ID
+			ConversationID: msg.ConversationID,
+			ReceiverID:     cast.ToString(msg.ReceiverID),
+			ConvType:       msg.ConvType,
+			MsgType:        msg.MsgType,
+			Content:        content,
+			ClientMsgID:    effectiveClientMsgID,
 		}
 
 		output, err := c.messageUC.SendMessage(c.Ctx, input)
@@ -500,16 +469,16 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 		c.sendResponse("message_sent", map[string]interface{}{
 			"message_id":      output.MessageID,
 			"conversation_id": output.ConversationId,
-			"status":          1,                    // 建议改成数字 1 (代表已发送)，匹配前端 getStatusText 逻辑
-			"client_msg_id":   effectiveClientMsgID, // 关键：回传临时 ID，前端才能取消“发送中”状态
+			"status":          1,
+			"client_msg_id":   effectiveClientMsgID,
 		}, effectiveClientMsgID)
 
 		// 构建推送消息给接收者
-		pushMsg := c.buildReceiveMessage(cast.ToInt64(output.MessageID), msg)
+		pushMsg := c.buildReceiveMessage(output.MessageID, msg)
 
 		// 处理消息推送
 		if msg.ConvType == 0 { // 单聊
-			go c.updateMessageStatus(cast.ToInt64(output.MessageID), 2) // 已送达
+			go c.updateMessageStatus(output.MessageID, 2) // 已送达
 			c.Manager.BroadcastToUser(msg.ReceiverID, pushMsg)
 		} else if msg.ConvType == 1 { // 群聊
 			c.handleGroupMessage(msg.ReceiverID, output.MessageID, msg, pushMsg)
@@ -520,12 +489,12 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 }
 
 // updateMessageStatus 更新消息状态
-func (c *Client) updateMessageStatus(messageID int64, status int32) {
+func (c *Client) updateMessageStatus(messageID string, status int32) {
 	if c.chat != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		err := c.chat.UpdateMessageStatus(ctx, cast.ToString(messageID), status)
+		err := c.chat.UpdateMessageStatus(ctx, messageID, status)
 		if err != nil {
 			c.logger.Log(log.LevelError, "msg", "更新消息状态失败",
 				"message_id", messageID,
@@ -592,13 +561,14 @@ func (c *Client) handleGroupMessage(groupID, messageID string, msg SendMessageRe
 func (c *Client) storeOfflineMessage(receiverID, messageID string, msg SendMessageReq) {
 	// 构建离线消息
 	offlineMsg := &OfflineMessage{
-		MessageID:  messageID,
-		SenderID:   c.UserID,
-		ReceiverID: receiverID,
-		ConvType:   msg.ConvType,
-		MsgType:    msg.MsgType,
-		Content:    json.RawMessage{}, // 需要序列化
-		CreatedAt:  time.Now(),
+		MessageID:      messageID,
+		SenderID:       c.UserID,
+		ReceiverID:     receiverID,
+		ConversationID: msg.ConversationID,
+		ConvType:       msg.ConvType,
+		MsgType:        msg.MsgType,
+		Content:        json.RawMessage{}, // 需要序列化
+		CreatedAt:      time.Now(),
 	}
 
 	// 序列化内容
@@ -661,23 +631,20 @@ func (c *Client) sendOfflineNotification(messageID string, msg SendMessageReq) {
 }
 
 // buildReceiveMessage 构建接收消息
-func (c *Client) buildReceiveMessage(messageID int64, msg SendMessageReq) []byte {
+func (c *Client) buildReceiveMessage(messageID string, msg SendMessageReq) []byte {
 	response := WSMessageResponse{
 		Action:    "receive_message",
 		Timestamp: time.Now().Unix(),
 		Data: map[string]interface{}{
-			"message_id":  messageID,
-			"sender_id":   c.UserID,
-			"receiver_id": msg.ReceiverID,
-			"conv_type":   msg.ConvType,
-			"msg_type":    msg.MsgType,
-			"content":     msg.Content,
-			"timestamp":   time.Now().Unix(),
+			"message_id":      messageID,
+			"sender_id":       c.UserID,
+			"receiver_id":     msg.ReceiverID,
+			"conversation_id": msg.ConversationID,
+			"conv_type":       msg.ConvType,
+			"msg_type":        msg.MsgType,
+			"content":         msg.Content,
+			"timestamp":       time.Now().Unix(),
 		},
-	}
-
-	if msg.ConvType == 1 {
-		response.Data.(map[string]interface{})["group_id"] = msg.GroupID
 	}
 
 	respBytes, _ := json.Marshal(response)
@@ -775,7 +742,7 @@ func (c *Client) notifyRecall(messageID int64) {
 // 处理已读消息
 func (c *Client) handleReadMessage(data json.RawMessage) {
 	var msg struct {
-		ConversationID string `json:"conversation_id"` // 之前是 TargetID
+		ConversationID string `json:"conversation_id"`
 		MessageID      string `json:"message_id"`
 	}
 
@@ -802,7 +769,6 @@ func (c *Client) handleReadMessage(data json.RawMessage) {
 			"message_id":      msg.MessageID,
 			"status":          "read",
 		}, "")
-		c.notifyMessageRead(msg.MessageID, msg.ConversationID)
 
 		// 通知发送方消息已读
 		c.notifyMessageRead(msg.MessageID, msg.ConversationID)

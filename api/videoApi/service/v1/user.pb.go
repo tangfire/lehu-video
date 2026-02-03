@@ -68,26 +68,38 @@ func (VoucherType) EnumDescriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{0}
 }
 
+// 统一的用户模型（聚合来自core和chat服务的数据）
 type User struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                  // 用户id
-	Name            string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                              // 用户名称
-	Avatar          string                 `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`                                          // 用户头像Url
-	BackgroundImage string                 `protobuf:"bytes,4,opt,name=background_image,json=backgroundImage,proto3" json:"background_image,omitempty"` // 用户个人页顶部大图
-	Signature       string                 `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`                                    // 个人简介
-	Mobile          string                 `protobuf:"bytes,6,opt,name=mobile,proto3" json:"mobile,omitempty"`                                          // 手机号
-	Email           string                 `protobuf:"bytes,7,opt,name=email,proto3" json:"email,omitempty"`                                            // 邮箱
-	FollowCount     int64                  `protobuf:"varint,8,opt,name=follow_count,json=followCount,proto3" json:"follow_count,omitempty"`            // 关注总数
-	FollowerCount   int64                  `protobuf:"varint,9,opt,name=follower_count,json=followerCount,proto3" json:"follower_count,omitempty"`      // 粉丝总数
-	TotalFavorited  int64                  `protobuf:"varint,10,opt,name=total_favorited,json=totalFavorited,proto3" json:"total_favorited,omitempty"`  // 获赞数量
-	WorkCount       int64                  `protobuf:"varint,11,opt,name=work_count,json=workCount,proto3" json:"work_count,omitempty"`                 // 作品数量
-	FavoriteCount   int64                  `protobuf:"varint,12,opt,name=favorite_count,json=favoriteCount,proto3" json:"favorite_count,omitempty"`     // 点赞数量
-	Nickname        string                 `protobuf:"bytes,13,opt,name=nickname,proto3" json:"nickname,omitempty"`
-	Gender          int32                  `protobuf:"varint,14,opt,name=gender,proto3" json:"gender,omitempty"`
-	OnlineStatus    int32                  `protobuf:"varint,15,opt,name=online_status,json=onlineStatus,proto3" json:"online_status,omitempty"`
-	LastOnlineTime  string                 `protobuf:"bytes,16,opt,name=last_online_time,json=lastOnlineTime,proto3" json:"last_online_time,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 基础信息（来自videoCore）
+	Id              string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name            string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Nickname        string `protobuf:"bytes,3,opt,name=nickname,proto3" json:"nickname,omitempty"`
+	Avatar          string `protobuf:"bytes,4,opt,name=avatar,proto3" json:"avatar,omitempty"`
+	BackgroundImage string `protobuf:"bytes,5,opt,name=background_image,json=backgroundImage,proto3" json:"background_image,omitempty"`
+	Signature       string `protobuf:"bytes,6,opt,name=signature,proto3" json:"signature,omitempty"`
+	Gender          int32  `protobuf:"varint,7,opt,name=gender,proto3" json:"gender,omitempty"`
+	// 统计信息（来自videoCore）
+	FollowCount    int64  `protobuf:"varint,8,opt,name=follow_count,json=followCount,proto3" json:"follow_count,omitempty"`
+	FollowerCount  int64  `protobuf:"varint,9,opt,name=follower_count,json=followerCount,proto3" json:"follower_count,omitempty"`
+	TotalFavorited int64  `protobuf:"varint,10,opt,name=total_favorited,json=totalFavorited,proto3" json:"total_favorited,omitempty"`
+	WorkCount      int64  `protobuf:"varint,11,opt,name=work_count,json=workCount,proto3" json:"work_count,omitempty"`
+	FavoriteCount  int64  `protobuf:"varint,12,opt,name=favorite_count,json=favoriteCount,proto3" json:"favorite_count,omitempty"`
+	CreatedAt      string `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// 社交信息（来自videoChat）
+	OnlineStatus   int32  `protobuf:"varint,14,opt,name=online_status,json=onlineStatus,proto3" json:"online_status,omitempty"`
+	LastOnlineTime string `protobuf:"bytes,15,opt,name=last_online_time,json=lastOnlineTime,proto3" json:"last_online_time,omitempty"`
+	// 关系信息（API层聚合）
+	IsFollowing  bool   `protobuf:"varint,16,opt,name=is_following,json=isFollowing,proto3" json:"is_following,omitempty"`   // 当前用户是否关注ta
+	IsFollower   bool   `protobuf:"varint,17,opt,name=is_follower,json=isFollower,proto3" json:"is_follower,omitempty"`      // ta是否关注当前用户
+	IsFriend     bool   `protobuf:"varint,18,opt,name=is_friend,json=isFriend,proto3" json:"is_friend,omitempty"`            // 是否是好友
+	FriendRemark string `protobuf:"bytes,19,opt,name=friend_remark,json=friendRemark,proto3" json:"friend_remark,omitempty"` // 好友备注
+	FriendGroup  string `protobuf:"bytes,20,opt,name=friend_group,json=friendGroup,proto3" json:"friend_group,omitempty"`    // 好友分组
+	// 隐私字段（仅自己可见）
+	Mobile        string `protobuf:"bytes,21,opt,name=mobile,proto3" json:"mobile,omitempty"`
+	Email         string `protobuf:"bytes,22,opt,name=email,proto3" json:"email,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *User) Reset() {
@@ -134,6 +146,13 @@ func (x *User) GetName() string {
 	return ""
 }
 
+func (x *User) GetNickname() string {
+	if x != nil {
+		return x.Nickname
+	}
+	return ""
+}
+
 func (x *User) GetAvatar() string {
 	if x != nil {
 		return x.Avatar
@@ -155,18 +174,11 @@ func (x *User) GetSignature() string {
 	return ""
 }
 
-func (x *User) GetMobile() string {
+func (x *User) GetGender() int32 {
 	if x != nil {
-		return x.Mobile
+		return x.Gender
 	}
-	return ""
-}
-
-func (x *User) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
+	return 0
 }
 
 func (x *User) GetFollowCount() int64 {
@@ -204,18 +216,11 @@ func (x *User) GetFavoriteCount() int64 {
 	return 0
 }
 
-func (x *User) GetNickname() string {
+func (x *User) GetCreatedAt() string {
 	if x != nil {
-		return x.Nickname
+		return x.CreatedAt
 	}
 	return ""
-}
-
-func (x *User) GetGender() int32 {
-	if x != nil {
-		return x.Gender
-	}
-	return 0
 }
 
 func (x *User) GetOnlineStatus() int32 {
@@ -232,6 +237,221 @@ func (x *User) GetLastOnlineTime() string {
 	return ""
 }
 
+func (x *User) GetIsFollowing() bool {
+	if x != nil {
+		return x.IsFollowing
+	}
+	return false
+}
+
+func (x *User) GetIsFollower() bool {
+	if x != nil {
+		return x.IsFollower
+	}
+	return false
+}
+
+func (x *User) GetIsFriend() bool {
+	if x != nil {
+		return x.IsFriend
+	}
+	return false
+}
+
+func (x *User) GetFriendRemark() string {
+	if x != nil {
+		return x.FriendRemark
+	}
+	return ""
+}
+
+func (x *User) GetFriendGroup() string {
+	if x != nil {
+		return x.FriendGroup
+	}
+	return ""
+}
+
+func (x *User) GetMobile() string {
+	if x != nil {
+		return x.Mobile
+	}
+	return ""
+}
+
+func (x *User) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+// 用户社交信息（用于查询）
+type UserSocialQuery struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	NeedOnlineStatus bool                   `protobuf:"varint,2,opt,name=need_online_status,json=needOnlineStatus,proto3" json:"need_online_status,omitempty"`
+	NeedRelation     bool                   `protobuf:"varint,3,opt,name=need_relation,json=needRelation,proto3" json:"need_relation,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *UserSocialQuery) Reset() {
+	*x = UserSocialQuery{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserSocialQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserSocialQuery) ProtoMessage() {}
+
+func (x *UserSocialQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserSocialQuery.ProtoReflect.Descriptor instead.
+func (*UserSocialQuery) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *UserSocialQuery) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UserSocialQuery) GetNeedOnlineStatus() bool {
+	if x != nil {
+		return x.NeedOnlineStatus
+	}
+	return false
+}
+
+func (x *UserSocialQuery) GetNeedRelation() bool {
+	if x != nil {
+		return x.NeedRelation
+	}
+	return false
+}
+
+// 批量查询用户信息
+type BatchGetUserInfoReq struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserIds         []string               `protobuf:"bytes,1,rep,name=user_ids,json=userIds,proto3" json:"user_ids,omitempty"`
+	IncludePrivate  bool                   `protobuf:"varint,2,opt,name=include_private,json=includePrivate,proto3" json:"include_private,omitempty"`    // 是否包含隐私字段
+	IncludeRelation bool                   `protobuf:"varint,3,opt,name=include_relation,json=includeRelation,proto3" json:"include_relation,omitempty"` // 是否包含关系信息
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *BatchGetUserInfoReq) Reset() {
+	*x = BatchGetUserInfoReq{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchGetUserInfoReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchGetUserInfoReq) ProtoMessage() {}
+
+func (x *BatchGetUserInfoReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchGetUserInfoReq.ProtoReflect.Descriptor instead.
+func (*BatchGetUserInfoReq) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *BatchGetUserInfoReq) GetUserIds() []string {
+	if x != nil {
+		return x.UserIds
+	}
+	return nil
+}
+
+func (x *BatchGetUserInfoReq) GetIncludePrivate() bool {
+	if x != nil {
+		return x.IncludePrivate
+	}
+	return false
+}
+
+func (x *BatchGetUserInfoReq) GetIncludeRelation() bool {
+	if x != nil {
+		return x.IncludeRelation
+	}
+	return false
+}
+
+type BatchGetUserInfoResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchGetUserInfoResp) Reset() {
+	*x = BatchGetUserInfoResp{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchGetUserInfoResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchGetUserInfoResp) ProtoMessage() {}
+
+func (x *BatchGetUserInfoResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchGetUserInfoResp.ProtoReflect.Descriptor instead.
+func (*BatchGetUserInfoResp) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *BatchGetUserInfoResp) GetUsers() []*User {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
 type GetVerificationCodeReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mobile        string                 `protobuf:"bytes,1,opt,name=mobile,proto3" json:"mobile,omitempty"`
@@ -242,7 +462,7 @@ type GetVerificationCodeReq struct {
 
 func (x *GetVerificationCodeReq) Reset() {
 	*x = GetVerificationCodeReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[1]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -254,7 +474,7 @@ func (x *GetVerificationCodeReq) String() string {
 func (*GetVerificationCodeReq) ProtoMessage() {}
 
 func (x *GetVerificationCodeReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[1]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -267,7 +487,7 @@ func (x *GetVerificationCodeReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVerificationCodeReq.ProtoReflect.Descriptor instead.
 func (*GetVerificationCodeReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{1}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetVerificationCodeReq) GetMobile() string {
@@ -293,7 +513,7 @@ type GetVerificationCodeResp struct {
 
 func (x *GetVerificationCodeResp) Reset() {
 	*x = GetVerificationCodeResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[2]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -305,7 +525,7 @@ func (x *GetVerificationCodeResp) String() string {
 func (*GetVerificationCodeResp) ProtoMessage() {}
 
 func (x *GetVerificationCodeResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[2]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -318,7 +538,7 @@ func (x *GetVerificationCodeResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVerificationCodeResp.ProtoReflect.Descriptor instead.
 func (*GetVerificationCodeResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{2}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetVerificationCodeResp) GetCodeId() int64 {
@@ -341,7 +561,7 @@ type RegisterReq struct {
 
 func (x *RegisterReq) Reset() {
 	*x = RegisterReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[3]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -353,7 +573,7 @@ func (x *RegisterReq) String() string {
 func (*RegisterReq) ProtoMessage() {}
 
 func (x *RegisterReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[3]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -366,7 +586,7 @@ func (x *RegisterReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterReq.ProtoReflect.Descriptor instead.
 func (*RegisterReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{3}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RegisterReq) GetMobile() string {
@@ -413,7 +633,7 @@ type RegisterResp struct {
 
 func (x *RegisterResp) Reset() {
 	*x = RegisterResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[4]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -425,7 +645,7 @@ func (x *RegisterResp) String() string {
 func (*RegisterResp) ProtoMessage() {}
 
 func (x *RegisterResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[4]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -438,7 +658,7 @@ func (x *RegisterResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterResp.ProtoReflect.Descriptor instead.
 func (*RegisterResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{4}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RegisterResp) GetUserId() string {
@@ -459,7 +679,7 @@ type LoginReq struct {
 
 func (x *LoginReq) Reset() {
 	*x = LoginReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[5]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -471,7 +691,7 @@ func (x *LoginReq) String() string {
 func (*LoginReq) ProtoMessage() {}
 
 func (x *LoginReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[5]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -484,7 +704,7 @@ func (x *LoginReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginReq.ProtoReflect.Descriptor instead.
 func (*LoginReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{5}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *LoginReq) GetMobile() string {
@@ -518,7 +738,7 @@ type LoginResp struct {
 
 func (x *LoginResp) Reset() {
 	*x = LoginResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[6]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -530,7 +750,7 @@ func (x *LoginResp) String() string {
 func (*LoginResp) ProtoMessage() {}
 
 func (x *LoginResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[6]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -543,7 +763,7 @@ func (x *LoginResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginResp.ProtoReflect.Descriptor instead.
 func (*LoginResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{6}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *LoginResp) GetToken() string {
@@ -569,7 +789,7 @@ type GetUserInfoReq struct {
 
 func (x *GetUserInfoReq) Reset() {
 	*x = GetUserInfoReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[7]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -581,7 +801,7 @@ func (x *GetUserInfoReq) String() string {
 func (*GetUserInfoReq) ProtoMessage() {}
 
 func (x *GetUserInfoReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[7]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -594,7 +814,7 @@ func (x *GetUserInfoReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserInfoReq.ProtoReflect.Descriptor instead.
 func (*GetUserInfoReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{7}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetUserInfoReq) GetUserId() string {
@@ -613,7 +833,7 @@ type GetUserInfoResp struct {
 
 func (x *GetUserInfoResp) Reset() {
 	*x = GetUserInfoResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[8]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -625,7 +845,7 @@ func (x *GetUserInfoResp) String() string {
 func (*GetUserInfoResp) ProtoMessage() {}
 
 func (x *GetUserInfoResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[8]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -638,7 +858,7 @@ func (x *GetUserInfoResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserInfoResp.ProtoReflect.Descriptor instead.
 func (*GetUserInfoResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{8}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetUserInfoResp) GetUser() *User {
@@ -655,13 +875,15 @@ type UpdateUserInfoReq struct {
 	Avatar          string                 `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	BackgroundImage string                 `protobuf:"bytes,4,opt,name=background_image,json=backgroundImage,proto3" json:"background_image,omitempty"`
 	Signature       string                 `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
+	Nickname        string                 `protobuf:"bytes,6,opt,name=nickname,proto3" json:"nickname,omitempty"`
+	Gender          int32                  `protobuf:"varint,7,opt,name=gender,proto3" json:"gender,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpdateUserInfoReq) Reset() {
 	*x = UpdateUserInfoReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[9]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -673,7 +895,7 @@ func (x *UpdateUserInfoReq) String() string {
 func (*UpdateUserInfoReq) ProtoMessage() {}
 
 func (x *UpdateUserInfoReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[9]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -686,7 +908,7 @@ func (x *UpdateUserInfoReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserInfoReq.ProtoReflect.Descriptor instead.
 func (*UpdateUserInfoReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{9}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UpdateUserInfoReq) GetUserId() string {
@@ -724,6 +946,20 @@ func (x *UpdateUserInfoReq) GetSignature() string {
 	return ""
 }
 
+func (x *UpdateUserInfoReq) GetNickname() string {
+	if x != nil {
+		return x.Nickname
+	}
+	return ""
+}
+
+func (x *UpdateUserInfoReq) GetGender() int32 {
+	if x != nil {
+		return x.Gender
+	}
+	return 0
+}
+
 type UpdateUserInfoResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -732,7 +968,7 @@ type UpdateUserInfoResp struct {
 
 func (x *UpdateUserInfoResp) Reset() {
 	*x = UpdateUserInfoResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[10]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -744,7 +980,7 @@ func (x *UpdateUserInfoResp) String() string {
 func (*UpdateUserInfoResp) ProtoMessage() {}
 
 func (x *UpdateUserInfoResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[10]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -757,7 +993,7 @@ func (x *UpdateUserInfoResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserInfoResp.ProtoReflect.Descriptor instead.
 func (*UpdateUserInfoResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{10}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{13}
 }
 
 type BindUserVoucherReq struct {
@@ -770,7 +1006,7 @@ type BindUserVoucherReq struct {
 
 func (x *BindUserVoucherReq) Reset() {
 	*x = BindUserVoucherReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[11]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -782,7 +1018,7 @@ func (x *BindUserVoucherReq) String() string {
 func (*BindUserVoucherReq) ProtoMessage() {}
 
 func (x *BindUserVoucherReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[11]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -795,7 +1031,7 @@ func (x *BindUserVoucherReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BindUserVoucherReq.ProtoReflect.Descriptor instead.
 func (*BindUserVoucherReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{11}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *BindUserVoucherReq) GetVoucherType() VoucherType {
@@ -820,7 +1056,7 @@ type BindUserVoucherResp struct {
 
 func (x *BindUserVoucherResp) Reset() {
 	*x = BindUserVoucherResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[12]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -832,7 +1068,7 @@ func (x *BindUserVoucherResp) String() string {
 func (*BindUserVoucherResp) ProtoMessage() {}
 
 func (x *BindUserVoucherResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[12]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -845,7 +1081,7 @@ func (x *BindUserVoucherResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BindUserVoucherResp.ProtoReflect.Descriptor instead.
 func (*BindUserVoucherResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{12}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{15}
 }
 
 type UnbindUserVoucherReq struct {
@@ -858,7 +1094,7 @@ type UnbindUserVoucherReq struct {
 
 func (x *UnbindUserVoucherReq) Reset() {
 	*x = UnbindUserVoucherReq{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[13]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -870,7 +1106,7 @@ func (x *UnbindUserVoucherReq) String() string {
 func (*UnbindUserVoucherReq) ProtoMessage() {}
 
 func (x *UnbindUserVoucherReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[13]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -883,7 +1119,7 @@ func (x *UnbindUserVoucherReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnbindUserVoucherReq.ProtoReflect.Descriptor instead.
 func (*UnbindUserVoucherReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{13}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UnbindUserVoucherReq) GetVoucherType() VoucherType {
@@ -908,7 +1144,7 @@ type UnbindUserVoucherResp struct {
 
 func (x *UnbindUserVoucherResp) Reset() {
 	*x = UnbindUserVoucherResp{}
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[14]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -920,7 +1156,7 @@ func (x *UnbindUserVoucherResp) String() string {
 func (*UnbindUserVoucherResp) ProtoMessage() {}
 
 func (x *UnbindUserVoucherResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[14]
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -933,33 +1169,156 @@ func (x *UnbindUserVoucherResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnbindUserVoucherResp.ProtoReflect.Descriptor instead.
 func (*UnbindUserVoucherResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{14}
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{17}
+}
+
+// 搜索用户请求
+type SearchUsersReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Keyword       string                 `protobuf:"bytes,1,opt,name=keyword,proto3" json:"keyword,omitempty"`
+	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchUsersReq) Reset() {
+	*x = SearchUsersReq{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchUsersReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchUsersReq) ProtoMessage() {}
+
+func (x *SearchUsersReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchUsersReq.ProtoReflect.Descriptor instead.
+func (*SearchUsersReq) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *SearchUsersReq) GetKeyword() string {
+	if x != nil {
+		return x.Keyword
+	}
+	return ""
+}
+
+func (x *SearchUsersReq) GetPageStats() *PageStatsReq {
+	if x != nil {
+		return x.PageStats
+	}
+	return nil
+}
+
+type SearchUsersResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	PageStats     *PageStatsResp         `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchUsersResp) Reset() {
+	*x = SearchUsersResp{}
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchUsersResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchUsersResp) ProtoMessage() {}
+
+func (x *SearchUsersResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_user_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchUsersResp.ProtoReflect.Descriptor instead.
+func (*SearchUsersResp) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_user_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *SearchUsersResp) GetUsers() []*User {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+func (x *SearchUsersResp) GetPageStats() *PageStatsResp {
+	if x != nil {
+		return x.PageStats
+	}
+	return nil
 }
 
 var File_api_videoApi_service_v1_user_proto protoreflect.FileDescriptor
 
 const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\n" +
-	"\"api/videoApi/service/v1/user.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\"\xf5\x03\n" +
+	"\"api/videoApi/service/v1/user.proto\x12\x17api.videoApi.service.v1\x1a\x1cgoogle/api/annotations.proto\x1a\"api/videoApi/service/v1/base.proto\"\xbd\x05\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
-	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12)\n" +
-	"\x10background_image\x18\x04 \x01(\tR\x0fbackgroundImage\x12\x1c\n" +
-	"\tsignature\x18\x05 \x01(\tR\tsignature\x12\x16\n" +
-	"\x06mobile\x18\x06 \x01(\tR\x06mobile\x12\x14\n" +
-	"\x05email\x18\a \x01(\tR\x05email\x12!\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
+	"\bnickname\x18\x03 \x01(\tR\bnickname\x12\x16\n" +
+	"\x06avatar\x18\x04 \x01(\tR\x06avatar\x12)\n" +
+	"\x10background_image\x18\x05 \x01(\tR\x0fbackgroundImage\x12\x1c\n" +
+	"\tsignature\x18\x06 \x01(\tR\tsignature\x12\x16\n" +
+	"\x06gender\x18\a \x01(\x05R\x06gender\x12!\n" +
 	"\ffollow_count\x18\b \x01(\x03R\vfollowCount\x12%\n" +
 	"\x0efollower_count\x18\t \x01(\x03R\rfollowerCount\x12'\n" +
 	"\x0ftotal_favorited\x18\n" +
 	" \x01(\x03R\x0etotalFavorited\x12\x1d\n" +
 	"\n" +
 	"work_count\x18\v \x01(\x03R\tworkCount\x12%\n" +
-	"\x0efavorite_count\x18\f \x01(\x03R\rfavoriteCount\x12\x1a\n" +
-	"\bnickname\x18\r \x01(\tR\bnickname\x12\x16\n" +
-	"\x06gender\x18\x0e \x01(\x05R\x06gender\x12#\n" +
-	"\ronline_status\x18\x0f \x01(\x05R\fonlineStatus\x12(\n" +
-	"\x10last_online_time\x18\x10 \x01(\tR\x0elastOnlineTime\"F\n" +
+	"\x0efavorite_count\x18\f \x01(\x03R\rfavoriteCount\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\r \x01(\tR\tcreatedAt\x12#\n" +
+	"\ronline_status\x18\x0e \x01(\x05R\fonlineStatus\x12(\n" +
+	"\x10last_online_time\x18\x0f \x01(\tR\x0elastOnlineTime\x12!\n" +
+	"\fis_following\x18\x10 \x01(\bR\visFollowing\x12\x1f\n" +
+	"\vis_follower\x18\x11 \x01(\bR\n" +
+	"isFollower\x12\x1b\n" +
+	"\tis_friend\x18\x12 \x01(\bR\bisFriend\x12#\n" +
+	"\rfriend_remark\x18\x13 \x01(\tR\ffriendRemark\x12!\n" +
+	"\ffriend_group\x18\x14 \x01(\tR\vfriendGroup\x12\x16\n" +
+	"\x06mobile\x18\x15 \x01(\tR\x06mobile\x12\x14\n" +
+	"\x05email\x18\x16 \x01(\tR\x05email\"}\n" +
+	"\x0fUserSocialQuery\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12,\n" +
+	"\x12need_online_status\x18\x02 \x01(\bR\x10needOnlineStatus\x12#\n" +
+	"\rneed_relation\x18\x03 \x01(\bR\fneedRelation\"\x84\x01\n" +
+	"\x13BatchGetUserInfoReq\x12\x19\n" +
+	"\buser_ids\x18\x01 \x03(\tR\auserIds\x12'\n" +
+	"\x0finclude_private\x18\x02 \x01(\bR\x0eincludePrivate\x12)\n" +
+	"\x10include_relation\x18\x03 \x01(\bR\x0fincludeRelation\"K\n" +
+	"\x14BatchGetUserInfoResp\x123\n" +
+	"\x05users\x18\x01 \x03(\v2\x1d.api.videoApi.service.v1.UserR\x05users\"F\n" +
 	"\x16GetVerificationCodeReq\x12\x16\n" +
 	"\x06mobile\x18\x01 \x01(\tR\x06mobile\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\"2\n" +
@@ -983,13 +1342,15 @@ const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\x0eGetUserInfoReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"D\n" +
 	"\x0fGetUserInfoResp\x121\n" +
-	"\x04user\x18\x02 \x01(\v2\x1d.api.videoApi.service.v1.UserR\x04user\"\xa1\x01\n" +
+	"\x04user\x18\x02 \x01(\v2\x1d.api.videoApi.service.v1.UserR\x04user\"\xd5\x01\n" +
 	"\x11UpdateUserInfoReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12)\n" +
 	"\x10background_image\x18\x04 \x01(\tR\x0fbackgroundImage\x12\x1c\n" +
-	"\tsignature\x18\x05 \x01(\tR\tsignature\"\x14\n" +
+	"\tsignature\x18\x05 \x01(\tR\tsignature\x12\x1a\n" +
+	"\bnickname\x18\x06 \x01(\tR\bnickname\x12\x16\n" +
+	"\x06gender\x18\a \x01(\x05R\x06gender\"\x14\n" +
 	"\x12UpdateUserInfoResp\"w\n" +
 	"\x12BindUserVoucherReq\x12G\n" +
 	"\fvoucher_type\x18\x01 \x01(\x0e2$.api.videoApi.service.v1.VoucherTypeR\vvoucherType\x12\x18\n" +
@@ -998,16 +1359,26 @@ const file_api_videoApi_service_v1_user_proto_rawDesc = "" +
 	"\x14UnbindUserVoucherReq\x12G\n" +
 	"\fvoucher_type\x18\x01 \x01(\x0e2$.api.videoApi.service.v1.VoucherTypeR\vvoucherType\x12\x18\n" +
 	"\avoucher\x18\x02 \x01(\tR\avoucher\"\x17\n" +
-	"\x15UnbindUserVoucherResp*#\n" +
+	"\x15UnbindUserVoucherResp\"p\n" +
+	"\x0eSearchUsersReq\x12\x18\n" +
+	"\akeyword\x18\x01 \x01(\tR\akeyword\x12D\n" +
+	"\n" +
+	"page_stats\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x8d\x01\n" +
+	"\x0fSearchUsersResp\x123\n" +
+	"\x05users\x18\x01 \x03(\v2\x1d.api.videoApi.service.v1.UserR\x05users\x12E\n" +
+	"\n" +
+	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats*#\n" +
 	"\vVoucherType\x12\t\n" +
 	"\x05PHONE\x10\x00\x12\t\n" +
-	"\x05EMAIL\x10\x012\x9e\a\n" +
+	"\x05EMAIL\x10\x012\xb6\t\n" +
 	"\vUserService\x12\x92\x01\n" +
 	"\x13GetVerificationCode\x12/.api.videoApi.service.v1.GetVerificationCodeReq\x1a0.api.videoApi.service.v1.GetVerificationCodeResp\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\"\r/v1/user/code\x12u\n" +
 	"\bRegister\x12$.api.videoApi.service.v1.RegisterReq\x1a%.api.videoApi.service.v1.RegisterResp\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/user/register\x12i\n" +
-	"\x05Login\x12!.api.videoApi.service.v1.LoginReq\x1a\".api.videoApi.service.v1.LoginResp\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/user/login\x12w\n" +
-	"\vGetUserInfo\x12'.api.videoApi.service.v1.GetUserInfoReq\x1a(.api.videoApi.service.v1.GetUserInfoResp\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/user/info\x12\x83\x01\n" +
-	"\x0eUpdateUserInfo\x12*.api.videoApi.service.v1.UpdateUserInfoReq\x1a+.api.videoApi.service.v1.UpdateUserInfoResp\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\x1a\r/v1/user/info\x12\x89\x01\n" +
+	"\x05Login\x12!.api.videoApi.service.v1.LoginReq\x1a\".api.videoApi.service.v1.LoginResp\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/user/login\x12\x81\x01\n" +
+	"\vGetUserInfo\x12'.api.videoApi.service.v1.GetUserInfoReq\x1a(.api.videoApi.service.v1.GetUserInfoResp\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/v1/user/info/{user_id}\x12\x8b\x01\n" +
+	"\x10BatchGetUserInfo\x12,.api.videoApi.service.v1.BatchGetUserInfoReq\x1a-.api.videoApi.service.v1.BatchGetUserInfoResp\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/users/batch\x12\x83\x01\n" +
+	"\x0eUpdateUserInfo\x12*.api.videoApi.service.v1.UpdateUserInfoReq\x1a+.api.videoApi.service.v1.UpdateUserInfoResp\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\x1a\r/v1/user/info\x12}\n" +
+	"\vSearchUsers\x12'.api.videoApi.service.v1.SearchUsersReq\x1a(.api.videoApi.service.v1.SearchUsersResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/users/search\x12\x89\x01\n" +
 	"\x0fBindUserVoucher\x12+.api.videoApi.service.v1.BindUserVoucherReq\x1a,.api.videoApi.service.v1.BindUserVoucherResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/user/voucher\x12\x8c\x01\n" +
 	"\x11UnbindUserVoucher\x12-.api.videoApi.service.v1.UnbindUserVoucherReq\x1a..api.videoApi.service.v1.UnbindUserVoucherResp\"\x18\x82\xd3\xe4\x93\x02\x12*\x10/v1/user/voucherBB\n" +
 	"\x17api.videoApi.service.v1P\x01Z%lehu-video/api/videoApi/service/v1;v1b\x06proto3"
@@ -1025,49 +1396,64 @@ func file_api_videoApi_service_v1_user_proto_rawDescGZIP() []byte {
 }
 
 var file_api_videoApi_service_v1_user_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_videoApi_service_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_api_videoApi_service_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_api_videoApi_service_v1_user_proto_goTypes = []any{
 	(VoucherType)(0),                // 0: api.videoApi.service.v1.VoucherType
 	(*User)(nil),                    // 1: api.videoApi.service.v1.User
-	(*GetVerificationCodeReq)(nil),  // 2: api.videoApi.service.v1.GetVerificationCodeReq
-	(*GetVerificationCodeResp)(nil), // 3: api.videoApi.service.v1.GetVerificationCodeResp
-	(*RegisterReq)(nil),             // 4: api.videoApi.service.v1.RegisterReq
-	(*RegisterResp)(nil),            // 5: api.videoApi.service.v1.RegisterResp
-	(*LoginReq)(nil),                // 6: api.videoApi.service.v1.LoginReq
-	(*LoginResp)(nil),               // 7: api.videoApi.service.v1.LoginResp
-	(*GetUserInfoReq)(nil),          // 8: api.videoApi.service.v1.GetUserInfoReq
-	(*GetUserInfoResp)(nil),         // 9: api.videoApi.service.v1.GetUserInfoResp
-	(*UpdateUserInfoReq)(nil),       // 10: api.videoApi.service.v1.UpdateUserInfoReq
-	(*UpdateUserInfoResp)(nil),      // 11: api.videoApi.service.v1.UpdateUserInfoResp
-	(*BindUserVoucherReq)(nil),      // 12: api.videoApi.service.v1.BindUserVoucherReq
-	(*BindUserVoucherResp)(nil),     // 13: api.videoApi.service.v1.BindUserVoucherResp
-	(*UnbindUserVoucherReq)(nil),    // 14: api.videoApi.service.v1.UnbindUserVoucherReq
-	(*UnbindUserVoucherResp)(nil),   // 15: api.videoApi.service.v1.UnbindUserVoucherResp
+	(*UserSocialQuery)(nil),         // 2: api.videoApi.service.v1.UserSocialQuery
+	(*BatchGetUserInfoReq)(nil),     // 3: api.videoApi.service.v1.BatchGetUserInfoReq
+	(*BatchGetUserInfoResp)(nil),    // 4: api.videoApi.service.v1.BatchGetUserInfoResp
+	(*GetVerificationCodeReq)(nil),  // 5: api.videoApi.service.v1.GetVerificationCodeReq
+	(*GetVerificationCodeResp)(nil), // 6: api.videoApi.service.v1.GetVerificationCodeResp
+	(*RegisterReq)(nil),             // 7: api.videoApi.service.v1.RegisterReq
+	(*RegisterResp)(nil),            // 8: api.videoApi.service.v1.RegisterResp
+	(*LoginReq)(nil),                // 9: api.videoApi.service.v1.LoginReq
+	(*LoginResp)(nil),               // 10: api.videoApi.service.v1.LoginResp
+	(*GetUserInfoReq)(nil),          // 11: api.videoApi.service.v1.GetUserInfoReq
+	(*GetUserInfoResp)(nil),         // 12: api.videoApi.service.v1.GetUserInfoResp
+	(*UpdateUserInfoReq)(nil),       // 13: api.videoApi.service.v1.UpdateUserInfoReq
+	(*UpdateUserInfoResp)(nil),      // 14: api.videoApi.service.v1.UpdateUserInfoResp
+	(*BindUserVoucherReq)(nil),      // 15: api.videoApi.service.v1.BindUserVoucherReq
+	(*BindUserVoucherResp)(nil),     // 16: api.videoApi.service.v1.BindUserVoucherResp
+	(*UnbindUserVoucherReq)(nil),    // 17: api.videoApi.service.v1.UnbindUserVoucherReq
+	(*UnbindUserVoucherResp)(nil),   // 18: api.videoApi.service.v1.UnbindUserVoucherResp
+	(*SearchUsersReq)(nil),          // 19: api.videoApi.service.v1.SearchUsersReq
+	(*SearchUsersResp)(nil),         // 20: api.videoApi.service.v1.SearchUsersResp
+	(*PageStatsReq)(nil),            // 21: api.videoApi.service.v1.PageStatsReq
+	(*PageStatsResp)(nil),           // 22: api.videoApi.service.v1.PageStatsResp
 }
 var file_api_videoApi_service_v1_user_proto_depIdxs = []int32{
-	1,  // 0: api.videoApi.service.v1.LoginResp.user:type_name -> api.videoApi.service.v1.User
-	1,  // 1: api.videoApi.service.v1.GetUserInfoResp.user:type_name -> api.videoApi.service.v1.User
-	0,  // 2: api.videoApi.service.v1.BindUserVoucherReq.voucher_type:type_name -> api.videoApi.service.v1.VoucherType
-	0,  // 3: api.videoApi.service.v1.UnbindUserVoucherReq.voucher_type:type_name -> api.videoApi.service.v1.VoucherType
-	2,  // 4: api.videoApi.service.v1.UserService.GetVerificationCode:input_type -> api.videoApi.service.v1.GetVerificationCodeReq
-	4,  // 5: api.videoApi.service.v1.UserService.Register:input_type -> api.videoApi.service.v1.RegisterReq
-	6,  // 6: api.videoApi.service.v1.UserService.Login:input_type -> api.videoApi.service.v1.LoginReq
-	8,  // 7: api.videoApi.service.v1.UserService.GetUserInfo:input_type -> api.videoApi.service.v1.GetUserInfoReq
-	10, // 8: api.videoApi.service.v1.UserService.UpdateUserInfo:input_type -> api.videoApi.service.v1.UpdateUserInfoReq
-	12, // 9: api.videoApi.service.v1.UserService.BindUserVoucher:input_type -> api.videoApi.service.v1.BindUserVoucherReq
-	14, // 10: api.videoApi.service.v1.UserService.UnbindUserVoucher:input_type -> api.videoApi.service.v1.UnbindUserVoucherReq
-	3,  // 11: api.videoApi.service.v1.UserService.GetVerificationCode:output_type -> api.videoApi.service.v1.GetVerificationCodeResp
-	5,  // 12: api.videoApi.service.v1.UserService.Register:output_type -> api.videoApi.service.v1.RegisterResp
-	7,  // 13: api.videoApi.service.v1.UserService.Login:output_type -> api.videoApi.service.v1.LoginResp
-	9,  // 14: api.videoApi.service.v1.UserService.GetUserInfo:output_type -> api.videoApi.service.v1.GetUserInfoResp
-	11, // 15: api.videoApi.service.v1.UserService.UpdateUserInfo:output_type -> api.videoApi.service.v1.UpdateUserInfoResp
-	13, // 16: api.videoApi.service.v1.UserService.BindUserVoucher:output_type -> api.videoApi.service.v1.BindUserVoucherResp
-	15, // 17: api.videoApi.service.v1.UserService.UnbindUserVoucher:output_type -> api.videoApi.service.v1.UnbindUserVoucherResp
-	11, // [11:18] is the sub-list for method output_type
-	4,  // [4:11] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+	1,  // 0: api.videoApi.service.v1.BatchGetUserInfoResp.users:type_name -> api.videoApi.service.v1.User
+	1,  // 1: api.videoApi.service.v1.LoginResp.user:type_name -> api.videoApi.service.v1.User
+	1,  // 2: api.videoApi.service.v1.GetUserInfoResp.user:type_name -> api.videoApi.service.v1.User
+	0,  // 3: api.videoApi.service.v1.BindUserVoucherReq.voucher_type:type_name -> api.videoApi.service.v1.VoucherType
+	0,  // 4: api.videoApi.service.v1.UnbindUserVoucherReq.voucher_type:type_name -> api.videoApi.service.v1.VoucherType
+	21, // 5: api.videoApi.service.v1.SearchUsersReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
+	1,  // 6: api.videoApi.service.v1.SearchUsersResp.users:type_name -> api.videoApi.service.v1.User
+	22, // 7: api.videoApi.service.v1.SearchUsersResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
+	5,  // 8: api.videoApi.service.v1.UserService.GetVerificationCode:input_type -> api.videoApi.service.v1.GetVerificationCodeReq
+	7,  // 9: api.videoApi.service.v1.UserService.Register:input_type -> api.videoApi.service.v1.RegisterReq
+	9,  // 10: api.videoApi.service.v1.UserService.Login:input_type -> api.videoApi.service.v1.LoginReq
+	11, // 11: api.videoApi.service.v1.UserService.GetUserInfo:input_type -> api.videoApi.service.v1.GetUserInfoReq
+	3,  // 12: api.videoApi.service.v1.UserService.BatchGetUserInfo:input_type -> api.videoApi.service.v1.BatchGetUserInfoReq
+	13, // 13: api.videoApi.service.v1.UserService.UpdateUserInfo:input_type -> api.videoApi.service.v1.UpdateUserInfoReq
+	19, // 14: api.videoApi.service.v1.UserService.SearchUsers:input_type -> api.videoApi.service.v1.SearchUsersReq
+	15, // 15: api.videoApi.service.v1.UserService.BindUserVoucher:input_type -> api.videoApi.service.v1.BindUserVoucherReq
+	17, // 16: api.videoApi.service.v1.UserService.UnbindUserVoucher:input_type -> api.videoApi.service.v1.UnbindUserVoucherReq
+	6,  // 17: api.videoApi.service.v1.UserService.GetVerificationCode:output_type -> api.videoApi.service.v1.GetVerificationCodeResp
+	8,  // 18: api.videoApi.service.v1.UserService.Register:output_type -> api.videoApi.service.v1.RegisterResp
+	10, // 19: api.videoApi.service.v1.UserService.Login:output_type -> api.videoApi.service.v1.LoginResp
+	12, // 20: api.videoApi.service.v1.UserService.GetUserInfo:output_type -> api.videoApi.service.v1.GetUserInfoResp
+	4,  // 21: api.videoApi.service.v1.UserService.BatchGetUserInfo:output_type -> api.videoApi.service.v1.BatchGetUserInfoResp
+	14, // 22: api.videoApi.service.v1.UserService.UpdateUserInfo:output_type -> api.videoApi.service.v1.UpdateUserInfoResp
+	20, // 23: api.videoApi.service.v1.UserService.SearchUsers:output_type -> api.videoApi.service.v1.SearchUsersResp
+	16, // 24: api.videoApi.service.v1.UserService.BindUserVoucher:output_type -> api.videoApi.service.v1.BindUserVoucherResp
+	18, // 25: api.videoApi.service.v1.UserService.UnbindUserVoucher:output_type -> api.videoApi.service.v1.UnbindUserVoucherResp
+	17, // [17:26] is the sub-list for method output_type
+	8,  // [8:17] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_api_videoApi_service_v1_user_proto_init() }
@@ -1075,13 +1461,14 @@ func file_api_videoApi_service_v1_user_proto_init() {
 	if File_api_videoApi_service_v1_user_proto != nil {
 		return
 	}
+	file_api_videoApi_service_v1_base_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_videoApi_service_v1_user_proto_rawDesc), len(file_api_videoApi_service_v1_user_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   15,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

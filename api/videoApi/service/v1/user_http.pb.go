@@ -19,17 +19,22 @@ var _ = binding.EncodeURL
 
 const _ = http.SupportPackageIsVersion1
 
+const OperationUserServiceBatchGetUserInfo = "/api.videoApi.service.v1.UserService/BatchGetUserInfo"
 const OperationUserServiceBindUserVoucher = "/api.videoApi.service.v1.UserService/BindUserVoucher"
 const OperationUserServiceGetUserInfo = "/api.videoApi.service.v1.UserService/GetUserInfo"
 const OperationUserServiceGetVerificationCode = "/api.videoApi.service.v1.UserService/GetVerificationCode"
 const OperationUserServiceLogin = "/api.videoApi.service.v1.UserService/Login"
 const OperationUserServiceRegister = "/api.videoApi.service.v1.UserService/Register"
+const OperationUserServiceSearchUsers = "/api.videoApi.service.v1.UserService/SearchUsers"
 const OperationUserServiceUnbindUserVoucher = "/api.videoApi.service.v1.UserService/UnbindUserVoucher"
 const OperationUserServiceUpdateUserInfo = "/api.videoApi.service.v1.UserService/UpdateUserInfo"
 
 type UserServiceHTTPServer interface {
+	// BatchGetUserInfo 批量获取用户信息
+	BatchGetUserInfo(context.Context, *BatchGetUserInfoReq) (*BatchGetUserInfoResp, error)
+	// BindUserVoucher 绑定凭证
 	BindUserVoucher(context.Context, *BindUserVoucherReq) (*BindUserVoucherResp, error)
-	// GetUserInfo 获取用户信息
+	// GetUserInfo 获取用户完整信息（聚合core和chat）
 	GetUserInfo(context.Context, *GetUserInfoReq) (*GetUserInfoResp, error)
 	// GetVerificationCode 获取验证码
 	GetVerificationCode(context.Context, *GetVerificationCodeReq) (*GetVerificationCodeResp, error)
@@ -37,6 +42,9 @@ type UserServiceHTTPServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
 	// Register 注册
 	Register(context.Context, *RegisterReq) (*RegisterResp, error)
+	// SearchUsers 搜索用户
+	SearchUsers(context.Context, *SearchUsersReq) (*SearchUsersResp, error)
+	// UnbindUserVoucher 解绑凭证
 	UnbindUserVoucher(context.Context, *UnbindUserVoucherReq) (*UnbindUserVoucherResp, error)
 	// UpdateUserInfo 更新用户信息
 	UpdateUserInfo(context.Context, *UpdateUserInfoReq) (*UpdateUserInfoResp, error)
@@ -47,8 +55,10 @@ func RegisterUserServiceHTTPServer(s *http.Server, srv UserServiceHTTPServer) {
 	r.POST("/v1/user/code", _UserService_GetVerificationCode0_HTTP_Handler(srv))
 	r.POST("/v1/user/register", _UserService_Register0_HTTP_Handler(srv))
 	r.POST("/v1/user/login", _UserService_Login0_HTTP_Handler(srv))
-	r.GET("/v1/user/info", _UserService_GetUserInfo0_HTTP_Handler(srv))
+	r.GET("/v1/user/info/{user_id}", _UserService_GetUserInfo0_HTTP_Handler(srv))
+	r.POST("/v1/users/batch", _UserService_BatchGetUserInfo0_HTTP_Handler(srv))
 	r.PUT("/v1/user/info", _UserService_UpdateUserInfo0_HTTP_Handler(srv))
+	r.POST("/v1/users/search", _UserService_SearchUsers0_HTTP_Handler(srv))
 	r.POST("/v1/user/voucher", _UserService_BindUserVoucher0_HTTP_Handler(srv))
 	r.DELETE("/v1/user/voucher", _UserService_UnbindUserVoucher0_HTTP_Handler(srv))
 }
@@ -125,6 +135,9 @@ func _UserService_GetUserInfo0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx 
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
 		http.SetOperation(ctx, OperationUserServiceGetUserInfo)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.GetUserInfo(ctx, req.(*GetUserInfoReq))
@@ -134,6 +147,28 @@ func _UserService_GetUserInfo0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx 
 			return err
 		}
 		reply := out.(*GetUserInfoResp)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _UserService_BatchGetUserInfo0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in BatchGetUserInfoReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserServiceBatchGetUserInfo)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.BatchGetUserInfo(ctx, req.(*BatchGetUserInfoReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*BatchGetUserInfoResp)
 		return ctx.Result(200, reply)
 	}
 }
@@ -156,6 +191,28 @@ func _UserService_UpdateUserInfo0_HTTP_Handler(srv UserServiceHTTPServer) func(c
 			return err
 		}
 		reply := out.(*UpdateUserInfoResp)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _UserService_SearchUsers0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in SearchUsersReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserServiceSearchUsers)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.SearchUsers(ctx, req.(*SearchUsersReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*SearchUsersResp)
 		return ctx.Result(200, reply)
 	}
 }
@@ -202,11 +259,13 @@ func _UserService_UnbindUserVoucher0_HTTP_Handler(srv UserServiceHTTPServer) fun
 }
 
 type UserServiceHTTPClient interface {
+	BatchGetUserInfo(ctx context.Context, req *BatchGetUserInfoReq, opts ...http.CallOption) (rsp *BatchGetUserInfoResp, err error)
 	BindUserVoucher(ctx context.Context, req *BindUserVoucherReq, opts ...http.CallOption) (rsp *BindUserVoucherResp, err error)
 	GetUserInfo(ctx context.Context, req *GetUserInfoReq, opts ...http.CallOption) (rsp *GetUserInfoResp, err error)
 	GetVerificationCode(ctx context.Context, req *GetVerificationCodeReq, opts ...http.CallOption) (rsp *GetVerificationCodeResp, err error)
 	Login(ctx context.Context, req *LoginReq, opts ...http.CallOption) (rsp *LoginResp, err error)
 	Register(ctx context.Context, req *RegisterReq, opts ...http.CallOption) (rsp *RegisterResp, err error)
+	SearchUsers(ctx context.Context, req *SearchUsersReq, opts ...http.CallOption) (rsp *SearchUsersResp, err error)
 	UnbindUserVoucher(ctx context.Context, req *UnbindUserVoucherReq, opts ...http.CallOption) (rsp *UnbindUserVoucherResp, err error)
 	UpdateUserInfo(ctx context.Context, req *UpdateUserInfoReq, opts ...http.CallOption) (rsp *UpdateUserInfoResp, err error)
 }
@@ -217,6 +276,19 @@ type UserServiceHTTPClientImpl struct {
 
 func NewUserServiceHTTPClient(client *http.Client) UserServiceHTTPClient {
 	return &UserServiceHTTPClientImpl{client}
+}
+
+func (c *UserServiceHTTPClientImpl) BatchGetUserInfo(ctx context.Context, in *BatchGetUserInfoReq, opts ...http.CallOption) (*BatchGetUserInfoResp, error) {
+	var out BatchGetUserInfoResp
+	pattern := "/v1/users/batch"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationUserServiceBatchGetUserInfo))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (c *UserServiceHTTPClientImpl) BindUserVoucher(ctx context.Context, in *BindUserVoucherReq, opts ...http.CallOption) (*BindUserVoucherResp, error) {
@@ -234,7 +306,7 @@ func (c *UserServiceHTTPClientImpl) BindUserVoucher(ctx context.Context, in *Bin
 
 func (c *UserServiceHTTPClientImpl) GetUserInfo(ctx context.Context, in *GetUserInfoReq, opts ...http.CallOption) (*GetUserInfoResp, error) {
 	var out GetUserInfoResp
-	pattern := "/v1/user/info"
+	pattern := "/v1/user/info/{user_id}"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationUserServiceGetUserInfo))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -276,6 +348,19 @@ func (c *UserServiceHTTPClientImpl) Register(ctx context.Context, in *RegisterRe
 	pattern := "/v1/user/register"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationUserServiceRegister))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserServiceHTTPClientImpl) SearchUsers(ctx context.Context, in *SearchUsersReq, opts ...http.CallOption) (*SearchUsersResp, error) {
+	var out SearchUsersResp
+	pattern := "/v1/users/search"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationUserServiceSearchUsers))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {

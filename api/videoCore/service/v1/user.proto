@@ -5,56 +5,57 @@ package api.videoCore.service.v1;
 option go_package = "lehu-video/api/videoCore/service/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.videoCore.service.v1";
-import "google/api/annotations.proto";
 import "api/videoCore/service/v1/base.proto";
 
-message User {
-	string id = 1; // 用户id
-	string name = 2; // 用户名称
-	string avatar = 3; // 用户头像Url
-	string background_image = 4; // 用户个人页顶部大图
-	string signature = 5; // 个人简介
-	string mobile = 6; // 手机号
-	string email = 7; // 邮箱
-	int64 follow_count = 8; // 关注总数
-	int64 follower_count = 9; // 粉丝总数
-	int64 total_favorited = 10; // 获赞数量
-	int64 work_count = 11; // 作品数量
-	int64 favorite_count = 12; // 点赞数量
-	string nickname = 13;
-	int32 gender = 14;
-	int32 online_status = 15;
-	string last_online_time = 16;
+// 用户基础信息（不包含社交状态）
+message UserBaseInfo {
+	string id = 1;
+	string name = 2;
+	string nickname = 3;
+	string avatar = 4;
+	string background_image = 5;
+	string signature = 6;
+	string mobile = 7;
+	string email = 8;
+	int32 gender = 9;
+
+	// 统计信息
+	int64 follow_count = 10;
+	int64 follower_count = 11;
+	int64 total_favorited = 12;
+	int64 work_count = 13;
+	int64 favorite_count = 14;
+
+	// 时间信息
+	string created_at = 15;
+	string updated_at = 16;
 }
 
 service UserService {
-	rpc CreateUser (CreateUserReq) returns (CreateUserResp){
-		option (google.api.http) = {
-			post: "/v1/user"
-			body: "*"
-		};
-	};
-	rpc UpdateUser (UpdateUserInfoReq) returns (UpdateUserInfoResp){
-		option (google.api.http) = {
-			get: "/v1/user/info"
-		};
-	};
-	rpc GetUserInfo (GetUserInfoReq) returns (GetUserInfoResp){
-		option (google.api.http) = {
-			put: "/v1/user"
-			body:"*"
-		};
-	};
-	rpc GetUserByIdList(GetUserByIdListReq) returns (GetUserByIdListResp);
+	// 创建用户
+	rpc CreateUser (CreateUserReq) returns (CreateUserResp){};
 
-	// 新增：搜索用户接口
+	// 获取用户基础信息
+	rpc GetUserBaseInfo (GetUserBaseInfoReq) returns (GetUserBaseInfoResp);
+
+	// 更新用户信息
+	rpc UpdateUserInfo (UpdateUserInfoReq) returns (UpdateUserInfoResp);
+
+	// 批量获取用户基础信息
+	rpc BatchGetUserBaseInfo(BatchGetUserBaseInfoReq) returns (BatchGetUserBaseInfoResp);
+
+	// 搜索用户（基于基本信息）
 	rpc SearchUsers(SearchUsersReq) returns (SearchUsersResp);
+
+	// 更新用户统计信息
+	rpc UpdateUserStats(UpdateUserStatsReq) returns (UpdateUserStatsResp);
 }
 
 message CreateUserReq{
 	string mobile = 1;
 	string email = 2;
 	string account_id = 3;
+	string name = 4;
 }
 
 message CreateUserResp{
@@ -62,52 +63,60 @@ message CreateUserResp{
 	string user_id = 2;
 }
 
-message GetUserInfoReq{
+message GetUserBaseInfoReq{
 	string user_id = 1;
 	string account_id = 2;
 }
 
-message GetUserInfoResp{
+message GetUserBaseInfoResp{
 	Metadata meta = 1;
-	User user = 2;
+	UserBaseInfo user = 2;
 }
 
 message UpdateUserInfoReq{
 	string user_id = 1;
 	string name = 2;
-	string avatar = 3;
-	string background_image = 4;
-	string signature = 5;
+	string nickname = 3;
+	string avatar = 4;
+	string background_image = 5;
+	string signature = 6;
+	int32 gender = 7;
 }
 
 message UpdateUserInfoResp{
 	Metadata meta = 1;
 }
 
-enum UpdateUserImageType{
-	AVATAR = 0;
-	BACKGROUND_IMAGE = 1;
+message BatchGetUserBaseInfoReq{
+	repeated string user_ids = 1;
 }
 
-message GetUserByIdListReq{
-	repeated string user_id_list = 1;
-}
-
-message GetUserByIdListResp{
-	repeated User user_list = 1;
+message BatchGetUserBaseInfoResp{
+	repeated UserBaseInfo users = 1;
 	Metadata meta = 2;
 }
 
-// 新增：搜索用户请求
 message SearchUsersReq {
 	string keyword = 1;
 	int32 page = 2;
 	int32 page_size = 3;
 }
 
-// 新增：搜索用户响应
 message SearchUsersResp {
-	repeated User users = 1;
+	repeated UserBaseInfo users = 1;
 	int32 total = 2;
 	Metadata meta = 3;
+}
+
+message UpdateUserStatsReq {
+	string user_id = 1;
+	optional int64 follow_count = 2;
+	optional int64 follower_count = 3;
+	optional int64 total_favorited = 4;
+	optional int64 work_count = 5;
+	optional int64 favorite_count = 6;
+}
+
+message UpdateUserStatsResp {
+	Metadata meta = 1;
 }

@@ -12,13 +12,14 @@ import (
 
 // OfflineMessage 离线消息结构
 type OfflineMessage struct {
-	MessageID  string          `json:"message_id"`
-	SenderID   string          `json:"sender_id"`
-	ReceiverID string          `json:"receiver_id"`
-	ConvType   int32           `json:"conv_type"`
-	MsgType    int32           `json:"msg_type"`
-	Content    json.RawMessage `json:"content"`
-	CreatedAt  time.Time       `json:"created_at"`
+	MessageID      string          `json:"message_id"`
+	SenderID       string          `json:"sender_id"`
+	ReceiverID     string          `json:"receiver_id"`
+	ConversationID string          `json:"conversation_id"`
+	ConvType       int32           `json:"conv_type"`
+	MsgType        int32           `json:"msg_type"`
+	Content        json.RawMessage `json:"content"`
+	CreatedAt      time.Time       `json:"created_at"`
 }
 
 // OfflineManager 离线消息管理器
@@ -111,14 +112,15 @@ func (om *OfflineManager) buildPushMessage(msg *OfflineMessage) []byte {
 		Action:    "receive_message",
 		Timestamp: time.Now().Unix(),
 		Data: map[string]interface{}{
-			"message_id":  msg.MessageID,
-			"sender_id":   msg.SenderID,
-			"receiver_id": msg.ReceiverID,
-			"conv_type":   msg.ConvType,
-			"msg_type":    msg.MsgType,
-			"content":     json.RawMessage(msg.Content),
-			"is_offline":  true,
-			"timestamp":   msg.CreatedAt.Unix(),
+			"message_id":      msg.MessageID,
+			"sender_id":       msg.SenderID,
+			"receiver_id":     msg.ReceiverID,
+			"conversation_id": msg.ConversationID,
+			"conv_type":       msg.ConvType,
+			"msg_type":        msg.MsgType,
+			"content":         msg.Content,
+			"is_offline":      true,
+			"timestamp":       msg.CreatedAt.Unix(),
 		},
 	}
 

@@ -19,54 +19,56 @@ var _ = binding.EncodeURL
 
 const _ = http.SupportPackageIsVersion1
 
-const OperationUserServiceCreateUser = "/api.videoCore.service.v1.UserService/CreateUser"
-const OperationUserServiceGetUserInfo = "/api.videoCore.service.v1.UserService/GetUserInfo"
-const OperationUserServiceUpdateUser = "/api.videoCore.service.v1.UserService/UpdateUser"
+const OperationUserServiceGetUserBaseInfo = "/api.videoCore.service.v1.UserService/GetUserBaseInfo"
+const OperationUserServiceUpdateUserInfo = "/api.videoCore.service.v1.UserService/UpdateUserInfo"
 
 type UserServiceHTTPServer interface {
-	CreateUser(context.Context, *CreateUserReq) (*CreateUserResp, error)
-	GetUserInfo(context.Context, *GetUserInfoReq) (*GetUserInfoResp, error)
-	UpdateUser(context.Context, *UpdateUserInfoReq) (*UpdateUserInfoResp, error)
+	// GetUserBaseInfo 获取用户基础信息
+	GetUserBaseInfo(context.Context, *GetUserBaseInfoReq) (*GetUserBaseInfoResp, error)
+	// UpdateUserInfo 更新用户信息
+	UpdateUserInfo(context.Context, *UpdateUserInfoReq) (*UpdateUserInfoResp, error)
 }
 
 func RegisterUserServiceHTTPServer(s *http.Server, srv UserServiceHTTPServer) {
 	r := s.Route("/")
-	r.POST("/v1/user", _UserService_CreateUser0_HTTP_Handler(srv))
-	r.GET("/v1/user/info", _UserService_UpdateUser0_HTTP_Handler(srv))
-	r.PUT("/v1/user", _UserService_GetUserInfo0_HTTP_Handler(srv))
+	r.GET("/v1/user/base/{user_id}", _UserService_GetUserBaseInfo0_HTTP_Handler(srv))
+	r.PUT("/v1/user/info", _UserService_UpdateUserInfo0_HTTP_Handler(srv))
 }
 
-func _UserService_CreateUser0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
+func _UserService_GetUserBaseInfo0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in CreateUserReq
+		var in GetUserBaseInfoReq
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserServiceGetUserBaseInfo)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetUserBaseInfo(ctx, req.(*GetUserBaseInfoReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetUserBaseInfoResp)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _UserService_UpdateUserInfo0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UpdateUserInfoReq
 		if err := ctx.Bind(&in); err != nil {
 			return err
 		}
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationUserServiceCreateUser)
+		http.SetOperation(ctx, OperationUserServiceUpdateUserInfo)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.CreateUser(ctx, req.(*CreateUserReq))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*CreateUserResp)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _UserService_UpdateUser0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in UpdateUserInfoReq
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationUserServiceUpdateUser)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.UpdateUser(ctx, req.(*UpdateUserInfoReq))
+			return srv.UpdateUserInfo(ctx, req.(*UpdateUserInfoReq))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -77,32 +79,9 @@ func _UserService_UpdateUser0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx h
 	}
 }
 
-func _UserService_GetUserInfo0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in GetUserInfoReq
-		if err := ctx.Bind(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationUserServiceGetUserInfo)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetUserInfo(ctx, req.(*GetUserInfoReq))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*GetUserInfoResp)
-		return ctx.Result(200, reply)
-	}
-}
-
 type UserServiceHTTPClient interface {
-	CreateUser(ctx context.Context, req *CreateUserReq, opts ...http.CallOption) (rsp *CreateUserResp, err error)
-	GetUserInfo(ctx context.Context, req *GetUserInfoReq, opts ...http.CallOption) (rsp *GetUserInfoResp, err error)
-	UpdateUser(ctx context.Context, req *UpdateUserInfoReq, opts ...http.CallOption) (rsp *UpdateUserInfoResp, err error)
+	GetUserBaseInfo(ctx context.Context, req *GetUserBaseInfoReq, opts ...http.CallOption) (rsp *GetUserBaseInfoResp, err error)
+	UpdateUserInfo(ctx context.Context, req *UpdateUserInfoReq, opts ...http.CallOption) (rsp *UpdateUserInfoResp, err error)
 }
 
 type UserServiceHTTPClientImpl struct {
@@ -113,39 +92,26 @@ func NewUserServiceHTTPClient(client *http.Client) UserServiceHTTPClient {
 	return &UserServiceHTTPClientImpl{client}
 }
 
-func (c *UserServiceHTTPClientImpl) CreateUser(ctx context.Context, in *CreateUserReq, opts ...http.CallOption) (*CreateUserResp, error) {
-	var out CreateUserResp
-	pattern := "/v1/user"
-	path := binding.EncodeURL(pattern, in, false)
-	opts = append(opts, http.Operation(OperationUserServiceCreateUser))
-	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *UserServiceHTTPClientImpl) GetUserInfo(ctx context.Context, in *GetUserInfoReq, opts ...http.CallOption) (*GetUserInfoResp, error) {
-	var out GetUserInfoResp
-	pattern := "/v1/user"
-	path := binding.EncodeURL(pattern, in, false)
-	opts = append(opts, http.Operation(OperationUserServiceGetUserInfo))
-	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "PUT", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *UserServiceHTTPClientImpl) UpdateUser(ctx context.Context, in *UpdateUserInfoReq, opts ...http.CallOption) (*UpdateUserInfoResp, error) {
-	var out UpdateUserInfoResp
-	pattern := "/v1/user/info"
+func (c *UserServiceHTTPClientImpl) GetUserBaseInfo(ctx context.Context, in *GetUserBaseInfoReq, opts ...http.CallOption) (*GetUserBaseInfoResp, error) {
+	var out GetUserBaseInfoResp
+	pattern := "/v1/user/base/{user_id}"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationUserServiceUpdateUser))
+	opts = append(opts, http.Operation(OperationUserServiceGetUserBaseInfo))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserServiceHTTPClientImpl) UpdateUserInfo(ctx context.Context, in *UpdateUserInfoReq, opts ...http.CallOption) (*UpdateUserInfoResp, error) {
+	var out UpdateUserInfoResp
+	pattern := "/v1/user/info"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationUserServiceUpdateUserInfo))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "PUT", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -38,6 +38,8 @@ func (r *CoreAdapterImpl) GetVideoById(ctx context.Context, videoId string) (*bi
 	}
 	video := resp.Video
 	author := video.Author
+
+	// 修复：使用video.FavoriteCount而不是video.IsFavorite
 	retVideo := &biz.Video{
 		ID: video.Id,
 		Author: &biz.VideoAuthor{
@@ -48,7 +50,7 @@ func (r *CoreAdapterImpl) GetVideoById(ctx context.Context, videoId string) (*bi
 		},
 		PlayURL:       video.PlayUrl,
 		CoverURL:      video.CoverUrl,
-		FavoriteCount: video.FavoriteCount,
+		FavoriteCount: video.FavoriteCount, // 修复这里
 		CommentCount:  video.CommentCount,
 		IsFavorite:    video.IsFavorite != 0,
 		Title:         video.Title,

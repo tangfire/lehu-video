@@ -19,7 +19,6 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	FriendService_SearchUsers_FullMethodName              = "/api.videoChat.service.v1.FriendService/SearchUsers"
 	FriendService_SendFriendApply_FullMethodName          = "/api.videoChat.service.v1.FriendService/SendFriendApply"
 	FriendService_HandleFriendApply_FullMethodName        = "/api.videoChat.service.v1.FriendService/HandleFriendApply"
 	FriendService_ListFriendApplies_FullMethodName        = "/api.videoChat.service.v1.FriendService/ListFriendApplies"
@@ -38,8 +37,6 @@ const (
 //
 // 好友相关服务
 type FriendServiceClient interface {
-	// 搜索用户
-	SearchUsers(ctx context.Context, in *SearchUsersReq, opts ...grpc.CallOption) (*SearchUsersResp, error)
 	// 发送好友申请
 	SendFriendApply(ctx context.Context, in *SendFriendApplyReq, opts ...grpc.CallOption) (*SendFriendApplyResp, error)
 	// 处理好友申请
@@ -68,16 +65,6 @@ type friendServiceClient struct {
 
 func NewFriendServiceClient(cc grpc.ClientConnInterface) FriendServiceClient {
 	return &friendServiceClient{cc}
-}
-
-func (c *friendServiceClient) SearchUsers(ctx context.Context, in *SearchUsersReq, opts ...grpc.CallOption) (*SearchUsersResp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SearchUsersResp)
-	err := c.cc.Invoke(ctx, FriendService_SearchUsers_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *friendServiceClient) SendFriendApply(ctx context.Context, in *SendFriendApplyReq, opts ...grpc.CallOption) (*SendFriendApplyResp, error) {
@@ -186,8 +173,6 @@ func (c *friendServiceClient) BatchGetUserOnlineStatus(ctx context.Context, in *
 //
 // 好友相关服务
 type FriendServiceServer interface {
-	// 搜索用户
-	SearchUsers(context.Context, *SearchUsersReq) (*SearchUsersResp, error)
 	// 发送好友申请
 	SendFriendApply(context.Context, *SendFriendApplyReq) (*SendFriendApplyResp, error)
 	// 处理好友申请
@@ -218,9 +203,6 @@ type FriendServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedFriendServiceServer struct{}
 
-func (UnimplementedFriendServiceServer) SearchUsers(context.Context, *SearchUsersReq) (*SearchUsersResp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SearchUsers not implemented")
-}
 func (UnimplementedFriendServiceServer) SendFriendApply(context.Context, *SendFriendApplyReq) (*SendFriendApplyResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendFriendApply not implemented")
 }
@@ -270,24 +252,6 @@ func RegisterFriendServiceServer(s grpc.ServiceRegistrar, srv FriendServiceServe
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&FriendService_ServiceDesc, srv)
-}
-
-func _FriendService_SearchUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SearchUsersReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(FriendServiceServer).SearchUsers(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: FriendService_SearchUsers_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FriendServiceServer).SearchUsers(ctx, req.(*SearchUsersReq))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _FriendService_SendFriendApply_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -477,10 +441,6 @@ var FriendService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "api.videoChat.service.v1.FriendService",
 	HandlerType: (*FriendServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "SearchUsers",
-			Handler:    _FriendService_SearchUsers_Handler,
-		},
 		{
 			MethodName: "SendFriendApply",
 			Handler:    _FriendService_SendFriendApply_Handler,

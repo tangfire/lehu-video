@@ -94,7 +94,7 @@ func (a *VideoAssembler) getUserInfos(ctx context.Context, userIDs []string) (ma
 
 	userMap := make(map[string]*UserInfo)
 	for _, user := range userInfoList {
-		userMap[user.Id] = user
+		userMap[user.ID] = user
 	}
 
 	return userMap, nil

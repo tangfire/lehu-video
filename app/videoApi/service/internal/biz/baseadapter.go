@@ -16,4 +16,6 @@ type BaseAdapter interface {
 	ReportPublicUploaded(ctx context.Context, fileId string) (string, error)
 	ReportUploaded(ctx context.Context, fileId string) (string, error)
 	GetFileInfoById(ctx context.Context, fileId string) (*FileInfo, error)
+	BindVoucher(ctx context.Context, userID, voucherType, voucher string) error
+	UnbindVoucher(ctx context.Context, userID, voucherType string) error
 }

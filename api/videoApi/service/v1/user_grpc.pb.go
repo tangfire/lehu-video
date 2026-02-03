@@ -23,7 +23,9 @@ const (
 	UserService_Register_FullMethodName            = "/api.videoApi.service.v1.UserService/Register"
 	UserService_Login_FullMethodName               = "/api.videoApi.service.v1.UserService/Login"
 	UserService_GetUserInfo_FullMethodName         = "/api.videoApi.service.v1.UserService/GetUserInfo"
+	UserService_BatchGetUserInfo_FullMethodName    = "/api.videoApi.service.v1.UserService/BatchGetUserInfo"
 	UserService_UpdateUserInfo_FullMethodName      = "/api.videoApi.service.v1.UserService/UpdateUserInfo"
+	UserService_SearchUsers_FullMethodName         = "/api.videoApi.service.v1.UserService/SearchUsers"
 	UserService_BindUserVoucher_FullMethodName     = "/api.videoApi.service.v1.UserService/BindUserVoucher"
 	UserService_UnbindUserVoucher_FullMethodName   = "/api.videoApi.service.v1.UserService/UnbindUserVoucher"
 )
@@ -38,11 +40,17 @@ type UserServiceClient interface {
 	Register(ctx context.Context, in *RegisterReq, opts ...grpc.CallOption) (*RegisterResp, error)
 	// 登录
 	Login(ctx context.Context, in *LoginReq, opts ...grpc.CallOption) (*LoginResp, error)
-	// 获取用户信息
+	// 获取用户完整信息（聚合core和chat）
 	GetUserInfo(ctx context.Context, in *GetUserInfoReq, opts ...grpc.CallOption) (*GetUserInfoResp, error)
+	// 批量获取用户信息
+	BatchGetUserInfo(ctx context.Context, in *BatchGetUserInfoReq, opts ...grpc.CallOption) (*BatchGetUserInfoResp, error)
 	// 更新用户信息
 	UpdateUserInfo(ctx context.Context, in *UpdateUserInfoReq, opts ...grpc.CallOption) (*UpdateUserInfoResp, error)
+	// 搜索用户
+	SearchUsers(ctx context.Context, in *SearchUsersReq, opts ...grpc.CallOption) (*SearchUsersResp, error)
+	// 绑定凭证
 	BindUserVoucher(ctx context.Context, in *BindUserVoucherReq, opts ...grpc.CallOption) (*BindUserVoucherResp, error)
+	// 解绑凭证
 	UnbindUserVoucher(ctx context.Context, in *UnbindUserVoucherReq, opts ...grpc.CallOption) (*UnbindUserVoucherResp, error)
 }
 
@@ -94,10 +102,30 @@ func (c *userServiceClient) GetUserInfo(ctx context.Context, in *GetUserInfoReq,
 	return out, nil
 }
 
+func (c *userServiceClient) BatchGetUserInfo(ctx context.Context, in *BatchGetUserInfoReq, opts ...grpc.CallOption) (*BatchGetUserInfoResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchGetUserInfoResp)
+	err := c.cc.Invoke(ctx, UserService_BatchGetUserInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) UpdateUserInfo(ctx context.Context, in *UpdateUserInfoReq, opts ...grpc.CallOption) (*UpdateUserInfoResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateUserInfoResp)
 	err := c.cc.Invoke(ctx, UserService_UpdateUserInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) SearchUsers(ctx context.Context, in *SearchUsersReq, opts ...grpc.CallOption) (*SearchUsersResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchUsersResp)
+	err := c.cc.Invoke(ctx, UserService_SearchUsers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -134,11 +162,17 @@ type UserServiceServer interface {
 	Register(context.Context, *RegisterReq) (*RegisterResp, error)
 	// 登录
 	Login(context.Context, *LoginReq) (*LoginResp, error)
-	// 获取用户信息
+	// 获取用户完整信息（聚合core和chat）
 	GetUserInfo(context.Context, *GetUserInfoReq) (*GetUserInfoResp, error)
+	// 批量获取用户信息
+	BatchGetUserInfo(context.Context, *BatchGetUserInfoReq) (*BatchGetUserInfoResp, error)
 	// 更新用户信息
 	UpdateUserInfo(context.Context, *UpdateUserInfoReq) (*UpdateUserInfoResp, error)
+	// 搜索用户
+	SearchUsers(context.Context, *SearchUsersReq) (*SearchUsersResp, error)
+	// 绑定凭证
 	BindUserVoucher(context.Context, *BindUserVoucherReq) (*BindUserVoucherResp, error)
+	// 解绑凭证
 	UnbindUserVoucher(context.Context, *UnbindUserVoucherReq) (*UnbindUserVoucherResp, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
@@ -162,8 +196,14 @@ func (UnimplementedUserServiceServer) Login(context.Context, *LoginReq) (*LoginR
 func (UnimplementedUserServiceServer) GetUserInfo(context.Context, *GetUserInfoReq) (*GetUserInfoResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserInfo not implemented")
 }
+func (UnimplementedUserServiceServer) BatchGetUserInfo(context.Context, *BatchGetUserInfoReq) (*BatchGetUserInfoResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchGetUserInfo not implemented")
+}
 func (UnimplementedUserServiceServer) UpdateUserInfo(context.Context, *UpdateUserInfoReq) (*UpdateUserInfoResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserInfo not implemented")
+}
+func (UnimplementedUserServiceServer) SearchUsers(context.Context, *SearchUsersReq) (*SearchUsersResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SearchUsers not implemented")
 }
 func (UnimplementedUserServiceServer) BindUserVoucher(context.Context, *BindUserVoucherReq) (*BindUserVoucherResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BindUserVoucher not implemented")
@@ -264,6 +304,24 @@ func _UserService_GetUserInfo_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_BatchGetUserInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchGetUserInfoReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).BatchGetUserInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_BatchGetUserInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).BatchGetUserInfo(ctx, req.(*BatchGetUserInfoReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_UpdateUserInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateUserInfoReq)
 	if err := dec(in); err != nil {
@@ -278,6 +336,24 @@ func _UserService_UpdateUserInfo_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).UpdateUserInfo(ctx, req.(*UpdateUserInfoReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_SearchUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchUsersReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).SearchUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_SearchUsers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).SearchUsers(ctx, req.(*SearchUsersReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -342,8 +418,16 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserService_GetUserInfo_Handler,
 		},
 		{
+			MethodName: "BatchGetUserInfo",
+			Handler:    _UserService_BatchGetUserInfo_Handler,
+		},
+		{
 			MethodName: "UpdateUserInfo",
 			Handler:    _UserService_UpdateUserInfo_Handler,
+		},
+		{
+			MethodName: "SearchUsers",
+			Handler:    _UserService_SearchUsers_Handler,
 		},
 		{
 			MethodName: "BindUserVoucher",

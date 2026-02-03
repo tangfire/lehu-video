@@ -200,111 +200,6 @@ func (x *FriendApplyInfo) GetCreatedAt() string {
 	return ""
 }
 
-// 搜索用户请求
-type SearchUsersReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Keyword       string                 `protobuf:"bytes,1,opt,name=keyword,proto3" json:"keyword,omitempty"`
-	PageStats     *PageStatsReq          `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SearchUsersReq) Reset() {
-	*x = SearchUsersReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SearchUsersReq) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SearchUsersReq) ProtoMessage() {}
-
-func (x *SearchUsersReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SearchUsersReq.ProtoReflect.Descriptor instead.
-func (*SearchUsersReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *SearchUsersReq) GetKeyword() string {
-	if x != nil {
-		return x.Keyword
-	}
-	return ""
-}
-
-func (x *SearchUsersReq) GetPageStats() *PageStatsReq {
-	if x != nil {
-		return x.PageStats
-	}
-	return nil
-}
-
-type SearchUsersResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
-	PageStats     *PageStatsResp         `protobuf:"bytes,2,opt,name=page_stats,json=pageStats,proto3" json:"page_stats,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SearchUsersResp) Reset() {
-	*x = SearchUsersResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SearchUsersResp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SearchUsersResp) ProtoMessage() {}
-
-func (x *SearchUsersResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SearchUsersResp.ProtoReflect.Descriptor instead.
-func (*SearchUsersResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *SearchUsersResp) GetUsers() []*User {
-	if x != nil {
-		return x.Users
-	}
-	return nil
-}
-
-func (x *SearchUsersResp) GetPageStats() *PageStatsResp {
-	if x != nil {
-		return x.PageStats
-	}
-	return nil
-}
-
 // 发送好友申请请求
 type SendFriendApplyReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -316,7 +211,7 @@ type SendFriendApplyReq struct {
 
 func (x *SendFriendApplyReq) Reset() {
 	*x = SendFriendApplyReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[4]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -328,7 +223,7 @@ func (x *SendFriendApplyReq) String() string {
 func (*SendFriendApplyReq) ProtoMessage() {}
 
 func (x *SendFriendApplyReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[4]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -341,7 +236,7 @@ func (x *SendFriendApplyReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendFriendApplyReq.ProtoReflect.Descriptor instead.
 func (*SendFriendApplyReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{4}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SendFriendApplyReq) GetReceiverId() string {
@@ -367,7 +262,7 @@ type SendFriendApplyResp struct {
 
 func (x *SendFriendApplyResp) Reset() {
 	*x = SendFriendApplyResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[5]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -379,7 +274,7 @@ func (x *SendFriendApplyResp) String() string {
 func (*SendFriendApplyResp) ProtoMessage() {}
 
 func (x *SendFriendApplyResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[5]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -392,7 +287,7 @@ func (x *SendFriendApplyResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendFriendApplyResp.ProtoReflect.Descriptor instead.
 func (*SendFriendApplyResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{5}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SendFriendApplyResp) GetApplyId() string {
@@ -413,7 +308,7 @@ type HandleFriendApplyReq struct {
 
 func (x *HandleFriendApplyReq) Reset() {
 	*x = HandleFriendApplyReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[6]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -425,7 +320,7 @@ func (x *HandleFriendApplyReq) String() string {
 func (*HandleFriendApplyReq) ProtoMessage() {}
 
 func (x *HandleFriendApplyReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[6]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -438,7 +333,7 @@ func (x *HandleFriendApplyReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandleFriendApplyReq.ProtoReflect.Descriptor instead.
 func (*HandleFriendApplyReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{6}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *HandleFriendApplyReq) GetApplyId() string {
@@ -463,7 +358,7 @@ type HandleFriendApplyResp struct {
 
 func (x *HandleFriendApplyResp) Reset() {
 	*x = HandleFriendApplyResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[7]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -475,7 +370,7 @@ func (x *HandleFriendApplyResp) String() string {
 func (*HandleFriendApplyResp) ProtoMessage() {}
 
 func (x *HandleFriendApplyResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[7]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -488,7 +383,7 @@ func (x *HandleFriendApplyResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandleFriendApplyResp.ProtoReflect.Descriptor instead.
 func (*HandleFriendApplyResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{7}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{5}
 }
 
 // 获取好友申请列表请求
@@ -502,7 +397,7 @@ type ListFriendAppliesReq struct {
 
 func (x *ListFriendAppliesReq) Reset() {
 	*x = ListFriendAppliesReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[8]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -514,7 +409,7 @@ func (x *ListFriendAppliesReq) String() string {
 func (*ListFriendAppliesReq) ProtoMessage() {}
 
 func (x *ListFriendAppliesReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[8]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -527,7 +422,7 @@ func (x *ListFriendAppliesReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFriendAppliesReq.ProtoReflect.Descriptor instead.
 func (*ListFriendAppliesReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{8}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListFriendAppliesReq) GetPageStats() *PageStatsReq {
@@ -554,7 +449,7 @@ type ListFriendAppliesResp struct {
 
 func (x *ListFriendAppliesResp) Reset() {
 	*x = ListFriendAppliesResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[9]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -566,7 +461,7 @@ func (x *ListFriendAppliesResp) String() string {
 func (*ListFriendAppliesResp) ProtoMessage() {}
 
 func (x *ListFriendAppliesResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[9]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -579,7 +474,7 @@ func (x *ListFriendAppliesResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFriendAppliesResp.ProtoReflect.Descriptor instead.
 func (*ListFriendAppliesResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{9}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListFriendAppliesResp) GetApplies() []*FriendApplyInfo {
@@ -607,7 +502,7 @@ type ListFriendsReq struct {
 
 func (x *ListFriendsReq) Reset() {
 	*x = ListFriendsReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[10]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -619,7 +514,7 @@ func (x *ListFriendsReq) String() string {
 func (*ListFriendsReq) ProtoMessage() {}
 
 func (x *ListFriendsReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[10]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -632,7 +527,7 @@ func (x *ListFriendsReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFriendsReq.ProtoReflect.Descriptor instead.
 func (*ListFriendsReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{10}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListFriendsReq) GetPageStats() *PageStatsReq {
@@ -659,7 +554,7 @@ type ListFriendsResp struct {
 
 func (x *ListFriendsResp) Reset() {
 	*x = ListFriendsResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[11]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -671,7 +566,7 @@ func (x *ListFriendsResp) String() string {
 func (*ListFriendsResp) ProtoMessage() {}
 
 func (x *ListFriendsResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[11]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -684,7 +579,7 @@ func (x *ListFriendsResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFriendsResp.ProtoReflect.Descriptor instead.
 func (*ListFriendsResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{11}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListFriendsResp) GetFriends() []*FriendInfo {
@@ -711,7 +606,7 @@ type DeleteFriendReq struct {
 
 func (x *DeleteFriendReq) Reset() {
 	*x = DeleteFriendReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[12]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -723,7 +618,7 @@ func (x *DeleteFriendReq) String() string {
 func (*DeleteFriendReq) ProtoMessage() {}
 
 func (x *DeleteFriendReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[12]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -736,7 +631,7 @@ func (x *DeleteFriendReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteFriendReq.ProtoReflect.Descriptor instead.
 func (*DeleteFriendReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{12}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeleteFriendReq) GetFriendId() string {
@@ -754,7 +649,7 @@ type DeleteFriendResp struct {
 
 func (x *DeleteFriendResp) Reset() {
 	*x = DeleteFriendResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[13]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -766,7 +661,7 @@ func (x *DeleteFriendResp) String() string {
 func (*DeleteFriendResp) ProtoMessage() {}
 
 func (x *DeleteFriendResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[13]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -779,7 +674,7 @@ func (x *DeleteFriendResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteFriendResp.ProtoReflect.Descriptor instead.
 func (*DeleteFriendResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{13}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{11}
 }
 
 // 更新好友备注请求
@@ -793,7 +688,7 @@ type UpdateFriendRemarkReq struct {
 
 func (x *UpdateFriendRemarkReq) Reset() {
 	*x = UpdateFriendRemarkReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[14]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -805,7 +700,7 @@ func (x *UpdateFriendRemarkReq) String() string {
 func (*UpdateFriendRemarkReq) ProtoMessage() {}
 
 func (x *UpdateFriendRemarkReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[14]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -818,7 +713,7 @@ func (x *UpdateFriendRemarkReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateFriendRemarkReq.ProtoReflect.Descriptor instead.
 func (*UpdateFriendRemarkReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{14}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UpdateFriendRemarkReq) GetFriendId() string {
@@ -843,7 +738,7 @@ type UpdateFriendRemarkResp struct {
 
 func (x *UpdateFriendRemarkResp) Reset() {
 	*x = UpdateFriendRemarkResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[15]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -855,7 +750,7 @@ func (x *UpdateFriendRemarkResp) String() string {
 func (*UpdateFriendRemarkResp) ProtoMessage() {}
 
 func (x *UpdateFriendRemarkResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[15]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -868,7 +763,7 @@ func (x *UpdateFriendRemarkResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateFriendRemarkResp.ProtoReflect.Descriptor instead.
 func (*UpdateFriendRemarkResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{15}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{13}
 }
 
 // 设置好友分组请求
@@ -882,7 +777,7 @@ type SetFriendGroupReq struct {
 
 func (x *SetFriendGroupReq) Reset() {
 	*x = SetFriendGroupReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[16]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -894,7 +789,7 @@ func (x *SetFriendGroupReq) String() string {
 func (*SetFriendGroupReq) ProtoMessage() {}
 
 func (x *SetFriendGroupReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[16]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -907,7 +802,7 @@ func (x *SetFriendGroupReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetFriendGroupReq.ProtoReflect.Descriptor instead.
 func (*SetFriendGroupReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{16}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SetFriendGroupReq) GetFriendId() string {
@@ -932,7 +827,7 @@ type SetFriendGroupResp struct {
 
 func (x *SetFriendGroupResp) Reset() {
 	*x = SetFriendGroupResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[17]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -944,7 +839,7 @@ func (x *SetFriendGroupResp) String() string {
 func (*SetFriendGroupResp) ProtoMessage() {}
 
 func (x *SetFriendGroupResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[17]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -957,7 +852,7 @@ func (x *SetFriendGroupResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetFriendGroupResp.ProtoReflect.Descriptor instead.
 func (*SetFriendGroupResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{17}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{15}
 }
 
 // 检查好友关系请求
@@ -970,7 +865,7 @@ type CheckFriendRelationReq struct {
 
 func (x *CheckFriendRelationReq) Reset() {
 	*x = CheckFriendRelationReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[18]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -982,7 +877,7 @@ func (x *CheckFriendRelationReq) String() string {
 func (*CheckFriendRelationReq) ProtoMessage() {}
 
 func (x *CheckFriendRelationReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[18]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -995,7 +890,7 @@ func (x *CheckFriendRelationReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckFriendRelationReq.ProtoReflect.Descriptor instead.
 func (*CheckFriendRelationReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{18}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CheckFriendRelationReq) GetTargetId() string {
@@ -1015,7 +910,7 @@ type CheckFriendRelationResp struct {
 
 func (x *CheckFriendRelationResp) Reset() {
 	*x = CheckFriendRelationResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[19]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1027,7 +922,7 @@ func (x *CheckFriendRelationResp) String() string {
 func (*CheckFriendRelationResp) ProtoMessage() {}
 
 func (x *CheckFriendRelationResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[19]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1040,7 +935,7 @@ func (x *CheckFriendRelationResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckFriendRelationResp.ProtoReflect.Descriptor instead.
 func (*CheckFriendRelationResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{19}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CheckFriendRelationResp) GetIsFriend() bool {
@@ -1067,7 +962,7 @@ type GetUserOnlineStatusReq struct {
 
 func (x *GetUserOnlineStatusReq) Reset() {
 	*x = GetUserOnlineStatusReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[20]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1079,7 +974,7 @@ func (x *GetUserOnlineStatusReq) String() string {
 func (*GetUserOnlineStatusReq) ProtoMessage() {}
 
 func (x *GetUserOnlineStatusReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[20]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1092,7 +987,7 @@ func (x *GetUserOnlineStatusReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserOnlineStatusReq.ProtoReflect.Descriptor instead.
 func (*GetUserOnlineStatusReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{20}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetUserOnlineStatusReq) GetUserId() string {
@@ -1112,7 +1007,7 @@ type GetUserOnlineStatusResp struct {
 
 func (x *GetUserOnlineStatusResp) Reset() {
 	*x = GetUserOnlineStatusResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[21]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1124,7 +1019,7 @@ func (x *GetUserOnlineStatusResp) String() string {
 func (*GetUserOnlineStatusResp) ProtoMessage() {}
 
 func (x *GetUserOnlineStatusResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[21]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1137,7 +1032,7 @@ func (x *GetUserOnlineStatusResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserOnlineStatusResp.ProtoReflect.Descriptor instead.
 func (*GetUserOnlineStatusResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{21}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetUserOnlineStatusResp) GetOnlineStatus() int32 {
@@ -1164,7 +1059,7 @@ type BatchGetUserOnlineStatusReq struct {
 
 func (x *BatchGetUserOnlineStatusReq) Reset() {
 	*x = BatchGetUserOnlineStatusReq{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[22]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1176,7 +1071,7 @@ func (x *BatchGetUserOnlineStatusReq) String() string {
 func (*BatchGetUserOnlineStatusReq) ProtoMessage() {}
 
 func (x *BatchGetUserOnlineStatusReq) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[22]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1189,7 +1084,7 @@ func (x *BatchGetUserOnlineStatusReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchGetUserOnlineStatusReq.ProtoReflect.Descriptor instead.
 func (*BatchGetUserOnlineStatusReq) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{22}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *BatchGetUserOnlineStatusReq) GetUserIds() []string {
@@ -1208,7 +1103,7 @@ type BatchGetUserOnlineStatusResp struct {
 
 func (x *BatchGetUserOnlineStatusResp) Reset() {
 	*x = BatchGetUserOnlineStatusResp{}
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[23]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1220,7 +1115,7 @@ func (x *BatchGetUserOnlineStatusResp) String() string {
 func (*BatchGetUserOnlineStatusResp) ProtoMessage() {}
 
 func (x *BatchGetUserOnlineStatusResp) ProtoReflect() protoreflect.Message {
-	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[23]
+	mi := &file_api_videoApi_service_v1_friend_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1233,7 +1128,7 @@ func (x *BatchGetUserOnlineStatusResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchGetUserOnlineStatusResp.ProtoReflect.Descriptor instead.
 func (*BatchGetUserOnlineStatusResp) Descriptor() ([]byte, []int) {
-	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{23}
+	return file_api_videoApi_service_v1_friend_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *BatchGetUserOnlineStatusResp) GetOnlineStatus() map[string]int32 {
@@ -1267,15 +1162,7 @@ const file_api_videoApi_service_v1_friend_proto_rawDesc = "" +
 	"\n" +
 	"handled_at\x18\x06 \x01(\tR\thandledAt\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\a \x01(\tR\tcreatedAt\"p\n" +
-	"\x0eSearchUsersReq\x12\x18\n" +
-	"\akeyword\x18\x01 \x01(\tR\akeyword\x12D\n" +
-	"\n" +
-	"page_stats\x18\x02 \x01(\v2%.api.videoApi.service.v1.PageStatsReqR\tpageStats\"\x8d\x01\n" +
-	"\x0fSearchUsersResp\x123\n" +
-	"\x05users\x18\x01 \x03(\v2\x1d.api.videoApi.service.v1.UserR\x05users\x12E\n" +
-	"\n" +
-	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats\"X\n" +
+	"created_at\x18\a \x01(\tR\tcreatedAt\"X\n" +
 	"\x12SendFriendApplyReq\x12\x1f\n" +
 	"\vreceiver_id\x18\x01 \x01(\tR\n" +
 	"receiverId\x12!\n" +
@@ -1333,9 +1220,8 @@ const file_api_videoApi_service_v1_friend_proto_rawDesc = "" +
 	"\ronline_status\x18\x01 \x03(\v2G.api.videoApi.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntryR\fonlineStatus\x1a?\n" +
 	"\x11OnlineStatusEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x012\xfb\f\n" +
-	"\rFriendService\x12\x7f\n" +
-	"\vSearchUsers\x12'.api.videoApi.service.v1.SearchUsersReq\x1a(.api.videoApi.service.v1.SearchUsersResp\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/friends/search\x12\x89\x01\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x012\xfa\v\n" +
+	"\rFriendService\x12\x89\x01\n" +
 	"\x0fSendFriendApply\x12+.api.videoApi.service.v1.SendFriendApplyReq\x1a,.api.videoApi.service.v1.SendFriendApplyResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/friend/apply\x12\x9a\x01\n" +
 	"\x11HandleFriendApply\x12-.api.videoApi.service.v1.HandleFriendApplyReq\x1a..api.videoApi.service.v1.HandleFriendApplyResp\"&\x82\xd3\xe4\x93\x02 :\x01*\x1a\x1b/v1/friend/apply/{apply_id}\x12\x91\x01\n" +
 	"\x11ListFriendApplies\x12-.api.videoApi.service.v1.ListFriendAppliesReq\x1a..api.videoApi.service.v1.ListFriendAppliesResp\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/friend/applies\x12x\n" +
@@ -1360,78 +1246,71 @@ func file_api_videoApi_service_v1_friend_proto_rawDescGZIP() []byte {
 	return file_api_videoApi_service_v1_friend_proto_rawDescData
 }
 
-var file_api_videoApi_service_v1_friend_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_api_videoApi_service_v1_friend_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_api_videoApi_service_v1_friend_proto_goTypes = []any{
 	(*FriendInfo)(nil),                   // 0: api.videoApi.service.v1.FriendInfo
 	(*FriendApplyInfo)(nil),              // 1: api.videoApi.service.v1.FriendApplyInfo
-	(*SearchUsersReq)(nil),               // 2: api.videoApi.service.v1.SearchUsersReq
-	(*SearchUsersResp)(nil),              // 3: api.videoApi.service.v1.SearchUsersResp
-	(*SendFriendApplyReq)(nil),           // 4: api.videoApi.service.v1.SendFriendApplyReq
-	(*SendFriendApplyResp)(nil),          // 5: api.videoApi.service.v1.SendFriendApplyResp
-	(*HandleFriendApplyReq)(nil),         // 6: api.videoApi.service.v1.HandleFriendApplyReq
-	(*HandleFriendApplyResp)(nil),        // 7: api.videoApi.service.v1.HandleFriendApplyResp
-	(*ListFriendAppliesReq)(nil),         // 8: api.videoApi.service.v1.ListFriendAppliesReq
-	(*ListFriendAppliesResp)(nil),        // 9: api.videoApi.service.v1.ListFriendAppliesResp
-	(*ListFriendsReq)(nil),               // 10: api.videoApi.service.v1.ListFriendsReq
-	(*ListFriendsResp)(nil),              // 11: api.videoApi.service.v1.ListFriendsResp
-	(*DeleteFriendReq)(nil),              // 12: api.videoApi.service.v1.DeleteFriendReq
-	(*DeleteFriendResp)(nil),             // 13: api.videoApi.service.v1.DeleteFriendResp
-	(*UpdateFriendRemarkReq)(nil),        // 14: api.videoApi.service.v1.UpdateFriendRemarkReq
-	(*UpdateFriendRemarkResp)(nil),       // 15: api.videoApi.service.v1.UpdateFriendRemarkResp
-	(*SetFriendGroupReq)(nil),            // 16: api.videoApi.service.v1.SetFriendGroupReq
-	(*SetFriendGroupResp)(nil),           // 17: api.videoApi.service.v1.SetFriendGroupResp
-	(*CheckFriendRelationReq)(nil),       // 18: api.videoApi.service.v1.CheckFriendRelationReq
-	(*CheckFriendRelationResp)(nil),      // 19: api.videoApi.service.v1.CheckFriendRelationResp
-	(*GetUserOnlineStatusReq)(nil),       // 20: api.videoApi.service.v1.GetUserOnlineStatusReq
-	(*GetUserOnlineStatusResp)(nil),      // 21: api.videoApi.service.v1.GetUserOnlineStatusResp
-	(*BatchGetUserOnlineStatusReq)(nil),  // 22: api.videoApi.service.v1.BatchGetUserOnlineStatusReq
-	(*BatchGetUserOnlineStatusResp)(nil), // 23: api.videoApi.service.v1.BatchGetUserOnlineStatusResp
-	nil,                                  // 24: api.videoApi.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntry
-	(*User)(nil),                         // 25: api.videoApi.service.v1.User
-	(*PageStatsReq)(nil),                 // 26: api.videoApi.service.v1.PageStatsReq
-	(*PageStatsResp)(nil),                // 27: api.videoApi.service.v1.PageStatsResp
+	(*SendFriendApplyReq)(nil),           // 2: api.videoApi.service.v1.SendFriendApplyReq
+	(*SendFriendApplyResp)(nil),          // 3: api.videoApi.service.v1.SendFriendApplyResp
+	(*HandleFriendApplyReq)(nil),         // 4: api.videoApi.service.v1.HandleFriendApplyReq
+	(*HandleFriendApplyResp)(nil),        // 5: api.videoApi.service.v1.HandleFriendApplyResp
+	(*ListFriendAppliesReq)(nil),         // 6: api.videoApi.service.v1.ListFriendAppliesReq
+	(*ListFriendAppliesResp)(nil),        // 7: api.videoApi.service.v1.ListFriendAppliesResp
+	(*ListFriendsReq)(nil),               // 8: api.videoApi.service.v1.ListFriendsReq
+	(*ListFriendsResp)(nil),              // 9: api.videoApi.service.v1.ListFriendsResp
+	(*DeleteFriendReq)(nil),              // 10: api.videoApi.service.v1.DeleteFriendReq
+	(*DeleteFriendResp)(nil),             // 11: api.videoApi.service.v1.DeleteFriendResp
+	(*UpdateFriendRemarkReq)(nil),        // 12: api.videoApi.service.v1.UpdateFriendRemarkReq
+	(*UpdateFriendRemarkResp)(nil),       // 13: api.videoApi.service.v1.UpdateFriendRemarkResp
+	(*SetFriendGroupReq)(nil),            // 14: api.videoApi.service.v1.SetFriendGroupReq
+	(*SetFriendGroupResp)(nil),           // 15: api.videoApi.service.v1.SetFriendGroupResp
+	(*CheckFriendRelationReq)(nil),       // 16: api.videoApi.service.v1.CheckFriendRelationReq
+	(*CheckFriendRelationResp)(nil),      // 17: api.videoApi.service.v1.CheckFriendRelationResp
+	(*GetUserOnlineStatusReq)(nil),       // 18: api.videoApi.service.v1.GetUserOnlineStatusReq
+	(*GetUserOnlineStatusResp)(nil),      // 19: api.videoApi.service.v1.GetUserOnlineStatusResp
+	(*BatchGetUserOnlineStatusReq)(nil),  // 20: api.videoApi.service.v1.BatchGetUserOnlineStatusReq
+	(*BatchGetUserOnlineStatusResp)(nil), // 21: api.videoApi.service.v1.BatchGetUserOnlineStatusResp
+	nil,                                  // 22: api.videoApi.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntry
+	(*User)(nil),                         // 23: api.videoApi.service.v1.User
+	(*PageStatsReq)(nil),                 // 24: api.videoApi.service.v1.PageStatsReq
+	(*PageStatsResp)(nil),                // 25: api.videoApi.service.v1.PageStatsResp
 }
 var file_api_videoApi_service_v1_friend_proto_depIdxs = []int32{
-	25, // 0: api.videoApi.service.v1.FriendInfo.friend:type_name -> api.videoApi.service.v1.User
-	25, // 1: api.videoApi.service.v1.FriendApplyInfo.applicant:type_name -> api.videoApi.service.v1.User
-	25, // 2: api.videoApi.service.v1.FriendApplyInfo.receiver:type_name -> api.videoApi.service.v1.User
-	26, // 3: api.videoApi.service.v1.SearchUsersReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
-	25, // 4: api.videoApi.service.v1.SearchUsersResp.users:type_name -> api.videoApi.service.v1.User
-	27, // 5: api.videoApi.service.v1.SearchUsersResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
-	26, // 6: api.videoApi.service.v1.ListFriendAppliesReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
-	1,  // 7: api.videoApi.service.v1.ListFriendAppliesResp.applies:type_name -> api.videoApi.service.v1.FriendApplyInfo
-	27, // 8: api.videoApi.service.v1.ListFriendAppliesResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
-	26, // 9: api.videoApi.service.v1.ListFriendsReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
-	0,  // 10: api.videoApi.service.v1.ListFriendsResp.friends:type_name -> api.videoApi.service.v1.FriendInfo
-	27, // 11: api.videoApi.service.v1.ListFriendsResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
-	24, // 12: api.videoApi.service.v1.BatchGetUserOnlineStatusResp.online_status:type_name -> api.videoApi.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntry
-	2,  // 13: api.videoApi.service.v1.FriendService.SearchUsers:input_type -> api.videoApi.service.v1.SearchUsersReq
-	4,  // 14: api.videoApi.service.v1.FriendService.SendFriendApply:input_type -> api.videoApi.service.v1.SendFriendApplyReq
-	6,  // 15: api.videoApi.service.v1.FriendService.HandleFriendApply:input_type -> api.videoApi.service.v1.HandleFriendApplyReq
-	8,  // 16: api.videoApi.service.v1.FriendService.ListFriendApplies:input_type -> api.videoApi.service.v1.ListFriendAppliesReq
-	10, // 17: api.videoApi.service.v1.FriendService.ListFriends:input_type -> api.videoApi.service.v1.ListFriendsReq
-	12, // 18: api.videoApi.service.v1.FriendService.DeleteFriend:input_type -> api.videoApi.service.v1.DeleteFriendReq
-	14, // 19: api.videoApi.service.v1.FriendService.UpdateFriendRemark:input_type -> api.videoApi.service.v1.UpdateFriendRemarkReq
-	16, // 20: api.videoApi.service.v1.FriendService.SetFriendGroup:input_type -> api.videoApi.service.v1.SetFriendGroupReq
-	18, // 21: api.videoApi.service.v1.FriendService.CheckFriendRelation:input_type -> api.videoApi.service.v1.CheckFriendRelationReq
-	20, // 22: api.videoApi.service.v1.FriendService.GetUserOnlineStatus:input_type -> api.videoApi.service.v1.GetUserOnlineStatusReq
-	22, // 23: api.videoApi.service.v1.FriendService.BatchGetUserOnlineStatus:input_type -> api.videoApi.service.v1.BatchGetUserOnlineStatusReq
-	3,  // 24: api.videoApi.service.v1.FriendService.SearchUsers:output_type -> api.videoApi.service.v1.SearchUsersResp
-	5,  // 25: api.videoApi.service.v1.FriendService.SendFriendApply:output_type -> api.videoApi.service.v1.SendFriendApplyResp
-	7,  // 26: api.videoApi.service.v1.FriendService.HandleFriendApply:output_type -> api.videoApi.service.v1.HandleFriendApplyResp
-	9,  // 27: api.videoApi.service.v1.FriendService.ListFriendApplies:output_type -> api.videoApi.service.v1.ListFriendAppliesResp
-	11, // 28: api.videoApi.service.v1.FriendService.ListFriends:output_type -> api.videoApi.service.v1.ListFriendsResp
-	13, // 29: api.videoApi.service.v1.FriendService.DeleteFriend:output_type -> api.videoApi.service.v1.DeleteFriendResp
-	15, // 30: api.videoApi.service.v1.FriendService.UpdateFriendRemark:output_type -> api.videoApi.service.v1.UpdateFriendRemarkResp
-	17, // 31: api.videoApi.service.v1.FriendService.SetFriendGroup:output_type -> api.videoApi.service.v1.SetFriendGroupResp
-	19, // 32: api.videoApi.service.v1.FriendService.CheckFriendRelation:output_type -> api.videoApi.service.v1.CheckFriendRelationResp
-	21, // 33: api.videoApi.service.v1.FriendService.GetUserOnlineStatus:output_type -> api.videoApi.service.v1.GetUserOnlineStatusResp
-	23, // 34: api.videoApi.service.v1.FriendService.BatchGetUserOnlineStatus:output_type -> api.videoApi.service.v1.BatchGetUserOnlineStatusResp
-	24, // [24:35] is the sub-list for method output_type
-	13, // [13:24] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	23, // 0: api.videoApi.service.v1.FriendInfo.friend:type_name -> api.videoApi.service.v1.User
+	23, // 1: api.videoApi.service.v1.FriendApplyInfo.applicant:type_name -> api.videoApi.service.v1.User
+	23, // 2: api.videoApi.service.v1.FriendApplyInfo.receiver:type_name -> api.videoApi.service.v1.User
+	24, // 3: api.videoApi.service.v1.ListFriendAppliesReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
+	1,  // 4: api.videoApi.service.v1.ListFriendAppliesResp.applies:type_name -> api.videoApi.service.v1.FriendApplyInfo
+	25, // 5: api.videoApi.service.v1.ListFriendAppliesResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
+	24, // 6: api.videoApi.service.v1.ListFriendsReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
+	0,  // 7: api.videoApi.service.v1.ListFriendsResp.friends:type_name -> api.videoApi.service.v1.FriendInfo
+	25, // 8: api.videoApi.service.v1.ListFriendsResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
+	22, // 9: api.videoApi.service.v1.BatchGetUserOnlineStatusResp.online_status:type_name -> api.videoApi.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntry
+	2,  // 10: api.videoApi.service.v1.FriendService.SendFriendApply:input_type -> api.videoApi.service.v1.SendFriendApplyReq
+	4,  // 11: api.videoApi.service.v1.FriendService.HandleFriendApply:input_type -> api.videoApi.service.v1.HandleFriendApplyReq
+	6,  // 12: api.videoApi.service.v1.FriendService.ListFriendApplies:input_type -> api.videoApi.service.v1.ListFriendAppliesReq
+	8,  // 13: api.videoApi.service.v1.FriendService.ListFriends:input_type -> api.videoApi.service.v1.ListFriendsReq
+	10, // 14: api.videoApi.service.v1.FriendService.DeleteFriend:input_type -> api.videoApi.service.v1.DeleteFriendReq
+	12, // 15: api.videoApi.service.v1.FriendService.UpdateFriendRemark:input_type -> api.videoApi.service.v1.UpdateFriendRemarkReq
+	14, // 16: api.videoApi.service.v1.FriendService.SetFriendGroup:input_type -> api.videoApi.service.v1.SetFriendGroupReq
+	16, // 17: api.videoApi.service.v1.FriendService.CheckFriendRelation:input_type -> api.videoApi.service.v1.CheckFriendRelationReq
+	18, // 18: api.videoApi.service.v1.FriendService.GetUserOnlineStatus:input_type -> api.videoApi.service.v1.GetUserOnlineStatusReq
+	20, // 19: api.videoApi.service.v1.FriendService.BatchGetUserOnlineStatus:input_type -> api.videoApi.service.v1.BatchGetUserOnlineStatusReq
+	3,  // 20: api.videoApi.service.v1.FriendService.SendFriendApply:output_type -> api.videoApi.service.v1.SendFriendApplyResp
+	5,  // 21: api.videoApi.service.v1.FriendService.HandleFriendApply:output_type -> api.videoApi.service.v1.HandleFriendApplyResp
+	7,  // 22: api.videoApi.service.v1.FriendService.ListFriendApplies:output_type -> api.videoApi.service.v1.ListFriendAppliesResp
+	9,  // 23: api.videoApi.service.v1.FriendService.ListFriends:output_type -> api.videoApi.service.v1.ListFriendsResp
+	11, // 24: api.videoApi.service.v1.FriendService.DeleteFriend:output_type -> api.videoApi.service.v1.DeleteFriendResp
+	13, // 25: api.videoApi.service.v1.FriendService.UpdateFriendRemark:output_type -> api.videoApi.service.v1.UpdateFriendRemarkResp
+	15, // 26: api.videoApi.service.v1.FriendService.SetFriendGroup:output_type -> api.videoApi.service.v1.SetFriendGroupResp
+	17, // 27: api.videoApi.service.v1.FriendService.CheckFriendRelation:output_type -> api.videoApi.service.v1.CheckFriendRelationResp
+	19, // 28: api.videoApi.service.v1.FriendService.GetUserOnlineStatus:output_type -> api.videoApi.service.v1.GetUserOnlineStatusResp
+	21, // 29: api.videoApi.service.v1.FriendService.BatchGetUserOnlineStatus:output_type -> api.videoApi.service.v1.BatchGetUserOnlineStatusResp
+	20, // [20:30] is the sub-list for method output_type
+	10, // [10:20] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_api_videoApi_service_v1_friend_proto_init() }
@@ -1441,15 +1320,15 @@ func file_api_videoApi_service_v1_friend_proto_init() {
 	}
 	file_api_videoApi_service_v1_base_proto_init()
 	file_api_videoApi_service_v1_user_proto_init()
+	file_api_videoApi_service_v1_friend_proto_msgTypes[6].OneofWrappers = []any{}
 	file_api_videoApi_service_v1_friend_proto_msgTypes[8].OneofWrappers = []any{}
-	file_api_videoApi_service_v1_friend_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_videoApi_service_v1_friend_proto_rawDesc), len(file_api_videoApi_service_v1_friend_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   25,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

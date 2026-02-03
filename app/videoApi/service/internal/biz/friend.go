@@ -31,18 +31,6 @@ type FriendApply struct {
 	CreatedAt   time.Time  `json:"created_at"`
 }
 
-// 输入输出结构体
-type SearchUsersInput struct {
-	Keyword  string
-	Page     int32
-	PageSize int32
-}
-
-type SearchUsersOutput struct {
-	Users []*UserInfo
-	Total int64
-}
-
 type SendFriendApplyInput struct {
 	ReceiverID  string
 	ApplyReason string
@@ -132,31 +120,6 @@ func NewFriendUsecase(chat ChatAdapter, core CoreAdapter, logger log.Logger) *Fr
 		core: core,
 		log:  log.NewHelper(logger),
 	}
-}
-
-// SearchUsers 搜索用户
-func (uc *FriendUsecase) SearchUsers(ctx context.Context, input *SearchUsersInput) (*SearchUsersOutput, error) {
-	// 参数验证
-	if input.Page < 1 {
-		input.Page = 1
-	}
-	if input.PageSize <= 0 {
-		input.PageSize = 20
-	}
-	if input.PageSize > 100 {
-		input.PageSize = 100
-	}
-
-	total, users, err := uc.chat.SearchUsers(ctx, input.Keyword, input.Page, input.PageSize)
-	if err != nil {
-		uc.log.WithContext(ctx).Errorf("搜索用户失败: %v", err)
-		return nil, errors.New("搜索用户失败")
-	}
-
-	return &SearchUsersOutput{
-		Users: users,
-		Total: total,
-	}, nil
 }
 
 // SendFriendApply 发送好友申请
@@ -264,7 +227,7 @@ func (uc *FriendUsecase) ListFriends(ctx context.Context, input *ListFriendsInpu
 	userInfoList, err := uc.core.GetUserInfoByIdList(ctx, friendIDs)
 	userInfos := make(map[int64]*UserInfo)
 	for _, userInfo := range userInfoList {
-		userInfos[cast.ToInt64(userInfo.Id)] = userInfo
+		userInfos[cast.ToInt64(userInfo.ID)] = userInfo
 	}
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取好友详细信息失败: %v", err)
@@ -285,12 +248,12 @@ func (uc *FriendUsecase) ListFriends(ctx context.Context, input *ListFriendsInpu
 		}
 
 		// 填充好友信息
-		if userInfo, ok := userInfos[cast.ToInt64(chatFriend.Friend.Id)]; ok {
+		if userInfo, ok := userInfos[cast.ToInt64(chatFriend.Friend.ID)]; ok {
 			friendInfo.Friend = userInfo
 		} else {
 			// 如果没有获取到详细信息，使用基础信息
 			friendInfo.Friend = &UserInfo{
-				Id: chatFriend.Friend.Id,
+				ID: chatFriend.Friend.ID,
 			}
 		}
 
@@ -372,15 +335,15 @@ func (uc *FriendUsecase) CheckFriendRelation(ctx context.Context, input *CheckFr
 
 // GetUserOnlineStatus 获取用户在线状态
 func (uc *FriendUsecase) GetUserOnlineStatus(ctx context.Context, input *GetUserOnlineStatusInput) (*GetUserOnlineStatusOutput, error) {
-	status, lastOnlineTime, err := uc.chat.GetUserOnlineStatus(ctx, input.UserID)
+	socialInfo, err := uc.chat.GetUserOnlineStatus(ctx, input.UserID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取用户在线状态失败: %v", err)
 		return nil, errors.New("获取用户在线状态失败")
 	}
 
 	return &GetUserOnlineStatusOutput{
-		OnlineStatus:   status,
-		LastOnlineTime: lastOnlineTime,
+		OnlineStatus:   socialInfo.OnlineStatus,
+		LastOnlineTime: socialInfo.LastOnlineTime,
 	}, nil
 }
 
@@ -392,7 +355,12 @@ func (uc *FriendUsecase) BatchGetUserOnlineStatus(ctx context.Context, input *Ba
 		return nil, errors.New("批量获取用户在线状态失败")
 	}
 
+	os := make(map[string]int32)
+	for userID, user := range onlineStatus {
+		os[userID] = user.OnlineStatus
+	}
+
 	return &BatchGetUserOnlineStatusOutput{
-		OnlineStatus: onlineStatus,
+		OnlineStatus: os,
 	}, nil
 }

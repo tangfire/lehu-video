@@ -9,10 +9,10 @@ import (
 )
 
 // 创建会话
-func (r *chatAdapterImpl) CreateConversation(ctx context.Context, userID, targetID string, convType int32, initialMessage string) (string, error) {
+func (r *chatAdapterImpl) CreateConversation(ctx context.Context, userID, receiverID, groupID string, convType int32, initialMessage string) (string, error) {
 	req := &chat.CreateConversationReq{
-		UserId:         userID,
-		TargetId:       targetID,
+		UserIds:        []string{userID, receiverID},
+		GroupId:        groupID,
 		ConvType:       chat.ConversationType(convType),
 		InitialMessage: initialMessage,
 	}
@@ -26,60 +26,85 @@ func (r *chatAdapterImpl) CreateConversation(ctx context.Context, userID, target
 	return resp.ConversationId, nil
 }
 
-// 获取会话详情
-func (r *chatAdapterImpl) GetConversation(ctx context.Context, userID, targetID string, convType int32) (*biz.Conversation, error) {
-	req := &chat.GetConversationReq{
-		UserId:   userID,
-		TargetId: targetID,
-		ConvType: chat.ConversationType(convType),
+func (r *chatAdapterImpl) ListConversations(ctx context.Context, userID string, pageStats *biz.PageStats) (int64, []*biz.Conversation, error) {
+	req := &chat.ListConversationsReq{
+		UserId: userID,
+		PageStats: &chat.PageStatsReq{
+			Page: int32(pageStats.Page),
+			Size: int32(pageStats.PageSize),
+			Sort: pageStats.Sort,
+		},
 	}
 
-	resp, err := r.message.GetConversation(ctx, req)
+	resp, err := r.message.ListConversations(ctx, req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	var conversations []*biz.Conversation
+	for _, c := range resp.Conversations {
+		conversations = append(conversations, &biz.Conversation{
+			ID:          c.Conversation.Id,
+			Type:        int32(c.Conversation.Type),
+			GroupID:     &c.Conversation.GroupId,
+			Name:        c.Conversation.Name,
+			Avatar:      c.Conversation.Avatar,
+			LastMessage: c.Conversation.LastMessage,
+			LastMsgType: (*int32)(c.Conversation.LastMsgType),
+			LastMsgTime: parseUnixPointer(c.Conversation.LastMsgTime),
+			MemberCount: int32(c.Conversation.MemberCount),
+			MemberIDs:   c.Conversation.MemberIds,
+			UnreadCount: c.UnreadCount,
+			IsPinned:    c.IsPinned,
+			IsMuted:     c.IsMuted,
+			CreatedAt:   parseTime(c.Conversation.CreatedAt),
+			UpdatedAt:   parseTime(c.Conversation.UpdatedAt),
+		})
+	}
+
+	return int64(resp.PageStats.Total), conversations, nil
+}
+
+func (r *chatAdapterImpl) GetConversationDetail(ctx context.Context, conversationID, userID string) (*biz.Conversation, error) {
+	resp, err := r.message.GetConversation(ctx, &chat.GetConversationReq{
+		ConversationId: conversationID,
+		UserId:         userID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
 		return nil, err
 	}
-	c := resp.Conversation
-	if c == nil {
-		return nil, nil
-	}
-
-	var lastMsgTime *time.Time
-	if c.LastMsgTime != nil && *c.LastMsgTime > 0 {
-		t := time.Unix(*c.LastMsgTime, 0)
-		lastMsgTime = &t
-	}
-
-	var targetIDPtr *string
-	if c.TargetId != nil {
-		targetIDPtr = c.TargetId
-	}
-
-	var groupIDPtr *string
-	if c.GroupId != nil {
-		groupIDPtr = c.GroupId
-	}
-
-	var lastMsgTypePtr *int32
-	if c.LastMsgType != nil && *c.LastMsgType != 0 {
-		msgType := int32(*c.LastMsgType)
-		lastMsgTypePtr = &msgType
-	}
-
+	conv := resp.ConversationView.Conversation
 	return &biz.Conversation{
-		ID:          c.Id,
-		Type:        int32(c.Type),
-		TargetID:    targetIDPtr,
-		GroupID:     groupIDPtr,
-		Name:        c.Name,
-		Avatar:      c.Avatar,
-		LastMessage: c.LastMessage,
-		LastMsgType: lastMsgTypePtr,
-		LastMsgTime: lastMsgTime,
-		MemberCount: int32(c.MemberCount),
-		CreatedAt:   parseTime(c.CreatedAt),
-		UpdatedAt:   parseTime(c.UpdatedAt),
+		ID:          conv.Id,
+		Type:        int32(conv.Type),
+		GroupID:     &conv.GroupId,
+		Name:        conv.Name,
+		Avatar:      conv.Avatar,
+		LastMessage: conv.LastMessage,
+		LastMsgType: (*int32)(conv.LastMsgType),
+		LastMsgTime: parseUnixPointer(conv.LastMsgTime),
+		UnreadCount: resp.ConversationView.UnreadCount,
+		MemberCount: int32(conv.MemberCount),
+		MemberIDs:   conv.MemberIds,
+		CreatedAt:   parseTime(conv.CreatedAt),
+		UpdatedAt:   parseTime(conv.UpdatedAt),
 	}, nil
+
+}
+
+func parseUnixPointer(ts *int64) *time.Time {
+	if ts == nil || *ts == 0 {
+		return nil
+	}
+	t := time.Unix(*ts, 0)
+	return &t
 }

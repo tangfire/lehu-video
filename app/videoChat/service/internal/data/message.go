@@ -312,10 +312,10 @@ func (r *messageRepo) DeleteMessagesByConversation(ctx context.Context, userID, 
 
 	if convType == 0 { // 单聊
 		// 单聊：删除用户发送给对方的和对方发送给用户的所有消息
-		query = query.Where("conversation_id = ? AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND is_deleted = ?",
+		query = query.Where("conversation_id = ? AND ((sender_id = ?) OR (receiver_id = ?)) AND is_deleted = ?",
 			conversationID,
-			userID, targetID, // 用户发送给对方的
-			targetID, userID, // 对方发送给用户的
+			userID, // 用户发送给对方的
+			userID, // 对方发送给用户的
 			false)
 	} else if convType == 1 { // 群聊
 		// 群聊：只删除用户在该群中发送的消息

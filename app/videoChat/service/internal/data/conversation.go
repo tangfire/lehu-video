@@ -28,7 +28,6 @@ func (r *conversationRepo) CreateConversation(ctx context.Context, conv *biz.Con
 	dbConv := model.Conversation{
 		ID:          conv.ID,
 		Type:        int8(conv.Type),
-		TargetID:    conv.TargetID,
 		GroupID:     conv.GroupID,
 		Name:        conv.Name,
 		Avatar:      conv.Avatar,
@@ -112,17 +111,10 @@ func (r *conversationRepo) GetOrCreateSingleChatConversation(
 		return conv, nil
 	}
 
-	// 统一 target_id 规则：存“对方”
-	targetID := userID2
-	if userID1 > userID2 {
-		targetID = userID1
-	}
-
 	conv = &biz.Conversation{
-		Type:     biz.ConvTypeSingle,
-		TargetID: &targetID,
-		Name:     "",
-		Avatar:   "",
+		Type:   biz.ConvTypeSingle,
+		Name:   "",
+		Avatar: "",
 	}
 
 	convID, err := r.CreateConversation(ctx, conv)
@@ -177,7 +169,7 @@ func (r *conversationRepo) GetOrCreateGroupConversation(
 
 	conv = &biz.Conversation{
 		Type:    biz.ConvTypeGroup,
-		GroupID: &groupID,
+		GroupID: groupID,
 	}
 
 	convID, err := r.CreateConversation(ctx, conv)
@@ -473,9 +465,12 @@ func (r *conversationRepo) toBizConversation(dbConv *model.Conversation) *biz.Co
 	conv := &biz.Conversation{
 		ID:          dbConv.ID,
 		Type:        int32(dbConv.Type),
+		GroupID:     dbConv.GroupID,
 		Name:        dbConv.Name,
 		Avatar:      dbConv.Avatar,
 		LastMessage: dbConv.LastMessage,
+		LastMsgType: dbConv.LastMsgType,
+		LastMsgTime: dbConv.LastMsgTime,
 		MemberCount: dbConv.MemberCount,
 		CreatedAt:   dbConv.CreatedAt,
 		UpdatedAt:   dbConv.UpdatedAt,
@@ -483,18 +478,14 @@ func (r *conversationRepo) toBizConversation(dbConv *model.Conversation) *biz.Co
 	}
 
 	// 处理指针字段
-	if dbConv.TargetID != nil {
-		targetID := *dbConv.TargetID
-		conv.TargetID = &targetID
-	}
 
-	if dbConv.GroupID != nil {
-		groupID := *dbConv.GroupID
-		conv.GroupID = &groupID
+	if dbConv.GroupID != 0 {
+		groupID := dbConv.GroupID
+		conv.GroupID = groupID
 	}
 
 	if dbConv.LastMsgType != nil {
-		lastMsgType := int32(*dbConv.LastMsgType)
+		lastMsgType := *dbConv.LastMsgType
 		conv.LastMsgType = &lastMsgType
 	}
 
@@ -521,6 +512,97 @@ func (r *conversationRepo) toBizConversationMember(dbMember *model.ConversationM
 		UpdatedAt:      dbMember.UpdatedAt,
 		IsDeleted:      dbMember.IsDeleted,
 	}
+}
+
+// GetConversationMembersByConversationIDs 批量查询会话成员
+func (r *conversationRepo) GetConversationMembersByConversationIDs(
+	ctx context.Context,
+	conversationIDs []int64,
+) (map[int64][]*biz.ConversationMember, error) {
+	if len(conversationIDs) == 0 {
+		return make(map[int64][]*biz.ConversationMember), nil
+	}
+
+	// 使用 where in 查询所有相关成员
+	var dbMembers []*model.ConversationMember
+	err := r.data.db.WithContext(ctx).
+		Where("conversation_id IN ? AND is_deleted = ?", conversationIDs, false).
+		Order("conversation_id, id ASC"). // 可以按需排序
+		Find(&dbMembers).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 构造 map: conversationID -> []*ConversationMember
+	result := make(map[int64][]*biz.ConversationMember)
+
+	for _, dbMember := range dbMembers {
+		bizMember := r.toBizConversationMember(dbMember)
+		result[bizMember.ConversationID] = append(result[bizMember.ConversationID], bizMember)
+	}
+
+	return result, nil
+}
+
+// GetConversationView 获取带用户状态的会话视图
+func (r *conversationRepo) GetConversationView(
+	ctx context.Context,
+	conversationID int64,
+	userID int64,
+) (*biz.ConversationView, error) {
+	// 1. 获取会话基础信息
+	conv, err := r.GetConversation(ctx, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	if conv == nil {
+		return nil, nil
+	}
+
+	// 2. 获取会话成员列表
+	members, err := r.GetConversationMembers(ctx, conversationID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. 获取当前用户在会话中的状态
+	member, err := r.GetConversationMember(ctx, conversationID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. 提取成员ID列表
+	memberIDs := make([]int64, 0, len(members))
+	for _, m := range members {
+		memberIDs = append(memberIDs, m.UserID)
+	}
+
+	// 5. 构建 ConversationView
+	view := &biz.ConversationView{
+		// 会话基础信息
+		ID:          conv.ID,
+		Type:        conv.Type,
+		GroupID:     conv.GroupID,
+		Name:        conv.Name,
+		Avatar:      conv.Avatar,
+		LastMessage: conv.LastMessage,
+		LastMsgType: conv.LastMsgType,
+		LastMsgTime: conv.LastMsgTime,
+		MemberCount: conv.MemberCount,
+		MemberIDs:   memberIDs,
+		CreatedAt:   conv.CreatedAt,
+		UpdatedAt:   conv.UpdatedAt,
+	}
+
+	// 6. 添加用户状态（如果用户是会话成员）
+	if member != nil {
+		view.UnreadCount = int64(member.UnreadCount)
+		view.IsPinned = member.IsPinned
+		view.IsMuted = member.IsMuted
+	}
+
+	return view, nil
 }
 
 func abs(x int) int {

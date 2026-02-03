@@ -6,26 +6,61 @@ option go_package = "lehu-video/api/videoApi/service/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.videoApi.service.v1";
 import "google/api/annotations.proto";
+import "api/videoApi/service/v1/base.proto";
 
+
+// 统一的用户模型（聚合来自core和chat服务的数据）
 message User {
-	string id = 1; // 用户id
-	string name = 2; // 用户名称
-	string avatar = 3; // 用户头像Url
-	string background_image = 4; // 用户个人页顶部大图
-	string signature = 5; // 个人简介
-	string mobile = 6; // 手机号
-	string email = 7; // 邮箱
-	int64 follow_count = 8; // 关注总数
-	int64 follower_count = 9; // 粉丝总数
-	int64 total_favorited = 10; // 获赞数量
-	int64 work_count = 11; // 作品数量
-	int64 favorite_count = 12; // 点赞数量
-	string nickname = 13;
-	int32 gender = 14;
-	int32 online_status = 15;
-	string last_online_time = 16;
+	// 基础信息（来自videoCore）
+	string id = 1;
+	string name = 2;
+	string nickname = 3;
+	string avatar = 4;
+	string background_image = 5;
+	string signature = 6;
+	int32 gender = 7;
+
+	// 统计信息（来自videoCore）
+	int64 follow_count = 8;
+	int64 follower_count = 9;
+	int64 total_favorited = 10;
+	int64 work_count = 11;
+	int64 favorite_count = 12;
+	string created_at = 13;
+
+	// 社交信息（来自videoChat）
+	int32 online_status = 14;
+	string last_online_time = 15;
+
+	// 关系信息（API层聚合）
+	bool is_following = 16;    // 当前用户是否关注ta
+	bool is_follower = 17;     // ta是否关注当前用户
+	bool is_friend = 18;       // 是否是好友
+	string friend_remark = 19; // 好友备注
+	string friend_group = 20;  // 好友分组
+
+	// 隐私字段（仅自己可见）
+	string mobile = 21;
+	string email = 22;
 }
 
+// 用户社交信息（用于查询）
+message UserSocialQuery {
+	string user_id = 1;
+	bool need_online_status = 2;
+	bool need_relation = 3;
+}
+
+// 批量查询用户信息
+message BatchGetUserInfoReq {
+	repeated string user_ids = 1;
+	bool include_private = 2;  // 是否包含隐私字段
+	bool include_relation = 3; // 是否包含关系信息
+}
+
+message BatchGetUserInfoResp {
+	repeated User users = 1;
+}
 
 service UserService {
 	// 获取验证码
@@ -52,10 +87,18 @@ service UserService {
 		};
 	};
 
-	// 获取用户信息
+	// 获取用户完整信息（聚合core和chat）
 	rpc GetUserInfo(GetUserInfoReq) returns (GetUserInfoResp) {
 		option (google.api.http) = {
-			get: "/v1/user/info"
+			get: "/v1/user/info/{user_id}"
+		};
+	};
+
+	// 批量获取用户信息
+	rpc BatchGetUserInfo(BatchGetUserInfoReq) returns (BatchGetUserInfoResp) {
+		option (google.api.http) = {
+			post: "/v1/users/batch"
+			body: "*"
 		};
 	};
 
@@ -67,7 +110,15 @@ service UserService {
 		};
 	};
 
+	// 搜索用户
+	rpc SearchUsers(SearchUsersReq) returns (SearchUsersResp) {
+		option (google.api.http) = {
+			post: "/v1/users/search"
+			body:"*"
+		};
+	};
 
+	// 绑定凭证
 	rpc BindUserVoucher(BindUserVoucherReq) returns (BindUserVoucherResp) {
 		option (google.api.http) = {
 			post: "/v1/user/voucher"
@@ -75,6 +126,7 @@ service UserService {
 		};
 	};
 
+	// 解绑凭证
 	rpc UnbindUserVoucher(UnbindUserVoucherReq) returns (UnbindUserVoucherResp) {
 		option (google.api.http) = {
 			delete: "/v1/user/voucher"
@@ -124,14 +176,14 @@ message GetUserInfoResp {
 }
 
 
-
-
 message UpdateUserInfoReq {
 	string user_id = 1 ;
 	string name = 2;
 	string avatar = 3;
 	string background_image = 4;
 	string signature = 5;
+	string nickname = 6;
+	int32 gender = 7;
 }
 
 message UpdateUserInfoResp {
@@ -157,4 +209,15 @@ message UnbindUserVoucherReq {
 }
 
 message UnbindUserVoucherResp {
+}
+
+// 搜索用户请求
+message SearchUsersReq {
+	string keyword = 1;
+	PageStatsReq page_stats = 2;
+}
+
+message SearchUsersResp {
+	repeated User users = 1;
+	PageStatsResp page_stats = 2;
 }

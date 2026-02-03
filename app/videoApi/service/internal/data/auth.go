@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"fmt"
 	base "lehu-video/api/base/service/v1"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/respcheck"
 )
@@ -33,5 +34,60 @@ func (r *baseAdapterImpl) ValidateVerificationCode(ctx context.Context, codeId i
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (r *baseAdapterImpl) BindVoucher(ctx context.Context, userID, voucherType, voucher string) error {
+	var vt base.VoucherType
+	switch voucherType {
+	case "phone":
+		vt = base.VoucherType_VOUCHER_PHONE
+	case "email":
+		vt = base.VoucherType_VOUCHER_EMAIL
+	default:
+		return fmt.Errorf("invalid voucher type: %s", voucherType)
+	}
+
+	resp, err := r.account.Bind(ctx, &base.BindReq{
+		AccountId:   userID,
+		VoucherType: vt,
+		Voucher:     voucher,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *baseAdapterImpl) UnbindVoucher(ctx context.Context, userID, voucherType string) error {
+	var vt base.VoucherType
+	switch voucherType {
+	case "phone":
+		vt = base.VoucherType_VOUCHER_PHONE
+	case "email":
+		vt = base.VoucherType_VOUCHER_EMAIL
+	default:
+		return fmt.Errorf("invalid voucher type: %s", voucherType)
+	}
+
+	resp, err := r.account.Unbind(ctx, &base.UnbindReq{
+		AccountId:   userID,
+		VoucherType: vt,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = respcheck.ValidateResponseMeta(resp.Meta)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

@@ -66,15 +66,6 @@ service MessageService {
     };
   };
 
-
-  // 获取会话详情
-  rpc GetConversation(GetConversationReq) returns (GetConversationResp) {
-    option (google.api.http) = {
-      post: "/v1/conversation/detail"
-      body: "*"
-    };
-  };
-
   // 获取未读消息数
   rpc GetUnreadCount(GetUnreadCountReq) returns (GetUnreadCountResp) {
     option (google.api.http) = {
@@ -97,6 +88,13 @@ service MessageService {
       body: "*"
     };
   };
+
+  // 获取会话详情
+  rpc GetConversationDetail(GetConversationDetailReq) returns(GetConversationDetailResp){
+    option (google.api.http) = {
+      get: "/v1/conversation/{conversation_id}"
+    };
+  }
 }
 
 // =======================
@@ -164,17 +162,19 @@ message Message {
 message Conversation {
   string id = 1;              // 改为 string
   ConversationType type = 2;
-  string target_id = 3;       // 改为 string
-  string group_id = 4;        // 改为 string
-  string name = 5;
-  string avatar = 6;
-  string last_message = 7;
-  MessageType last_msg_type = 8;
-  int64 last_msg_time = 9;    // 时间戳 int64 没问题，不会溢出
-  int64 unread_count = 10;
-  int64 member_count = 11;
-  string created_at = 12;
-  string updated_at = 13;
+  string group_id = 3;        // 改为 string
+  string name = 4;
+  string avatar = 5;
+  string last_message = 6;
+  MessageType last_msg_type = 7;
+  int64 last_msg_time = 8;    // 时间戳 int64 没问题，不会溢出
+  int64 unread_count = 9;
+  int64 member_count = 10;
+  bool is_pinned = 11;
+  bool is_muted = 12;
+  string created_at = 13;
+  string updated_at = 14;
+  repeated string member_ids = 15;
 }
 
 // =======================
@@ -183,11 +183,12 @@ message Conversation {
 
 // 发送消息
 message SendMessageReq {
-  string receiver_id = 1;      // 改为 string
-  ConversationType conv_type = 2;
-  MessageType msg_type = 3;
-  MessageContent content = 4;
-  string client_msg_id = 5;
+  string conversation_id = 1; // 第一次发消息的时候可能没会话id,那第一次消息会自动创建会话的
+  string receiver_id = 2; // 单聊的时候传用户id, 群聊的时候传群id
+  ConversationType conv_type = 3;
+  MessageType msg_type = 4;
+  MessageContent content = 5;
+  string client_msg_id = 6;
 }
 
 message SendMessageResp {
@@ -248,20 +249,9 @@ message ClearMessagesReq {
 message ClearMessagesResp {}
 
 
-
-// 获取会话详情
-message GetConversationReq {
-  string target_id = 1;
-  ConversationType conv_type = 2;
-}
-
-message GetConversationResp {
-  Conversation conversation = 1;
-}
-
 // 获取未读消息数
 message GetUnreadCountReq {
-  string target_id = 1;          // 可选，会话ID
+  string conversation_id = 1;          // 可选，会话ID
   ConversationType conv_type = 2;
 }
 
@@ -280,11 +270,20 @@ message UpdateMessageStatusResp {}
 
 // 创建会话
 message CreateConversationReq {
-  string target_id = 1;          // 用户ID或群ID
-  ConversationType conv_type = 2;
-  string initial_message = 3;
+  string receiver_id = 1; // 单聊的时候传用户id
+  string group_id = 2; // 群聊的时候传群id
+  ConversationType conv_type = 3;
+  string initial_message = 4;
 }
 
 message CreateConversationResp {
   string conversation_id = 1;
+}
+
+message GetConversationDetailReq{
+  string conversation_id = 1;
+}
+
+message GetConversationDetailResp{
+  Conversation conversation = 1;
 }

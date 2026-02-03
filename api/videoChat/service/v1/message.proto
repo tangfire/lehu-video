@@ -127,16 +127,16 @@ message Message {
 message Conversation {
   string id = 1;
   ConversationType type = 2;
-  optional string target_id = 3;
-  optional string group_id = 4;
-  string name = 5;
-  string avatar = 6;
-  string last_message = 7;
-  optional MessageType last_msg_type = 8;
-  optional int64 last_msg_time = 9; // 时间戳通常不需要 string，除非超过 16 位
-  int64 member_count = 10;
-  string created_at = 11;
-  string updated_at = 12;
+  string group_id = 3;
+  string name = 4;
+  string avatar = 5;
+  string last_message = 6;
+  optional MessageType last_msg_type = 7;
+  optional int64 last_msg_time = 8; // 时间戳通常不需要 string，除非超过 16 位
+  int64 member_count = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  repeated string member_ids = 12;
 }
 
 
@@ -146,7 +146,6 @@ message Conversation {
 
 message ConversationView {
   Conversation conversation = 1;
-
   int64 unread_count = 2;
   bool is_pinned = 3;
   bool is_muted = 4;
@@ -161,12 +160,13 @@ message ConversationView {
 message SendMessageReq {
   string sender_id = 1;
   string receiver_id = 2;
-  ConversationType conv_type = 3;
+  string conversation_id = 3;
+  ConversationType conv_type = 4;
 
-  MessageType msg_type = 4;
-  MessageContent content = 5;
+  MessageType msg_type = 5;
+  MessageContent content = 6;
 
-  string client_msg_id = 6; // 客户端幂等
+  string client_msg_id = 7; // 客户端幂等
 }
 
 message SendMessageResp {
@@ -252,14 +252,14 @@ message DeleteConversationResp {
 
 
 // 获取会话
+// 获取会话详情
 message GetConversationReq {
-  string user_id = 1;
-  string target_id = 2;
-  ConversationType conv_type = 3;
+  string conversation_id = 1;
+  string user_id = 2;  // 新增用户ID，用于获取用户在该会话中的状态
 }
 
 message GetConversationResp {
-  Conversation conversation = 1;
+  ConversationView conversation_view = 1;  // 改为返回 ConversationView
   Metadata meta = 2;
 }
 
@@ -294,8 +294,8 @@ message GetMessageResp {
 }
 
 message CreateConversationReq {
-  string user_id = 1;
-  string target_id = 2;
+  repeated string user_ids = 1;
+  string group_id = 2; // 群ID,私聊时不传
   ConversationType conv_type = 3;
   string initial_message = 4;
 }
@@ -304,4 +304,9 @@ message CreateConversationResp {
   string conversation_id = 1;
   Metadata meta = 2;
 }
+
+
+
+
+
 

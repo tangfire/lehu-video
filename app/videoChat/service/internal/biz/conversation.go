@@ -15,11 +15,10 @@ const (
 // Conversation 统一会话领域对象
 type Conversation struct {
 	ID          int64      `json:"id"`
-	Type        int32      `json:"type"`      // 0:单聊, 1:群聊
-	TargetID    *int64     `json:"target_id"` // 对方用户ID（单聊时）
-	GroupID     *int64     `json:"group_id"`  // 群ID（群聊时）
-	Name        string     `json:"name"`      // 会话名称
-	Avatar      string     `json:"avatar"`    // 会话头像
+	Type        int32      `json:"type"`     // 0:单聊, 1:群聊
+	GroupID     int64      `json:"group_id"` // 群ID（群聊时）
+	Name        string     `json:"name"`     // 会话名称
+	Avatar      string     `json:"avatar"`   // 会话头像
 	LastMessage string     `json:"last_message"`
 	LastMsgType *int32     `json:"last_msg_type"`
 	LastMsgTime *time.Time `json:"last_msg_time"`
@@ -47,18 +46,18 @@ type ConversationMember struct {
 
 type ConversationView struct {
 	// 会话基础信息
-	ID       int64
-	Type     int32
-	TargetID *int64
-	GroupID  *int64
-	Name     string
-	Avatar   string
+	ID      int64
+	Type    int32
+	GroupID int64
+	Name    string
+	Avatar  string
 
 	LastMessage string
 	LastMsgType *int32
 	LastMsgTime *time.Time
 
 	MemberCount int64
+	MemberIDs   []int64
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -74,6 +73,13 @@ type ConversationRepo interface {
 	// 会话操作
 	CreateConversation(ctx context.Context, conv *Conversation) (int64, error)
 	GetConversation(ctx context.Context, id int64) (*Conversation, error)
+	// 获取带用户状态的会话视图
+	GetConversationView(
+		ctx context.Context,
+		conversationID int64,
+		userID int64,
+	) (*ConversationView, error)
+
 	GetSingleChatConversation(ctx context.Context, userID1, userID2 int64) (*Conversation, error)
 	GetOrCreateSingleChatConversation(ctx context.Context, userID1, userID2 int64) (*Conversation, error)
 	GetGroupConversation(ctx context.Context, groupID int64) (*Conversation, error)
@@ -95,6 +101,10 @@ type ConversationRepo interface {
 	// 用户相关查询
 	GetUserTotalUnreadCount(ctx context.Context, userID int64) (int64, error)
 	GetUserConversationUnreadCount(ctx context.Context, userID int64) (map[int64]int64, error)
+	GetConversationMembersByConversationIDs(
+		ctx context.Context,
+		conversationIDs []int64,
+	) (map[int64][]*ConversationMember, error)
 
 	// 会话成员列表（分页）
 	ListConversationMembers(

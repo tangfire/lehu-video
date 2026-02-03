@@ -20,41 +20,6 @@ func NewFriendServiceService(uc *biz.FriendUsecase, logger log.Logger) *FriendSe
 	}
 }
 
-func (s *FriendServiceService) SearchUsers(ctx context.Context, req *v1.SearchUsersReq) (*v1.SearchUsersResp, error) {
-	input := &biz.SearchUsersInput{
-		Keyword:  req.Keyword,
-		Page:     req.PageStats.Page,
-		PageSize: req.PageStats.Size,
-	}
-
-	output, err := s.uc.SearchUsers(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
-	// 转换用户信息
-	users := make([]*v1.User, 0, len(output.Users))
-	for _, user := range output.Users {
-		users = append(users, &v1.User{
-			Id:             user.Id,
-			Name:           user.Name,
-			Avatar:         user.Avatar,
-			Nickname:       user.Nickname,
-			Signature:      user.Signature,
-			Gender:         user.Gender,
-			OnlineStatus:   user.OnlineStatus,
-			LastOnlineTime: user.LastOnlineTime.Format("2006-01-02 15:04:05"),
-		})
-	}
-
-	return &v1.SearchUsersResp{
-		Users: users,
-		PageStats: &v1.PageStatsResp{
-			Total: int32(output.Total),
-		},
-	}, nil
-}
-
 func (s *FriendServiceService) SendFriendApply(ctx context.Context, req *v1.SendFriendApplyReq) (*v1.SendFriendApplyResp, error) {
 	input := &biz.SendFriendApplyInput{
 		ReceiverID:  req.ReceiverId,
@@ -160,7 +125,7 @@ func (s *FriendServiceService) ListFriends(ctx context.Context, req *v1.ListFrie
 
 		if friend.Friend != nil {
 			friendInfo.Friend = &v1.User{
-				Id:             friend.Friend.Id,
+				Id:             friend.Friend.ID,
 				Name:           friend.Friend.Name,
 				Avatar:         friend.Friend.Avatar,
 				Nickname:       friend.Friend.Nickname,

@@ -1614,10 +1614,8 @@ const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\x1a?\n" +
 	"\x11OnlineStatusEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x012\x84\n" +
-	"\n" +
-	"\rFriendService\x12b\n" +
-	"\vSearchUsers\x12(.api.videoChat.service.v1.SearchUsersReq\x1a).api.videoChat.service.v1.SearchUsersResp\x12n\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x012\xa0\t\n" +
+	"\rFriendService\x12n\n" +
 	"\x0fSendFriendApply\x12,.api.videoChat.service.v1.SendFriendApplyReq\x1a-.api.videoChat.service.v1.SendFriendApplyResp\x12t\n" +
 	"\x11HandleFriendApply\x12..api.videoChat.service.v1.HandleFriendApplyReq\x1a/.api.videoChat.service.v1.HandleFriendApplyResp\x12t\n" +
 	"\x11ListFriendApplies\x12..api.videoChat.service.v1.ListFriendAppliesReq\x1a/.api.videoChat.service.v1.ListFriendAppliesResp\x12b\n" +
@@ -1699,30 +1697,28 @@ var file_api_videoChat_service_v1_friend_proto_depIdxs = []int32{
 	27, // 21: api.videoChat.service.v1.GetUserOnlineStatusResp.meta:type_name -> api.videoChat.service.v1.Metadata
 	25, // 22: api.videoChat.service.v1.BatchGetUserOnlineStatusResp.online_status:type_name -> api.videoChat.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntry
 	27, // 23: api.videoChat.service.v1.BatchGetUserOnlineStatusResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	3,  // 24: api.videoChat.service.v1.FriendService.SearchUsers:input_type -> api.videoChat.service.v1.SearchUsersReq
-	5,  // 25: api.videoChat.service.v1.FriendService.SendFriendApply:input_type -> api.videoChat.service.v1.SendFriendApplyReq
-	7,  // 26: api.videoChat.service.v1.FriendService.HandleFriendApply:input_type -> api.videoChat.service.v1.HandleFriendApplyReq
-	9,  // 27: api.videoChat.service.v1.FriendService.ListFriendApplies:input_type -> api.videoChat.service.v1.ListFriendAppliesReq
-	11, // 28: api.videoChat.service.v1.FriendService.ListFriends:input_type -> api.videoChat.service.v1.ListFriendsReq
-	13, // 29: api.videoChat.service.v1.FriendService.DeleteFriend:input_type -> api.videoChat.service.v1.DeleteFriendReq
-	15, // 30: api.videoChat.service.v1.FriendService.UpdateFriendRemark:input_type -> api.videoChat.service.v1.UpdateFriendRemarkReq
-	17, // 31: api.videoChat.service.v1.FriendService.SetFriendGroup:input_type -> api.videoChat.service.v1.SetFriendGroupReq
-	19, // 32: api.videoChat.service.v1.FriendService.CheckFriendRelation:input_type -> api.videoChat.service.v1.CheckFriendRelationReq
-	21, // 33: api.videoChat.service.v1.FriendService.GetUserOnlineStatus:input_type -> api.videoChat.service.v1.GetUserOnlineStatusReq
-	23, // 34: api.videoChat.service.v1.FriendService.BatchGetUserOnlineStatus:input_type -> api.videoChat.service.v1.BatchGetUserOnlineStatusReq
-	4,  // 35: api.videoChat.service.v1.FriendService.SearchUsers:output_type -> api.videoChat.service.v1.SearchUsersResp
-	6,  // 36: api.videoChat.service.v1.FriendService.SendFriendApply:output_type -> api.videoChat.service.v1.SendFriendApplyResp
-	8,  // 37: api.videoChat.service.v1.FriendService.HandleFriendApply:output_type -> api.videoChat.service.v1.HandleFriendApplyResp
-	10, // 38: api.videoChat.service.v1.FriendService.ListFriendApplies:output_type -> api.videoChat.service.v1.ListFriendAppliesResp
-	12, // 39: api.videoChat.service.v1.FriendService.ListFriends:output_type -> api.videoChat.service.v1.ListFriendsResp
-	14, // 40: api.videoChat.service.v1.FriendService.DeleteFriend:output_type -> api.videoChat.service.v1.DeleteFriendResp
-	16, // 41: api.videoChat.service.v1.FriendService.UpdateFriendRemark:output_type -> api.videoChat.service.v1.UpdateFriendRemarkResp
-	18, // 42: api.videoChat.service.v1.FriendService.SetFriendGroup:output_type -> api.videoChat.service.v1.SetFriendGroupResp
-	20, // 43: api.videoChat.service.v1.FriendService.CheckFriendRelation:output_type -> api.videoChat.service.v1.CheckFriendRelationResp
-	22, // 44: api.videoChat.service.v1.FriendService.GetUserOnlineStatus:output_type -> api.videoChat.service.v1.GetUserOnlineStatusResp
-	24, // 45: api.videoChat.service.v1.FriendService.BatchGetUserOnlineStatus:output_type -> api.videoChat.service.v1.BatchGetUserOnlineStatusResp
-	35, // [35:46] is the sub-list for method output_type
-	24, // [24:35] is the sub-list for method input_type
+	5,  // 24: api.videoChat.service.v1.FriendService.SendFriendApply:input_type -> api.videoChat.service.v1.SendFriendApplyReq
+	7,  // 25: api.videoChat.service.v1.FriendService.HandleFriendApply:input_type -> api.videoChat.service.v1.HandleFriendApplyReq
+	9,  // 26: api.videoChat.service.v1.FriendService.ListFriendApplies:input_type -> api.videoChat.service.v1.ListFriendAppliesReq
+	11, // 27: api.videoChat.service.v1.FriendService.ListFriends:input_type -> api.videoChat.service.v1.ListFriendsReq
+	13, // 28: api.videoChat.service.v1.FriendService.DeleteFriend:input_type -> api.videoChat.service.v1.DeleteFriendReq
+	15, // 29: api.videoChat.service.v1.FriendService.UpdateFriendRemark:input_type -> api.videoChat.service.v1.UpdateFriendRemarkReq
+	17, // 30: api.videoChat.service.v1.FriendService.SetFriendGroup:input_type -> api.videoChat.service.v1.SetFriendGroupReq
+	19, // 31: api.videoChat.service.v1.FriendService.CheckFriendRelation:input_type -> api.videoChat.service.v1.CheckFriendRelationReq
+	21, // 32: api.videoChat.service.v1.FriendService.GetUserOnlineStatus:input_type -> api.videoChat.service.v1.GetUserOnlineStatusReq
+	23, // 33: api.videoChat.service.v1.FriendService.BatchGetUserOnlineStatus:input_type -> api.videoChat.service.v1.BatchGetUserOnlineStatusReq
+	6,  // 34: api.videoChat.service.v1.FriendService.SendFriendApply:output_type -> api.videoChat.service.v1.SendFriendApplyResp
+	8,  // 35: api.videoChat.service.v1.FriendService.HandleFriendApply:output_type -> api.videoChat.service.v1.HandleFriendApplyResp
+	10, // 36: api.videoChat.service.v1.FriendService.ListFriendApplies:output_type -> api.videoChat.service.v1.ListFriendAppliesResp
+	12, // 37: api.videoChat.service.v1.FriendService.ListFriends:output_type -> api.videoChat.service.v1.ListFriendsResp
+	14, // 38: api.videoChat.service.v1.FriendService.DeleteFriend:output_type -> api.videoChat.service.v1.DeleteFriendResp
+	16, // 39: api.videoChat.service.v1.FriendService.UpdateFriendRemark:output_type -> api.videoChat.service.v1.UpdateFriendRemarkResp
+	18, // 40: api.videoChat.service.v1.FriendService.SetFriendGroup:output_type -> api.videoChat.service.v1.SetFriendGroupResp
+	20, // 41: api.videoChat.service.v1.FriendService.CheckFriendRelation:output_type -> api.videoChat.service.v1.CheckFriendRelationResp
+	22, // 42: api.videoChat.service.v1.FriendService.GetUserOnlineStatus:output_type -> api.videoChat.service.v1.GetUserOnlineStatusResp
+	24, // 43: api.videoChat.service.v1.FriendService.BatchGetUserOnlineStatus:output_type -> api.videoChat.service.v1.BatchGetUserOnlineStatusResp
+	34, // [34:44] is the sub-list for method output_type
+	24, // [24:34] is the sub-list for method input_type
 	24, // [24:24] is the sub-list for extension type_name
 	24, // [24:24] is the sub-list for extension extendee
 	0,  // [0:24] is the sub-list for field type_name

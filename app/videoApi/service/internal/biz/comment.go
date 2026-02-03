@@ -3,11 +3,30 @@ package biz
 import (
 	"context"
 	"errors"
-	"github.com/spf13/cast"
-
 	"github.com/go-kratos/kratos/v2/log"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
+
+type Comment struct {
+	Id         string
+	VideoId    string
+	ParentId   string
+	User       *CommentUser
+	ReplyUser  *CommentUser
+	Content    string
+	Date       string
+	LikeCount  int64
+	ReplyCount int64
+	Comments   []*Comment
+}
+
+// CommentUser 评论用户
+type CommentUser struct {
+	Id          string
+	Name        string
+	Avatar      string
+	IsFollowing bool
+}
 
 type CreateCommentInput struct {
 	VideoId     string
@@ -45,122 +64,131 @@ type ListComment4VideoOutput struct {
 }
 
 type CommentUsecase struct {
-	core CoreAdapter
-	log  *log.Helper
+	core        CoreAdapter
+	userUsecase *UserUsecase // 注入 UserUsecase 来获取聚合的用户信息
+	log         *log.Helper
 }
 
-func NewCommentUsecase(core CoreAdapter, logger log.Logger) *CommentUsecase {
+func NewCommentUsecase(core CoreAdapter, userUsecase *UserUsecase, logger log.Logger) *CommentUsecase {
 	return &CommentUsecase{
-		core: core,
-		log:  log.NewHelper(logger),
+		core:        core,
+		userUsecase: userUsecase,
+		log:         log.NewHelper(logger),
 	}
 }
 
 func (uc *CommentUsecase) CreateComment(ctx context.Context, input *CreateCommentInput) (*CreateCommentOutput, error) {
-	userId, err := claims.GetUserId(ctx)
+	currentUserID, err := claims.GetUserId(ctx)
 	if err != nil {
 		return nil, errors.New("获取用户信息失败")
 	}
 
 	// 调用core服务创建评论
-	comment, err := uc.core.CreateComment(ctx, userId, input.Content, input.VideoId, input.ParentId, input.ReplyUserId)
+	comment, err := uc.core.CreateComment(ctx, currentUserID, input.Content, input.VideoId, input.ParentId, input.ReplyUserId)
 	if err != nil {
 		return nil, err
 	}
 
-	// 获取用户信息
-	userInfo, err := uc.core.GetUserInfo(ctx, userId, "0")
+	// 获取当前用户信息
+	userInput := &GetUserInfoInput{
+		UserID:         currentUserID,
+		IncludePrivate: false,
+	}
+
+	userOutput, err := uc.userUsecase.GetCompleteUserInfo(ctx, userInput)
 	if err != nil {
 		// 弱依赖
 		log.Context(ctx).Warnf("failed to get user info: %v", err)
-	} else {
-		comment.User = uc.generateCommentUserInfo(userInfo)
+	} else if userOutput != nil && userOutput.User != nil {
+		comment.User = uc.generateCommentUserInfo(userOutput.User)
 	}
 
 	// 获取回复用户信息
-	if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 {
-		replyUserInfo, err := uc.core.GetUserInfo(ctx, comment.ReplyUser.Id, "0")
+	if input.ReplyUserId != "" && input.ReplyUserId != "0" {
+		replyUserInput := &GetUserInfoInput{
+			UserID:         input.ReplyUserId,
+			IncludePrivate: false,
+		}
+
+		replyUserOutput, err := uc.userUsecase.GetCompleteUserInfo(ctx, replyUserInput)
 		if err != nil {
 			// 弱依赖
 			log.Context(ctx).Warnf("failed to get reply user info: %v", err)
-		} else {
-			comment.ReplyUser = uc.generateCommentUserInfo(replyUserInfo)
+		} else if replyUserOutput != nil && replyUserOutput.User != nil {
+			comment.ReplyUser = uc.generateCommentUserInfo(replyUserOutput.User)
 		}
 	}
 
 	// 获取子评论的用户信息
 	if len(comment.Comments) > 0 {
-		uc.enrichCommentsWithUserInfo(ctx, comment.Comments)
+		uc.enrichCommentsWithUserInfo(ctx, comment.Comments, currentUserID)
 	}
 
 	return &CreateCommentOutput{Comment: comment}, nil
 }
 
-func (uc *CommentUsecase) generateCommentUserInfo(userInfo *UserInfo) *CommentUser {
-	if userInfo == nil {
+func (uc *CommentUsecase) generateCommentUserInfo(user *UserInfo) *CommentUser {
+	if user == nil {
 		return &CommentUser{}
 	}
 
-	// TODO: 需要调用follow服务获取是否已关注
-	// 这里暂时设置为false，需要根据实际情况实现
-	isFollowing := false
-
 	return &CommentUser{
-		Id:          userInfo.Id,
-		Name:        userInfo.Name,
-		Avatar:      userInfo.Avatar,
-		IsFollowing: isFollowing,
+		Id:          user.ID,
+		Name:        user.Name,
+		Avatar:      user.Avatar,
+		IsFollowing: user.IsFollowing,
 	}
 }
 
-func (uc *CommentUsecase) enrichCommentsWithUserInfo(ctx context.Context, comments []*Comment) {
+func (uc *CommentUsecase) enrichCommentsWithUserInfo(ctx context.Context, comments []*Comment, currentUserID string) {
 	if len(comments) == 0 {
 		return
 	}
 
 	// 收集所有需要查询的用户ID
-	var userIds []string
+	userIDs := make([]string, 0)
 	for _, comment := range comments {
-		if comment.User != nil {
-			userIds = append(userIds, comment.User.Id)
+		if comment.User != nil && comment.User.Id != "" {
+			userIDs = append(userIDs, comment.User.Id)
 		}
-		if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 {
-			userIds = append(userIds, comment.ReplyUser.Id)
+		if comment.ReplyUser != nil && comment.ReplyUser.Id != "" {
+			userIDs = append(userIDs, comment.ReplyUser.Id)
 		}
 		// 递归处理子评论
 		if len(comment.Comments) > 0 {
-			uc.enrichCommentsWithUserInfo(ctx, comment.Comments)
+			uc.enrichCommentsWithUserInfo(ctx, comment.Comments, currentUserID)
 		}
 	}
 
-	if len(userIds) == 0 {
+	if len(userIDs) == 0 {
 		return
 	}
 
 	// 批量获取用户信息
-	userInfos, err := uc.core.GetUserInfoByIdList(ctx, userIds)
+	batchInput := &BatchGetUserInfoInput{
+		UserIDs:         userIDs,
+		CurrentUserID:   currentUserID,
+		IncludePrivate:  false,
+		IncludeRelation: true,
+	}
+
+	batchOutput, err := uc.userUsecase.BatchGetUserInfo(ctx, batchInput)
 	if err != nil {
 		// 弱依赖
 		log.Context(ctx).Warnf("failed to get user info list: %v", err)
 		return
 	}
 
-	// 创建用户信息映射
-	userInfoMap := make(map[string]*UserInfo)
-	for _, user := range userInfos {
-		userInfoMap[user.Id] = user
-	}
-
 	// 填充用户信息
 	for _, comment := range comments {
-		if comment.User != nil {
-			if userInfo, ok := userInfoMap[comment.User.Id]; ok {
-				comment.User = uc.generateCommentUserInfo(userInfo)
+		if comment.User != nil && comment.User.Id != "" {
+			if user, ok := batchOutput.Users[comment.User.Id]; ok {
+				comment.User = uc.generateCommentUserInfo(user)
 			}
 		}
-		if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 {
-			if userInfo, ok := userInfoMap[comment.ReplyUser.Id]; ok {
-				comment.ReplyUser = uc.generateCommentUserInfo(userInfo)
+		if comment.ReplyUser != nil && comment.ReplyUser.Id != "" {
+			if user, ok := batchOutput.Users[comment.ReplyUser.Id]; ok {
+				comment.ReplyUser = uc.generateCommentUserInfo(user)
 			}
 		}
 	}
@@ -189,13 +217,15 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, input *RemoveCommen
 }
 
 func (uc *CommentUsecase) ListChildComment(ctx context.Context, input *ListChildCommentInput) (*ListChildCommentOutput, error) {
+	currentUserID, _ := claims.GetUserId(ctx)
+
 	total, childComments, err := uc.core.ListChildComment(ctx, input.CommentId, input.PageStats)
 	if err != nil {
 		return nil, err
 	}
 
 	// 获取用户信息并组装结果
-	result := uc.assembleCommentListResult(ctx, childComments)
+	result := uc.assembleCommentListResult(ctx, childComments, currentUserID)
 
 	return &ListChildCommentOutput{
 		Comments: result,
@@ -204,13 +234,15 @@ func (uc *CommentUsecase) ListChildComment(ctx context.Context, input *ListChild
 }
 
 func (uc *CommentUsecase) ListComment4Video(ctx context.Context, input *ListComment4VideoInput) (*ListComment4VideoOutput, error) {
+	currentUserID, _ := claims.GetUserId(ctx)
+
 	total, comments, err := uc.core.ListComment4Video(ctx, input.VideoId, input.PageStats)
 	if err != nil {
 		return nil, errors.New("获取评论失败")
 	}
 
 	// 获取用户信息并组装结果
-	result := uc.assembleCommentListResult(ctx, comments)
+	result := uc.assembleCommentListResult(ctx, comments, currentUserID)
 
 	return &ListComment4VideoOutput{
 		Comments: result,
@@ -218,61 +250,64 @@ func (uc *CommentUsecase) ListComment4Video(ctx context.Context, input *ListComm
 	}, nil
 }
 
-func (uc *CommentUsecase) assembleCommentListResult(ctx context.Context, commentList []*Comment) []*Comment {
+func (uc *CommentUsecase) assembleCommentListResult(ctx context.Context, commentList []*Comment, currentUserID string) []*Comment {
 	if len(commentList) == 0 {
 		return []*Comment{}
 	}
 
 	// 收集所有需要查询的用户ID
-	var userIds []string
+	userIDs := make([]string, 0)
 	for _, comment := range commentList {
-		if comment.User != nil {
-			userIds = append(userIds, comment.User.Id)
+		if comment.User != nil && comment.User.Id != "" {
+			userIDs = append(userIDs, comment.User.Id)
 		}
-		if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 {
-			userIds = append(userIds, comment.ReplyUser.Id)
+		if comment.ReplyUser != nil && comment.ReplyUser.Id != "" && comment.ReplyUser.Id != "0" {
+			userIDs = append(userIDs, comment.ReplyUser.Id)
 		}
 		// 递归处理子评论
 		if len(comment.Comments) > 0 {
-			// 递归收集子评论的用户ID
 			for _, child := range comment.Comments {
-				if child.User != nil {
-					userIds = append(userIds, child.User.Id)
+				if child.User != nil && child.User.Id != "" {
+					userIDs = append(userIDs, child.User.Id)
 				}
-				if child.ReplyUser != nil && cast.ToInt64(child.ReplyUser.Id) != 0 {
-					userIds = append(userIds, child.ReplyUser.Id)
+				if child.ReplyUser != nil && child.ReplyUser.Id != "" && child.ReplyUser.Id != "0" {
+					userIDs = append(userIDs, child.ReplyUser.Id)
 				}
 			}
 		}
 	}
 
-	// 获取用户信息
+	// 批量获取用户信息
 	var userInfoMap map[string]*UserInfo
-	if len(userIds) > 0 {
-		userInfos, err := uc.core.GetUserInfoByIdList(ctx, userIds)
+	if len(userIDs) > 0 {
+		batchInput := &BatchGetUserInfoInput{
+			UserIDs:         userIDs,
+			CurrentUserID:   currentUserID,
+			IncludePrivate:  false,
+			IncludeRelation: true,
+		}
+
+		batchOutput, err := uc.userUsecase.BatchGetUserInfo(ctx, batchInput)
 		if err != nil {
 			// 弱依赖
 			log.Context(ctx).Warnf("failed to get user info list: %v", err)
 		} else {
-			userInfoMap = make(map[string]*UserInfo)
-			for _, user := range userInfos {
-				userInfoMap[user.Id] = user
-			}
+			userInfoMap = batchOutput.Users
 		}
 	}
 
 	// 组装结果
-	var result []*Comment
+	result := make([]*Comment, 0, len(commentList))
 	for _, comment := range commentList {
 		var userResp *CommentUser
-		if comment.User != nil && userInfoMap != nil {
+		if comment.User != nil && comment.User.Id != "" && userInfoMap != nil {
 			if userInfo, ok := userInfoMap[comment.User.Id]; ok {
 				userResp = uc.generateCommentUserInfo(userInfo)
 			}
 		}
 
 		var replyUserResp *CommentUser
-		if comment.ReplyUser != nil && cast.ToInt64(comment.ReplyUser.Id) != 0 && userInfoMap != nil {
+		if comment.ReplyUser != nil && comment.ReplyUser.Id != "" && comment.ReplyUser.Id != "0" && userInfoMap != nil {
 			if userInfo, ok := userInfoMap[comment.ReplyUser.Id]; ok {
 				replyUserResp = uc.generateCommentUserInfo(userInfo)
 			}
@@ -281,7 +316,7 @@ func (uc *CommentUsecase) assembleCommentListResult(ctx context.Context, comment
 		// 递归处理子评论
 		var childComments []*Comment
 		if len(comment.Comments) > 0 {
-			childComments = uc.assembleCommentListResult(ctx, comment.Comments)
+			childComments = uc.assembleCommentListResult(ctx, comment.Comments, currentUserID)
 		}
 
 		result = append(result, &Comment{

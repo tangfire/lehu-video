@@ -5,44 +5,8 @@ import (
 	chat "lehu-video/api/videoChat/service/v1"
 	"lehu-video/app/videoApi/service/internal/biz"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/respcheck"
+	"time"
 )
-
-// 好友相关方法
-func (r *chatAdapterImpl) SearchUsers(ctx context.Context, keyword string, page, size int32) (int64, []*biz.UserInfo, error) {
-	req := &chat.SearchUsersReq{
-		Keyword: keyword,
-		PageStats: &chat.PageStatsReq{
-			Page: page,
-			Size: size,
-		},
-	}
-
-	resp, err := r.friend.SearchUsers(ctx, req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	var users []*biz.UserInfo
-	for _, u := range resp.Users {
-		users = append(users, &biz.UserInfo{
-			Id:             u.Id,
-			Name:           u.Name,
-			Nickname:       u.Nickname,
-			Avatar:         u.Avatar,
-			Signature:      u.Signature,
-			Gender:         u.Gender,
-			OnlineStatus:   u.OnlineStatus,
-			LastOnlineTime: parseTime(u.LastOnlineTime),
-		})
-	}
-
-	return int64(resp.PageStats.Total), users, nil
-}
 
 func (r *chatAdapterImpl) SendFriendApply(ctx context.Context, applicantID, receiverID, applyReason string) (string, error) {
 	req := &chat.SendFriendApplyReq{
@@ -159,7 +123,7 @@ func (r *chatAdapterImpl) ListFriends(ctx context.Context, userID string, groupN
 
 		if f.Friend != nil {
 			friendInfo.Friend = &biz.UserInfo{
-				Id: f.Friend.Id,
+				ID: f.Friend.Id,
 			}
 		}
 
@@ -247,25 +211,30 @@ func (r *chatAdapterImpl) CheckFriendRelation(ctx context.Context, userID, targe
 	return resp.IsFriend, resp.Status, nil
 }
 
-func (r *chatAdapterImpl) GetUserOnlineStatus(ctx context.Context, userID string) (int32, string, error) {
+// 获取用户在线状态
+func (r *chatAdapterImpl) GetUserOnlineStatus(ctx context.Context, userID string) (*biz.UserSocialInfo, error) {
 	req := &chat.GetUserOnlineStatusReq{
 		UserId: userID,
 	}
 
 	resp, err := r.friend.GetUserOnlineStatus(ctx, req)
 	if err != nil {
-		return 0, "", err
+		return nil, err
 	}
 
 	err = respcheck.ValidateResponseMeta(resp.Meta)
 	if err != nil {
-		return 0, "", err
+		return nil, err
 	}
 
-	return resp.OnlineStatus, resp.LastOnlineTime, nil
+	return &biz.UserSocialInfo{
+		OnlineStatus:   resp.OnlineStatus,
+		LastOnlineTime: resp.LastOnlineTime,
+	}, nil
 }
 
-func (r *chatAdapterImpl) BatchGetUserOnlineStatus(ctx context.Context, userIDs []string) (map[string]int32, error) {
+// 批量获取用户在线状态
+func (r *chatAdapterImpl) BatchGetUserOnlineStatus(ctx context.Context, userIDs []string) (map[string]*biz.UserSocialInfo, error) {
 	req := &chat.BatchGetUserOnlineStatusReq{
 		UserIds: userIDs,
 	}
@@ -280,5 +249,76 @@ func (r *chatAdapterImpl) BatchGetUserOnlineStatus(ctx context.Context, userIDs 
 		return nil, err
 	}
 
-	return resp.OnlineStatus, nil
+	onlineStatus := make(map[string]*biz.UserSocialInfo)
+	for k, status := range resp.OnlineStatus {
+		onlineStatus[k] = &biz.UserSocialInfo{
+			OnlineStatus: status,
+		}
+	}
+
+	return onlineStatus, nil
+}
+
+// 在 chatadapter.go 的 friend.go 部分添加以下方法
+
+func (r *chatAdapterImpl) GetUserRelation(ctx context.Context, userID, targetUserID string) (*biz.UserRelationInfo, error) {
+	// 1. 检查好友关系
+	isFriend, status, err := r.CheckFriendRelation(ctx, userID, targetUserID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 获取关注状态（需要调用core服务）
+	// 注意：这里需要调用core服务的关注接口
+	// 由于缺少core服务的关注状态接口，这里简化处理
+	// 实际项目中应该调用core.IsFollowing方法
+
+	// 3. 获取好友备注和分组
+	var remark, groupName string
+	if isFriend {
+		// 查询好友备注和分组
+		// 这里可以从数据库查询，或者通过其他方式获取
+		// 简化处理，实际项目中需要实现
+	}
+
+	return &biz.UserRelationInfo{
+		UserID:       userID,
+		TargetUserID: targetUserID,
+		IsFollowing:  false, // 需要从core服务获取
+		IsFollower:   false, // 需要从core服务获取
+		IsFriend:     isFriend,
+		FriendStatus: status,
+		Remark:       remark,
+		GroupName:    groupName,
+		CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
+	}, nil
+}
+
+func (r *chatAdapterImpl) BatchGetUserRelations(ctx context.Context, userID string, targetUserIDs []string) (map[string]*biz.UserRelationInfo, error) {
+	if len(targetUserIDs) == 0 {
+		return make(map[string]*biz.UserRelationInfo), nil
+	}
+
+	result := make(map[string]*biz.UserRelationInfo)
+
+	// 批量检查好友关系
+	for _, targetID := range targetUserIDs {
+		isFriend, status, err := r.CheckFriendRelation(ctx, userID, targetID)
+		if err != nil {
+			// 记录错误但继续处理其他用户
+			continue
+		}
+
+		result[targetID] = &biz.UserRelationInfo{
+			UserID:       userID,
+			TargetUserID: targetID,
+			IsFollowing:  false, // 需要从core服务获取
+			IsFollower:   false, // 需要从core服务获取
+			IsFriend:     isFriend,
+			FriendStatus: status,
+			CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
+		}
+	}
+
+	return result, nil
 }

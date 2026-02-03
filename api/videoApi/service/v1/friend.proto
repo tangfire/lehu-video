@@ -11,13 +11,6 @@ import "api/videoApi/service/v1/user.proto";
 
 // 好友服务
 service FriendService {
-	// 搜索用户
-	rpc SearchUsers(SearchUsersReq) returns (SearchUsersResp) {
-		option (google.api.http) = {
-			post: "/v1/friends/search"
-			body:"*"
-		};
-	};
 
 	// 发送好友申请
 	rpc SendFriendApply(SendFriendApplyReq) returns (SendFriendApplyResp) {
@@ -119,16 +112,7 @@ message FriendApplyInfo {
 	string created_at = 7;
 }
 
-// 搜索用户请求
-message SearchUsersReq {
-	string keyword = 1;
-	PageStatsReq page_stats = 2;
-}
 
-message SearchUsersResp {
-	repeated User users = 1;
-	PageStatsResp page_stats = 2;
-}
 
 // 发送好友申请请求
 message SendFriendApplyReq {

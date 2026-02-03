@@ -7,6 +7,14 @@ import (
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
+// Collection 收藏夹
+type Collection struct {
+	Id          string
+	UserId      string
+	Name        string
+	Description string
+}
+
 type AddVideo2CollectionInput struct {
 	CollectionId string
 	VideoId      string

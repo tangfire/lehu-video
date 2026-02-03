@@ -11,13 +11,15 @@ import (
 )
 
 // 发送消息
-func (r *chatAdapterImpl) SendMessage(ctx context.Context, senderID, receiverID string, convType, msgType int32, content *biz.MessageContent, clientMsgID string) (string, string, error) {
+func (r *chatAdapterImpl) SendMessage(ctx context.Context, conversationID, senderID, receiverID string, convType, msgType int32, content *biz.MessageContent, clientMsgID string) (string, string, error) {
 	req := &chat.SendMessageReq{
-		SenderId:    senderID,
-		ReceiverId:  receiverID,
-		ConvType:    chat.ConversationType(convType),
-		MsgType:     chat.MessageType(msgType),
-		ClientMsgId: clientMsgID,
+		SenderId:       senderID,
+		ReceiverId:     receiverID,
+		ConversationId: conversationID,
+		ConvType:       chat.ConversationType(convType),
+		MsgType:        chat.MessageType(msgType),
+		Content:        nil,
+		ClientMsgId:    clientMsgID,
 	}
 
 	if content != nil {
@@ -208,52 +210,6 @@ func (r *chatAdapterImpl) GetUnreadCount(ctx context.Context, userID string) (in
 	}
 
 	return resp.TotalUnread, resp.ConvUnread, nil
-}
-
-func (r *chatAdapterImpl) ListConversations(ctx context.Context, userID string, pageStats *biz.PageStats) (int64, []*biz.Conversation, error) {
-	req := &chat.ListConversationsReq{
-		UserId: userID,
-		PageStats: &chat.PageStatsReq{
-			Page: int32(pageStats.Page),
-			Size: int32(pageStats.PageSize),
-			Sort: pageStats.Sort,
-		},
-	}
-
-	resp, err := r.message.ListConversations(ctx, req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	var conversations []*biz.Conversation
-	for _, c := range resp.Conversations {
-		conversations = append(conversations, &biz.Conversation{
-			ID:          c.Conversation.Id,
-			UserID:      userID,
-			Type:        int32(c.Conversation.Type),
-			TargetID:    c.Conversation.TargetId,
-			LastMessage: c.Conversation.LastMessage,
-			LastMsgType: (*int32)(c.Conversation.LastMsgType),
-			LastMsgTime: parseUnixPointer(c.Conversation.LastMsgTime),
-			UnreadCount: int32(c.UnreadCount),
-			UpdatedAt:   parseTime(c.Conversation.UpdatedAt),
-		})
-	}
-
-	return int64(resp.PageStats.Total), conversations, nil
-}
-
-func parseUnixPointer(ts *int64) *time.Time {
-	if ts == nil || *ts == 0 {
-		return nil
-	}
-	t := time.Unix(*ts, 0)
-	return &t
 }
 
 func (r *chatAdapterImpl) DeleteConversation(ctx context.Context, userID, conversationID string) error {

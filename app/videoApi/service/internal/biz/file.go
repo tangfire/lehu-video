@@ -5,6 +5,12 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 )
 
+// FileInfo 文件信息
+type FileInfo struct {
+	ObjectName string `json:"object_name"`
+	Hash       string `json:"hash"`
+}
+
 type PreSignUploadPublicReq struct {
 	Hash     string
 	FileType string

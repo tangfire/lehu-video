@@ -36,7 +36,7 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	groupUsecase := biz.NewGroupUsecase(groupRepo, logger)
 	groupServiceService := service.NewGroupServiceService(groupUsecase, logger)
 	messageRepo := data.NewMessageRepo(dataData, logger)
-	friendRepo := data.NewFriendRepo(dataData, logger)
+	friendRepo := data.NewFriendRepo(dataData, userServiceClient, logger)
 	conversationRepo := data.NewConversationRepo(dataData, logger)
 	idGenerator, err := idgen.NewIDGenerator()
 	if err != nil {
@@ -46,7 +46,7 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	messageUsecase := biz.NewMessageUsecase(messageRepo, friendRepo, groupRepo, conversationRepo, idGenerator, logger)
 	messageServiceService := service.NewMessageServiceService(messageUsecase, logger)
 	friendUsecase := biz.NewFriendUsecase(friendRepo, logger)
-	friendServiceService := service.NewFriendServiceService(friendUsecase, logger)
+	friendServiceService := service.NewFriendServiceService(friendUsecase)
 	grpcServer := server.NewGRPCServer(confServer, groupServiceService, messageServiceService, friendServiceService, logger)
 	registrar := server.NewRegistrar(registry)
 	app := newApp(logger, grpcServer, registrar)

@@ -17,22 +17,35 @@ CREATE TABLE `video` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
+-- 创建新表
 CREATE TABLE `user` (
-                        `id` bigint(20) NOT NULL AUTO_INCREMENT,
-                        `account_id` bigint(20) DEFAULT NULL,
-                        `mobile` varchar(20) DEFAULT NULL,
-                        `email` varchar(50) DEFAULT NULL,
-                        `name` varchar(50) DEFAULT NULL,
-                        `avatar` varchar(255) DEFAULT NULL,
-                        `background_image` varchar(255) DEFAULT NULL,
-                        `signature` varchar(255) DEFAULT NULL,
-                        `created_at` datetime(3) DEFAULT NULL,
-                        `updated_at` datetime(3) DEFAULT NULL,
-                        PRIMARY KEY (`id`),
-                        UNIQUE KEY `idx_users_account_id` (`account_id`) USING BTREE,
-                        UNIQUE KEY `idx_users_email` (`email`) USING BTREE,
-                        UNIQUE KEY `idx_users_mobile` (`mobile`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=7240204103809514232 DEFAULT CHARSET=utf8mb4;
+                            `id` bigint(20) NOT NULL AUTO_INCREMENT,
+                            `account_id` bigint(20) DEFAULT NULL,
+                            `mobile` varchar(20) DEFAULT NULL,
+                            `email` varchar(100) DEFAULT NULL,
+                            `name` varchar(100) DEFAULT NULL,
+                            `nickname` varchar(100) DEFAULT NULL,
+                            `avatar` varchar(500) DEFAULT NULL,
+                            `background_image` varchar(500) DEFAULT NULL,
+                            `signature` varchar(500) DEFAULT NULL,
+                            `gender` int(11) DEFAULT '0',
+                            `follow_count` bigint(20) DEFAULT '0',
+                            `follower_count` bigint(20) DEFAULT '0',
+                            `total_favorited` bigint(20) DEFAULT '0',
+                            `work_count` bigint(20) DEFAULT '0',
+                            `favorite_count` bigint(20) DEFAULT '0',
+                            `created_at` datetime(3) DEFAULT NULL,
+                            `updated_at` datetime(3) DEFAULT NULL,
+                            PRIMARY KEY (`id`),
+                            KEY `idx_account_id` (`account_id`),
+                            KEY `idx_mobile` (`mobile`),
+                            KEY `idx_email` (`email`),
+                            KEY `idx_nickname` (`nickname`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+
+
 
 CREATE TABLE IF NOT EXISTS account (
                                        `id` BIGINT NOT NULL,
@@ -255,7 +268,6 @@ CREATE TABLE `message` (
 CREATE TABLE `conversation` (
                                 `id` bigint(20) NOT NULL COMMENT '会话ID（主键）',
                                 `type` tinyint(4) NOT NULL COMMENT '会话类型 0:单聊 1:群聊',
-                                `target_id` bigint(20) DEFAULT NULL COMMENT '对方用户ID（仅单聊有效，群聊时为NULL）',
                                 `group_id` bigint(20) DEFAULT NULL COMMENT '群ID（仅群聊有效）',
                                 `name` varchar(100) DEFAULT '' COMMENT '会话名称（群聊时用）',
                                 `avatar` varchar(500) DEFAULT '' COMMENT '会话头像',
@@ -296,20 +308,38 @@ CREATE TABLE `conversation_member` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话成员表';
 
 
--- 好友关系表
+
+-- 用户在线状态表（单独表）
+CREATE TABLE `user_online_status` (
+                                      `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+                                      `user_id` bigint(20) NOT NULL COMMENT '用户ID',
+                                      `online_status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '在线状态：0=离线，1=在线，2=忙碌，3=离开',
+                                      `device_type` varchar(20) DEFAULT '' COMMENT '设备类型：web/ios/android',
+                                      `last_online_time` datetime NOT NULL COMMENT '最后在线时间',
+                                      `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                      `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                      PRIMARY KEY (`id`),
+                                      UNIQUE KEY `uk_user_id` (`user_id`),
+                                      KEY `idx_online_status` (`online_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户在线状态表';
+
+-- 好友关系表（优化版）
 CREATE TABLE `friend_relation` (
-                                   `id` bigint(20) NOT NULL COMMENT 'ID',
+                                   `id` bigint(20) NOT NULL  COMMENT '主键ID',
                                    `user_id` bigint(20) NOT NULL COMMENT '用户ID',
                                    `friend_id` bigint(20) NOT NULL COMMENT '好友ID',
-                                   `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0=待处理，1=已同意，2=已拒绝，3=已拉黑',
-                                   `remark` varchar(50) DEFAULT NULL COMMENT '备注',
-                                   `group_name` varchar(50) DEFAULT NULL COMMENT '分组名称',
-                                   `created_at` datetime NOT NULL COMMENT '创建时间',
-                                   `updated_at` datetime NOT NULL COMMENT '更新时间',
-                                   `is_deleted` tinyint(1) DEFAULT '0' NOT NULL,
+                                   `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1=好友，2=已删除，3=拉黑',
+                                   `remark` varchar(100) DEFAULT '' COMMENT '备注',
+                                   `group_name` varchar(50) DEFAULT '' COMMENT '分组名称',
+                                   `is_following` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否关注好友',
+                                   `is_follower` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否被好友关注',
+                                   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                    PRIMARY KEY (`id`),
+                                   UNIQUE KEY `uk_user_friend` (`user_id`, `friend_id`),
                                    KEY `idx_user_id` (`user_id`),
-                                   KEY `idx_friend_id` (`friend_id`)
+                                   KEY `idx_friend_id` (`friend_id`),
+                                   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='好友关系表';
 
 -- 好友申请表
@@ -317,26 +347,12 @@ CREATE TABLE `friend_apply` (
                                 `id` bigint(20) NOT NULL COMMENT 'ID',
                                 `applicant_id` bigint(20) NOT NULL COMMENT '申请人ID',
                                 `receiver_id` bigint(20) NOT NULL COMMENT '接收人ID',
-                                `apply_reason` varchar(200) DEFAULT NULL COMMENT '申请理由',
+                                `apply_reason` varchar(200) DEFAULT '' COMMENT '申请理由',
                                 `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0=待处理，1=已同意，2=已拒绝',
                                 `handled_at` datetime DEFAULT NULL COMMENT '处理时间',
-                                `created_at` datetime NOT NULL COMMENT '创建时间',
-                                `updated_at` datetime NOT NULL COMMENT '更新时间',
-                                `is_deleted` tinyint(1) DEFAULT '0' NOT NULL,
+                                `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                 PRIMARY KEY (`id`),
-                                KEY `idx_applicant` (`applicant_id`),
-                                KEY `idx_receiver` (`receiver_id`)
+                                UNIQUE KEY `uk_applicant_receiver` (`applicant_id`, `receiver_id`),
+                                KEY `idx_receiver_status` (`receiver_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='好友申请表';
-
--- 用户在线状态表
-CREATE TABLE `user_online_status` (
-                                      `id` bigint(20) NOT NULL COMMENT 'ID',
-                                      `user_id` bigint(20) NOT NULL COMMENT '用户ID',
-                                      `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0=离线，1=在线，2=忙碌，3=离开',
-                                      `device_type` varchar(20) DEFAULT NULL COMMENT '设备类型：web/ios/android',
-                                      `last_online_time` datetime DEFAULT NULL COMMENT '最后在线时间',
-                                      `created_at` datetime NOT NULL COMMENT '创建时间',
-                                      `updated_at` datetime NOT NULL COMMENT '更新时间',
-                                      PRIMARY KEY (`id`),
-                                      UNIQUE KEY `uk_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户在线状态表';

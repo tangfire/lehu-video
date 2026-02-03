@@ -25,9 +25,10 @@ func NewMessageServiceService(uc *biz.MessageUsecase, logger log.Logger) *Messag
 
 func (s *MessageServiceService) SendMessage(ctx context.Context, req *v1.SendMessageReq) (*v1.SendMessageResp, error) {
 	input := &biz.SendMessageInput{
-		ReceiverID: req.ReceiverId,
-		ConvType:   int32(req.ConvType),
-		MsgType:    int32(req.MsgType),
+		ConversationID: req.ConversationId,
+		ReceiverID:     req.ReceiverId,
+		ConvType:       int32(req.ConvType),
+		MsgType:        int32(req.MsgType),
 		Content: &biz.MessageContent{
 			Text:          req.Content.Text,
 			ImageURL:      req.Content.ImageUrl,
@@ -150,10 +151,6 @@ func (s *MessageServiceService) ListConversations(ctx context.Context, req *v1.L
 	// 转换会话
 	var conversations []*v1.Conversation
 	for _, conv := range output.Conversations {
-		var targetID string
-		if conv.TargetID != nil {
-			targetID = *conv.TargetID
-		}
 
 		var groupID string
 		if conv.GroupID != nil {
@@ -173,13 +170,19 @@ func (s *MessageServiceService) ListConversations(ctx context.Context, req *v1.L
 		conversations = append(conversations, &v1.Conversation{
 			Id:          conv.ID,
 			Type:        v1.ConversationType(conv.Type),
-			TargetId:    targetID,
 			GroupId:     groupID,
+			Name:        conv.Name,
+			Avatar:      conv.Avatar,
 			LastMessage: conv.LastMessage,
 			LastMsgType: lastMsgType,
 			LastMsgTime: lastMsgTime,
-			UnreadCount: int64(conv.UnreadCount),
+			UnreadCount: conv.UnreadCount,
+			MemberCount: int64(conv.MemberCount),
+			IsPinned:    conv.IsPinned,
+			IsMuted:     conv.IsMuted,
+			CreatedAt:   conv.CreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:   conv.UpdatedAt.Format("2006-01-02 15:04:05"),
+			MemberIds:   conv.MemberIDs,
 		})
 	}
 
@@ -218,59 +221,6 @@ func (s *MessageServiceService) ClearMessages(ctx context.Context, req *v1.Clear
 	return &v1.ClearMessagesResp{}, nil
 }
 
-// GetConversation - 获取会话详情
-func (s *MessageServiceService) GetConversation(ctx context.Context, req *v1.GetConversationReq) (*v1.GetConversationResp, error) {
-
-	conversation, err := s.uc.GetConversation(ctx, req.TargetId, int32(req.ConvType))
-	if err != nil {
-		return nil, err
-	}
-
-	if conversation == nil {
-		return &v1.GetConversationResp{}, nil
-	}
-
-	c := conversation
-
-	var targetID string
-	if c.TargetID != nil {
-		targetID = *c.TargetID
-	}
-
-	var groupID string
-	if c.GroupID != nil {
-		groupID = *c.GroupID
-	}
-
-	var lastMsgTime int64
-	if c.LastMsgTime != nil {
-		lastMsgTime = c.LastMsgTime.Unix()
-	}
-
-	var lastMsgType v1.MessageType
-	if c.LastMsgType != nil {
-		lastMsgType = v1.MessageType(*c.LastMsgType)
-	}
-
-	return &v1.GetConversationResp{
-		Conversation: &v1.Conversation{
-			Id:          c.ID,
-			Type:        v1.ConversationType(c.Type),
-			TargetId:    targetID,
-			GroupId:     groupID,
-			Name:        c.Name,
-			Avatar:      c.Avatar,
-			LastMessage: c.LastMessage,
-			LastMsgType: lastMsgType,
-			LastMsgTime: lastMsgTime,
-			UnreadCount: int64(c.UnreadCount),
-			MemberCount: int64(c.MemberCount),
-			CreatedAt:   c.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt:   c.UpdatedAt.Format("2006-01-02 15:04:05"),
-		},
-	}, nil
-}
-
 // GetUnreadCount - 获取未读消息数
 func (s *MessageServiceService) GetUnreadCount(ctx context.Context, req *v1.GetUnreadCountReq) (*v1.GetUnreadCountResp, error) {
 	// 调用chat适配器获取未读数
@@ -287,9 +237,9 @@ func (s *MessageServiceService) GetUnreadCount(ctx context.Context, req *v1.GetU
 	}
 
 	// 如果请求了特定会话的未读数
-	if req.TargetId != "" {
+	if req.ConversationId != "" {
 		// 生成会话key，与chat服务保持一致
-		convKey := cast.ToInt64(req.TargetId)*10 + int64(req.ConvType)
+		convKey := cast.ToInt64(req.ConversationId)*10 + int64(req.ConvType)
 		if count, ok := convUnreadMap[cast.ToString(convKey)]; ok {
 			convUnread = count
 		}
@@ -314,7 +264,8 @@ func (s *MessageServiceService) UpdateMessageStatus(ctx context.Context, req *v1
 // 添加 CreateConversation 方法
 func (s *MessageServiceService) CreateConversation(ctx context.Context, req *v1.CreateConversationReq) (*v1.CreateConversationResp, error) {
 	input := &biz.CreateConversationInput{
-		TargetID:       req.TargetId,
+		ReceiverID:     req.ReceiverId,
+		GroupID:        req.GroupId,
 		ConvType:       int32(req.ConvType),
 		InitialMessage: req.InitialMessage,
 	}
@@ -326,5 +277,31 @@ func (s *MessageServiceService) CreateConversation(ctx context.Context, req *v1.
 
 	return &v1.CreateConversationResp{
 		ConversationId: output.ConversationID,
+	}, nil
+}
+
+func (s *MessageServiceService) GetConversationDetail(ctx context.Context, req *v1.GetConversationDetailReq) (*v1.GetConversationDetailResp, error) {
+	conv, err := s.uc.GetConversationDetail(ctx, req.ConversationId)
+	if err != nil {
+		return &v1.GetConversationDetailResp{}, err
+	}
+	return &v1.GetConversationDetailResp{
+		Conversation: &v1.Conversation{
+			Id:          conv.ID,
+			Type:        v1.ConversationType(conv.Type),
+			GroupId:     *conv.GroupID,
+			Name:        conv.Name,
+			Avatar:      conv.Avatar,
+			LastMessage: conv.LastMessage,
+			LastMsgType: v1.MessageType(*conv.LastMsgType),
+			LastMsgTime: conv.LastMsgTime.Unix(),
+			UnreadCount: conv.UnreadCount,
+			MemberCount: int64(conv.MemberCount),
+			IsPinned:    conv.IsPinned,
+			IsMuted:     conv.IsMuted,
+			CreatedAt:   cast.ToString(conv.CreatedAt),
+			UpdatedAt:   cast.ToString(conv.UpdatedAt),
+			MemberIds:   conv.MemberIDs,
+		},
 	}, nil
 }

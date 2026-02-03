@@ -7,6 +7,14 @@ import (
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
+type FollowType int64
+
+var (
+	FOLLOWING FollowType = 0
+	Follower  FollowType = 1
+	BOTH      FollowType = 2
+)
+
 type FollowUser struct {
 	Id          string
 	Name        string
@@ -78,7 +86,7 @@ func (uc *FollowUsecase) ListFollowing(ctx context.Context, input *ListFollowing
 	}
 	userInfoMap := make(map[string]*UserInfo)
 	for _, userInfo := range userInfos {
-		userInfoMap[userInfo.Id] = userInfo
+		userInfoMap[userInfo.ID] = userInfo
 	}
 
 	var result []*FollowUser
@@ -88,7 +96,7 @@ func (uc *FollowUsecase) ListFollowing(ctx context.Context, input *ListFollowing
 			continue
 		}
 		result = append(result, &FollowUser{
-			Id:          userInfo.Id,
+			Id:          userInfo.ID,
 			Name:        userInfo.Name,
 			Avatar:      userInfo.Avatar,
 			IsFollowing: true,
