@@ -167,8 +167,13 @@ func (m *Manager) startCleanupTask() {
 	}
 }
 
-// BroadcastToUser 向指定用户发送消息
+// BroadcastToUser 向指定用户发送消息（增强版）
 func (m *Manager) BroadcastToUser(userID string, message []byte) {
+	m.logger.Log(log.LevelInfo, "msg", "准备向用户推送消息",
+		"user_id", userID,
+		"message_size", len(message),
+		"online", m.IsUserOnline(userID))
+
 	m.broadcast <- &BroadcastMessage{
 		UserIDs: []string{userID},
 		Message: message,
@@ -178,6 +183,10 @@ func (m *Manager) BroadcastToUser(userID string, message []byte) {
 
 // BroadcastToGroup 向群组所有成员发送消息
 func (m *Manager) BroadcastToGroup(userIDs []string, message []byte) {
+	m.logger.Log(log.LevelInfo, "msg", "准备向群组推送消息",
+		"user_count", len(userIDs),
+		"message_size", len(message))
+
 	m.broadcast <- &BroadcastMessage{
 		UserIDs: userIDs,
 		Message: message,
@@ -226,10 +235,8 @@ func (c *Client) ReadPump() {
 	}()
 
 	c.Conn.SetReadLimit(5120)
-	//c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.Conn.SetPongHandler(func(string) error {
 		c.Manager.onlineMgr.UpdateLastActive(c.UserID)
-		//c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
@@ -325,6 +332,8 @@ func (c *Client) handleMessage(message []byte) {
 	switch req.Action {
 	case "ping":
 		c.sendPong()
+	case "auth":
+		c.handleAuth(req.Data)
 	case "send_message":
 		c.handleSendMessage(req.Data, req.ClientMsgID)
 	case "recall_message":
@@ -338,7 +347,15 @@ func (c *Client) handleMessage(message []byte) {
 	}
 }
 
-// handleSendMessage 处理发送消息请求
+// handleAuth 处理认证
+func (c *Client) handleAuth(data json.RawMessage) {
+	c.sendResponse("auth_success", map[string]interface{}{
+		"user_id":   c.UserID,
+		"timestamp": time.Now().Unix(),
+	}, "")
+}
+
+// handleSendMessage 处理发送消息请求（增强版）
 func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string) {
 	var msg SendMessageReq
 	if err := json.Unmarshal(data, &msg); err != nil {
@@ -476,6 +493,13 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 		// 构建推送消息给接收者
 		pushMsg := c.buildReceiveMessage(output.MessageID, msg)
 
+		// 记录推送日志
+		c.logger.Log(log.LevelInfo, "msg", "准备推送消息给接收者",
+			"sender", c.UserID,
+			"receiver", msg.ReceiverID,
+			"conversation_id", msg.ConversationID,
+			"message_id", output.MessageID)
+
 		// 处理消息推送
 		if msg.ConvType == 0 { // 单聊
 			go c.updateMessageStatus(output.MessageID, 2) // 已送达
@@ -554,6 +578,13 @@ func (c *Client) handleGroupMessage(groupID, messageID string, msg SendMessageRe
 			"offline_count": offlineCount,
 			"total_members": len(members) - 1,
 		}, "")
+
+		// 记录群推送日志
+		c.logger.Log(log.LevelInfo, "msg", "群消息推送完成",
+			"group_id", groupID,
+			"message_id", messageID,
+			"online_count", onlineCount,
+			"offline_count", offlineCount)
 	}
 }
 
@@ -630,12 +661,13 @@ func (c *Client) sendOfflineNotification(messageID string, msg SendMessageReq) {
 	c.SendChan <- respBytes
 }
 
-// buildReceiveMessage 构建接收消息
+// buildReceiveMessage 构建接收消息（增强版）
 func (c *Client) buildReceiveMessage(messageID string, msg SendMessageReq) []byte {
 	response := WSMessageResponse{
 		Action:    "receive_message",
 		Timestamp: time.Now().Unix(),
 		Data: map[string]interface{}{
+			"id":              messageID,
 			"message_id":      messageID,
 			"sender_id":       c.UserID,
 			"receiver_id":     msg.ReceiverID,
@@ -644,17 +676,28 @@ func (c *Client) buildReceiveMessage(messageID string, msg SendMessageReq) []byt
 			"msg_type":        msg.MsgType,
 			"content":         msg.Content,
 			"timestamp":       time.Now().Unix(),
+			"status":          1, // 已送达
+			"is_recalled":     false,
+			"created_at":      time.Now().Format(time.RFC3339),
 		},
 	}
 
 	respBytes, _ := json.Marshal(response)
+
+	// 记录构建的消息
+	c.logger.Log(log.LevelDebug, "msg", "构建接收消息",
+		"message_id", messageID,
+		"sender", c.UserID,
+		"receiver", msg.ReceiverID,
+		"size", len(respBytes))
+
 	return respBytes
 }
 
 // 处理消息撤回
 func (c *Client) handleRecallMessage(data json.RawMessage) {
 	var msg struct {
-		MessageID int64 `json:"message_id"`
+		MessageID string `json:"message_id"`
 	}
 
 	if err := json.Unmarshal(data, &msg); err != nil {
@@ -665,7 +708,7 @@ func (c *Client) handleRecallMessage(data json.RawMessage) {
 	// 调用业务层撤回消息
 	if c.messageUC != nil {
 		input := &biz.RecallMessageInput{
-			MessageID: cast.ToString(msg.MessageID),
+			MessageID: msg.MessageID,
 		}
 
 		err := c.messageUC.RecallMessage(c.Ctx, input)
@@ -687,10 +730,10 @@ func (c *Client) handleRecallMessage(data json.RawMessage) {
 }
 
 // notifyRecall 通知消息撤回
-func (c *Client) notifyRecall(messageID int64) {
+func (c *Client) notifyRecall(messageID string) {
 	// 获取消息详情
 	if c.chat != nil {
-		message, err := c.chat.GetMessageByID(c.Ctx, cast.ToString(messageID))
+		message, err := c.chat.GetMessageByID(c.Ctx, messageID)
 		if err != nil {
 			c.logger.Log(log.LevelError, "msg", "获取消息详情失败", "message_id", messageID, "error", err)
 			return
