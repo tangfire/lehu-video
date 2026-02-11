@@ -1,0 +1,70 @@
+// feed.proto - videoCore服务新增
+syntax = "proto3";
+
+package api.videoCore.service.v1;
+
+option go_package = "lehu-video/api/videoCore/service/v1;v1";
+
+import "api/videoCore/service/v1/base.proto";
+
+service FeedService {
+	// 核心Feed流接口（供videoApi调用）
+	rpc GetFeed(GetFeedReq) returns (GetFeedResp);
+
+	// 热门视频池
+	rpc GetHotVideos(GetHotVideosReq) returns (GetHotVideosResp);
+
+	// 内部接口：更新用户Timeline
+	rpc PushToUserTimeline(PushToUserTimelineReq) returns (PushToUserTimelineResp);
+}
+
+message GetFeedReq {
+	string user_id = 1;
+	int64 latest_time = 2;
+	int32 page_size = 3;
+	FeedType feed_type = 4; // 0:关注 1:推荐 2:热门
+}
+
+message GetFeedResp {
+	Metadata meta = 1;
+	repeated FeedItem items = 2;
+	int64 next_time = 3;
+}
+
+message FeedItem {
+	string video_id = 1;
+	double score = 2;
+	int64 timestamp = 3;
+	string author_id = 4;
+}
+
+enum FeedType {
+	FOLLOWING = 0;
+	RECOMMEND = 1;
+	HOT = 2;
+	MIXED = 3;
+}
+
+message GetHotVideosReq {
+	int32 limit = 1;
+}
+
+message GetHotVideosResp {
+	Metadata meta = 1;
+	repeated string video_ids = 2;
+}
+
+message PushToUserTimelineReq {
+	string user_id = 1;
+	repeated TimelineItem items = 2;
+}
+
+message TimelineItem {
+	string video_id = 1;
+	string author_id = 2;
+	int64 timestamp = 3;
+}
+
+message PushToUserTimelineResp {
+	Metadata meta = 1;
+}

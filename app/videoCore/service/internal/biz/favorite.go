@@ -184,11 +184,13 @@ type FavoriteStats struct {
 }
 
 type FavoriteUsecase struct {
-	repo    FavoriteRepo
-	cache   *redis.Client
-	log     *log.Helper
-	limiter *rate.Limiter
-	keyGen  CacheKeyGenerator
+	repo        FavoriteRepo
+	videoRepo   VideoRepo   // 新增，用于获取视频作者ID
+	counterRepo CounterRepo // 新增
+	cache       *redis.Client
+	log         *log.Helper
+	limiter     *rate.Limiter
+	keyGen      CacheKeyGenerator
 
 	// 配置
 	maxBatchSize     int
@@ -197,15 +199,24 @@ type FavoriteUsecase struct {
 	rateLimiters     map[string]*rate.Limiter // 用户级限流器
 }
 
-func NewFavoriteUsecase(repo FavoriteRepo, cache *redis.Client, logger log.Logger) *FavoriteUsecase {
+// NewFavoriteUsecase 需同时注入 videoRepo 和 counterRepo
+func NewFavoriteUsecase(
+	repo FavoriteRepo,
+	videoRepo VideoRepo, // 新增
+	counterRepo CounterRepo, // 新增
+	cache *redis.Client,
+	logger log.Logger,
+) *FavoriteUsecase {
 	return &FavoriteUsecase{
 		repo:             repo,
+		videoRepo:        videoRepo,
+		counterRepo:      counterRepo,
 		cache:            cache,
 		log:              log.NewHelper(logger),
-		limiter:          rate.NewLimiter(rate.Limit(1000), 100), // 全局限流
+		limiter:          rate.NewLimiter(rate.Limit(1000), 100),
 		keyGen:           &defaultCacheKeyGenerator{},
 		maxBatchSize:     1000,
-		favoriteCooldown: time.Second, // 1秒冷却
+		favoriteCooldown: time.Second,
 		rateLimiters:     make(map[string]*rate.Limiter),
 	}
 }
@@ -247,26 +258,21 @@ func (uc *FavoriteUsecase) checkRateLimit(ctx context.Context, userId int64, cli
 	return nil
 }
 
+// AddFavorite 修改部分
 func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteCommand) (*AddFavoriteResult, error) {
-	// 参数验证
 	if err := uc.validateCommand(cmd); err != nil {
 		return nil, err
 	}
-
-	// 限流检查
 	if err := uc.checkRateLimit(ctx, cmd.UserId, cmd.ClientIP); err != nil {
 		return nil, err
 	}
 
 	var result *AddFavoriteResult
 	err := uc.repo.WithTransaction(ctx, func(ctx context.Context) error {
-		// 检查用户对该目标是否已有操作
 		existing, err := uc.repo.GetFavoriteByUserTarget(ctx, cmd.UserId, cmd.TargetId, cmd.TargetType)
 		if err != nil {
 			return fmt.Errorf("查询点赞状态失败: %w", err)
 		}
-
-		// 获取当前统计数据
 		stats, err := uc.repo.GetFavoriteStats(ctx, cmd.TargetId, cmd.TargetType)
 		if err != nil {
 			return fmt.Errorf("获取统计数据失败: %w", err)
@@ -274,16 +280,12 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 
 		if existing != nil {
 			if existing.FavoriteType == cmd.FavoriteType {
-				// 同类型操作
 				if existing.IsDeleted {
-					// 恢复已删除的记录
 					existing.IsDeleted = false
 					existing.UpdatedAt = time.Now()
 					if err := uc.repo.UpdateFavorite(ctx, existing); err != nil {
 						return fmt.Errorf("恢复点赞失败: %w", err)
 					}
-
-					// 更新统计
 					if cmd.FavoriteType == 0 {
 						stats.LikeCount++
 					} else {
@@ -291,7 +293,6 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 					}
 					stats.TotalCount++
 				}
-				// 已经存在且未删除，直接返回
 				result = &AddFavoriteResult{
 					AlreadyFavorited: true,
 					TotalCount:       stats.TotalCount,
@@ -299,15 +300,13 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 				}
 				return nil
 			} else {
-				// 不同类型的操作（点赞变点踩或反之）
+				// 切换点赞类型：先取消旧操作
 				if !existing.IsDeleted {
-					// 取消原有操作
 					existing.IsDeleted = true
 					existing.UpdatedAt = time.Now()
 					if err := uc.repo.UpdateFavorite(ctx, existing); err != nil {
 						return fmt.Errorf("取消原有操作失败: %w", err)
 					}
-
 					// 更新原有类型统计
 					if existing.FavoriteType == 0 {
 						stats.LikeCount--
@@ -330,7 +329,6 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 			UpdatedAt:    time.Now(),
 		}
 		favorite.SetId()
-
 		if err := uc.repo.CreateFavorite(ctx, favorite); err != nil {
 			return fmt.Errorf("创建点赞记录失败: %w", err)
 		}
@@ -349,35 +347,36 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 			PreviousType:     -1,
 		}
 
-		// 更新缓存
-		go uc.updateCacheAsync(ctx, cmd, stats)
+		// ---------- 新增：更新作者 total_favorited ----------
+		if cmd.TargetType == 0 && cmd.FavoriteType == 0 { // 视频 + 点赞
+			// 异步获取作者ID并增加 total_favorited
+			go uc.updateAuthorTotalFavorited(context.Background(), cmd.TargetId, 1)
+		}
+		// ------------------------------------------------
 
+		go uc.updateCacheAsync(context.Background(), cmd, stats)
 		return nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
-
 	return result, nil
 }
 
+// RemoveFavorite 修改部分
 func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavoriteCommand) (*RemoveFavoriteResult, error) {
-	// 参数验证
 	if cmd.UserId <= 0 || cmd.TargetId <= 0 {
 		return nil, fmt.Errorf("参数无效")
 	}
 
 	var result *RemoveFavoriteResult
 	err := uc.repo.WithTransaction(ctx, func(ctx context.Context) error {
-		// 查询记录
 		favorite, err := uc.repo.GetFavorite(ctx, cmd.UserId, cmd.TargetId, cmd.TargetType, cmd.FavoriteType)
 		if err != nil {
 			return fmt.Errorf("查询点赞记录失败: %w", err)
 		}
-
 		if favorite == nil || favorite.IsDeleted {
-			// 记录不存在或已删除
 			result = &RemoveFavoriteResult{
 				NotFavorited: true,
 				TotalCount:   0,
@@ -385,20 +384,17 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 			return nil
 		}
 
-		// 获取统计数据
 		stats, err := uc.repo.GetFavoriteStats(ctx, cmd.TargetId, cmd.TargetType)
 		if err != nil {
 			return fmt.Errorf("获取统计数据失败: %w", err)
 		}
 
-		// 软删除
 		favorite.IsDeleted = true
 		favorite.UpdatedAt = time.Now()
 		if err := uc.repo.UpdateFavorite(ctx, favorite); err != nil {
 			return fmt.Errorf("取消点赞失败: %w", err)
 		}
 
-		// 更新统计
 		if cmd.FavoriteType == 0 {
 			stats.LikeCount--
 		} else {
@@ -411,22 +407,39 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 			TotalCount:   stats.TotalCount,
 		}
 
-		// 更新缓存
-		go uc.updateCacheAsync(ctx, &AddFavoriteCommand{
+		// ---------- 新增：更新作者 total_favorited ----------
+		if cmd.TargetType == 0 && cmd.FavoriteType == 0 { // 视频 + 取消点赞
+			go uc.updateAuthorTotalFavorited(context.Background(), cmd.TargetId, -1)
+		}
+		// ------------------------------------------------
+
+		go uc.updateCacheAsync(context.Background(), &AddFavoriteCommand{
 			UserId:       cmd.UserId,
 			TargetId:     cmd.TargetId,
 			TargetType:   cmd.TargetType,
 			FavoriteType: cmd.FavoriteType,
 		}, stats)
-
 		return nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
-
 	return result, nil
+}
+
+// 新增辅助方法：更新作者总获赞数
+func (uc *FavoriteUsecase) updateAuthorTotalFavorited(ctx context.Context, videoId int64, delta int64) {
+	// 获取视频作者ID
+	exist, video, err := uc.videoRepo.GetVideoById(ctx, videoId)
+	if err != nil || !exist || video == nil {
+		uc.log.Warnf("获取视频信息失败，无法更新作者 total_favorited: videoId=%d, err=%v", videoId, err)
+		return
+	}
+	authorId := video.Author.Id
+	if _, err := uc.counterRepo.IncrUserCounter(ctx, authorId, "total_favorited", delta); err != nil {
+		uc.log.Warnf("更新作者 total_favorited 失败: userId=%d, delta=%d, err=%v", authorId, delta, err)
+	}
 }
 
 func (uc *FavoriteUsecase) ListFavorite(ctx context.Context, query *ListFavoriteQuery) (*ListFavoriteResult, error) {

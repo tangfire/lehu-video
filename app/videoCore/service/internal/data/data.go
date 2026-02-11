@@ -26,16 +26,35 @@ var ProviderSet = wire.NewSet(
 // Data .
 type Data struct {
 	// TODO wrapped database client
-	db  *gorm.DB
-	log *log.Helper
+	db      *gorm.DB
+	log     *log.Helper
+	rdb     *redis.Client
+	syncJob *UserCounterSyncJob // 新增
 }
 
 // NewData .
-func NewData(db *gorm.DB, logger log.Logger) (*Data, func(), error) {
-	cleanup := func() {
-		log.NewHelper(logger).Info("closing the data resources")
+func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), error) {
+	logHelper := log.NewHelper(logger)
+	d := &Data{
+		db:  db,
+		rdb: rdb,
+		log: logHelper,
 	}
-	return &Data{db: db, log: log.NewHelper(logger)}, cleanup, nil
+	// 创建 CounterRepo 并启动同步任务
+	counterRepo := NewCounterRepo(rdb, logger)
+	syncJob := NewUserCounterSyncJob(db, counterRepo, logger)
+	syncJob.Start()
+	d.syncJob = syncJob
+
+	cleanup := func() {
+		if d.syncJob != nil {
+			d.syncJob.Stop()
+		}
+		if err := d.rdb.Close(); err != nil {
+			logHelper.Errorf("Redis close error: %v", err)
+		}
+	}
+	return d, cleanup, nil
 }
 
 func NewDB(c *conf.Data, logger log.Logger) *gorm.DB {

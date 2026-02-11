@@ -141,12 +141,17 @@ type CollectionRepo interface {
 }
 
 type CollectionUsecase struct {
-	repo CollectionRepo
-	log  *log.Helper
+	repo        CollectionRepo
+	counterRepo CounterRepo // 新增
+	log         *log.Helper
 }
 
-func NewCollectionUsecase(repo CollectionRepo, logger log.Logger) *CollectionUsecase {
-	return &CollectionUsecase{repo: repo, log: log.NewHelper(logger)}
+func NewCollectionUsecase(repo CollectionRepo, counterRepo CounterRepo, logger log.Logger) *CollectionUsecase {
+	return &CollectionUsecase{
+		repo:        repo,
+		counterRepo: counterRepo,
+		log:         log.NewHelper(logger),
+	}
 }
 
 func (uc *CollectionUsecase) CreateCollection(ctx context.Context, cmd *CreateCollectionCommand) (*CreateCollectionResult, error) {
@@ -297,10 +302,8 @@ func (uc *CollectionUsecase) UpdateCollection(ctx context.Context, cmd *UpdateCo
 }
 
 func (uc *CollectionUsecase) AddVideoToCollection(ctx context.Context, cmd *AddVideoToCollectionCommand) (*AddVideoToCollectionResult, error) {
-	// 业务逻辑：获取收藏夹（处理默认收藏夹逻辑）
 	collectionId := cmd.CollectionId
 	if collectionId == 0 {
-		// 获取默认收藏夹
 		defaultCollection, err := uc.ensureUserHasDefaultCollection(ctx, cmd.UserId)
 		if err != nil {
 			return nil, fmt.Errorf("获取默认收藏夹失败: %v", err)
@@ -308,28 +311,23 @@ func (uc *CollectionUsecase) AddVideoToCollection(ctx context.Context, cmd *AddV
 		collectionId = defaultCollection.Id
 	}
 
-	// 业务逻辑：检查收藏夹是否存在且属于该用户
 	collection, err := uc.repo.GetCollectionByUserIdAndId(ctx, cmd.UserId, collectionId)
 	if err != nil {
 		return nil, fmt.Errorf("查询收藏夹失败: %v", err)
 	}
-
 	if collection == nil {
 		return nil, fmt.Errorf("收藏夹不存在或无权操作")
 	}
 
-	// 业务逻辑：检查是否已经收藏（防止重复收藏）
 	existingRelation, err := uc.repo.GetCollectionVideo(ctx, cmd.UserId, collectionId, cmd.VideoId)
 	if err != nil {
 		return nil, fmt.Errorf("检查收藏关系失败: %v", err)
 	}
-
 	if existingRelation != nil {
 		// 已经收藏，直接返回成功（幂等性）
 		return &AddVideoToCollectionResult{}, nil
 	}
 
-	// 业务逻辑：创建收藏关系
 	relation := &CollectionVideoRelation{
 		CollectionId: collectionId,
 		UserId:       cmd.UserId,
@@ -343,14 +341,18 @@ func (uc *CollectionUsecase) AddVideoToCollection(ctx context.Context, cmd *AddV
 		return nil, err
 	}
 
+	// ---------- 新增：增加用户 favorite_count ----------
+	if _, err := uc.counterRepo.IncrUserCounter(ctx, cmd.UserId, "favorite_count", 1); err != nil {
+		uc.log.Warnf("增加用户 favorite_count 失败: userId=%d, err=%v", cmd.UserId, err)
+	}
+	// ------------------------------------------------
+
 	return &AddVideoToCollectionResult{}, nil
 }
 
 func (uc *CollectionUsecase) RemoveVideoFromCollection(ctx context.Context, cmd *RemoveVideoFromCollectionCommand) (*RemoveVideoFromCollectionResult, error) {
-	// 业务逻辑：获取收藏夹（处理默认收藏夹逻辑）
 	collectionId := cmd.CollectionId
 	if collectionId == 0 {
-		// 获取默认收藏夹
 		defaultCollection, err := uc.ensureUserHasDefaultCollection(ctx, cmd.UserId)
 		if err != nil {
 			return nil, fmt.Errorf("获取默认收藏夹失败: %v", err)
@@ -358,23 +360,25 @@ func (uc *CollectionUsecase) RemoveVideoFromCollection(ctx context.Context, cmd 
 		collectionId = defaultCollection.Id
 	}
 
-	// 业务逻辑：检查收藏关系是否存在
 	relation, err := uc.repo.GetCollectionVideo(ctx, cmd.UserId, collectionId, cmd.VideoId)
 	if err != nil {
 		return nil, fmt.Errorf("检查收藏关系失败: %v", err)
 	}
-
 	if relation == nil {
-		// 不存在收藏关系，直接返回成功（幂等性）
 		return &RemoveVideoFromCollectionResult{}, nil
 	}
 
-	// 业务逻辑：删除收藏关系
 	err = uc.repo.DeleteCollectionVideo(ctx, relation.Id)
 	if err != nil {
 		uc.log.Errorf("从收藏夹移除视频失败: %v", err)
 		return nil, err
 	}
+
+	// ---------- 新增：减少用户 favorite_count ----------
+	if _, err := uc.counterRepo.DecrUserCounter(ctx, cmd.UserId, "favorite_count", 1); err != nil {
+		uc.log.Warnf("减少用户 favorite_count 失败: userId=%d, err=%v", cmd.UserId, err)
+	}
+	// ------------------------------------------------
 
 	return &RemoveVideoFromCollectionResult{}, nil
 }

@@ -117,12 +117,13 @@ type UserRepo interface {
 }
 
 type UserUsecase struct {
-	repo UserRepo
-	log  *log.Helper
+	repo        UserRepo
+	counterRepo CounterRepo // 新增
+	log         *log.Helper
 }
 
-func NewUserUsecase(repo UserRepo, logger log.Logger) *UserUsecase {
-	return &UserUsecase{repo: repo, log: log.NewHelper(logger)}
+func NewUserUsecase(repo UserRepo, counterRepo CounterRepo, logger log.Logger) *UserUsecase {
+	return &UserUsecase{repo: repo, counterRepo: counterRepo, log: log.NewHelper(logger)}
 }
 
 func (uc *UserUsecase) CreateUser(ctx context.Context, cmd *CreateUserCommand) (*CreateUserResult, error) {
@@ -154,35 +155,69 @@ func (uc *UserUsecase) CreateUser(ctx context.Context, cmd *CreateUserCommand) (
 	return &CreateUserResult{UserId: user.Id}, nil
 }
 
+// GetUserBaseInfo 优先从 Redis 获取计数器，降级从 DB 获取
 func (uc *UserUsecase) GetUserBaseInfo(ctx context.Context, query *GetUserBaseInfoQuery) (*GetUserBaseInfoResult, error) {
-
 	var (
 		existUser *User
 		exist     bool
 		err       error
 	)
 
-	// 优先通过UserId查找
 	if query.UserId != 0 {
 		exist, existUser, err = uc.repo.GetUserById(ctx, query.UserId)
 	} else {
-		// 通过AccountId查找
 		exist, existUser, err = uc.repo.GetUserByAccountId(ctx, query.AccountId)
 	}
-
-	// 处理错误
 	if err != nil {
-		// 记录错误日志
 		uc.log.Error("获取用户信息失败", "error", err, "userId", query.UserId, "accountId", query.AccountId)
 		return nil, err
 	}
-
-	// 用户不存在
 	if !exist {
 		return nil, errors.New("用户不存在")
 	}
 
+	// 从 Redis 获取计数器
+	counters, err := uc.counterRepo.GetUserCounters(ctx, existUser.Id)
+	if err != nil {
+		uc.log.Warnf("从 Redis 获取用户计数器失败: %v, 使用 DB 值", err)
+	} else if counters != nil {
+		// 使用 Redis 中的值覆盖
+		if val, ok := counters["follow_count"]; ok {
+			existUser.FollowCount = val
+		}
+		if val, ok := counters["follower_count"]; ok {
+			existUser.FollowerCount = val
+		}
+		if val, ok := counters["total_favorited"]; ok {
+			existUser.TotalFavorited = val
+		}
+		if val, ok := counters["work_count"]; ok {
+			existUser.WorkCount = val
+		}
+		if val, ok := counters["favorite_count"]; ok {
+			existUser.FavoriteCount = val
+		}
+	} else {
+		// Redis 中没有，则从 DB 加载并同步到 Redis
+		go uc.syncUserCountersToRedis(context.Background(), existUser)
+	}
+
 	return &GetUserBaseInfoResult{User: existUser}, nil
+}
+
+// 将 DB 中的计数器同步到 Redis（异步）
+func (uc *UserUsecase) syncUserCountersToRedis(ctx context.Context, user *User) {
+	counters := map[string]int64{
+		"follow_count":    user.FollowCount,
+		"follower_count":  user.FollowerCount,
+		"total_favorited": user.TotalFavorited,
+		"work_count":      user.WorkCount,
+		"favorite_count":  user.FavoriteCount,
+	}
+	err := uc.counterRepo.SetUserCounters(ctx, user.Id, counters)
+	if err != nil {
+		uc.log.Warnf("同步用户计数器到 Redis 失败: %v", err)
+	}
 }
 
 func (uc *UserUsecase) UpdateUserInfo(ctx context.Context, cmd *UpdateUserInfoCommand) (*UpdateUserInfoResult, error) {
@@ -274,8 +309,7 @@ func (uc *UserUsecase) SearchUsers(ctx context.Context, query *SearchUsersQuery)
 }
 
 func (uc *UserUsecase) UpdateUserStats(ctx context.Context, cmd *UpdateUserStatsCommand) (*UpdateUserStatsResult, error) {
-
-	updates := make(map[string]interface{})
+	updates := make(map[string]int64)
 	if cmd.FollowCount != nil {
 		updates["follow_count"] = *cmd.FollowCount
 	}
@@ -296,10 +330,11 @@ func (uc *UserUsecase) UpdateUserStats(ctx context.Context, cmd *UpdateUserStats
 		return &UpdateUserStatsResult{}, nil
 	}
 
-	err := uc.repo.UpdateUserStats(ctx, cmd.UserId, updates)
+	// 直接更新 Redis（覆盖写）
+	err := uc.counterRepo.SetUserCounters(ctx, cmd.UserId, updates)
 	if err != nil {
 		return nil, err
 	}
-
+	// 不再同步更新 DB，DB 由定时任务同步
 	return &UpdateUserStatsResult{}, nil
 }

@@ -75,21 +75,42 @@ type GetVideoByIdListResult struct {
 	Videos []*Video
 }
 
+// VideoStats 视频统计信息
+type VideoStats struct {
+	VideoID      string
+	LikeCount    int64
+	CommentCount int64
+	ShareCount   int64
+	ViewCount    int64
+	HotScore     float64
+}
+
 type VideoRepo interface {
 	PublishVideo(ctx context.Context, video *Video) (int64, error)
 	GetVideoById(ctx context.Context, id int64) (bool, *Video, error)
 	GetVideoListByUid(ctx context.Context, uid int64, latestTime time.Time, pageStats PageStats) (int64, []*Video, error)
 	GetVideoByIdList(ctx context.Context, idList []int64) ([]*Video, error)
 	GetFeedVideos(ctx context.Context, latestTime time.Time, pageStats PageStats) ([]*Video, error)
+
+	GetHotVideos(ctx context.Context, limit int) ([]*Video, error)
+	GetVideosByAuthors(ctx context.Context, authorIDs []string, latestTime int64, limit int) ([]*Video, error)
+	GetAuthorInfo(ctx context.Context, authorID string) (*Author, error)
+	GetVideoListByTime(ctx context.Context, latestTime time.Time, limit int) ([]*Video, error)
+	GetVideoStats(ctx context.Context, videoID string) (*VideoStats, error)
 }
 
 type VideoUsecase struct {
-	repo VideoRepo
-	log  *log.Helper
+	repo        VideoRepo
+	counterRepo CounterRepo // 新增
+	log         *log.Helper
 }
 
-func NewVideoUsecase(repo VideoRepo, logger log.Logger) *VideoUsecase {
-	return &VideoUsecase{repo: repo, log: log.NewHelper(logger)}
+func NewVideoUsecase(repo VideoRepo, counterRepo CounterRepo, logger log.Logger) *VideoUsecase {
+	return &VideoUsecase{
+		repo:        repo,
+		counterRepo: counterRepo,
+		log:         log.NewHelper(logger),
+	}
 }
 
 func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoCommand) (*PublishVideoResult, error) {
@@ -106,6 +127,12 @@ func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoComma
 	if err != nil {
 		return nil, err
 	}
+
+	// ---------- 新增：增加用户 work_count ----------
+	if _, err := uc.counterRepo.IncrUserCounter(ctx, cmd.UserId, "work_count", 1); err != nil {
+		uc.log.Warnf("增加用户 work_count 失败: userId=%d, err=%v", cmd.UserId, err)
+	}
+	// ------------------------------------------------
 
 	return &PublishVideoResult{
 		VideoId: videoId,

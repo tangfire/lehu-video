@@ -59,6 +59,11 @@ type FollowRepo interface {
 	// 简单的查询
 	GetFollowsByCondition(ctx context.Context, condition map[string]interface{}) ([]FollowData, error)
 	CountFollowsByCondition(ctx context.Context, condition map[string]interface{}) (int64, error)
+
+	ListFollowing(ctx context.Context, userID string, followType int32, pageStats *PageStats) ([]string, error)
+	GetFollowers(ctx context.Context, userID string) ([]string, error)
+	GetFollowersPaginated(ctx context.Context, userID string, offset, limit int) ([]string, int64, error)
+	CountFollowers(ctx context.Context, userID string) (int64, error)
 }
 
 // FollowData 从数据层返回的数据结构

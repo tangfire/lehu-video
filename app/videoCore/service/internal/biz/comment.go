@@ -2,8 +2,12 @@ package biz
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/coocood/freecache"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -140,14 +144,20 @@ type CommentRepo interface {
 
 // CommentUsecase 业务逻辑层
 type CommentUsecase struct {
-	repo CommentRepo
-	log  *log.Helper
+	repo        CommentRepo
+	cache       *freecache.Cache  // 本地缓存
+	redis       *redis.Client     // Redis 客户端
+	hotDetector *HotVideoDetector // 热点检测器
+	log         *log.Helper
 }
 
-func NewCommentUsecase(repo CommentRepo, logger log.Logger) *CommentUsecase {
+func NewCommentUsecase(repo CommentRepo, cache *freecache.Cache, redis *redis.Client, hotDetector *HotVideoDetector, logger log.Logger) *CommentUsecase {
 	return &CommentUsecase{
-		repo: repo,
-		log:  log.NewHelper(logger),
+		repo:        repo,
+		cache:       cache,
+		redis:       redis,
+		hotDetector: hotDetector,
+		log:         log.NewHelper(logger),
 	}
 }
 
@@ -222,14 +232,68 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentC
 	return &RemoveCommentResult{}, nil
 }
 
-// ListVideoComments 获取视频评论列表
+// ListVideoComments 获取视频评论列表（带多级缓存）
+// 注意：由于 Comment 结构体包含 ChildComments 字段，
+// 且为循环引用，直接 JSON 序列化会有问题。
+// 需要修改 Comment 结构体，移除 ChildComments 字段的指针循环，
+// 或者在序列化时忽略。简单方案：在缓存时不存储 ChildComments，查询时单独加载。
+// 但为了简化，我们缓存完整评论树时使用 []*Comment 本身没有问题（只要没有互相引用），
+// 但注意 ChildComments 中的 ParentID 指向父评论，不是循环引用。所以可以正常序列化。
 func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVideoCommentsQuery) (*ListVideoCommentsResult, error) {
-	// 1. 参数验证
+	// 1. 记录该视频的一次请求（用于热点统计）
+	uc.hotDetector.IncrRequestCount(ctx, query.VideoID)
+
+	// 2. 判断是否为热门视频，决定缓存时间
+	isHot := uc.hotDetector.IsHotVideo(ctx, query.VideoID)
+	var localTTL, redisTTL int
+	if isHot {
+		localTTL = 30  // 本地缓存30秒
+		redisTTL = 300 // Redis缓存5分钟
+	} else {
+		localTTL = 5  // 本地缓存5秒
+		redisTTL = 60 // Redis缓存1分钟
+	}
+
+	// 3. 构建缓存 key
+	cacheKey := fmt.Sprintf("video_comments:%d:page:%d:size:%d", query.VideoID, query.PageStats.Page, query.PageStats.PageSize)
+
+	// 4. 尝试从本地缓存读取
+	var result ListVideoCommentsResult
+	found, err := getFromLocalCache(uc.cache, cacheKey, &result)
+	if err == nil && found {
+		uc.log.Debugf("本地缓存命中: %s", cacheKey)
+		return &result, nil
+	}
+
+	// 5. 尝试从 Redis 读取
+	found, err = uc.getFromRedis(ctx, cacheKey, &result)
+	if err == nil && found {
+		uc.log.Debugf("Redis缓存命中: %s", cacheKey)
+		// 回填本地缓存
+		_ = setToLocalCache(uc.cache, cacheKey, &result, localTTL)
+		return &result, nil
+	}
+
+	// 6. 缓存未命中，查询数据库
+	uc.log.Debugf("缓存未命中，查询数据库: %s", cacheKey)
+	dbResult, err := uc.queryVideoComments(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	// 7. 回填缓存
+	_ = setToLocalCache(uc.cache, cacheKey, dbResult, localTTL)
+	_ = uc.setToRedis(ctx, cacheKey, dbResult, redisTTL)
+
+	return dbResult, nil
+}
+
+// queryVideoComments 原 ListVideoComments 的实际查询逻辑
+func (uc *CommentUsecase) queryVideoComments(ctx context.Context, query *ListVideoCommentsQuery) (*ListVideoCommentsResult, error) {
+	// 原有的 ListVideoComments 业务逻辑（去掉缓存部分）
 	if query.VideoID <= 0 {
 		return nil, ErrInvalidParams
 	}
-
-	// 2. 构建查询条件（一级评论）
 	condition := map[string]interface{}{
 		"video_id":   query.VideoID,
 		"parent_id":  0,
@@ -238,14 +302,10 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 		"offset":     (query.PageStats.Page - 1) * query.PageStats.PageSize,
 		"order_by":   "created_at DESC",
 	}
-
-	// 3. 查询一级评论
 	comments, err := uc.repo.FindByCondition(ctx, condition)
 	if err != nil {
 		return nil, err
 	}
-
-	// 4. 查询总数
 	countCondition := map[string]interface{}{
 		"video_id":  query.VideoID,
 		"parent_id": 0,
@@ -254,16 +314,13 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 	if err != nil {
 		return nil, err
 	}
-
-	// 5. 如果需要子评论，批量加载
 	if query.WithChildren && len(comments) > 0 {
 		err = uc.loadChildComments(ctx, comments)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	// 6. 获取点赞数统计
+	// 获取点赞数
 	commentIDs := make([]int64, len(comments))
 	for i, comment := range comments {
 		commentIDs[i] = comment.ID
@@ -278,11 +335,58 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 			}
 		}
 	}
-
 	return &ListVideoCommentsResult{
 		Comments: comments,
 		Total:    total,
 	}, nil
+}
+
+// 本地缓存操作封装
+func getFromLocalCache(cache *freecache.Cache, key string, dest interface{}) (bool, error) {
+	data, err := cache.Get([]byte(key))
+	if err != nil {
+		if err == freecache.ErrNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	err = json.Unmarshal(data, dest)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func setToLocalCache(cache *freecache.Cache, key string, value interface{}, ttl int) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return cache.Set([]byte(key), data, ttl)
+}
+
+// Redis 缓存操作
+func (uc *CommentUsecase) getFromRedis(ctx context.Context, key string, dest interface{}) (bool, error) {
+	data, err := uc.redis.Get(ctx, key).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return false, nil
+		}
+		return false, err
+	}
+	err = json.Unmarshal(data, dest)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (uc *CommentUsecase) setToRedis(ctx context.Context, key string, value interface{}, ttl int) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return uc.redis.Set(ctx, key, data, time.Duration(ttl)*time.Second).Err()
 }
 
 // ListChildComments 获取子评论列表
