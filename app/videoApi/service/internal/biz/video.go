@@ -3,10 +3,8 @@ package biz
 import (
 	"context"
 	"errors"
-	"github.com/spf13/cast"
-	"time"
-
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/spf13/cast"
 )
 
 // Video 视频
@@ -229,33 +227,49 @@ func (uc *VideoUsecase) GetVideo(ctx context.Context, input *GetVideoInput) (*Ge
 }
 
 // FeedVideo 视频流
+// api/videoApi/service/internal/biz/video.go
 func (uc *VideoUsecase) FeedVideo(ctx context.Context, input *FeedVideoInput) (*FeedVideoOutput, error) {
-	// 设置默认值
-	if input.FeedNum <= 0 {
-		input.FeedNum = 30
+	// 1. 调用 core 获取 FeedItem 列表
+	feedItems, nextTime, err := uc.core.GetFeed(ctx, input.UserID, input.LatestTime, int32(input.FeedNum), 1 /* 默认推荐流，可按需调整 */)
+	if err != nil {
+		return nil, err
+	}
+	if len(feedItems) == 0 {
+		return &FeedVideoOutput{Videos: []*Video{}, NextTime: nextTime}, nil
 	}
 
-	// 获取视频列表
-	videos, err := uc.core.Feed(ctx, input.UserID, input.FeedNum, input.LatestTime)
+	// 2. 提取 videoID 列表
+	videoIDs := make([]string, 0, len(feedItems))
+	for _, item := range feedItems {
+		videoIDs = append(videoIDs, item.VideoID)
+	}
+
+	// 3. 批量获取视频详情（基础信息）
+	videos, err := uc.core.GetVideoByIdList(ctx, videoIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	// 组装完整的视频信息
+	// 4. 组装完整视频信息（互动状态、计数等）
 	videos, err = uc.assembler.AssembleVideos(ctx, videos, input.UserID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 计算下次请求的时间（这里简化处理，实际可能需要根据视频创建时间计算）
-	var nextTime int64
-	if len(videos) > 0 {
-		// 使用最后一个视频的时间作为下次请求的latest_time
-		nextTime = time.Now().Unix()
+	// 5. 按 FeedItem 的顺序重新排序（因为 GetVideoByIdList 返回顺序可能与输入不一致）
+	videoMap := make(map[string]*Video, len(videos))
+	for _, v := range videos {
+		videoMap[v.ID] = v
+	}
+	orderedVideos := make([]*Video, 0, len(feedItems))
+	for _, item := range feedItems {
+		if v, ok := videoMap[item.VideoID]; ok {
+			orderedVideos = append(orderedVideos, v)
+		}
 	}
 
 	return &FeedVideoOutput{
-		Videos:   videos,
+		Videos:   orderedVideos,
 		NextTime: nextTime,
 	}, nil
 }

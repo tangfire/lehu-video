@@ -94,6 +94,7 @@ func (r *CoreAdapterImpl) ListPublishedVideo(ctx context.Context, userId string,
 	return int64(resp.PageStats.Total), retVideos, nil
 }
 
+// Feed deprecated
 func (r *CoreAdapterImpl) Feed(ctx context.Context, userId string, num int64, latestTime int64) ([]*biz.Video, error) {
 	req := &core.FeedShortVideoReq{
 		LatestTime: latestTime,

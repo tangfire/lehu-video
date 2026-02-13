@@ -4,6 +4,7 @@ package biz
 import (
 	"context"
 	"encoding/json"
+	"lehu-video/app/videoCore/service/internal/conf"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -22,11 +23,15 @@ type KafkaConsumer struct {
 	log         *log.Helper
 }
 
-func NewKafkaConsumer(brokers []string, topic string, feedUsecase *FeedUsecase, logger log.Logger) *KafkaConsumer {
+func NewKafkaConsumer(conf *conf.Data, feedUsecase *FeedUsecase, logger log.Logger) *KafkaConsumer {
+	return newKafkaConsumer(conf.Kafka.Brokers, conf.Kafka.Topic.VideoPublish, conf.Kafka.GroupId, feedUsecase, logger)
+}
+
+func newKafkaConsumer(brokers []string, topic string, groupId string, feedUsecase *FeedUsecase, logger log.Logger) *KafkaConsumer {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
 		Topic:    topic,
-		GroupID:  "feed_service",
+		GroupID:  groupId,
 		MinBytes: 10e3,
 		MaxBytes: 10e6,
 	})

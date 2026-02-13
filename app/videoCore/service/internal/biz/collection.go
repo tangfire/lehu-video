@@ -160,6 +160,10 @@ func (uc *CollectionUsecase) CreateCollection(ctx context.Context, cmd *CreateCo
 		return nil, fmt.Errorf("收藏夹名称不能为空")
 	}
 
+	if cmd.Name == "默认收藏夹" {
+		return nil, fmt.Errorf("命名不能为默认收藏夹")
+	}
+
 	// 业务逻辑：创建收藏夹
 	collection := &Collection{
 		UserId:      cmd.UserId,
@@ -203,6 +207,7 @@ func (uc *CollectionUsecase) GetCollectionById(ctx context.Context, query *GetCo
 }
 
 func (uc *CollectionUsecase) RemoveCollection(ctx context.Context, cmd *RemoveCollectionCommand) (*RemoveCollectionResult, error) {
+	// todo 其实这里可以放在api服务进行校验是不是自己的收藏夹
 	// 业务逻辑：权限验证 - 只能删除自己的收藏夹
 	collection, err := uc.repo.GetCollectionByUserIdAndId(ctx, cmd.UserId, cmd.CollectionId)
 	if err != nil {
@@ -397,6 +402,7 @@ func (uc *CollectionUsecase) ListVideo4Collection(ctx context.Context, query *Li
 
 	offset := (query.PageStats.Page - 1) * query.PageStats.PageSize
 
+	// todo 这两步应该可以合成一步的，一般我们ListVideoIdsByCollectionId的时候，就要获取total了
 	videoIds, err := uc.repo.ListVideoIdsByCollectionId(ctx, query.CollectionId, int(offset), int(query.PageStats.PageSize))
 	if err != nil {
 		uc.log.Errorf("查询收藏夹视频列表失败: %v", err)

@@ -26,25 +26,25 @@ const (
 type FeedType int32
 
 const (
-	FeedType_FOLLOWING FeedType = 0
-	FeedType_RECOMMEND FeedType = 1
-	FeedType_HOT       FeedType = 2
-	FeedType_MIXED     FeedType = 3
+	FeedType_FOLLOWINGStream FeedType = 0
+	FeedType_RECOMMENDStream FeedType = 1
+	FeedType_HOTStream       FeedType = 2
+	FeedType_MIXEDStream     FeedType = 3
 )
 
 // Enum value maps for FeedType.
 var (
 	FeedType_name = map[int32]string{
-		0: "FOLLOWING",
-		1: "RECOMMEND",
-		2: "HOT",
-		3: "MIXED",
+		0: "FOLLOWINGStream",
+		1: "RECOMMENDStream",
+		2: "HOTStream",
+		3: "MIXEDStream",
 	}
 	FeedType_value = map[string]int32{
-		"FOLLOWING": 0,
-		"RECOMMEND": 1,
-		"HOT":       2,
-		"MIXED":     3,
+		"FOLLOWINGStream": 0,
+		"RECOMMENDStream": 1,
+		"HOTStream":       2,
+		"MIXEDStream":     3,
 	}
 )
 
@@ -140,7 +140,7 @@ func (x *GetFeedReq) GetFeedType() FeedType {
 	if x != nil {
 		return x.FeedType
 	}
-	return FeedType_FOLLOWING
+	return FeedType_FOLLOWINGStream
 }
 
 type GetFeedResp struct {
@@ -557,16 +557,17 @@ const file_api_videoCore_service_v1_feed_proto_rawDesc = "" +
 	"\tauthor_id\x18\x02 \x01(\tR\bauthorId\x12\x1c\n" +
 	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\"P\n" +
 	"\x16PushToUserTimelineResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta*<\n" +
-	"\bFeedType\x12\r\n" +
-	"\tFOLLOWING\x10\x00\x12\r\n" +
-	"\tRECOMMEND\x10\x01\x12\a\n" +
-	"\x03HOT\x10\x02\x12\t\n" +
-	"\x05MIXED\x10\x032\xc5\x02\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta*T\n" +
+	"\bFeedType\x12\x13\n" +
+	"\x0fFOLLOWINGStream\x10\x00\x12\x13\n" +
+	"\x0fRECOMMENDStream\x10\x01\x12\r\n" +
+	"\tHOTStream\x10\x02\x12\x0f\n" +
+	"\vMIXEDStream\x10\x032\xc5\x02\n" +
 	"\vFeedService\x12V\n" +
 	"\aGetFeed\x12$.api.videoCore.service.v1.GetFeedReq\x1a%.api.videoCore.service.v1.GetFeedResp\x12e\n" +
 	"\fGetHotVideos\x12).api.videoCore.service.v1.GetHotVideosReq\x1a*.api.videoCore.service.v1.GetHotVideosResp\x12w\n" +
-	"\x12PushToUserTimeline\x12/.api.videoCore.service.v1.PushToUserTimelineReq\x1a0.api.videoCore.service.v1.PushToUserTimelineRespB(Z&lehu-video/api/videoCore/service/v1;v1b\x06proto3"
+	"\x12PushToUserTimeline\x12/.api.videoCore.service.v1.PushToUserTimelineReq\x1a0.api.videoCore.service.v1.PushToUserTimelineRespBD\n" +
+	"\x18api.videoCore.service.v1P\x01Z&lehu-video/api/videoCore/service/v1;v1b\x06proto3"
 
 var (
 	file_api_videoCore_service_v1_feed_proto_rawDescOnce sync.Once

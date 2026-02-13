@@ -13,6 +13,7 @@ import (
 type CoreAdapterImpl struct {
 	user       core.UserServiceClient
 	video      core.VideoServiceClient
+	feed       core.FeedServiceClient
 	collection core.CollectionServiceClient
 	comment    core.CommentServiceClient
 	favorite   core.FavoriteServiceClient
@@ -23,6 +24,7 @@ type CoreAdapterImpl struct {
 func NewCoreAdapter(
 	user core.UserServiceClient,
 	video core.VideoServiceClient,
+	feed core.FeedServiceClient,
 	collection core.CollectionServiceClient,
 	comment core.CommentServiceClient,
 	favorite core.FavoriteServiceClient,
@@ -31,6 +33,7 @@ func NewCoreAdapter(
 	return &CoreAdapterImpl{
 		user:       user,
 		video:      video,
+		feed:       feed,
 		collection: collection,
 		comment:    comment,
 		favorite:   favorite,
@@ -52,6 +55,21 @@ func NewUserServiceClient(r registry.Discovery) core.UserServiceClient {
 		panic(err)
 	}
 	return core.NewUserServiceClient(conn)
+}
+
+func NewFeedServiceClient(r registry.Discovery) core.FeedServiceClient {
+	conn, err := grpc.DialInsecure(
+		context.Background(),
+		grpc.WithEndpoint("discovery:///lehu-video.core.service"),
+		grpc.WithDiscovery(r),
+		grpc.WithMiddleware(
+			recovery.Recovery(),
+		),
+	)
+	if err != nil {
+		panic(err)
+	}
+	return core.NewFeedServiceClient(conn)
 }
 
 func NewVideoServiceClient(r registry.Discovery) core.VideoServiceClient {

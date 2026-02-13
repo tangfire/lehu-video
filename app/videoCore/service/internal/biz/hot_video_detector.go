@@ -10,44 +10,48 @@ import (
 )
 
 const (
-	hotVideoRequestCountKey = "hot:video:reqcnt" // ZSet，score 为请求次数
-	hotVideoListKey         = "hot:video:top100" // 缓存热门视频ID列表
-	hotVideoTTL             = 5 * time.Minute    // 热门视频缓存时长
+	hotVideoKeyPrefix = "hot:video:reqcnt:" // 分桶key前缀
+	hotVideoTopKey    = "hot:video:top100"  // 热门视频Set
 )
 
 type HotVideoDetector struct {
-	redis  *redis.Client
-	log    *log.Helper
-	stopCh chan struct{}
-	topN   int
-	window time.Duration // 统计窗口，默认 1分钟
+	redis      *redis.Client
+	log        *log.Helper
+	stopCh     chan struct{}
+	topN       int
+	bucketSize time.Duration // 单个桶大小（1分钟）
+	windowSize int           // 滑动窗口桶数量（例如5分钟）
+	calcTicker *time.Ticker
 }
 
 func NewHotVideoDetector(redis *redis.Client, logger log.Logger) *HotVideoDetector {
 	return &HotVideoDetector{
-		redis:  redis,
-		log:    log.NewHelper(logger),
-		stopCh: make(chan struct{}),
-		topN:   100,
-		window: 1 * time.Minute,
+		redis:      redis,
+		log:        log.NewHelper(logger),
+		stopCh:     make(chan struct{}),
+		topN:       100,
+		bucketSize: time.Minute,
+		windowSize: 5, // 最近5分钟
 	}
 }
 
 func (d *HotVideoDetector) Start() {
+	d.calcTicker = time.NewTicker(d.bucketSize)
 	go d.run()
 }
 
 func (d *HotVideoDetector) Stop() {
 	close(d.stopCh)
+	if d.calcTicker != nil {
+		d.calcTicker.Stop()
+	}
 }
 
 func (d *HotVideoDetector) run() {
-	ticker := time.NewTicker(d.window)
-	defer ticker.Stop()
 	d.calcTopN()
 	for {
 		select {
-		case <-ticker.C:
+		case <-d.calcTicker.C:
 			d.calcTopN()
 		case <-d.stopCh:
 			return
@@ -55,59 +59,111 @@ func (d *HotVideoDetector) run() {
 	}
 }
 
-// IncrRequestCount 记录视频的一次请求
+func (d *HotVideoDetector) getBucketKey(t time.Time) string {
+	return hotVideoKeyPrefix + t.Format("200601021504")
+}
+
+//////////////////////////////////////////////////////
+// 记录请求
+//////////////////////////////////////////////////////
+
 func (d *HotVideoDetector) IncrRequestCount(ctx context.Context, videoID int64) {
-	key := hotVideoRequestCountKey
+	now := time.Now()
+	key := d.getBucketKey(now)
 	member := strconv.FormatInt(videoID, 10)
-	// 使用 ZIncrBy 增加计数，并设置过期时间（自动删除）
+
 	err := d.redis.ZIncrBy(ctx, key, 1, member).Err()
 	if err != nil {
 		d.log.Warnf("增加视频请求计数失败: %v", err)
-	}
-	// 设置 ZSet 的过期时间，避免无限增长
-	d.redis.Expire(ctx, key, 2*d.window)
-}
-
-// calcTopN 计算 Top N 热门视频并存入 Redis
-func (d *HotVideoDetector) calcTopN() {
-	ctx := context.Background()
-	key := hotVideoRequestCountKey
-	// 获取分数最高的 N 个成员
-	res, err := d.redis.ZRevRangeWithScores(ctx, key, 0, int64(d.topN-1)).Result()
-	if err != nil {
-		d.log.Errorf("获取热门视频排行失败: %v", err)
 		return
 	}
-	hotIDs := make([]string, 0, len(res))
-	for _, z := range res {
-		hotIDs = append(hotIDs, z.Member.(string))
+
+	// 设置过期时间：窗口大小 + 1分钟缓冲
+	expire := time.Duration(d.windowSize+1) * d.bucketSize
+	d.redis.Expire(ctx, key, expire)
+}
+
+//////////////////////////////////////////////////////
+// 计算TopN
+//////////////////////////////////////////////////////
+
+func (d *HotVideoDetector) calcTopN() {
+	ctx := context.Background()
+
+	now := time.Now()
+
+	// 收集最近 windowSize 个桶
+	keys := make([]string, 0, d.windowSize)
+	for i := 0; i < d.windowSize; i++ {
+		t := now.Add(-time.Duration(i) * d.bucketSize)
+		keys = append(keys, d.getBucketKey(t))
 	}
-	// 缓存热门视频ID列表
-	if len(hotIDs) > 0 {
-		err = d.redis.Set(ctx, hotVideoListKey, hotIDs, hotVideoTTL).Err()
-		if err != nil {
-			d.log.Errorf("缓存热门视频列表失败: %v", err)
-		}
+
+	unionKey := hotVideoKeyPrefix + "union_tmp"
+
+	// ZUNIONSTORE 聚合
+	zStore := &redis.ZStore{
+		Keys: keys,
+	}
+
+	err := d.redis.ZUnionStore(ctx, unionKey, zStore).Err()
+	if err != nil {
+		d.log.Errorf("聚合热门视频失败: %v", err)
+		return
+	}
+
+	d.redis.Expire(ctx, unionKey, time.Minute)
+
+	// 取TopN
+	topMembers, err := d.redis.ZRevRange(ctx, unionKey, 0, int64(d.topN-1)).Result()
+	if err != nil {
+		d.log.Errorf("获取TopN失败: %v", err)
+		return
+	}
+
+	if len(topMembers) == 0 {
+		return
+	}
+
+	// 用Set存储TopN
+	pipe := d.redis.TxPipeline()
+	pipe.Del(ctx, hotVideoTopKey)
+	pipe.SAdd(ctx, hotVideoTopKey, topMembers)
+	pipe.Expire(ctx, hotVideoTopKey, time.Minute)
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		d.log.Errorf("更新热门视频Set失败: %v", err)
 	}
 }
 
-// IsHotVideo 判断视频是否为热门视频
+//////////////////////////////////////////////////////
+// 判断是否热门
+//////////////////////////////////////////////////////
+
 func (d *HotVideoDetector) IsHotVideo(ctx context.Context, videoID int64) bool {
-	// 从 Redis 获取热门视频列表
-	cmd := d.redis.Get(ctx, hotVideoListKey)
-	if cmd.Err() != nil {
-		return false
-	}
-	var hotIDs []string
-	err := cmd.ScanSlice(&hotIDs)
+	member := strconv.FormatInt(videoID, 10)
+
+	ok, err := d.redis.SIsMember(ctx, hotVideoTopKey, member).Result()
 	if err != nil {
 		return false
 	}
-	target := strconv.FormatInt(videoID, 10)
-	for _, id := range hotIDs {
-		if id == target {
-			return true
-		}
+	return ok
+}
+
+//////////////////////////////////////////////////////
+// 获取热门列表
+//////////////////////////////////////////////////////
+
+func (d *HotVideoDetector) GetHotVideos(ctx context.Context) ([]int64, error) {
+	members, err := d.redis.SMembers(ctx, hotVideoTopKey).Result()
+	if err != nil {
+		return nil, err
 	}
-	return false
+
+	result := make([]int64, 0, len(members))
+	for _, m := range members {
+		id, _ := strconv.ParseInt(m, 10, 64)
+		result = append(result, id)
+	}
+	return result, nil
 }

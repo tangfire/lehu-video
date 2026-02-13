@@ -176,6 +176,7 @@ func (uc *UserUsecase) GetUserBaseInfo(ctx context.Context, query *GetUserBaseIn
 		return nil, errors.New("用户不存在")
 	}
 
+	// todo 感觉这里是不是写的有点问题?因为这些count字段不是好像都已经在数据库了嘛？？好像不需要什么额外的查询
 	// 从 Redis 获取计数器
 	counters, err := uc.counterRepo.GetUserCounters(ctx, existUser.Id)
 	if err != nil {
@@ -222,10 +223,6 @@ func (uc *UserUsecase) syncUserCountersToRedis(ctx context.Context, user *User) 
 
 func (uc *UserUsecase) UpdateUserInfo(ctx context.Context, cmd *UpdateUserInfoCommand) (*UpdateUserInfoResult, error) {
 	var err error
-	if err != nil {
-		return nil, errors.New("无效的用户ID")
-	}
-
 	exist, oldUser, err := uc.repo.GetUserById(ctx, cmd.UserId)
 	if err != nil {
 		return nil, err
@@ -308,6 +305,7 @@ func (uc *UserUsecase) SearchUsers(ctx context.Context, query *SearchUsersQuery)
 	}, nil
 }
 
+// todo 是不是因为你点赞什么的，然后就去操作数据库，感觉压力太大了，所以这里有个先操作缓存的操作呢???
 func (uc *UserUsecase) UpdateUserStats(ctx context.Context, cmd *UpdateUserStatsCommand) (*UpdateUserStatsResult, error) {
 	updates := make(map[string]int64)
 	if cmd.FollowCount != nil {

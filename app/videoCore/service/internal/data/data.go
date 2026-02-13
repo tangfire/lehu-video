@@ -1,13 +1,13 @@
 package data
 
 import (
-	"github.com/redis/go-redis/v9"
-	"lehu-video/app/videoCore/service/internal/conf"
-
+	"github.com/coocood/freecache"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"lehu-video/app/videoCore/service/internal/conf"
 )
 
 // ProviderSet is data providers.
@@ -21,6 +21,8 @@ var ProviderSet = wire.NewSet(
 	NewCommentRepo,
 	NewCollectionRepo,
 	NewRedis,
+	NewFreeCache,
+	NewCounterRepo,
 )
 
 // Data .
@@ -73,4 +75,9 @@ func NewRedis(c *conf.Data) *redis.Client {
 		DB:       0,
 	})
 	return rds
+}
+
+func NewFreeCache(c *conf.Data) *freecache.Cache {
+	localCache := freecache.NewCache(int(c.LocalCache.Size))
+	return localCache
 }

@@ -14,3 +14,11 @@ data:
     password: "8888.216"
     read_timeout: 20s
     write_timeout: 20s
+  kafka:
+    brokers:
+      - 127.0.0.1:9092
+    group_id: feed_service
+    topic:
+      video_publish: video_publish_topic
+  local_cache:
+    size: 100 * 1024 * 1024

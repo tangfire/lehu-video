@@ -74,7 +74,7 @@ func (r *userRepo) UpdateUser(ctx context.Context, in *biz.User) error {
 		UpdatedAt:       time.Now(),
 	}
 
-	err := r.data.db.Table(model.User{}.TableName()).Save(&user).Error
+	err := r.data.db.Table(model.User{}.TableName()).Updates(&user).Error
 	if err != nil {
 		return fmt.Errorf("更新用户失败: %w", err)
 	}

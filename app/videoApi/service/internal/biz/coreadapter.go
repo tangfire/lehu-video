@@ -22,7 +22,10 @@ type CoreAdapter interface {
 	CountComments4Video(ctx context.Context, videoIdList []string) (map[string]int64, error)
 	CountFavorite4Video(ctx context.Context, videoIdList []string) (map[string]FavoriteCount, error)
 	CountCollected4Video(ctx context.Context, videoIdList []string) (map[string]int64, error)
+	// Feed deprecated
 	Feed(ctx context.Context, userId string, num int64, latestTime int64) ([]*Video, error)
+	// GetFeed 获取 Feed 流（新版）
+	GetFeed(ctx context.Context, userID string, latestTime int64, pageSize int32, feedType int32) ([]*FeedItem, int64, error)
 	CreateComment(ctx context.Context, userId string, content string, videoId string, parentId string, replyUserId string) (*Comment, error)
 	GetCommentById(ctx context.Context, commentId string) (*Comment, error)
 	RemoveComment(ctx context.Context, commentId, userId string) error

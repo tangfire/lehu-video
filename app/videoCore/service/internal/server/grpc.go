@@ -16,6 +16,7 @@ import (
 // NewGRPCServer new a gRPC server.
 func NewGRPCServer(c *conf.Server,
 	videoService *service.VideoServiceService,
+	feedService *service.FeedServiceService,
 	userService *service.UserServiceService,
 	followService *service.FollowServiceService,
 	favoriteService *service.FavoriteServiceService,
@@ -43,6 +44,7 @@ func NewGRPCServer(c *conf.Server,
 	v1.RegisterCommentServiceServer(srv, commentService)
 	v1.RegisterCollectionServiceServer(srv, collectionService)
 	v1.RegisterFavoriteServiceServer(srv, favoriteService)
+	v1.RegisterFeedServiceServer(srv, feedService)
 	return srv
 }
 

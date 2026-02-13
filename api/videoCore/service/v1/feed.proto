@@ -4,7 +4,8 @@ syntax = "proto3";
 package api.videoCore.service.v1;
 
 option go_package = "lehu-video/api/videoCore/service/v1;v1";
-
+option java_multiple_files = true;
+option java_package = "api.videoCore.service.v1";
 import "api/videoCore/service/v1/base.proto";
 
 service FeedService {
@@ -39,10 +40,10 @@ message FeedItem {
 }
 
 enum FeedType {
-	FOLLOWING = 0;
-	RECOMMEND = 1;
-	HOT = 2;
-	MIXED = 3;
+	FOLLOWINGStream = 0;
+	RECOMMENDStream = 1;
+	HOTStream = 2;
+	MIXEDStream = 3;
 }
 
 message GetHotVideosReq {

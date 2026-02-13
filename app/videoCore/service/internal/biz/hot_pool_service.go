@@ -93,6 +93,7 @@ func (s *HotPoolService) AddVideo(ctx context.Context, videoID, authorID string,
 // refreshHotPool 刷新热门池，重新计算热度分数
 func (s *HotPoolService) refreshHotPool(ctx context.Context) {
 	// 1. 从数据库获取候选视频（近7天，按互动量排序取2000条）
+	// todo 感觉video表还要加个收藏量的字段
 	hotVideos, err := s.videoRepo.GetHotVideos(ctx, 2000)
 	if err != nil {
 		s.log.Errorf("获取热门视频失败: %v", err)
@@ -102,6 +103,7 @@ func (s *HotPoolService) refreshHotPool(ctx context.Context) {
 	scoredMembers := make([]redis.Z, 0, len(hotVideos))
 	now := time.Now().Unix()
 	for _, video := range hotVideos {
+		// todo calculateHotScore计算了一下，那为什么我们GetHotVideos的时候也要计算呢？这样不就算了两次了嘛？
 		score := s.calculateHotScore(video, now)
 		member := s.buildMember(
 			strconv.FormatInt(video.Id, 10),
@@ -113,6 +115,7 @@ func (s *HotPoolService) refreshHotPool(ctx context.Context) {
 			Member: member,
 		})
 	}
+	// todo 下面的注释说原子替换热门池，但是我看起来怎么感觉不是很原子呢?
 	// 3. 原子替换热门池
 	key := "feed:hot:pool"
 	pipe := s.redis.Pipeline()

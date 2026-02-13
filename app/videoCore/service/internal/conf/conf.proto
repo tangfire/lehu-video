@@ -37,8 +37,25 @@ message Data {
     google.protobuf.Duration write_timeout = 4;
     string password = 5;
   }
+
+  message Kafka {
+    repeated string brokers = 1;   // Kafka broker 列表
+    string group_id = 2;           // consumer group
+    message Topic {
+      string video_publish = 1;    // 视频发布 topic
+    }
+    Topic topic = 3;
+  }
+
+
+  message LocalCache {
+    int64 size = 1;
+  }
+
   Database database = 1;
   Redis redis = 2;
+  Kafka kafka = 3;
+  LocalCache local_cache = 4;
 }
 
 message Registry{

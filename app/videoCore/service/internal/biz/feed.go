@@ -72,7 +72,7 @@ func NewFeedUsecase(
 	redis *redis.Client,
 	kafka KafkaProducer,
 	logger log.Logger,
-) (*FeedUsecase, error) {
+) *FeedUsecase {
 	strategy := &FeedStrategy{
 		PushThreshold:     10000,
 		BigVCacheKey:      "big_v_users",
@@ -85,7 +85,7 @@ func NewFeedUsecase(
 
 	bloomMgr, err := NewBloomFilterManager(redis)
 	if err != nil {
-		return nil, err
+		log.Errorf("创建布隆过滤器失败: %v", err)
 	}
 
 	usecase := &FeedUsecase{
@@ -104,7 +104,7 @@ func NewFeedUsecase(
 	usecase.cancelHotPool = cancel
 	go usecase.hotPool.Run(ctx)
 
-	return usecase, nil
+	return usecase
 }
 
 // Close 释放资源，停止后台 goroutine

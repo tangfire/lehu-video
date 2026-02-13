@@ -34,6 +34,7 @@ var ProviderSet = wire.NewSet(
 	NewChatAdapter,
 	NewMessageServiceClient,
 	NewFriendServiceClient,
+	NewFeedServiceClient,
 )
 
 // Data .

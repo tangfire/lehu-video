@@ -14,7 +14,7 @@ type KafkaProducerImpl struct {
 	writers map[string]*kafka.Writer
 }
 
-func NewKafkaProducerImpl() *KafkaProducerImpl {
+func NewKafkaProducer() KafkaProducer {
 	return &KafkaProducerImpl{
 		writers: make(map[string]*kafka.Writer),
 	}
