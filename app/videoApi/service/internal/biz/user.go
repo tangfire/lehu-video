@@ -8,6 +8,7 @@ import (
 	"github.com/go-kratos/kratos/v2/transport"
 	jwtv5 "github.com/golang-jwt/jwt/v5"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
+	"sync"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -261,33 +262,53 @@ func (uc *UserUsecase) setToken2Header(ctx context.Context, claim *claims.Claims
 
 // GetCompleteUserInfo 获取用户完整信息（聚合）
 func (uc *UserUsecase) GetCompleteUserInfo(ctx context.Context, input *GetUserInfoInput) (*GetUserInfoOutput, error) {
-	// 1. 获取基础信息
+	// 1. 获取基础信息（必须成功）
 	baseInfo, err := uc.core.GetUserBaseInfo(ctx, input.UserID, input.AccountID)
 	if err != nil {
 		return nil, fmt.Errorf("获取用户基础信息失败: %w", err)
 	}
 
-	// 2. 获取社交信息
-	var socialInfo *UserSocialInfo
-	if uc.chat != nil {
-		socialInfo, _ = uc.chat.GetUserOnlineStatus(ctx, input.UserID)
-	}
+	// 2. 并发获取社交信息和关系信息（允许部分失败）
+	var (
+		wg           sync.WaitGroup
+		socialInfo   *UserSocialInfo
+		relationInfo *UserRelationInfo
+		socialErr    error
+		relationErr  error
+	)
 
-	currentUserID, err := claims.GetUserId(ctx)
-	if err != nil {
-		return nil, err
-	}
+	wg.Add(2)
 
-	// 3. 获取关系信息
-	var relationInfo *UserRelationInfo
-	if currentUserID != "" && currentUserID != input.UserID && uc.chat != nil {
-		relationInfo, _ = uc.chat.GetUserRelation(ctx, currentUserID, input.UserID)
-	}
+	// 获取社交信息（在线状态等）
+	go func() {
+		defer wg.Done()
+		if uc.chat != nil {
+			socialInfo, socialErr = uc.chat.GetUserOnlineStatus(ctx, input.UserID)
+			if socialErr != nil {
+				uc.log.WithContext(ctx).Warnf("获取用户社交信息失败: %v", socialErr)
+			}
+		}
+	}()
 
-	// 4. 聚合数据
+	// 获取关系信息（是否关注、好友等）
+	go func() {
+		defer wg.Done()
+		currentUserID, _ := claims.GetUserId(ctx)
+		if currentUserID != "" && currentUserID != input.UserID && uc.chat != nil {
+			relationInfo, relationErr = uc.chat.GetUserRelation(ctx, currentUserID, input.UserID)
+			if relationErr != nil {
+				uc.log.WithContext(ctx).Warnf("获取用户关系信息失败: %v", relationErr)
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	// 3. 聚合数据
 	user := uc.aggregateUserInfo(baseInfo, socialInfo, relationInfo)
 
-	// 5. 处理隐私字段
+	// 4. 处理隐私字段
+	currentUserID, _ := claims.GetUserId(ctx)
 	if !input.IncludePrivate && currentUserID != input.UserID {
 		user.Mobile = ""
 		user.Email = ""

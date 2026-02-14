@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/spf13/cast"
+	"sync"
 )
 
 // ============ VideoAssembler 视频组装器 ============
@@ -100,23 +101,63 @@ func (a *VideoAssembler) getUserInfos(ctx context.Context, userIDs []string) (ma
 	return userMap, nil
 }
 
-// getVideoCounts 批量获取视频计数信息
+// getVideoCounts 批量获取视频计数信息（并发优化版）
 func (a *VideoAssembler) getVideoCounts(ctx context.Context, videoIDs []string) (*VideoCountInfo, error) {
 	if len(videoIDs) == 0 {
 		return &VideoCountInfo{}, nil
 	}
 
-	var commentCounts, collectCounts map[string]int64
-	var favoriteCounts map[string]FavoriteCount
+	var (
+		wg             sync.WaitGroup
+		commentCounts  map[string]int64
+		favoriteCounts map[string]int64
+		collectCounts  map[string]int64
+		commentErr     error
+		favoriteErr    error
+		collectErr     error
+		mu             sync.Mutex // 用于保护 favoriteCounts 的写入（因为 favoriteCounts 需要从 FavoriteCount 转换）
+	)
 
-	var commentErr, favoriteErr, collectErr error
+	wg.Add(3)
 
-	// 并行查询各种计数
-	commentCounts, commentErr = a.core.CountComments4Video(ctx, videoIDs)
-	favoriteCounts, favoriteErr = a.core.CountFavorite4Video(ctx, videoIDs)
-	collectCounts, collectErr = a.core.CountCollected4Video(ctx, videoIDs)
+	// 并发获取评论数
+	go func() {
+		defer wg.Done()
+		counts, err := a.core.CountComments4Video(ctx, videoIDs)
+		mu.Lock()
+		commentCounts = counts
+		commentErr = err
+		mu.Unlock()
+	}()
 
-	// 记录错误但不中断流程
+	// 并发获取点赞/点踩数
+	go func() {
+		defer wg.Done()
+		favCounts, err := a.core.CountFavorite4Video(ctx, videoIDs)
+		// 转换为 likeCounts map
+		likeMap := make(map[string]int64, len(favCounts))
+		for vid, fc := range favCounts {
+			likeMap[vid] = fc.LikeCount
+		}
+		mu.Lock()
+		favoriteCounts = likeMap
+		favoriteErr = err
+		mu.Unlock()
+	}()
+
+	// 并发获取收藏数
+	go func() {
+		defer wg.Done()
+		counts, err := a.core.CountCollected4Video(ctx, videoIDs)
+		mu.Lock()
+		collectCounts = counts
+		collectErr = err
+		mu.Unlock()
+	}()
+
+	wg.Wait()
+
+	// 记录错误但不中断流程（与原始逻辑一致）
 	if commentErr != nil {
 		a.log.WithContext(ctx).Warnf("failed to count comments: %v", commentErr)
 	}
@@ -127,39 +168,72 @@ func (a *VideoAssembler) getVideoCounts(ctx context.Context, videoIDs []string) 
 		a.log.WithContext(ctx).Warnf("failed to count collects: %v", collectErr)
 	}
 
-	likeCounts := make(map[string]int64)
-	for videoID, favoriteCount := range favoriteCounts {
-		likeCounts[videoID] = favoriteCount.LikeCount
-	}
-
 	return &VideoCountInfo{
 		CommentCounts:  commentCounts,
-		FavoriteCounts: likeCounts,
+		FavoriteCounts: favoriteCounts,
 		CollectCounts:  collectCounts,
 	}, nil
 }
 
-// getUserInteractions 批量获取用户互动信息
+// getUserInteractions 批量获取用户互动信息（并发优化版）
 func (a *VideoAssembler) getUserInteractions(ctx context.Context, userID string, videoIDs, authorIDs []string) (*UserInteractionInfo, error) {
 	// 如果是未登录用户，不查询互动信息
 	if cast.ToInt64(userID) <= 0 {
 		return &UserInteractionInfo{}, nil
 	}
 
-	var isFavoriteMap, isCollectMap, isFollowingMap map[string]bool
-	var favoriteErr, collectErr, followErr error
+	var (
+		wg             sync.WaitGroup
+		isFavoriteMap  map[string]bool
+		isCollectMap   map[string]bool
+		isFollowingMap map[string]bool
+		favoriteErr    error
+		collectErr     error
+		followErr      error
+		mu             sync.Mutex
+	)
 
-	// 并行查询用户互动状态
-	if len(videoIDs) > 0 {
-		isFavoriteMap, favoriteErr = a.core.IsUserFavoriteVideo(ctx, userID, videoIDs)
-		isCollectMap, collectErr = a.core.IsCollected(ctx, userID, videoIDs)
-	}
+	wg.Add(3)
 
-	if len(authorIDs) > 0 {
-		isFollowingMap, followErr = a.core.IsFollowing(ctx, userID, authorIDs)
-	}
+	// 并发查询视频点赞状态
+	go func() {
+		defer wg.Done()
+		if len(videoIDs) > 0 {
+			m, err := a.core.IsUserFavoriteVideo(ctx, userID, videoIDs)
+			mu.Lock()
+			isFavoriteMap = m
+			favoriteErr = err
+			mu.Unlock()
+		}
+	}()
 
-	// 记录错误但不中断流程
+	// 并发查询视频收藏状态
+	go func() {
+		defer wg.Done()
+		if len(videoIDs) > 0 {
+			m, err := a.core.IsCollected(ctx, userID, videoIDs)
+			mu.Lock()
+			isCollectMap = m
+			collectErr = err
+			mu.Unlock()
+		}
+	}()
+
+	// 并发查询关注状态
+	go func() {
+		defer wg.Done()
+		if len(authorIDs) > 0 {
+			m, err := a.core.IsFollowing(ctx, userID, authorIDs)
+			mu.Lock()
+			isFollowingMap = m
+			followErr = err
+			mu.Unlock()
+		}
+	}()
+
+	wg.Wait()
+
+	// 记录错误
 	if favoriteErr != nil {
 		a.log.WithContext(ctx).Warnf("failed to check favorites: %v", favoriteErr)
 	}

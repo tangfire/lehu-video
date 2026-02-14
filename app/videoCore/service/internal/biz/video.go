@@ -99,13 +99,17 @@ type VideoRepo interface {
 	GetAuthorInfo(ctx context.Context, authorID string) (*Author, error)
 	GetVideoListByTime(ctx context.Context, latestTime time.Time, limit int) ([]*Video, error)
 	GetVideoStats(ctx context.Context, videoID string) (*VideoStats, error)
+
+	// 新增：分页获取所有视频ID（用于布隆过滤器初始化）
+	GetAllVideoIDs(ctx context.Context, offset int64, limit int) ([]string, error)
 }
 
 type VideoUsecase struct {
 	repo         VideoRepo
 	counterRepo  CounterRepo // 新增
 	feedUsecase  *FeedUsecase
-	recentViewed *RecentViewedManager // 新增
+	recentViewed *RecentViewedManager    // 新增
+	globalBloom  *GlobalVideoBloomFilter // 新增全局布隆过滤器
 	log          *log.Helper
 }
 
@@ -113,14 +117,49 @@ func NewVideoUsecase(
 	repo VideoRepo,
 	counterRepo CounterRepo,
 	feedUsecase *FeedUsecase,
-	recentViewed *RecentViewedManager, // 新增参数
+	recentViewed *RecentViewedManager,
 	logger log.Logger,
 ) *VideoUsecase {
+	// 创建全局布隆过滤器：预计1000万视频，误判率0.1%
+	globalBloom := NewGlobalVideoBloomFilter(repo, logger, 10_000_000, 0.001)
+
+	// 异步初始化布隆过滤器（避免阻塞服务启动）
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := globalBloom.Init(ctx); err != nil {
+			log.NewHelper(logger).Warnf("全局视频布隆过滤器初始化失败: %v", err)
+		}
+	}()
+
+	// 定时重建布隆过滤器（每天凌晨3点）
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			// 可以选择在低峰期重建，这里简单固定延迟到凌晨3点执行
+			now := time.Now()
+			next := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, now.Location())
+			if now.After(next) {
+				next = next.Add(24 * time.Hour)
+			}
+			time.Sleep(time.Until(next))
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			if err := globalBloom.Rebuild(ctx); err != nil {
+				log.NewHelper(logger).Errorf("重建全局布隆过滤器失败: %v", err)
+			}
+			cancel()
+		}
+	}()
+
 	return &VideoUsecase{
 		repo:         repo,
 		counterRepo:  counterRepo,
 		feedUsecase:  feedUsecase,
 		recentViewed: recentViewed,
+		globalBloom:  globalBloom,
 		log:          log.NewHelper(logger),
 	}
 }
@@ -145,6 +184,9 @@ func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoComma
 		uc.log.Warnf("增加用户 work_count 失败: userId=%d, err=%v", cmd.UserId, err)
 	}
 
+	// 将新视频ID加入布隆过滤器
+	uc.globalBloom.Add(strconv.FormatInt(videoId, 10))
+
 	// 触发 Feed 事件（异步）
 	if uc.feedUsecase != nil {
 		go uc.feedUsecase.VideoPublishedHandler(
@@ -160,6 +202,14 @@ func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoComma
 }
 
 func (uc *VideoUsecase) GetVideoById(ctx context.Context, query *GetVideoByIdQuery) (*GetVideoByIdResult, error) {
+	videoIDStr := strconv.FormatInt(query.VideoId, 10)
+
+	// 布隆过滤器拦截：如果ID一定不存在，直接返回nil，避免查询数据库
+	if !uc.globalBloom.Exists(videoIDStr) {
+		uc.log.Debugf("布隆过滤器拦截不存在视频ID: %d", query.VideoId)
+		return nil, nil
+	}
+
 	exist, video, err := uc.repo.GetVideoById(ctx, query.VideoId)
 	if err != nil {
 		return nil, err
@@ -167,12 +217,12 @@ func (uc *VideoUsecase) GetVideoById(ctx context.Context, query *GetVideoByIdQue
 	if !exist {
 		return nil, nil
 	}
-	userID := query.UserId
-	if userID != 0 {
-		// 异步记录最近观看
+
+	// 异步记录最近观看（仅当用户ID不为0）
+	if query.UserId != 0 {
 		go func() {
 			bgCtx := context.Background()
-			if err := uc.recentViewed.Add(bgCtx, strconv.FormatInt(userID, 10), strconv.FormatInt(video.Id, 10)); err != nil {
+			if err := uc.recentViewed.Add(bgCtx, strconv.FormatInt(query.UserId, 10), videoIDStr); err != nil {
 				uc.log.Warnf("记录最近观看失败: %v", err)
 			}
 		}()

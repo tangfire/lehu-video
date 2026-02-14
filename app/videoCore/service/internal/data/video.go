@@ -520,3 +520,23 @@ func (r *videoRepo) convertDBVideosToBiz(dbVideos []*model.Video) ([]*biz.Video,
 
 	return bizVideos, nil
 }
+
+// GetAllVideoIDs 分页获取所有视频ID（用于布隆过滤器初始化）
+func (r *videoRepo) GetAllVideoIDs(ctx context.Context, offset int64, limit int) ([]string, error) {
+	var ids []int64
+	err := r.data.db.WithContext(ctx).
+		Table(model.Video{}.TableName()).
+		Select("id").
+		Order("id ASC").
+		Offset(int(offset)).
+		Limit(limit).
+		Pluck("id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	strIDs := make([]string, len(ids))
+	for i, id := range ids {
+		strIDs[i] = strconv.FormatInt(id, 10)
+	}
+	return strIDs, nil
+}
