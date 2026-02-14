@@ -385,7 +385,7 @@ func (uc *MessageUsecase) getOrCreateSingleChatConversation(ctx context.Context,
 	return conversation, nil
 }
 
-// getOrCreateGroupConversation 修复后的群聊会话创建
+// getOrCreateGroupConversation 获取或创建群聊会话
 func (uc *MessageUsecase) getOrCreateGroupConversation(ctx context.Context, groupID int64) (*Conversation, error) {
 	// 尝试获取现有会话
 	conversation, err := uc.conversationRepo.GetGroupConversation(ctx, groupID)
@@ -397,7 +397,7 @@ func (uc *MessageUsecase) getOrCreateGroupConversation(ctx context.Context, grou
 		return conversation, nil
 	}
 
-	// 获取群信息（使用正确的方法名）
+	// 获取群信息
 	group, err := uc.groupRepo.GetGroup(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("获取群信息失败: %v", err)
@@ -413,10 +413,10 @@ func (uc *MessageUsecase) getOrCreateGroupConversation(ctx context.Context, grou
 		memberCount = 1 // 默认值
 	}
 
-	// 创建新的群聊会话
-	conversationID := uc.idGen.Generate()
 	now := time.Now()
+	conversationID := uc.idGen.Generate()
 
+	// 创建新的群聊会话
 	conversation = &Conversation{
 		ID:          conversationID,
 		Type:        ConvTypeGroup,
@@ -436,8 +436,13 @@ func (uc *MessageUsecase) getOrCreateGroupConversation(ctx context.Context, grou
 	// 获取所有群成员并添加到会话
 	members, err := uc.groupRepo.ListGroupMembers(ctx, groupID, 0, 1000)
 	if err != nil {
+		// 如果获取成员失败，回滚删除已创建的会话
+		_ = uc.conversationRepo.DeleteConversation(ctx, conversationID)
 		return nil, fmt.Errorf("获取群成员失败: %v", err)
 	}
+
+	// 记录成功添加的成员数量
+	successCount := 0
 
 	for _, member := range members {
 		memberType := int32(0) // 普通成员
@@ -457,7 +462,26 @@ func (uc *MessageUsecase) getOrCreateGroupConversation(ctx context.Context, grou
 			UpdatedAt:      now,
 		}); err != nil {
 			uc.log.Errorf("添加群成员到会话失败 user_id=%d: %v", member.UserID, err)
+			// 继续添加其他成员，不中断
+		} else {
+			successCount++
 		}
+	}
+
+	// 如果有成功添加的成员，更新会话成员计数
+	if successCount > 0 {
+		// 如果成功添加的数量与预期不一致，则更新为实际成功添加的数量
+		if int64(successCount) != memberCount {
+			conversation.MemberCount = int64(successCount)
+			if err := uc.conversationRepo.UpdateConversationMemberCount(ctx, conversationID, successCount); err != nil {
+				uc.log.Errorf("更新会话成员计数失败: %v", err)
+			}
+		}
+		// 如果成功添加的数量与预期的 memberCount 一致，则不需要更新，因为创建时已经设置了
+	} else {
+		// 如果没有成功添加任何成员，考虑删除会话
+		// 可以根据业务需求决定：保留空会话或删除
+		uc.log.Warnf("群聊会话创建成功，但未添加任何成员，groupID=%d", groupID)
 	}
 
 	return conversation, nil
@@ -639,17 +663,17 @@ func (uc *MessageUsecase) ListConversations(
 	}, nil
 }
 
-// GetUnreadCount 获取未读消息数
+// GetUnreadCount 获取用户未读消息数（修复版）
 func (uc *MessageUsecase) GetUnreadCount(ctx context.Context, query *GetUnreadCountQuery) (*GetUnreadCountResult, error) {
 	total, err := uc.conversationRepo.GetUserTotalUnreadCount(ctx, query.UserID)
 	if err != nil {
-		uc.log.Errorf("统计总未读数失败: %v", err)
+		uc.log.Errorf("获取总未读数失败: %v", err)
 		return nil, fmt.Errorf("统计未读数失败")
 	}
 
 	convUnread, err := uc.conversationRepo.GetUserConversationUnreadCount(ctx, query.UserID)
 	if err != nil {
-		uc.log.Errorf("统计会话未读数失败: %v", err)
+		uc.log.Errorf("获取会话未读数失败: %v", err)
 		return nil, fmt.Errorf("统计未读数失败")
 	}
 

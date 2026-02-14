@@ -4,6 +4,8 @@ go 1.25.5
 
 require (
 	github.com/bits-and-blooms/bloom/v3 v3.7.1
+	github.com/bwmarrin/snowflake v0.3.0
+	github.com/coocood/freecache v1.2.5
 	github.com/go-kratos/kratos/contrib/registry/consul/v2 v2.0.0-20260105075216-c7a58ff59f80
 	github.com/go-kratos/kratos/v2 v2.9.2
 	github.com/golang-jwt/jwt/v5 v5.2.2
@@ -33,7 +35,6 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/bits-and-blooms/bitset v1.24.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/coocood/freecache v1.2.5 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.16.0 // indirect
