@@ -321,6 +321,7 @@ func (x *Author) GetIsFollowing() int64 {
 type GetVideoByIdReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	VideoId       string                 `protobuf:"bytes,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -358,6 +359,13 @@ func (*GetVideoByIdReq) Descriptor() ([]byte, []int) {
 func (x *GetVideoByIdReq) GetVideoId() string {
 	if x != nil {
 		return x.VideoId
+	}
+	return ""
+}
+
+func (x *GetVideoByIdReq) GetUserId() string {
+	if x != nil {
+		return x.UserId
 	}
 	return ""
 }
@@ -789,9 +797,10 @@ const file_api_videoCore_service_v1_video_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12!\n" +
-	"\fis_following\x18\x04 \x01(\x03R\visFollowing\",\n" +
+	"\fis_following\x18\x04 \x01(\x03R\visFollowing\"E\n" +
 	"\x0fGetVideoByIdReq\x12\x19\n" +
-	"\bvideo_id\x18\x01 \x01(\tR\avideoId\"\x81\x01\n" +
+	"\bvideo_id\x18\x01 \x01(\tR\avideoId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x81\x01\n" +
 	"\x10GetVideoByIdResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x125\n" +
 	"\x05video\x18\x02 \x01(\v2\x1f.api.videoCore.service.v1.VideoR\x05video\"\x9a\x01\n" +

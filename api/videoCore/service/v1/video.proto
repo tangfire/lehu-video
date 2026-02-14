@@ -73,6 +73,7 @@ message Author {
 
 message GetVideoByIdReq{
   string video_id = 1;
+  string user_id = 2;
 }
 
 message GetVideoByIdResp{

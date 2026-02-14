@@ -13,7 +13,7 @@ type CoreAdapter interface {
 	UpdateUserInfo(ctx context.Context, userID, name, nickName, avatar, backgroundImage, signature string, gender int32) error
 	SearchUsers(ctx context.Context, keyword string, page, pageSize int32) (int64, []*UserBaseInfo, error)
 	SaveVideoInfo(ctx context.Context, title, videoUrl, coverUrl, desc, userId string) (string, error)
-	GetVideoById(ctx context.Context, videoId string) (*Video, error)
+	GetVideoById(ctx context.Context, userId, videoId string) (*Video, error)
 	GetVideoByIdList(ctx context.Context, videoIdList []string) ([]*Video, error)
 	ListPublishedVideo(ctx context.Context, userId string, pageStats *PageStats) (int64, []*Video, error)
 	IsUserFavoriteVideo(ctx context.Context, userId string, videoIdList []string) (map[string]bool, error)

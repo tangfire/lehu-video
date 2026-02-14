@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"github.com/go-kratos/kratos/v2/log"
+	"strconv"
 	"time"
 )
 
@@ -40,6 +41,7 @@ type PublishVideoResult struct {
 
 type GetVideoByIdQuery struct {
 	VideoId int64
+	UserId  int64
 }
 
 type GetVideoByIdResult struct {
@@ -100,16 +102,26 @@ type VideoRepo interface {
 }
 
 type VideoUsecase struct {
-	repo        VideoRepo
-	counterRepo CounterRepo // 新增
-	log         *log.Helper
+	repo         VideoRepo
+	counterRepo  CounterRepo // 新增
+	feedUsecase  *FeedUsecase
+	recentViewed *RecentViewedManager // 新增
+	log          *log.Helper
 }
 
-func NewVideoUsecase(repo VideoRepo, counterRepo CounterRepo, logger log.Logger) *VideoUsecase {
+func NewVideoUsecase(
+	repo VideoRepo,
+	counterRepo CounterRepo,
+	feedUsecase *FeedUsecase,
+	recentViewed *RecentViewedManager, // 新增参数
+	logger log.Logger,
+) *VideoUsecase {
 	return &VideoUsecase{
-		repo:        repo,
-		counterRepo: counterRepo,
-		log:         log.NewHelper(logger),
+		repo:         repo,
+		counterRepo:  counterRepo,
+		feedUsecase:  feedUsecase,
+		recentViewed: recentViewed,
+		log:          log.NewHelper(logger),
 	}
 }
 
@@ -128,11 +140,19 @@ func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoComma
 		return nil, err
 	}
 
-	// ---------- 新增：增加用户 work_count ----------
+	// 增加用户作品计数
 	if _, err := uc.counterRepo.IncrUserCounter(ctx, cmd.UserId, "work_count", 1); err != nil {
 		uc.log.Warnf("增加用户 work_count 失败: userId=%d, err=%v", cmd.UserId, err)
 	}
-	// ------------------------------------------------
+
+	// 触发 Feed 事件（异步）
+	if uc.feedUsecase != nil {
+		go uc.feedUsecase.VideoPublishedHandler(
+			context.Background(),
+			strconv.FormatInt(videoId, 10),
+			strconv.FormatInt(cmd.UserId, 10),
+		)
+	}
 
 	return &PublishVideoResult{
 		VideoId: videoId,
@@ -144,9 +164,18 @@ func (uc *VideoUsecase) GetVideoById(ctx context.Context, query *GetVideoByIdQue
 	if err != nil {
 		return nil, err
 	}
-
 	if !exist {
-		return nil, nil // 或者返回特定错误
+		return nil, nil
+	}
+	userID := query.UserId
+	if userID != 0 {
+		// 异步记录最近观看
+		go func() {
+			bgCtx := context.Background()
+			if err := uc.recentViewed.Add(bgCtx, strconv.FormatInt(userID, 10), strconv.FormatInt(video.Id, 10)); err != nil {
+				uc.log.Warnf("记录最近观看失败: %v", err)
+			}
+		}()
 	}
 
 	return &GetVideoByIdResult{

@@ -58,6 +58,7 @@ func (s *VideoServiceService) GetVideoById(ctx context.Context, req *pb.GetVideo
 	// ✅ 改为Query
 	query := &biz.GetVideoByIdQuery{
 		VideoId: cast.ToInt64(req.VideoId),
+		UserId:  cast.ToInt64(req.UserId),
 	}
 
 	result, err := s.uc.GetVideoById(ctx, query)

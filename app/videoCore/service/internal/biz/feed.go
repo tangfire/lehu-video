@@ -60,7 +60,7 @@ type FeedUsecase struct {
 	redis         *redis.Client
 	kafkaProducer KafkaProducer
 	log           *log.Helper
-	bloomManager  *BloomFilterManager
+	recentViewed  *RecentViewedManager // 新增
 	strategy      *FeedStrategy
 	hotPool       *HotPoolService
 	cancelHotPool context.CancelFunc // 用于停止 hotPool goroutine
@@ -71,6 +71,7 @@ func NewFeedUsecase(
 	followRepo FollowRepo,
 	redis *redis.Client,
 	kafka KafkaProducer,
+	recentViewed *RecentViewedManager, // 新增参数
 	logger log.Logger,
 ) *FeedUsecase {
 	strategy := &FeedStrategy{
@@ -82,28 +83,19 @@ func NewFeedUsecase(
 		MaxPullSize:       100,
 		FollowerBatchSize: 500,
 	}
-
-	bloomMgr, err := NewBloomFilterManager(redis)
-	if err != nil {
-		log.Errorf("创建布隆过滤器失败: %v", err)
-	}
-
 	usecase := &FeedUsecase{
 		videoRepo:     videoRepo,
 		followRepo:    followRepo,
 		redis:         redis,
 		kafkaProducer: kafka,
 		log:           log.NewHelper(logger),
-		bloomManager:  bloomMgr,
+		recentViewed:  recentViewed, // 赋值
 		strategy:      strategy,
 	}
-
-	// 启动热门池，并保存 cancel 函数以便关闭
 	ctx, cancel := context.WithCancel(context.Background())
 	usecase.hotPool = NewHotPoolService(videoRepo, redis, logger)
 	usecase.cancelHotPool = cancel
 	go usecase.hotPool.Run(ctx)
-
 	return usecase
 }
 
@@ -247,15 +239,52 @@ func (uc *FeedUsecase) pullFromFollowing(ctx context.Context, userID string, lat
 	return items, nil
 }
 
-// getRecommendFeed - 推荐流（基于热门池）
+// getRecommendFeed - 推荐流（基于热门池，降级为最新视频）
 func (uc *FeedUsecase) getRecommendFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
-	// 从热门池获取FeedItem（已包含作者、时间戳、热度分数）
-	return uc.hotPool.GetHotFeedItems(ctx, int(query.PageSize))
+	items, err := uc.hotPool.GetHotFeedItems(ctx, int(query.PageSize))
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		// 热门池为空时降级为最新视频
+		uc.log.Infof("热门池为空，降级为最新视频，user_id=%s", query.UserID)
+		return uc.getLatestFeed(ctx, query)
+	}
+	return items, nil
 }
 
-// getHotFeed - 热门流（直接取热门池）
+// getHotFeed - 热门流（直接取热门池，降级为最新视频）
 func (uc *FeedUsecase) getHotFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
-	return uc.hotPool.GetHotFeedItems(ctx, int(query.PageSize))
+	items, err := uc.hotPool.GetHotFeedItems(ctx, int(query.PageSize))
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return uc.getLatestFeed(ctx, query)
+	}
+	return items, nil
+}
+
+// getLatestFeed - 获取最新发布的视频（后备方法）
+func (uc *FeedUsecase) getLatestFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
+	latestTime := time.Now()
+	if query.LatestTime > 0 {
+		latestTime = time.Unix(query.LatestTime, 0)
+	}
+	videos, err := uc.videoRepo.GetVideoListByTime(ctx, latestTime, int(query.PageSize))
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*FeedItem, 0, len(videos))
+	for _, v := range videos {
+		items = append(items, &FeedItem{
+			VideoID:   strconv.FormatInt(v.Id, 10),
+			AuthorID:  strconv.FormatInt(v.Author.Id, 10),
+			Timestamp: v.UploadTime.Unix(),
+			Score:     float64(v.UploadTime.Unix()),
+		})
+	}
+	return items, nil
 }
 
 // getMixedFeed - 混合流（30%关注 + 70%推荐）
@@ -295,25 +324,25 @@ func (uc *FeedUsecase) getMixedFeed(ctx context.Context, query *FeedQuery) ([]*F
 	return allItems, nil
 }
 
-// filterFeedItems - 布隆过滤器去重（已看过）
+// filterFeedItems - 过滤掉用户最近看过的视频
 func (uc *FeedUsecase) filterFeedItems(ctx context.Context, userID string, items []*FeedItem) []*FeedItem {
 	if userID == "0" || userID == "" {
 		return items
 	}
+	videoIDs := make([]string, 0, len(items))
+	for _, item := range items {
+		videoIDs = append(videoIDs, item.VideoID)
+	}
+	existsMap, err := uc.recentViewed.BatchExists(ctx, userID, videoIDs)
+	if err != nil {
+		uc.log.Warnf("批量查询最近观看失败: %v", err)
+		return items // 出错时保守返回全部
+	}
 	filtered := make([]*FeedItem, 0, len(items))
 	for _, item := range items {
-		key := fmt.Sprintf("%s:%s", item.VideoID, userID)
-		exists, err := uc.bloomManager.TestAndAdd(ctx, userID, key)
-		if err != nil {
-			uc.log.Warnf("布隆过滤器操作失败: %v", err)
-		}
-		if !exists {
+		if !existsMap[item.VideoID] {
 			filtered = append(filtered, item)
 		}
-	}
-	// 异步保存过滤器
-	if uf := uc.bloomManager.GetOrCreate(ctx, userID); uf != nil {
-		uc.bloomManager.SaveAsync(userID, uf)
 	}
 	return filtered
 }

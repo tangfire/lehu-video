@@ -20,4 +20,7 @@ type MinioRepo interface {
 	MergeSlices(ctx context.Context, bucketName, objectName, uploadId string, parts []minio.CompletePart) error
 	// GetObjectHash returns the hash of an object
 	GetObjectHash(ctx context.Context, bucketName, objectName string) (string, error)
+
+	// 新增：获取公共 URL
+	GetPublicUrl(ctx context.Context, bucketName, objectName string) (string, error)
 }

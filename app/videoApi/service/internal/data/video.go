@@ -25,9 +25,10 @@ func (r *CoreAdapterImpl) SaveVideoInfo(ctx context.Context, title, videoUrl, co
 	return resp.VideoId, nil
 }
 
-func (r *CoreAdapterImpl) GetVideoById(ctx context.Context, videoId string) (*biz.Video, error) {
+func (r *CoreAdapterImpl) GetVideoById(ctx context.Context, userId, videoId string) (*biz.Video, error) {
 	resp, err := r.video.GetVideoById(ctx, &core.GetVideoByIdReq{
 		VideoId: videoId,
+		UserId:  userId,
 	})
 	if err != nil {
 		return nil, err

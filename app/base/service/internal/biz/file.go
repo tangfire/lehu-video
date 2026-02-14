@@ -274,14 +274,13 @@ func (uc *FileUsecase) ReportUploaded(ctx context.Context, cmd *ReportUploadedCo
 		return nil, err
 	}
 
-	// 生成获取文件的URL
-	getQuery := &PreSignGetQuery{File: cmd.File}
-	getResult, err := uc.PreSignGet(ctx, getQuery)
+	// 改用公共 URL
+	publicUrl, err := uc.minio.GetPublicUrl(ctx, retFile.DomainName, retFile.GetObjectName())
 	if err != nil {
-		return &ReportUploadedResult{Url: ""}, nil
+		return nil, err
 	}
 
-	return &ReportUploadedResult{Url: getResult.Url}, nil
+	return &ReportUploadedResult{Url: publicUrl}, nil
 }
 
 func (uc *FileUsecase) PreSignSlicingPut(ctx context.Context, cmd *PreSignSlicingPutCommand) (*PreSignSlicingPutResult, error) {

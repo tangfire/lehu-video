@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/spf13/cast"
+	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
 // Video 视频
@@ -206,8 +207,12 @@ func (uc *VideoUsecase) GetVideo(ctx context.Context, input *GetVideoInput) (*Ge
 		return nil, ErrInvalidParams
 	}
 
+	userId, err := claims.GetUserId(ctx)
+	if err != nil {
+		return nil, ErrUnauthorized
+	}
 	// 获取视频基本信息
-	video, err := uc.core.GetVideoById(ctx, input.VideoID)
+	video, err := uc.core.GetVideoById(ctx, userId, input.VideoID)
 	if err != nil {
 		return nil, err
 	}

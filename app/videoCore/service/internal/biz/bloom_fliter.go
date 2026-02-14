@@ -100,7 +100,24 @@ func (m *BloomFilterManager) Save(ctx context.Context, userID string, uf *userFi
 	return m.redis.Set(ctx, key, buf.Bytes(), 7*24*time.Hour).Err()
 }
 
-// TestAndAdd 原子测试并添加元素，返回是否已存在（线程安全）
+// Test 测试元素是否存在（只读，不添加）
+func (m *BloomFilterManager) Test(ctx context.Context, userID, element string) (bool, error) {
+	uf := m.GetOrCreate(ctx, userID)
+	uf.mu.RLock()
+	defer uf.mu.RUnlock()
+	return uf.filter.TestString(element), nil
+}
+
+// Add 添加元素（写操作）
+func (m *BloomFilterManager) Add(ctx context.Context, userID, element string) error {
+	uf := m.GetOrCreate(ctx, userID)
+	uf.mu.Lock()
+	defer uf.mu.Unlock()
+	uf.filter.AddString(element)
+	return nil
+}
+
+// TestAndAdd 原子测试并添加（兼容旧代码，但建议新代码使用 Test + Add）
 func (m *BloomFilterManager) TestAndAdd(ctx context.Context, userID, element string) (bool, error) {
 	uf := m.GetOrCreate(ctx, userID)
 	uf.mu.Lock()

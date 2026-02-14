@@ -16,12 +16,14 @@ import (
 )
 
 type minioRepo struct {
-	core *minio.Core
+	core           *minio.Core
+	publicEndpoint string // 新增：公共访问地址
 }
 
-func NewMinioRepo(core *minio.Core) biz.MinioRepo {
+func NewMinioRepo(conf *conf.Data, core *minio.Core) biz.MinioRepo {
 	return &minioRepo{
-		core: core,
+		core:           core,
+		publicEndpoint: fmt.Sprintf("%s:%s", conf.Minio.Host, conf.Minio.Port),
 	}
 }
 
@@ -346,4 +348,10 @@ func (r *minioRepo) GetObjectHash(
 	}
 
 	return strings.ToUpper(stat.ETag), nil
+}
+
+// GetPublicUrl 返回对象的公共访问 URL（需要桶已设置为 public）
+func (r *minioRepo) GetPublicUrl(ctx context.Context, bucketName, objectName string) (string, error) {
+	// 拼接公共地址，确保末尾没有多余的斜杠
+	return fmt.Sprintf("http://%s/%s/%s", r.publicEndpoint, bucketName, objectName), nil
 }
