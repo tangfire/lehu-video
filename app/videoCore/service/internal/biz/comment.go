@@ -345,7 +345,7 @@ func (uc *CommentUsecase) queryVideoComments(ctx context.Context, query *ListVid
 func getFromLocalCache(cache *freecache.Cache, key string, dest interface{}) (bool, error) {
 	data, err := cache.Get([]byte(key))
 	if err != nil {
-		if err == freecache.ErrNotFound {
+		if errors.Is(err, freecache.ErrNotFound) {
 			return false, nil
 		}
 		return false, err
@@ -369,7 +369,7 @@ func setToLocalCache(cache *freecache.Cache, key string, value interface{}, ttl 
 func (uc *CommentUsecase) getFromRedis(ctx context.Context, key string, dest interface{}) (bool, error) {
 	data, err := uc.redis.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return false, nil
 		}
 		return false, err
