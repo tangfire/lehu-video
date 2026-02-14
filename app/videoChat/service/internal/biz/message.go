@@ -782,41 +782,31 @@ func (uc *MessageUsecase) ClearMessages(ctx context.Context, cmd *ClearMessagesC
 
 // CreateConversation 修复创建会话
 func (uc *MessageUsecase) CreateConversation(ctx context.Context, cmd *CreateConversationCommand) (*CreateConversationResult, error) {
-	// 检查权限
+	// 检查权限已在API层处理，这里直接创建会话
+	var conversation *Conversation
+	var err error
+
 	if cmd.ConvType == ConvTypeSingle {
-
-		// 获取或创建单聊会话
-		conversation, err := uc.conversationRepo.GetOrCreateSingleChatConversation(ctx, cmd.UserIDs[0], cmd.UserIDs[1])
-		if err != nil {
-			return nil, fmt.Errorf("创建会话失败: %v", err)
-		}
-
-		return &CreateConversationResult{
-			ConversationID: conversation.ID,
-		}, nil
-
+		conversation, err = uc.conversationRepo.GetOrCreateSingleChatConversation(ctx, cmd.UserIDs[0], cmd.UserIDs[1])
 	} else if cmd.ConvType == ConvTypeGroup {
-		// 直接调用GroupRepo的方法，不需要使用Query结构
-		isMember, err := uc.groupRepo.IsGroupMember(ctx, cmd.GroupID, cmd.UserIDs[0])
-		if err != nil {
-			return nil, fmt.Errorf("检查群成员关系失败: %v", err)
-		}
-		if !isMember {
-			return nil, fmt.Errorf("你不是群成员，无法创建会话")
-		}
-
-		// 获取或创建群聊会话
-		conversation, err := uc.conversationRepo.GetOrCreateGroupConversation(ctx, cmd.GroupID)
-		if err != nil {
-			return nil, fmt.Errorf("创建会话失败: %v", err)
-		}
-
-		return &CreateConversationResult{
-			ConversationID: conversation.ID,
-		}, nil
+		conversation, err = uc.conversationRepo.GetOrCreateGroupConversation(ctx, cmd.GroupID)
+	} else {
+		return nil, fmt.Errorf("不支持的会话类型")
 	}
 
-	return nil, fmt.Errorf("不支持的会话类型")
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果有初始消息，可以创建一条系统消息或直接调用 SendMessage，但这里简化
+	if cmd.InitialMessage != "" && cmd.ConvType == ConvTypeSingle {
+		// 可选：创建一条初始消息（例如打招呼）
+		// 可以调用 SendMessage 或直接插入一条消息
+	}
+
+	return &CreateConversationResult{
+		ConversationID: conversation.ID,
+	}, nil
 }
 
 // RecallMessage 撤回消息

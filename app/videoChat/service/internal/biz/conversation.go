@@ -97,6 +97,8 @@ type ConversationRepo interface {
 	ResetMemberUnreadCount(ctx context.Context, conversationID, userID int64) error
 	UpdateMemberLastRead(ctx context.Context, conversationID, userID, lastReadMsgID int64) error
 	UpdateMemberSettings(ctx context.Context, conversationID, userID int64, isPinned, isMuted bool) error
+	// 更新会话成员数量（增加或减少）
+	UpdateConversationMemberCount(ctx context.Context, conversationID int64, delta int) error
 
 	// 用户相关查询
 	GetUserTotalUnreadCount(ctx context.Context, userID int64) (int64, error)

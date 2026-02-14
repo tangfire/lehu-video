@@ -40,25 +40,22 @@ service FriendService {
 	// 批量获取用户在线状态
 	rpc BatchGetUserOnlineStatus(BatchGetUserOnlineStatusReq) returns (BatchGetUserOnlineStatusResp);
 
+	// 新增：更新用户在线状态（供API层调用）
+	rpc UpdateUserOnlineStatus(UpdateUserOnlineStatusReq) returns (UpdateUserOnlineStatusResp);
+
 
 }
 
-// 简化用户信息
+
+// 简化用户信息（只保留ID，其他由API聚合）
 message User {
-	string id = 1; // 改为 string
-	string name = 2;
-	string avatar = 3;
-	string nickname = 4;
-	int32 gender = 5;
-	string signature = 6;
-	int32 online_status = 7;
-	string last_online_time = 8;
+	string id = 1;
 }
 
 // 好友信息
 message FriendInfo {
 	string id = 1;
-	User friend = 2;
+	string friend_id = 2;       // 好友用户ID
 	string remark = 3;
 	string group_name = 4;
 	int32 status = 5;
@@ -66,10 +63,11 @@ message FriendInfo {
 }
 
 // 好友申请信息
+// 好友申请信息
 message FriendApplyInfo {
 	string id = 1;
-	User applicant = 2;
-	User receiver = 3;
+	string applicant_id = 2;    // 申请人ID
+	string receiver_id = 3;      // 接收人ID
 	string apply_reason = 4;
 	int32 status = 5;
 	string handled_at = 6;
@@ -202,3 +200,13 @@ message BatchGetUserOnlineStatusResp {
 	Metadata meta = 2;
 }
 
+// 新增：更新用户在线状态
+message UpdateUserOnlineStatusReq {
+	string user_id = 1;
+	int32 online_status = 2;    // 0:离线 1:在线 2:忙碌 3:离开
+	string device_type = 3;      // web / mobile / desktop
+}
+
+message UpdateUserOnlineStatusResp {
+	Metadata meta = 1;
+}

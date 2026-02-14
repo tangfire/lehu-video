@@ -323,3 +323,21 @@ func (s *GroupServiceService) IsGroupMember(ctx context.Context, req *pb.IsGroup
 		IsMember: result.IsMember,
 	}, nil
 }
+
+func (s *GroupServiceService) HandleGroupApply(ctx context.Context, req *pb.HandleGroupApplyReq) (*pb.HandleGroupApplyResp, error) {
+	cmd := &biz.HandleGroupApplyCommand{
+		ApplyID:   cast.ToInt64(req.ApplyId),
+		HandlerID: cast.ToInt64(req.HandlerId),
+		Accept:    req.Accept,
+		ReplyMsg:  req.ReplyMsg,
+	}
+	err := s.uc.HandleGroupApply(ctx, cmd)
+	if err != nil {
+		return &pb.HandleGroupApplyResp{
+			Meta: utils.GetMetaWithError(err),
+		}, nil
+	}
+	return &pb.HandleGroupApplyResp{
+		Meta: utils.GetSuccessMeta(),
+	}, nil
+}

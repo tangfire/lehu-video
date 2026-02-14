@@ -348,44 +348,6 @@ func (r *groupRepo) CreateGroupApply(ctx context.Context, apply *biz.GroupApply)
 	return r.data.db.WithContext(ctx).Create(&dbApply).Error
 }
 
-func (r *groupRepo) GetGroupApply(ctx context.Context, id int64) (*biz.GroupApply, error) {
-	var dbApply model.GroupApply
-	err := r.data.db.WithContext(ctx).
-		Where("id = ? AND is_deleted = ?", id, false).
-		First(&dbApply).Error
-
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return &biz.GroupApply{
-		ID:          dbApply.Id,
-		UserID:      dbApply.UserId,
-		GroupID:     dbApply.GroupId,
-		ApplyReason: dbApply.ApplyReason,
-		Status:      int32(dbApply.Status),
-		HandlerID:   dbApply.HandlerId,
-		ReplyMsg:    dbApply.ReplyMsg,
-		CreatedAt:   dbApply.CreatedAt,
-		UpdatedAt:   dbApply.UpdatedAt,
-	}, nil
-}
-
-func (r *groupRepo) UpdateGroupApply(ctx context.Context, apply *biz.GroupApply) error {
-	return r.data.db.WithContext(ctx).
-		Model(&model.GroupApply{}).
-		Where("id = ?", apply.ID).
-		Updates(map[string]interface{}{
-			"status":     apply.Status,
-			"handler_id": apply.HandlerID,
-			"reply_msg":  apply.ReplyMsg,
-			"updated_at": time.Now(),
-		}).Error
-}
-
 func (r *groupRepo) ListPendingApplies(ctx context.Context, groupID int64, offset, limit int) ([]*biz.GroupApply, error) {
 	var dbApplies []*model.GroupApply
 
@@ -502,4 +464,40 @@ func (r *groupRepo) BatchIsGroupMember(ctx context.Context, groupIDs []int64, us
 	}
 
 	return result, nil
+}
+
+func (r *groupRepo) GetGroupApply(ctx context.Context, id int64) (*biz.GroupApply, error) {
+	var dbApply model.GroupApply
+	err := r.data.db.WithContext(ctx).
+		Where("id = ? AND is_deleted = ?", id, false).
+		First(&dbApply).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &biz.GroupApply{
+		ID:          dbApply.Id,
+		UserID:      dbApply.UserId,
+		GroupID:     dbApply.GroupId,
+		ApplyReason: dbApply.ApplyReason,
+		Status:      int32(dbApply.Status),
+		HandlerID:   dbApply.HandlerId,
+		ReplyMsg:    dbApply.ReplyMsg,
+		CreatedAt:   dbApply.CreatedAt,
+		UpdatedAt:   dbApply.UpdatedAt,
+	}, nil
+}
+
+func (r *groupRepo) UpdateGroupApply(ctx context.Context, apply *biz.GroupApply) error {
+	return r.data.db.WithContext(ctx).
+		Model(&model.GroupApply{}).
+		Where("id = ?", apply.ID).
+		Updates(map[string]interface{}{
+			"status":     apply.Status,
+			"handler_id": apply.HandlerID,
+			"reply_msg":  apply.ReplyMsg,
+			"updated_at": time.Now(),
+		}).Error
 }

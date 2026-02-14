@@ -323,24 +323,28 @@ func (uc *UserUsecase) BatchGetUserInfo(ctx context.Context, input *BatchGetUser
 		return &BatchGetUserInfoOutput{Users: make(map[string]*UserInfo)}, nil
 	}
 
-	// 限制批量查询数量
-	if len(input.UserIDs) > 100 {
-		return nil, errors.New("单次批量查询最多100个用户")
-	}
-
 	// 1. 批量获取基础信息
 	baseInfos, err := uc.core.BatchGetUserBaseInfo(ctx, input.UserIDs)
 	if err != nil {
 		return nil, fmt.Errorf("批量获取用户基础信息失败: %w", err)
 	}
 
-	// 2. 批量获取社交信息
-	var socialInfos map[string]*UserSocialInfo
+	// 2. 批量获取在线状态（返回 map[string]int32）
+	var onlineStatusMap map[string]int32
 	if uc.chat != nil {
-		socialInfos, _ = uc.chat.BatchGetUserOnlineStatus(ctx, input.UserIDs)
+		onlineStatusMap, _ = uc.chat.BatchGetUserOnlineStatus(ctx, input.UserIDs)
 	}
 
-	// 3. 批量获取关系信息
+	// 将在线状态转换为 socialInfos 格式（填充 OnlineStatus）
+	socialInfos := make(map[string]*UserSocialInfo)
+	for uid, status := range onlineStatusMap {
+		socialInfos[uid] = &UserSocialInfo{
+			OnlineStatus: status,
+			// LastOnlineTime 可从其他地方获取，此处留空
+		}
+	}
+
+	// 3. 批量获取关系信息（如果需要）
 	var relationInfos map[string]*UserRelationInfo
 	if input.IncludeRelation && input.CurrentUserID != "" && uc.chat != nil {
 		relationInfos, _ = uc.chat.BatchGetUserRelations(ctx, input.CurrentUserID, input.UserIDs)
@@ -352,7 +356,6 @@ func (uc *UserUsecase) BatchGetUserInfo(ctx context.Context, input *BatchGetUser
 		if baseInfo == nil {
 			continue
 		}
-
 		userID := baseInfo.ID
 		socialInfo := socialInfos[userID]
 		var relationInfo *UserRelationInfo
@@ -448,18 +451,26 @@ func (uc *UserUsecase) SearchUsers(ctx context.Context, input *SearchUsersInput)
 		userIDs = append(userIDs, user.ID)
 	}
 
-	// 3. 批量获取社交信息
-	var socialInfos map[string]*UserSocialInfo
+	// 3. 批量获取在线状态（返回 map[string]int32）
+	var onlineStatusMap map[string]int32
 	if uc.chat != nil {
-		socialInfos, _ = uc.chat.BatchGetUserOnlineStatus(ctx, userIDs)
+		onlineStatusMap, _ = uc.chat.BatchGetUserOnlineStatus(ctx, userIDs)
 	}
 
+	// 转换为 socialInfos 格式
+	socialInfos := make(map[string]*UserSocialInfo)
+	for uid, status := range onlineStatusMap {
+		socialInfos[uid] = &UserSocialInfo{
+			OnlineStatus: status,
+		}
+	}
+
+	// 4. 批量获取关系信息
 	currentUserID, err := claims.GetUserId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// 4. 批量获取关系信息
 	var relationInfos map[string]*UserRelationInfo
 	if currentUserID != "" && uc.chat != nil {
 		relationInfos, _ = uc.chat.BatchGetUserRelations(ctx, currentUserID, userIDs)

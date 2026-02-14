@@ -76,6 +76,22 @@ service GroupService {
       body:"*"
     };
   };
+
+  // 处理加群申请
+  rpc HandleGroupApply(HandleGroupApplyReq) returns (HandleGroupApplyResp) {
+    option (google.api.http) = {
+      post: "/v1/group/apply/handle"
+      body: "*"
+    };
+  }
+
+  // 获取群成员列表
+  rpc GetGroupMembers(GetGroupMembersReq) returns (GetGroupMembersResp) {
+    option (google.api.http) = {
+      get: "/v1/group/{group_id}/members"
+    };
+  }
+
 }
 
 
@@ -171,3 +187,21 @@ message ListMyJoinedGroupsResp {
   repeated GroupInfo groups = 1;
   PageStatsResp page_stats = 2;
 }
+
+ // 处理加群申请请求
+ message HandleGroupApplyReq {
+   string apply_id = 1;
+   bool accept = 2;
+   string reply_msg = 3;
+ }
+
+ message HandleGroupApplyResp {}
+
+ // 获取群成员列表请求
+ message GetGroupMembersReq {
+   string group_id = 1;
+ }
+
+ message GetGroupMembersResp {
+   repeated string member_ids = 1;
+ }

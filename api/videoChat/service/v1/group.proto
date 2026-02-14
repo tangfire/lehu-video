@@ -40,6 +40,9 @@ service GroupService {
 
 	// 新增：检查是否为群成员
 	rpc IsGroupMember(IsGroupMemberReq) returns (IsGroupMemberResp);
+
+	// 处理加群申请
+	rpc HandleGroupApply(HandleGroupApplyReq) returns (HandleGroupApplyResp);
 }
 
 message GroupInfo {
@@ -162,4 +165,15 @@ message IsGroupMemberReq {
 message IsGroupMemberResp {
 	bool is_member = 1;
 	Metadata meta = 2;
+}
+
+message HandleGroupApplyReq {
+	string apply_id = 1;
+	string handler_id = 2;
+	bool accept = 3;
+	string reply_msg = 4;
+}
+
+message HandleGroupApplyResp {
+	Metadata meta = 1;
 }

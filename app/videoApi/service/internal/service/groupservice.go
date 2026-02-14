@@ -207,3 +207,29 @@ func (s *GroupServiceService) ListMyJoinedGroups(ctx context.Context, req *v1.Li
 		},
 	}, nil
 }
+
+func (s *GroupServiceService) HandleGroupApply(ctx context.Context, req *v1.HandleGroupApplyReq) (*v1.HandleGroupApplyResp, error) {
+	input := &biz.HandleGroupApplyInput{
+		ApplyID:  req.ApplyId,
+		Accept:   req.Accept,
+		ReplyMsg: req.ReplyMsg,
+	}
+	err := s.uc.HandleGroupApply(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.HandleGroupApplyResp{}, nil
+}
+
+func (s *GroupServiceService) GetGroupMembers(ctx context.Context, req *v1.GetGroupMembersReq) (*v1.GetGroupMembersResp, error) {
+	input := &biz.GetGroupMembersInput{
+		GroupID: req.GroupId,
+	}
+	output, err := s.uc.GetGroupMembers(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.GetGroupMembersResp{
+		MemberIds: output.MemberIDs,
+	}, nil
+}

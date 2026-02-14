@@ -21,19 +21,12 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// 简化用户信息
+// 简化用户信息（只保留ID，其他由API聚合）
 type User struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // 改为 string
-	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Avatar         string                 `protobuf:"bytes,3,opt,name=avatar,proto3" json:"avatar,omitempty"`
-	Nickname       string                 `protobuf:"bytes,4,opt,name=nickname,proto3" json:"nickname,omitempty"`
-	Gender         int32                  `protobuf:"varint,5,opt,name=gender,proto3" json:"gender,omitempty"`
-	Signature      string                 `protobuf:"bytes,6,opt,name=signature,proto3" json:"signature,omitempty"`
-	OnlineStatus   int32                  `protobuf:"varint,7,opt,name=online_status,json=onlineStatus,proto3" json:"online_status,omitempty"`
-	LastOnlineTime string                 `protobuf:"bytes,8,opt,name=last_online_time,json=lastOnlineTime,proto3" json:"last_online_time,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *User) Reset() {
@@ -73,60 +66,11 @@ func (x *User) GetId() string {
 	return ""
 }
 
-func (x *User) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *User) GetAvatar() string {
-	if x != nil {
-		return x.Avatar
-	}
-	return ""
-}
-
-func (x *User) GetNickname() string {
-	if x != nil {
-		return x.Nickname
-	}
-	return ""
-}
-
-func (x *User) GetGender() int32 {
-	if x != nil {
-		return x.Gender
-	}
-	return 0
-}
-
-func (x *User) GetSignature() string {
-	if x != nil {
-		return x.Signature
-	}
-	return ""
-}
-
-func (x *User) GetOnlineStatus() int32 {
-	if x != nil {
-		return x.OnlineStatus
-	}
-	return 0
-}
-
-func (x *User) GetLastOnlineTime() string {
-	if x != nil {
-		return x.LastOnlineTime
-	}
-	return ""
-}
-
 // 好友信息
 type FriendInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Friend        *User                  `protobuf:"bytes,2,opt,name=friend,proto3" json:"friend,omitempty"`
+	FriendId      string                 `protobuf:"bytes,2,opt,name=friend_id,json=friendId,proto3" json:"friend_id,omitempty"` // 好友用户ID
 	Remark        string                 `protobuf:"bytes,3,opt,name=remark,proto3" json:"remark,omitempty"`
 	GroupName     string                 `protobuf:"bytes,4,opt,name=group_name,json=groupName,proto3" json:"group_name,omitempty"`
 	Status        int32                  `protobuf:"varint,5,opt,name=status,proto3" json:"status,omitempty"`
@@ -172,11 +116,11 @@ func (x *FriendInfo) GetId() string {
 	return ""
 }
 
-func (x *FriendInfo) GetFriend() *User {
+func (x *FriendInfo) GetFriendId() string {
 	if x != nil {
-		return x.Friend
+		return x.FriendId
 	}
-	return nil
+	return ""
 }
 
 func (x *FriendInfo) GetRemark() string {
@@ -208,11 +152,12 @@ func (x *FriendInfo) GetCreatedAt() string {
 }
 
 // 好友申请信息
+// 好友申请信息
 type FriendApplyInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Applicant     *User                  `protobuf:"bytes,2,opt,name=applicant,proto3" json:"applicant,omitempty"`
-	Receiver      *User                  `protobuf:"bytes,3,opt,name=receiver,proto3" json:"receiver,omitempty"`
+	ApplicantId   string                 `protobuf:"bytes,2,opt,name=applicant_id,json=applicantId,proto3" json:"applicant_id,omitempty"` // 申请人ID
+	ReceiverId    string                 `protobuf:"bytes,3,opt,name=receiver_id,json=receiverId,proto3" json:"receiver_id,omitempty"`    // 接收人ID
 	ApplyReason   string                 `protobuf:"bytes,4,opt,name=apply_reason,json=applyReason,proto3" json:"apply_reason,omitempty"`
 	Status        int32                  `protobuf:"varint,5,opt,name=status,proto3" json:"status,omitempty"`
 	HandledAt     string                 `protobuf:"bytes,6,opt,name=handled_at,json=handledAt,proto3" json:"handled_at,omitempty"`
@@ -258,18 +203,18 @@ func (x *FriendApplyInfo) GetId() string {
 	return ""
 }
 
-func (x *FriendApplyInfo) GetApplicant() *User {
+func (x *FriendApplyInfo) GetApplicantId() string {
 	if x != nil {
-		return x.Applicant
+		return x.ApplicantId
 	}
-	return nil
+	return ""
 }
 
-func (x *FriendApplyInfo) GetReceiver() *User {
+func (x *FriendApplyInfo) GetReceiverId() string {
 	if x != nil {
-		return x.Receiver
+		return x.ReceiverId
 	}
-	return nil
+	return ""
 }
 
 func (x *FriendApplyInfo) GetApplyReason() string {
@@ -1495,34 +1440,133 @@ func (x *BatchGetUserOnlineStatusResp) GetMeta() *Metadata {
 	return nil
 }
 
+// 新增：更新用户在线状态
+type UpdateUserOnlineStatusReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	OnlineStatus  int32                  `protobuf:"varint,2,opt,name=online_status,json=onlineStatus,proto3" json:"online_status,omitempty"` // 0:离线 1:在线 2:忙碌 3:离开
+	DeviceType    string                 `protobuf:"bytes,3,opt,name=device_type,json=deviceType,proto3" json:"device_type,omitempty"`        // web / mobile / desktop
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateUserOnlineStatusReq) Reset() {
+	*x = UpdateUserOnlineStatusReq{}
+	mi := &file_api_videoChat_service_v1_friend_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateUserOnlineStatusReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateUserOnlineStatusReq) ProtoMessage() {}
+
+func (x *UpdateUserOnlineStatusReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_friend_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateUserOnlineStatusReq.ProtoReflect.Descriptor instead.
+func (*UpdateUserOnlineStatusReq) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *UpdateUserOnlineStatusReq) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UpdateUserOnlineStatusReq) GetOnlineStatus() int32 {
+	if x != nil {
+		return x.OnlineStatus
+	}
+	return 0
+}
+
+func (x *UpdateUserOnlineStatusReq) GetDeviceType() string {
+	if x != nil {
+		return x.DeviceType
+	}
+	return ""
+}
+
+type UpdateUserOnlineStatusResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateUserOnlineStatusResp) Reset() {
+	*x = UpdateUserOnlineStatusResp{}
+	mi := &file_api_videoChat_service_v1_friend_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateUserOnlineStatusResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateUserOnlineStatusResp) ProtoMessage() {}
+
+func (x *UpdateUserOnlineStatusResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_friend_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateUserOnlineStatusResp.ProtoReflect.Descriptor instead.
+func (*UpdateUserOnlineStatusResp) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_friend_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *UpdateUserOnlineStatusResp) GetMeta() *Metadata {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
 var File_api_videoChat_service_v1_friend_proto protoreflect.FileDescriptor
 
 const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\n" +
-	"%api/videoChat/service/v1/friend.proto\x12\x18api.videoChat.service.v1\x1a#api/videoChat/service/v1/base.proto\"\xe3\x01\n" +
+	"%api/videoChat/service/v1/friend.proto\x12\x18api.videoChat.service.v1\x1a#api/videoChat/service/v1/base.proto\"\x16\n" +
 	"\x04User\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
-	"\x06avatar\x18\x03 \x01(\tR\x06avatar\x12\x1a\n" +
-	"\bnickname\x18\x04 \x01(\tR\bnickname\x12\x16\n" +
-	"\x06gender\x18\x05 \x01(\x05R\x06gender\x12\x1c\n" +
-	"\tsignature\x18\x06 \x01(\tR\tsignature\x12#\n" +
-	"\ronline_status\x18\a \x01(\x05R\fonlineStatus\x12(\n" +
-	"\x10last_online_time\x18\b \x01(\tR\x0elastOnlineTime\"\xc2\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xa7\x01\n" +
 	"\n" +
 	"FriendInfo\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x126\n" +
-	"\x06friend\x18\x02 \x01(\v2\x1e.api.videoChat.service.v1.UserR\x06friend\x12\x16\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\tfriend_id\x18\x02 \x01(\tR\bfriendId\x12\x16\n" +
 	"\x06remark\x18\x03 \x01(\tR\x06remark\x12\x1d\n" +
 	"\n" +
 	"group_name\x18\x04 \x01(\tR\tgroupName\x12\x16\n" +
 	"\x06status\x18\x05 \x01(\x05R\x06status\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\tR\tcreatedAt\"\x94\x02\n" +
+	"created_at\x18\x06 \x01(\tR\tcreatedAt\"\xde\x01\n" +
 	"\x0fFriendApplyInfo\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12<\n" +
-	"\tapplicant\x18\x02 \x01(\v2\x1e.api.videoChat.service.v1.UserR\tapplicant\x12:\n" +
-	"\breceiver\x18\x03 \x01(\v2\x1e.api.videoChat.service.v1.UserR\breceiver\x12!\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
+	"\fapplicant_id\x18\x02 \x01(\tR\vapplicantId\x12\x1f\n" +
+	"\vreceiver_id\x18\x03 \x01(\tR\n" +
+	"receiverId\x12!\n" +
 	"\fapply_reason\x18\x04 \x01(\tR\vapplyReason\x12\x16\n" +
 	"\x06status\x18\x05 \x01(\x05R\x06status\x12\x1d\n" +
 	"\n" +
@@ -1614,7 +1658,15 @@ const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\x1a?\n" +
 	"\x11OnlineStatusEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x012\xa0\t\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"z\n" +
+	"\x19UpdateUserOnlineStatusReq\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12#\n" +
+	"\ronline_status\x18\x02 \x01(\x05R\fonlineStatus\x12\x1f\n" +
+	"\vdevice_type\x18\x03 \x01(\tR\n" +
+	"deviceType\"T\n" +
+	"\x1aUpdateUserOnlineStatusResp\x126\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta2\xa6\n" +
+	"\n" +
 	"\rFriendService\x12n\n" +
 	"\x0fSendFriendApply\x12,.api.videoChat.service.v1.SendFriendApplyReq\x1a-.api.videoChat.service.v1.SendFriendApplyResp\x12t\n" +
 	"\x11HandleFriendApply\x12..api.videoChat.service.v1.HandleFriendApplyReq\x1a/.api.videoChat.service.v1.HandleFriendApplyResp\x12t\n" +
@@ -1625,7 +1677,8 @@ const file_api_videoChat_service_v1_friend_proto_rawDesc = "" +
 	"\x0eSetFriendGroup\x12+.api.videoChat.service.v1.SetFriendGroupReq\x1a,.api.videoChat.service.v1.SetFriendGroupResp\x12z\n" +
 	"\x13CheckFriendRelation\x120.api.videoChat.service.v1.CheckFriendRelationReq\x1a1.api.videoChat.service.v1.CheckFriendRelationResp\x12z\n" +
 	"\x13GetUserOnlineStatus\x120.api.videoChat.service.v1.GetUserOnlineStatusReq\x1a1.api.videoChat.service.v1.GetUserOnlineStatusResp\x12\x89\x01\n" +
-	"\x18BatchGetUserOnlineStatus\x125.api.videoChat.service.v1.BatchGetUserOnlineStatusReq\x1a6.api.videoChat.service.v1.BatchGetUserOnlineStatusRespBD\n" +
+	"\x18BatchGetUserOnlineStatus\x125.api.videoChat.service.v1.BatchGetUserOnlineStatusReq\x1a6.api.videoChat.service.v1.BatchGetUserOnlineStatusResp\x12\x83\x01\n" +
+	"\x16UpdateUserOnlineStatus\x123.api.videoChat.service.v1.UpdateUserOnlineStatusReq\x1a4.api.videoChat.service.v1.UpdateUserOnlineStatusRespBD\n" +
 	"\x18api.videoChat.service.v1P\x01Z&lehu-video/api/videoChat/service/v1;v1b\x06proto3"
 
 var (
@@ -1640,7 +1693,7 @@ func file_api_videoChat_service_v1_friend_proto_rawDescGZIP() []byte {
 	return file_api_videoChat_service_v1_friend_proto_rawDescData
 }
 
-var file_api_videoChat_service_v1_friend_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_api_videoChat_service_v1_friend_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_api_videoChat_service_v1_friend_proto_goTypes = []any{
 	(*User)(nil),                         // 0: api.videoChat.service.v1.User
 	(*FriendInfo)(nil),                   // 1: api.videoChat.service.v1.FriendInfo
@@ -1667,61 +1720,63 @@ var file_api_videoChat_service_v1_friend_proto_goTypes = []any{
 	(*GetUserOnlineStatusResp)(nil),      // 22: api.videoChat.service.v1.GetUserOnlineStatusResp
 	(*BatchGetUserOnlineStatusReq)(nil),  // 23: api.videoChat.service.v1.BatchGetUserOnlineStatusReq
 	(*BatchGetUserOnlineStatusResp)(nil), // 24: api.videoChat.service.v1.BatchGetUserOnlineStatusResp
-	nil,                                  // 25: api.videoChat.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntry
-	(*PageStatsReq)(nil),                 // 26: api.videoChat.service.v1.PageStatsReq
-	(*Metadata)(nil),                     // 27: api.videoChat.service.v1.Metadata
-	(*PageStatsResp)(nil),                // 28: api.videoChat.service.v1.PageStatsResp
+	(*UpdateUserOnlineStatusReq)(nil),    // 25: api.videoChat.service.v1.UpdateUserOnlineStatusReq
+	(*UpdateUserOnlineStatusResp)(nil),   // 26: api.videoChat.service.v1.UpdateUserOnlineStatusResp
+	nil,                                  // 27: api.videoChat.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntry
+	(*PageStatsReq)(nil),                 // 28: api.videoChat.service.v1.PageStatsReq
+	(*Metadata)(nil),                     // 29: api.videoChat.service.v1.Metadata
+	(*PageStatsResp)(nil),                // 30: api.videoChat.service.v1.PageStatsResp
 }
 var file_api_videoChat_service_v1_friend_proto_depIdxs = []int32{
-	0,  // 0: api.videoChat.service.v1.FriendInfo.friend:type_name -> api.videoChat.service.v1.User
-	0,  // 1: api.videoChat.service.v1.FriendApplyInfo.applicant:type_name -> api.videoChat.service.v1.User
-	0,  // 2: api.videoChat.service.v1.FriendApplyInfo.receiver:type_name -> api.videoChat.service.v1.User
-	26, // 3: api.videoChat.service.v1.SearchUsersReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
-	0,  // 4: api.videoChat.service.v1.SearchUsersResp.users:type_name -> api.videoChat.service.v1.User
-	27, // 5: api.videoChat.service.v1.SearchUsersResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	28, // 6: api.videoChat.service.v1.SearchUsersResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
-	27, // 7: api.videoChat.service.v1.SendFriendApplyResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	27, // 8: api.videoChat.service.v1.HandleFriendApplyResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	26, // 9: api.videoChat.service.v1.ListFriendAppliesReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
-	2,  // 10: api.videoChat.service.v1.ListFriendAppliesResp.applies:type_name -> api.videoChat.service.v1.FriendApplyInfo
-	27, // 11: api.videoChat.service.v1.ListFriendAppliesResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	28, // 12: api.videoChat.service.v1.ListFriendAppliesResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
-	26, // 13: api.videoChat.service.v1.ListFriendsReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
-	1,  // 14: api.videoChat.service.v1.ListFriendsResp.friends:type_name -> api.videoChat.service.v1.FriendInfo
-	27, // 15: api.videoChat.service.v1.ListFriendsResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	28, // 16: api.videoChat.service.v1.ListFriendsResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
-	27, // 17: api.videoChat.service.v1.DeleteFriendResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	27, // 18: api.videoChat.service.v1.UpdateFriendRemarkResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	27, // 19: api.videoChat.service.v1.SetFriendGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	27, // 20: api.videoChat.service.v1.CheckFriendRelationResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	27, // 21: api.videoChat.service.v1.GetUserOnlineStatusResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	25, // 22: api.videoChat.service.v1.BatchGetUserOnlineStatusResp.online_status:type_name -> api.videoChat.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntry
-	27, // 23: api.videoChat.service.v1.BatchGetUserOnlineStatusResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	5,  // 24: api.videoChat.service.v1.FriendService.SendFriendApply:input_type -> api.videoChat.service.v1.SendFriendApplyReq
-	7,  // 25: api.videoChat.service.v1.FriendService.HandleFriendApply:input_type -> api.videoChat.service.v1.HandleFriendApplyReq
-	9,  // 26: api.videoChat.service.v1.FriendService.ListFriendApplies:input_type -> api.videoChat.service.v1.ListFriendAppliesReq
-	11, // 27: api.videoChat.service.v1.FriendService.ListFriends:input_type -> api.videoChat.service.v1.ListFriendsReq
-	13, // 28: api.videoChat.service.v1.FriendService.DeleteFriend:input_type -> api.videoChat.service.v1.DeleteFriendReq
-	15, // 29: api.videoChat.service.v1.FriendService.UpdateFriendRemark:input_type -> api.videoChat.service.v1.UpdateFriendRemarkReq
-	17, // 30: api.videoChat.service.v1.FriendService.SetFriendGroup:input_type -> api.videoChat.service.v1.SetFriendGroupReq
-	19, // 31: api.videoChat.service.v1.FriendService.CheckFriendRelation:input_type -> api.videoChat.service.v1.CheckFriendRelationReq
-	21, // 32: api.videoChat.service.v1.FriendService.GetUserOnlineStatus:input_type -> api.videoChat.service.v1.GetUserOnlineStatusReq
-	23, // 33: api.videoChat.service.v1.FriendService.BatchGetUserOnlineStatus:input_type -> api.videoChat.service.v1.BatchGetUserOnlineStatusReq
-	6,  // 34: api.videoChat.service.v1.FriendService.SendFriendApply:output_type -> api.videoChat.service.v1.SendFriendApplyResp
-	8,  // 35: api.videoChat.service.v1.FriendService.HandleFriendApply:output_type -> api.videoChat.service.v1.HandleFriendApplyResp
-	10, // 36: api.videoChat.service.v1.FriendService.ListFriendApplies:output_type -> api.videoChat.service.v1.ListFriendAppliesResp
-	12, // 37: api.videoChat.service.v1.FriendService.ListFriends:output_type -> api.videoChat.service.v1.ListFriendsResp
-	14, // 38: api.videoChat.service.v1.FriendService.DeleteFriend:output_type -> api.videoChat.service.v1.DeleteFriendResp
-	16, // 39: api.videoChat.service.v1.FriendService.UpdateFriendRemark:output_type -> api.videoChat.service.v1.UpdateFriendRemarkResp
-	18, // 40: api.videoChat.service.v1.FriendService.SetFriendGroup:output_type -> api.videoChat.service.v1.SetFriendGroupResp
-	20, // 41: api.videoChat.service.v1.FriendService.CheckFriendRelation:output_type -> api.videoChat.service.v1.CheckFriendRelationResp
-	22, // 42: api.videoChat.service.v1.FriendService.GetUserOnlineStatus:output_type -> api.videoChat.service.v1.GetUserOnlineStatusResp
-	24, // 43: api.videoChat.service.v1.FriendService.BatchGetUserOnlineStatus:output_type -> api.videoChat.service.v1.BatchGetUserOnlineStatusResp
-	34, // [34:44] is the sub-list for method output_type
-	24, // [24:34] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	28, // 0: api.videoChat.service.v1.SearchUsersReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
+	0,  // 1: api.videoChat.service.v1.SearchUsersResp.users:type_name -> api.videoChat.service.v1.User
+	29, // 2: api.videoChat.service.v1.SearchUsersResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	30, // 3: api.videoChat.service.v1.SearchUsersResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
+	29, // 4: api.videoChat.service.v1.SendFriendApplyResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	29, // 5: api.videoChat.service.v1.HandleFriendApplyResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	28, // 6: api.videoChat.service.v1.ListFriendAppliesReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
+	2,  // 7: api.videoChat.service.v1.ListFriendAppliesResp.applies:type_name -> api.videoChat.service.v1.FriendApplyInfo
+	29, // 8: api.videoChat.service.v1.ListFriendAppliesResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	30, // 9: api.videoChat.service.v1.ListFriendAppliesResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
+	28, // 10: api.videoChat.service.v1.ListFriendsReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
+	1,  // 11: api.videoChat.service.v1.ListFriendsResp.friends:type_name -> api.videoChat.service.v1.FriendInfo
+	29, // 12: api.videoChat.service.v1.ListFriendsResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	30, // 13: api.videoChat.service.v1.ListFriendsResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
+	29, // 14: api.videoChat.service.v1.DeleteFriendResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	29, // 15: api.videoChat.service.v1.UpdateFriendRemarkResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	29, // 16: api.videoChat.service.v1.SetFriendGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	29, // 17: api.videoChat.service.v1.CheckFriendRelationResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	29, // 18: api.videoChat.service.v1.GetUserOnlineStatusResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	27, // 19: api.videoChat.service.v1.BatchGetUserOnlineStatusResp.online_status:type_name -> api.videoChat.service.v1.BatchGetUserOnlineStatusResp.OnlineStatusEntry
+	29, // 20: api.videoChat.service.v1.BatchGetUserOnlineStatusResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	29, // 21: api.videoChat.service.v1.UpdateUserOnlineStatusResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	5,  // 22: api.videoChat.service.v1.FriendService.SendFriendApply:input_type -> api.videoChat.service.v1.SendFriendApplyReq
+	7,  // 23: api.videoChat.service.v1.FriendService.HandleFriendApply:input_type -> api.videoChat.service.v1.HandleFriendApplyReq
+	9,  // 24: api.videoChat.service.v1.FriendService.ListFriendApplies:input_type -> api.videoChat.service.v1.ListFriendAppliesReq
+	11, // 25: api.videoChat.service.v1.FriendService.ListFriends:input_type -> api.videoChat.service.v1.ListFriendsReq
+	13, // 26: api.videoChat.service.v1.FriendService.DeleteFriend:input_type -> api.videoChat.service.v1.DeleteFriendReq
+	15, // 27: api.videoChat.service.v1.FriendService.UpdateFriendRemark:input_type -> api.videoChat.service.v1.UpdateFriendRemarkReq
+	17, // 28: api.videoChat.service.v1.FriendService.SetFriendGroup:input_type -> api.videoChat.service.v1.SetFriendGroupReq
+	19, // 29: api.videoChat.service.v1.FriendService.CheckFriendRelation:input_type -> api.videoChat.service.v1.CheckFriendRelationReq
+	21, // 30: api.videoChat.service.v1.FriendService.GetUserOnlineStatus:input_type -> api.videoChat.service.v1.GetUserOnlineStatusReq
+	23, // 31: api.videoChat.service.v1.FriendService.BatchGetUserOnlineStatus:input_type -> api.videoChat.service.v1.BatchGetUserOnlineStatusReq
+	25, // 32: api.videoChat.service.v1.FriendService.UpdateUserOnlineStatus:input_type -> api.videoChat.service.v1.UpdateUserOnlineStatusReq
+	6,  // 33: api.videoChat.service.v1.FriendService.SendFriendApply:output_type -> api.videoChat.service.v1.SendFriendApplyResp
+	8,  // 34: api.videoChat.service.v1.FriendService.HandleFriendApply:output_type -> api.videoChat.service.v1.HandleFriendApplyResp
+	10, // 35: api.videoChat.service.v1.FriendService.ListFriendApplies:output_type -> api.videoChat.service.v1.ListFriendAppliesResp
+	12, // 36: api.videoChat.service.v1.FriendService.ListFriends:output_type -> api.videoChat.service.v1.ListFriendsResp
+	14, // 37: api.videoChat.service.v1.FriendService.DeleteFriend:output_type -> api.videoChat.service.v1.DeleteFriendResp
+	16, // 38: api.videoChat.service.v1.FriendService.UpdateFriendRemark:output_type -> api.videoChat.service.v1.UpdateFriendRemarkResp
+	18, // 39: api.videoChat.service.v1.FriendService.SetFriendGroup:output_type -> api.videoChat.service.v1.SetFriendGroupResp
+	20, // 40: api.videoChat.service.v1.FriendService.CheckFriendRelation:output_type -> api.videoChat.service.v1.CheckFriendRelationResp
+	22, // 41: api.videoChat.service.v1.FriendService.GetUserOnlineStatus:output_type -> api.videoChat.service.v1.GetUserOnlineStatusResp
+	24, // 42: api.videoChat.service.v1.FriendService.BatchGetUserOnlineStatus:output_type -> api.videoChat.service.v1.BatchGetUserOnlineStatusResp
+	26, // 43: api.videoChat.service.v1.FriendService.UpdateUserOnlineStatus:output_type -> api.videoChat.service.v1.UpdateUserOnlineStatusResp
+	33, // [33:44] is the sub-list for method output_type
+	22, // [22:33] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_api_videoChat_service_v1_friend_proto_init() }
@@ -1738,7 +1793,7 @@ func file_api_videoChat_service_v1_friend_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_videoChat_service_v1_friend_proto_rawDesc), len(file_api_videoChat_service_v1_friend_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   26,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -56,40 +56,29 @@ func (s *FriendServiceService) ListFriendApplies(ctx context.Context, req *v1.Li
 		PageSize: req.PageStats.Size,
 		Status:   req.Status,
 	}
-
 	output, err := s.uc.ListFriendApplies(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 
-	// 转换申请信息
 	applies := make([]*v1.FriendApplyInfo, 0, len(output.Applies))
-	for _, apply := range output.Applies {
-		// 注意：这里需要获取申请人和接收人的详细信息
-		// 为了简化，这里只返回基础信息，实际项目中需要从core服务获取详细信息
-		friendApplyInfo := &v1.FriendApplyInfo{
-			Id:          apply.ID,
-			ApplyReason: apply.ApplyReason,
-			Status:      apply.Status,
-			CreatedAt:   apply.CreatedAt.Format("2006-01-02 15:04:05"),
+	for _, d := range output.Applies {
+		// 处理 HandledAt 字段：将 *time.Time 转换为 string
+		var handledAtStr string
+		if d.HandledAt != nil {
+			handledAtStr = d.HandledAt.Format("2006-01-02 15:04:05")
 		}
 
-		if apply.HandledAt != nil {
-			handledAt := apply.HandledAt.Format("2006-01-02 15:04:05")
-			friendApplyInfo.HandledAt = handledAt
+		apply := &v1.FriendApplyInfo{
+			Id:          d.ID,
+			ApplyReason: d.ApplyReason,
+			Status:      d.Status,
+			HandledAt:   handledAtStr, // 使用转换后的字符串
+			CreatedAt:   d.CreatedAt.Format("2006-01-02 15:04:05"),
+			Applicant:   convertToProtoUser(d.Applicant),
+			Receiver:    convertToProtoUser(d.Receiver),
 		}
-
-		// 申请人信息
-		friendApplyInfo.Applicant = &v1.User{
-			Id: apply.ApplicantID,
-		}
-
-		// 接收人信息
-		friendApplyInfo.Receiver = &v1.User{
-			Id: apply.ReceiverID,
-		}
-
-		applies = append(applies, friendApplyInfo)
+		applies = append(applies, apply)
 	}
 
 	return &v1.ListFriendAppliesResp{

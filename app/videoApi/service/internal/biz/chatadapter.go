@@ -20,11 +20,16 @@ type ChatAdapter interface {
 	SendFriendApply(ctx context.Context, applicantID, receiverID, applyReason string) (string, error)
 	HandleFriendApply(ctx context.Context, applyID, handlerID string, accept bool) error
 	ListFriendApplies(ctx context.Context, userID string, status *int32, pageStats *PageStats) (int64, []*FriendApply, error)
-	ListFriends(ctx context.Context, userID string, groupName *string, pageStats *PageStats) (int64, []*FriendInfo, error)
+	ListFriends(ctx context.Context, userID string, groupName *string, pageStats *PageStats) (int64, []*FriendRelation, error)
 	DeleteFriend(ctx context.Context, userID, friendID string) error
 	UpdateFriendRemark(ctx context.Context, userID, friendID, remark string) error
 	SetFriendGroup(ctx context.Context, userID, friendID, groupName string) error
 	CheckFriendRelation(ctx context.Context, userID, targetID string) (bool, int32, error)
+
+	// 在线状态相关（新增）
+	GetUserOnlineStatus(ctx context.Context, userID string) (*UserSocialInfo, error)
+	BatchGetUserOnlineStatus(ctx context.Context, userIDs []string) (map[string]int32, error) // 简化返回
+	UpdateUserOnlineStatus(ctx context.Context, userID string, status int32, deviceType string) error
 
 	// 群聊相关
 	CreateGroup(ctx context.Context, ownerID, name, notice string, addMode int32, avatar string) (string, error)
@@ -36,15 +41,15 @@ type ChatAdapter interface {
 	ListMyJoinedGroups(ctx context.Context, userID string, pageStats *PageStats) (int64, []*Group, error)
 	LeaveGroup(ctx context.Context, userID, groupID string) error
 	DismissGroup(ctx context.Context, ownerID string, groupID string) error
-
-	// 新增：获取群成员列表
 	GetGroupMembers(ctx context.Context, groupID string) ([]string, error)
 
 	// 创建会话
 	CreateConversation(ctx context.Context, userID, receiverID, groupID string, convType int32, initialMessage string) (string, error)
 	GetConversationDetail(ctx context.Context, conversationID, userID string) (*Conversation, error)
-	GetUserOnlineStatus(ctx context.Context, userID string) (*UserSocialInfo, error)
-	BatchGetUserOnlineStatus(ctx context.Context, userIDs []string) (map[string]*UserSocialInfo, error)
+
+	// 关系相关
 	GetUserRelation(ctx context.Context, userID, targetUserID string) (*UserRelationInfo, error)
 	BatchGetUserRelations(ctx context.Context, userID string, targetUserIDs []string) (map[string]*UserRelationInfo, error)
+
+	HandleGroupApply(ctx context.Context, applyID, handlerID string, accept bool, replyMsg string) error
 }

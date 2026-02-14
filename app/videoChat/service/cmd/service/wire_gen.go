@@ -33,11 +33,11 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 		return nil, nil, err
 	}
 	groupRepo := data.NewGroupRepo(dataData, logger)
-	groupUsecase := biz.NewGroupUsecase(groupRepo, logger)
+	conversationRepo := data.NewConversationRepo(dataData, logger)
+	groupUsecase := biz.NewGroupUsecase(groupRepo, conversationRepo, logger)
 	groupServiceService := service.NewGroupServiceService(groupUsecase, logger)
 	messageRepo := data.NewMessageRepo(dataData, logger)
 	friendRepo := data.NewFriendRepo(dataData, userServiceClient, logger)
-	conversationRepo := data.NewConversationRepo(dataData, logger)
 	idGenerator, err := idgen.NewIDGenerator()
 	if err != nil {
 		cleanup()

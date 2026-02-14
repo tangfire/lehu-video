@@ -230,6 +230,13 @@ func NewClient(
 // ReadPump 读取客户端消息
 func (c *Client) ReadPump() {
 	defer func() {
+		// 通知chat服务：用户下线
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := c.chat.UpdateUserOnlineStatus(ctx, c.UserID, 0, "") // 0 离线
+		if err != nil {
+			c.logger.Log(log.LevelError, "msg", "更新在线状态失败", "err", err)
+		}
 		c.Manager.unregister <- c
 		c.Conn.Close()
 	}()
@@ -945,10 +952,9 @@ func NewHandler(
 
 // ServeHTTP 处理 WebSocket 升级请求
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 1. 获取 Token (优先从查询参数获取，因为浏览器 WebSocket API 不支持自定义 Header)
+	// 1. 获取 Token
 	tokenStr := r.URL.Query().Get("token")
 	if tokenStr == "" {
-		// 备选：尝试从 Authorization Header 获取
 		auth := r.Header.Get("Authorization")
 		if auth != "" {
 			parts := strings.SplitN(auth, " ", 2)
@@ -957,14 +963,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
 	if tokenStr == "" {
 		h.logger.Log(log.LevelWarn, "msg", "未授权的访问: 缺失 token")
 		http.Error(w, "Unauthorized: missing token", http.StatusUnauthorized)
 		return
 	}
 
-	// 2. 解析并验证 JWT Token
+	// 2. 解析 JWT
 	claim, err := parseJWT(tokenStr, h.jwtSecret)
 	if err != nil {
 		h.logger.Log(log.LevelError, "msg", "Token 验证失败", "err", err)
@@ -972,32 +977,35 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. 升级 HTTP 连接为 WebSocket
+	// 3. 升级 WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Log(log.LevelError, "msg", "WebSocket 升级失败", "err", err)
 		return
 	}
 
-	// 4. 构造上下文 (将用户信息存入 context 供后续业务使用)
 	ctx := context.Background()
 	ctx = kjwt.NewContext(ctx, claim)
 
-	// 5. 创建 Client 实例
-	// 注意：userID 从 claim 中获取，确保是 int64 类型
+	// 4. 创建 Client
 	client := NewClient(ctx, claim.UserId, conn, h.manager, h.messageUC, h.chat, h.logger)
 
-	// 6. 将新连接注册到 Manager
-	// Manager.Start 协程会处理此通道消息，并自动踢掉该用户之前的旧连接
+	// 5. 通知chat服务：用户上线
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := h.chat.UpdateUserOnlineStatus(ctx, claim.UserId, 1, "web") // 1 在线
+		if err != nil {
+			h.logger.Log(log.LevelError, "msg", "更新在线状态失败", "err", err)
+		}
+	}()
+
+	// 6. 注册连接
 	h.manager.register <- client
 
-	// 7. 【关键】启动读写循环
-	// WritePump 必须在后台协程运行，用于向客户端发送数据
+	// 7. 启动读写循环
 	go client.WritePump()
-
-	// ReadPump 在当前协程运行，它是一个阻塞循环，直到连接断开
-	// 这会阻止 ServeHTTP 函数返回，从而维持连接生命周期
-	client.ReadPump()
+	client.ReadPump() // 阻塞，直到断开
 }
 
 // 辅助函数：解析 JWT

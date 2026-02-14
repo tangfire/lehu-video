@@ -1273,6 +1273,118 @@ func (x *IsGroupMemberResp) GetMeta() *Metadata {
 	return nil
 }
 
+type HandleGroupApplyReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApplyId       string                 `protobuf:"bytes,1,opt,name=apply_id,json=applyId,proto3" json:"apply_id,omitempty"`
+	HandlerId     string                 `protobuf:"bytes,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
+	Accept        bool                   `protobuf:"varint,3,opt,name=accept,proto3" json:"accept,omitempty"`
+	ReplyMsg      string                 `protobuf:"bytes,4,opt,name=reply_msg,json=replyMsg,proto3" json:"reply_msg,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandleGroupApplyReq) Reset() {
+	*x = HandleGroupApplyReq{}
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandleGroupApplyReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandleGroupApplyReq) ProtoMessage() {}
+
+func (x *HandleGroupApplyReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandleGroupApplyReq.ProtoReflect.Descriptor instead.
+func (*HandleGroupApplyReq) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *HandleGroupApplyReq) GetApplyId() string {
+	if x != nil {
+		return x.ApplyId
+	}
+	return ""
+}
+
+func (x *HandleGroupApplyReq) GetHandlerId() string {
+	if x != nil {
+		return x.HandlerId
+	}
+	return ""
+}
+
+func (x *HandleGroupApplyReq) GetAccept() bool {
+	if x != nil {
+		return x.Accept
+	}
+	return false
+}
+
+func (x *HandleGroupApplyReq) GetReplyMsg() string {
+	if x != nil {
+		return x.ReplyMsg
+	}
+	return ""
+}
+
+type HandleGroupApplyResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandleGroupApplyResp) Reset() {
+	*x = HandleGroupApplyResp{}
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandleGroupApplyResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandleGroupApplyResp) ProtoMessage() {}
+
+func (x *HandleGroupApplyResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoChat_service_v1_group_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandleGroupApplyResp.ProtoReflect.Descriptor instead.
+func (*HandleGroupApplyResp) Descriptor() ([]byte, []int) {
+	return file_api_videoChat_service_v1_group_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *HandleGroupApplyResp) GetMeta() *Metadata {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
 var File_api_videoChat_service_v1_group_proto protoreflect.FileDescriptor
 
 const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
@@ -1362,7 +1474,16 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"h\n" +
 	"\x11IsGroupMemberResp\x12\x1b\n" +
 	"\tis_member\x18\x01 \x01(\bR\bisMember\x126\n" +
-	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta2\xb4\t\n" +
+	"\x04meta\x18\x02 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta\"\x84\x01\n" +
+	"\x13HandleGroupApplyReq\x12\x19\n" +
+	"\bapply_id\x18\x01 \x01(\tR\aapplyId\x12\x1d\n" +
+	"\n" +
+	"handler_id\x18\x02 \x01(\tR\thandlerId\x12\x16\n" +
+	"\x06accept\x18\x03 \x01(\bR\x06accept\x12\x1b\n" +
+	"\treply_msg\x18\x04 \x01(\tR\breplyMsg\"N\n" +
+	"\x14HandleGroupApplyResp\x126\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoChat.service.v1.MetadataR\x04meta2\xa7\n" +
+	"\n" +
 	"\fGroupService\x12b\n" +
 	"\vCreateGroup\x12(.api.videoChat.service.v1.CreateGroupReq\x1a).api.videoChat.service.v1.CreateGroupResp\x12b\n" +
 	"\vLoadMyGroup\x12(.api.videoChat.service.v1.LoadMyGroupReq\x1a).api.videoChat.service.v1.LoadMyGroupResp\x12t\n" +
@@ -1375,7 +1496,8 @@ const file_api_videoChat_service_v1_group_proto_rawDesc = "" +
 	"\fGetGroupInfo\x12).api.videoChat.service.v1.GetGroupInfoReq\x1a*.api.videoChat.service.v1.GetGroupInfoResp\x12w\n" +
 	"\x12ListMyJoinedGroups\x12/.api.videoChat.service.v1.ListMyJoinedGroupsReq\x1a0.api.videoChat.service.v1.ListMyJoinedGroupsResp\x12n\n" +
 	"\x0fGetGroupMembers\x12,.api.videoChat.service.v1.GetGroupMembersReq\x1a-.api.videoChat.service.v1.GetGroupMembersResp\x12h\n" +
-	"\rIsGroupMember\x12*.api.videoChat.service.v1.IsGroupMemberReq\x1a+.api.videoChat.service.v1.IsGroupMemberRespBD\n" +
+	"\rIsGroupMember\x12*.api.videoChat.service.v1.IsGroupMemberReq\x1a+.api.videoChat.service.v1.IsGroupMemberResp\x12q\n" +
+	"\x10HandleGroupApply\x12-.api.videoChat.service.v1.HandleGroupApplyReq\x1a..api.videoChat.service.v1.HandleGroupApplyRespBD\n" +
 	"\x18api.videoChat.service.v1P\x01Z&lehu-video/api/videoChat/service/v1;v1b\x06proto3"
 
 var (
@@ -1390,7 +1512,7 @@ func file_api_videoChat_service_v1_group_proto_rawDescGZIP() []byte {
 	return file_api_videoChat_service_v1_group_proto_rawDescData
 }
 
-var file_api_videoChat_service_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_api_videoChat_service_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_api_videoChat_service_v1_group_proto_goTypes = []any{
 	(*GroupInfo)(nil),              // 0: api.videoChat.service.v1.GroupInfo
 	(*CreateGroupReq)(nil),         // 1: api.videoChat.service.v1.CreateGroupReq
@@ -1415,56 +1537,61 @@ var file_api_videoChat_service_v1_group_proto_goTypes = []any{
 	(*GetGroupMembersResp)(nil),    // 20: api.videoChat.service.v1.GetGroupMembersResp
 	(*IsGroupMemberReq)(nil),       // 21: api.videoChat.service.v1.IsGroupMemberReq
 	(*IsGroupMemberResp)(nil),      // 22: api.videoChat.service.v1.IsGroupMemberResp
-	(*Metadata)(nil),               // 23: api.videoChat.service.v1.Metadata
-	(*PageStatsReq)(nil),           // 24: api.videoChat.service.v1.PageStatsReq
-	(*PageStatsResp)(nil),          // 25: api.videoChat.service.v1.PageStatsResp
+	(*HandleGroupApplyReq)(nil),    // 23: api.videoChat.service.v1.HandleGroupApplyReq
+	(*HandleGroupApplyResp)(nil),   // 24: api.videoChat.service.v1.HandleGroupApplyResp
+	(*Metadata)(nil),               // 25: api.videoChat.service.v1.Metadata
+	(*PageStatsReq)(nil),           // 26: api.videoChat.service.v1.PageStatsReq
+	(*PageStatsResp)(nil),          // 27: api.videoChat.service.v1.PageStatsResp
 }
 var file_api_videoChat_service_v1_group_proto_depIdxs = []int32{
-	23, // 0: api.videoChat.service.v1.CreateGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	24, // 1: api.videoChat.service.v1.LoadMyGroupReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
+	25, // 0: api.videoChat.service.v1.CreateGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	26, // 1: api.videoChat.service.v1.LoadMyGroupReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
 	0,  // 2: api.videoChat.service.v1.LoadMyGroupResp.groups:type_name -> api.videoChat.service.v1.GroupInfo
-	23, // 3: api.videoChat.service.v1.LoadMyGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	25, // 4: api.videoChat.service.v1.LoadMyGroupResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
-	23, // 5: api.videoChat.service.v1.CheckGroupAddModeResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	23, // 6: api.videoChat.service.v1.EnterGroupDirectlyResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	23, // 7: api.videoChat.service.v1.ApplyJoinGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	23, // 8: api.videoChat.service.v1.LeaveGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	23, // 9: api.videoChat.service.v1.DismissGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	25, // 3: api.videoChat.service.v1.LoadMyGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	27, // 4: api.videoChat.service.v1.LoadMyGroupResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
+	25, // 5: api.videoChat.service.v1.CheckGroupAddModeResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	25, // 6: api.videoChat.service.v1.EnterGroupDirectlyResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	25, // 7: api.videoChat.service.v1.ApplyJoinGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	25, // 8: api.videoChat.service.v1.LeaveGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	25, // 9: api.videoChat.service.v1.DismissGroupResp.meta:type_name -> api.videoChat.service.v1.Metadata
 	0,  // 10: api.videoChat.service.v1.GetGroupInfoResp.group:type_name -> api.videoChat.service.v1.GroupInfo
-	23, // 11: api.videoChat.service.v1.GetGroupInfoResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	24, // 12: api.videoChat.service.v1.ListMyJoinedGroupsReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
+	25, // 11: api.videoChat.service.v1.GetGroupInfoResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	26, // 12: api.videoChat.service.v1.ListMyJoinedGroupsReq.page_stats:type_name -> api.videoChat.service.v1.PageStatsReq
 	0,  // 13: api.videoChat.service.v1.ListMyJoinedGroupsResp.groups:type_name -> api.videoChat.service.v1.GroupInfo
-	23, // 14: api.videoChat.service.v1.ListMyJoinedGroupsResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	25, // 15: api.videoChat.service.v1.ListMyJoinedGroupsResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
-	23, // 16: api.videoChat.service.v1.GetGroupMembersResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	23, // 17: api.videoChat.service.v1.IsGroupMemberResp.meta:type_name -> api.videoChat.service.v1.Metadata
-	1,  // 18: api.videoChat.service.v1.GroupService.CreateGroup:input_type -> api.videoChat.service.v1.CreateGroupReq
-	3,  // 19: api.videoChat.service.v1.GroupService.LoadMyGroup:input_type -> api.videoChat.service.v1.LoadMyGroupReq
-	5,  // 20: api.videoChat.service.v1.GroupService.CheckGroupAddMode:input_type -> api.videoChat.service.v1.CheckGroupAddModeReq
-	7,  // 21: api.videoChat.service.v1.GroupService.EnterGroupDirectly:input_type -> api.videoChat.service.v1.EnterGroupDirectlyReq
-	9,  // 22: api.videoChat.service.v1.GroupService.ApplyJoinGroup:input_type -> api.videoChat.service.v1.ApplyJoinGroupReq
-	11, // 23: api.videoChat.service.v1.GroupService.LeaveGroup:input_type -> api.videoChat.service.v1.LeaveGroupReq
-	13, // 24: api.videoChat.service.v1.GroupService.DismissGroup:input_type -> api.videoChat.service.v1.DismissGroupReq
-	15, // 25: api.videoChat.service.v1.GroupService.GetGroupInfo:input_type -> api.videoChat.service.v1.GetGroupInfoReq
-	17, // 26: api.videoChat.service.v1.GroupService.ListMyJoinedGroups:input_type -> api.videoChat.service.v1.ListMyJoinedGroupsReq
-	19, // 27: api.videoChat.service.v1.GroupService.GetGroupMembers:input_type -> api.videoChat.service.v1.GetGroupMembersReq
-	21, // 28: api.videoChat.service.v1.GroupService.IsGroupMember:input_type -> api.videoChat.service.v1.IsGroupMemberReq
-	2,  // 29: api.videoChat.service.v1.GroupService.CreateGroup:output_type -> api.videoChat.service.v1.CreateGroupResp
-	4,  // 30: api.videoChat.service.v1.GroupService.LoadMyGroup:output_type -> api.videoChat.service.v1.LoadMyGroupResp
-	6,  // 31: api.videoChat.service.v1.GroupService.CheckGroupAddMode:output_type -> api.videoChat.service.v1.CheckGroupAddModeResp
-	8,  // 32: api.videoChat.service.v1.GroupService.EnterGroupDirectly:output_type -> api.videoChat.service.v1.EnterGroupDirectlyResp
-	10, // 33: api.videoChat.service.v1.GroupService.ApplyJoinGroup:output_type -> api.videoChat.service.v1.ApplyJoinGroupResp
-	12, // 34: api.videoChat.service.v1.GroupService.LeaveGroup:output_type -> api.videoChat.service.v1.LeaveGroupResp
-	14, // 35: api.videoChat.service.v1.GroupService.DismissGroup:output_type -> api.videoChat.service.v1.DismissGroupResp
-	16, // 36: api.videoChat.service.v1.GroupService.GetGroupInfo:output_type -> api.videoChat.service.v1.GetGroupInfoResp
-	18, // 37: api.videoChat.service.v1.GroupService.ListMyJoinedGroups:output_type -> api.videoChat.service.v1.ListMyJoinedGroupsResp
-	20, // 38: api.videoChat.service.v1.GroupService.GetGroupMembers:output_type -> api.videoChat.service.v1.GetGroupMembersResp
-	22, // 39: api.videoChat.service.v1.GroupService.IsGroupMember:output_type -> api.videoChat.service.v1.IsGroupMemberResp
-	29, // [29:40] is the sub-list for method output_type
-	18, // [18:29] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	25, // 14: api.videoChat.service.v1.ListMyJoinedGroupsResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	27, // 15: api.videoChat.service.v1.ListMyJoinedGroupsResp.page_stats:type_name -> api.videoChat.service.v1.PageStatsResp
+	25, // 16: api.videoChat.service.v1.GetGroupMembersResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	25, // 17: api.videoChat.service.v1.IsGroupMemberResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	25, // 18: api.videoChat.service.v1.HandleGroupApplyResp.meta:type_name -> api.videoChat.service.v1.Metadata
+	1,  // 19: api.videoChat.service.v1.GroupService.CreateGroup:input_type -> api.videoChat.service.v1.CreateGroupReq
+	3,  // 20: api.videoChat.service.v1.GroupService.LoadMyGroup:input_type -> api.videoChat.service.v1.LoadMyGroupReq
+	5,  // 21: api.videoChat.service.v1.GroupService.CheckGroupAddMode:input_type -> api.videoChat.service.v1.CheckGroupAddModeReq
+	7,  // 22: api.videoChat.service.v1.GroupService.EnterGroupDirectly:input_type -> api.videoChat.service.v1.EnterGroupDirectlyReq
+	9,  // 23: api.videoChat.service.v1.GroupService.ApplyJoinGroup:input_type -> api.videoChat.service.v1.ApplyJoinGroupReq
+	11, // 24: api.videoChat.service.v1.GroupService.LeaveGroup:input_type -> api.videoChat.service.v1.LeaveGroupReq
+	13, // 25: api.videoChat.service.v1.GroupService.DismissGroup:input_type -> api.videoChat.service.v1.DismissGroupReq
+	15, // 26: api.videoChat.service.v1.GroupService.GetGroupInfo:input_type -> api.videoChat.service.v1.GetGroupInfoReq
+	17, // 27: api.videoChat.service.v1.GroupService.ListMyJoinedGroups:input_type -> api.videoChat.service.v1.ListMyJoinedGroupsReq
+	19, // 28: api.videoChat.service.v1.GroupService.GetGroupMembers:input_type -> api.videoChat.service.v1.GetGroupMembersReq
+	21, // 29: api.videoChat.service.v1.GroupService.IsGroupMember:input_type -> api.videoChat.service.v1.IsGroupMemberReq
+	23, // 30: api.videoChat.service.v1.GroupService.HandleGroupApply:input_type -> api.videoChat.service.v1.HandleGroupApplyReq
+	2,  // 31: api.videoChat.service.v1.GroupService.CreateGroup:output_type -> api.videoChat.service.v1.CreateGroupResp
+	4,  // 32: api.videoChat.service.v1.GroupService.LoadMyGroup:output_type -> api.videoChat.service.v1.LoadMyGroupResp
+	6,  // 33: api.videoChat.service.v1.GroupService.CheckGroupAddMode:output_type -> api.videoChat.service.v1.CheckGroupAddModeResp
+	8,  // 34: api.videoChat.service.v1.GroupService.EnterGroupDirectly:output_type -> api.videoChat.service.v1.EnterGroupDirectlyResp
+	10, // 35: api.videoChat.service.v1.GroupService.ApplyJoinGroup:output_type -> api.videoChat.service.v1.ApplyJoinGroupResp
+	12, // 36: api.videoChat.service.v1.GroupService.LeaveGroup:output_type -> api.videoChat.service.v1.LeaveGroupResp
+	14, // 37: api.videoChat.service.v1.GroupService.DismissGroup:output_type -> api.videoChat.service.v1.DismissGroupResp
+	16, // 38: api.videoChat.service.v1.GroupService.GetGroupInfo:output_type -> api.videoChat.service.v1.GetGroupInfoResp
+	18, // 39: api.videoChat.service.v1.GroupService.ListMyJoinedGroups:output_type -> api.videoChat.service.v1.ListMyJoinedGroupsResp
+	20, // 40: api.videoChat.service.v1.GroupService.GetGroupMembers:output_type -> api.videoChat.service.v1.GetGroupMembersResp
+	22, // 41: api.videoChat.service.v1.GroupService.IsGroupMember:output_type -> api.videoChat.service.v1.IsGroupMemberResp
+	24, // 42: api.videoChat.service.v1.GroupService.HandleGroupApply:output_type -> api.videoChat.service.v1.HandleGroupApplyResp
+	31, // [31:43] is the sub-list for method output_type
+	19, // [19:31] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_api_videoChat_service_v1_group_proto_init() }
@@ -1479,7 +1606,7 @@ func file_api_videoChat_service_v1_group_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_videoChat_service_v1_group_proto_rawDesc), len(file_api_videoChat_service_v1_group_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -75,8 +75,8 @@ func (r *chatAdapterImpl) ListFriendApplies(ctx context.Context, userID string, 
 	for _, a := range resp.Applies {
 		apply := &biz.FriendApply{
 			ID:          a.Id,
-			ApplicantID: a.Applicant.Id,
-			ReceiverID:  a.Receiver.Id,
+			ApplicantID: a.ApplicantId,
+			ReceiverID:  a.ReceiverId,
 			ApplyReason: a.ApplyReason,
 			Status:      a.Status,
 			HandledAt:   parseTimePointer(a.HandledAt),
@@ -86,51 +86,6 @@ func (r *chatAdapterImpl) ListFriendApplies(ctx context.Context, userID string, 
 	}
 
 	return int64(resp.PageStats.Total), applies, nil
-}
-
-func (r *chatAdapterImpl) ListFriends(ctx context.Context, userID string, groupName *string, pageStats *biz.PageStats) (int64, []*biz.FriendInfo, error) {
-	req := &chat.ListFriendsReq{
-		UserId: userID,
-		PageStats: &chat.PageStatsReq{
-			Page: int32(pageStats.Page),
-			Size: int32(pageStats.PageSize),
-		},
-	}
-
-	if groupName != nil {
-		req.GroupName = groupName
-	}
-
-	resp, err := r.friend.ListFriends(ctx, req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	var friends []*biz.FriendInfo
-	for _, f := range resp.Friends {
-		friendInfo := &biz.FriendInfo{
-			ID:        f.Id,
-			Remark:    f.Remark,
-			GroupName: f.GroupName,
-			Status:    f.Status,
-			CreatedAt: parseTime(f.CreatedAt),
-		}
-
-		if f.Friend != nil {
-			friendInfo.Friend = &biz.UserInfo{
-				ID: f.Friend.Id,
-			}
-		}
-
-		friends = append(friends, friendInfo)
-	}
-
-	return int64(resp.PageStats.Total), friends, nil
 }
 
 func (r *chatAdapterImpl) DeleteFriend(ctx context.Context, userID, friendID string) error {
@@ -233,32 +188,6 @@ func (r *chatAdapterImpl) GetUserOnlineStatus(ctx context.Context, userID string
 	}, nil
 }
 
-// 批量获取用户在线状态
-func (r *chatAdapterImpl) BatchGetUserOnlineStatus(ctx context.Context, userIDs []string) (map[string]*biz.UserSocialInfo, error) {
-	req := &chat.BatchGetUserOnlineStatusReq{
-		UserIds: userIDs,
-	}
-
-	resp, err := r.friend.BatchGetUserOnlineStatus(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return nil, err
-	}
-
-	onlineStatus := make(map[string]*biz.UserSocialInfo)
-	for k, status := range resp.OnlineStatus {
-		onlineStatus[k] = &biz.UserSocialInfo{
-			OnlineStatus: status,
-		}
-	}
-
-	return onlineStatus, nil
-}
-
 // 在 chatadapter.go 的 friend.go 部分添加以下方法
 
 func (r *chatAdapterImpl) GetUserRelation(ctx context.Context, userID, targetUserID string) (*biz.UserRelationInfo, error) {
@@ -321,4 +250,65 @@ func (r *chatAdapterImpl) BatchGetUserRelations(ctx context.Context, userID stri
 	}
 
 	return result, nil
+}
+
+// ==================== 好友相关 ====================
+
+func (r *chatAdapterImpl) ListFriends(ctx context.Context, userID string, groupName *string, pageStats *biz.PageStats) (int64, []*biz.FriendRelation, error) {
+	req := &chat.ListFriendsReq{
+		UserId: userID,
+		PageStats: &chat.PageStatsReq{
+			Page: int32(pageStats.Page),
+			Size: int32(pageStats.PageSize),
+		},
+		GroupName: groupName,
+	}
+	resp, err := r.friend.ListFriends(ctx, req)
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
+		return 0, nil, err
+	}
+	relations := make([]*biz.FriendRelation, 0, len(resp.Friends))
+	for _, f := range resp.Friends {
+		relations = append(relations, &biz.FriendRelation{
+			ID:        f.Id,
+			FriendID:  f.FriendId,
+			Remark:    f.Remark,
+			GroupName: f.GroupName,
+			Status:    f.Status,
+			CreatedAt: f.CreatedAt,
+		})
+	}
+	return int64(resp.PageStats.Total), relations, nil
+}
+
+// BatchGetUserOnlineStatus 批量获取在线状态
+func (r *chatAdapterImpl) BatchGetUserOnlineStatus(ctx context.Context, userIDs []string) (map[string]int32, error) {
+	req := &chat.BatchGetUserOnlineStatusReq{
+		UserIds: userIDs,
+	}
+	resp, err := r.friend.BatchGetUserOnlineStatus(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
+		return nil, err
+	}
+	return resp.OnlineStatus, nil
+}
+
+// UpdateUserOnlineStatus 更新在线状态
+func (r *chatAdapterImpl) UpdateUserOnlineStatus(ctx context.Context, userID string, status int32, deviceType string) error {
+	req := &chat.UpdateUserOnlineStatusReq{
+		UserId:       userID,
+		OnlineStatus: status,
+		DeviceType:   deviceType,
+	}
+	resp, err := r.friend.UpdateUserOnlineStatus(ctx, req)
+	if err != nil {
+		return err
+	}
+	return respcheck.ValidateResponseMeta(resp.Meta)
 }

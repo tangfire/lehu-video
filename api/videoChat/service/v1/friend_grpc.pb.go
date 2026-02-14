@@ -29,6 +29,7 @@ const (
 	FriendService_CheckFriendRelation_FullMethodName      = "/api.videoChat.service.v1.FriendService/CheckFriendRelation"
 	FriendService_GetUserOnlineStatus_FullMethodName      = "/api.videoChat.service.v1.FriendService/GetUserOnlineStatus"
 	FriendService_BatchGetUserOnlineStatus_FullMethodName = "/api.videoChat.service.v1.FriendService/BatchGetUserOnlineStatus"
+	FriendService_UpdateUserOnlineStatus_FullMethodName   = "/api.videoChat.service.v1.FriendService/UpdateUserOnlineStatus"
 )
 
 // FriendServiceClient is the client API for FriendService service.
@@ -57,6 +58,8 @@ type FriendServiceClient interface {
 	GetUserOnlineStatus(ctx context.Context, in *GetUserOnlineStatusReq, opts ...grpc.CallOption) (*GetUserOnlineStatusResp, error)
 	// 批量获取用户在线状态
 	BatchGetUserOnlineStatus(ctx context.Context, in *BatchGetUserOnlineStatusReq, opts ...grpc.CallOption) (*BatchGetUserOnlineStatusResp, error)
+	// 新增：更新用户在线状态（供API层调用）
+	UpdateUserOnlineStatus(ctx context.Context, in *UpdateUserOnlineStatusReq, opts ...grpc.CallOption) (*UpdateUserOnlineStatusResp, error)
 }
 
 type friendServiceClient struct {
@@ -167,6 +170,16 @@ func (c *friendServiceClient) BatchGetUserOnlineStatus(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *friendServiceClient) UpdateUserOnlineStatus(ctx context.Context, in *UpdateUserOnlineStatusReq, opts ...grpc.CallOption) (*UpdateUserOnlineStatusResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateUserOnlineStatusResp)
+	err := c.cc.Invoke(ctx, FriendService_UpdateUserOnlineStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FriendServiceServer is the server API for FriendService service.
 // All implementations must embed UnimplementedFriendServiceServer
 // for forward compatibility.
@@ -193,6 +206,8 @@ type FriendServiceServer interface {
 	GetUserOnlineStatus(context.Context, *GetUserOnlineStatusReq) (*GetUserOnlineStatusResp, error)
 	// 批量获取用户在线状态
 	BatchGetUserOnlineStatus(context.Context, *BatchGetUserOnlineStatusReq) (*BatchGetUserOnlineStatusResp, error)
+	// 新增：更新用户在线状态（供API层调用）
+	UpdateUserOnlineStatus(context.Context, *UpdateUserOnlineStatusReq) (*UpdateUserOnlineStatusResp, error)
 	mustEmbedUnimplementedFriendServiceServer()
 }
 
@@ -232,6 +247,9 @@ func (UnimplementedFriendServiceServer) GetUserOnlineStatus(context.Context, *Ge
 }
 func (UnimplementedFriendServiceServer) BatchGetUserOnlineStatus(context.Context, *BatchGetUserOnlineStatusReq) (*BatchGetUserOnlineStatusResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchGetUserOnlineStatus not implemented")
+}
+func (UnimplementedFriendServiceServer) UpdateUserOnlineStatus(context.Context, *UpdateUserOnlineStatusReq) (*UpdateUserOnlineStatusResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserOnlineStatus not implemented")
 }
 func (UnimplementedFriendServiceServer) mustEmbedUnimplementedFriendServiceServer() {}
 func (UnimplementedFriendServiceServer) testEmbeddedByValue()                       {}
@@ -434,6 +452,24 @@ func _FriendService_BatchGetUserOnlineStatus_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FriendService_UpdateUserOnlineStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserOnlineStatusReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FriendServiceServer).UpdateUserOnlineStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FriendService_UpdateUserOnlineStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FriendServiceServer).UpdateUserOnlineStatus(ctx, req.(*UpdateUserOnlineStatusReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FriendService_ServiceDesc is the grpc.ServiceDesc for FriendService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -480,6 +516,10 @@ var FriendService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BatchGetUserOnlineStatus",
 			Handler:    _FriendService_BatchGetUserOnlineStatus_Handler,
+		},
+		{
+			MethodName: "UpdateUserOnlineStatus",
+			Handler:    _FriendService_UpdateUserOnlineStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

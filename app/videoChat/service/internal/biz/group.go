@@ -143,6 +143,13 @@ type GroupApply struct {
 	UpdatedAt   time.Time
 }
 
+type HandleGroupApplyCommand struct {
+	ApplyID   int64
+	HandlerID int64
+	Accept    bool
+	ReplyMsg  string
+}
+
 // 仓储接口
 type GroupRepo interface {
 	// 群聊基础操作
@@ -161,6 +168,11 @@ type GroupRepo interface {
 	CountGroupMembers(ctx context.Context, groupID int64) (int64, error)
 	IsGroupMember(ctx context.Context, groupID, userID int64) (bool, error)
 	IsGroupOwner(ctx context.Context, groupID, userID int64) (bool, error)
+	BatchIsGroupMember(ctx context.Context, groupIDs []int64, userID int64) (map[int64]bool, error)
+	GetGroupApply(ctx context.Context, id int64) (*GroupApply, error)
+	CreateGroupApply(ctx context.Context, apply *GroupApply) error
+	IsGroupAdmin(ctx context.Context, groupID, userID int64) (bool, error)
+	UpdateGroupApply(ctx context.Context, apply *GroupApply) error
 
 	// 查询用户加入的群聊
 	ListJoinedGroups(ctx context.Context, userID int64, offset, limit int) ([]*Group, error)
@@ -169,14 +181,16 @@ type GroupRepo interface {
 }
 
 type GroupUsecase struct {
-	repo GroupRepo
-	log  *log.Helper
+	repo             GroupRepo
+	conversationRepo ConversationRepo // 新增
+	log              *log.Helper
 }
 
-func NewGroupUsecase(repo GroupRepo, logger log.Logger) *GroupUsecase {
+func NewGroupUsecase(repo GroupRepo, conversationRepo ConversationRepo, logger log.Logger) *GroupUsecase {
 	return &GroupUsecase{
-		repo: repo,
-		log:  log.NewHelper(logger),
+		repo:             repo,
+		conversationRepo: conversationRepo,
+		log:              log.NewHelper(logger),
 	}
 }
 
@@ -192,6 +206,8 @@ func (uc *GroupUsecase) CreateGroup(ctx context.Context, cmd *CreateGroupCommand
 		return nil, fmt.Errorf("加群方式参数错误")
 	}
 
+	now := time.Now()
+
 	// 创建群聊
 	group := &Group{
 		Name:      cmd.Name,
@@ -201,12 +217,12 @@ func (uc *GroupUsecase) CreateGroup(ctx context.Context, cmd *CreateGroupCommand
 		AddMode:   cmd.AddMode,
 		Avatar:    cmd.Avatar,
 		Status:    0,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	group.ID = int64(uuid.New().ID())
 
-	// 创建群聊
+	// 创建群聊记录
 	err := uc.repo.CreateGroup(ctx, group)
 	if err != nil {
 		uc.log.Errorf("创建群聊失败: %v", err)
@@ -218,7 +234,7 @@ func (uc *GroupUsecase) CreateGroup(ctx context.Context, cmd *CreateGroupCommand
 		UserID:   cmd.OwnerID,
 		GroupID:  group.ID,
 		Role:     2, // 群主
-		JoinTime: time.Now(),
+		JoinTime: now,
 	}
 	ownerMember.ID = int64(uuid.New().ID())
 
@@ -229,6 +245,36 @@ func (uc *GroupUsecase) CreateGroup(ctx context.Context, cmd *CreateGroupCommand
 		_ = uc.repo.DeleteGroup(ctx, group.ID)
 		return nil, fmt.Errorf("创建群聊失败")
 	}
+
+	// 创建群聊会话
+	conv, err := uc.conversationRepo.GetOrCreateGroupConversation(ctx, group.ID)
+	if err != nil {
+		uc.log.Errorf("创建群聊会话失败: %v", err)
+		// 回滚：删除群聊和成员
+		_ = uc.repo.DeleteGroup(ctx, group.ID)
+		_ = uc.repo.DeleteGroupMember(ctx, ownerMember.ID)
+		return nil, fmt.Errorf("创建群聊失败")
+	}
+
+	// 将群主添加到会话成员
+	err = uc.conversationRepo.AddConversationMember(ctx, &ConversationMember{
+		ConversationID: conv.ID,
+		UserID:         cmd.OwnerID,
+		Type:           2, // 群主
+		JoinTime:       now,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+	if err != nil {
+		uc.log.Errorf("添加群主到会话失败: %v", err)
+		// 同样回滚
+		_ = uc.repo.DeleteGroup(ctx, group.ID)
+		_ = uc.repo.DeleteGroupMember(ctx, ownerMember.ID)
+		return nil, fmt.Errorf("创建群聊失败")
+	}
+
+	// 更新会话成员计数（可选）
+	_ = uc.conversationRepo.UpdateConversationMemberCount(ctx, conv.ID, 1)
 
 	return &CreateGroupResult{
 		GroupID: group.ID,
@@ -322,12 +368,14 @@ func (uc *GroupUsecase) EnterGroupDirectly(ctx context.Context, cmd *EnterGroupD
 		return nil, fmt.Errorf("群聊成员已满")
 	}
 
+	now := time.Now()
+
 	// 创建成员记录
 	member := &GroupMember{
 		UserID:   cmd.UserID,
 		GroupID:  cmd.GroupID,
 		Role:     0, // 普通成员
-		JoinTime: time.Now(),
+		JoinTime: now,
 	}
 	member.ID = int64(uuid.New().ID())
 
@@ -339,7 +387,7 @@ func (uc *GroupUsecase) EnterGroupDirectly(ctx context.Context, cmd *EnterGroupD
 
 	// 更新群成员数量
 	group.MemberCnt++
-	group.UpdatedAt = time.Now()
+	group.UpdatedAt = now
 	err = uc.repo.UpdateGroup(ctx, group)
 	if err != nil {
 		uc.log.Errorf("更新群成员数量失败: %v", err)
@@ -347,6 +395,40 @@ func (uc *GroupUsecase) EnterGroupDirectly(ctx context.Context, cmd *EnterGroupD
 		_ = uc.repo.DeleteGroupMember(ctx, member.ID)
 		return nil, fmt.Errorf("加入群聊失败")
 	}
+
+	// 获取或创建群聊会话
+	conv, err := uc.conversationRepo.GetOrCreateGroupConversation(ctx, cmd.GroupID)
+	if err != nil {
+		uc.log.Errorf("获取群聊会话失败: %v", err)
+		// 回滚：删除成员记录，并恢复群成员数量
+		_ = uc.repo.DeleteGroupMember(ctx, member.ID)
+		group.MemberCnt--
+		group.UpdatedAt = now
+		_ = uc.repo.UpdateGroup(ctx, group)
+		return nil, fmt.Errorf("加入群聊失败")
+	}
+
+	// 将用户添加到会话成员
+	err = uc.conversationRepo.AddConversationMember(ctx, &ConversationMember{
+		ConversationID: conv.ID,
+		UserID:         cmd.UserID,
+		Type:           0, // 普通成员（注意：群主是2，这里是0）
+		JoinTime:       now,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+	if err != nil {
+		uc.log.Errorf("添加用户到会话失败: %v", err)
+		// 回滚：删除成员记录，并恢复群成员数量
+		_ = uc.repo.DeleteGroupMember(ctx, member.ID)
+		group.MemberCnt--
+		group.UpdatedAt = now
+		_ = uc.repo.UpdateGroup(ctx, group)
+		return nil, fmt.Errorf("加入群聊失败")
+	}
+
+	// 更新会话成员计数
+	_ = uc.conversationRepo.UpdateConversationMemberCount(ctx, conv.ID, group.MemberCnt)
 
 	return &EnterGroupDirectlyResult{}, nil
 }
@@ -358,7 +440,6 @@ func (uc *GroupUsecase) ApplyJoinGroup(ctx context.Context, cmd *ApplyJoinGroupC
 		uc.log.Errorf("查询群聊信息失败: %v", err)
 		return nil, fmt.Errorf("群聊不存在")
 	}
-
 	if group == nil {
 		return nil, fmt.Errorf("群聊不存在")
 	}
@@ -368,52 +449,33 @@ func (uc *GroupUsecase) ApplyJoinGroup(ctx context.Context, cmd *ApplyJoinGroupC
 		return nil, fmt.Errorf("群聊状态异常")
 	}
 
-	// 检查加群方式
-	if group.AddMode != 1 {
-		return nil, fmt.Errorf("该群聊可以直接加入")
-	}
-
 	// 检查是否已经是成员
 	isMember, err := uc.repo.IsGroupMember(ctx, cmd.GroupID, cmd.UserID)
 	if err != nil {
 		uc.log.Errorf("检查群成员关系失败: %v", err)
 		return nil, fmt.Errorf("系统错误")
 	}
-
 	if isMember {
 		return nil, fmt.Errorf("已经是群成员")
 	}
 
-	// todo 这里简化处理，直接加入（实际应该创建申请记录）
-	// 检查群成员数量
-	if group.MemberCnt >= 500 {
-		return nil, fmt.Errorf("群聊成员已满")
-	}
+	// 检查是否有待处理的申请
+	// 此处需要添加查询 pending 申请的方法，这里简化，默认允许创建新申请
 
-	// 创建成员记录
-	member := &GroupMember{
-		UserID:   cmd.UserID,
-		GroupID:  cmd.GroupID,
-		Role:     0, // 普通成员
-		JoinTime: time.Now(),
+	// 创建申请记录
+	apply := &GroupApply{
+		UserID:      cmd.UserID,
+		GroupID:     cmd.GroupID,
+		ApplyReason: cmd.ApplyReason,
+		Status:      0, // 待处理
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
-	member.ID = int64(uuid.New().ID())
+	apply.ID = int64(uuid.New().ID())
 
-	err = uc.repo.CreateGroupMember(ctx, member)
-	if err != nil {
-		uc.log.Errorf("加入群聊失败: %v", err)
-		return nil, fmt.Errorf("申请加入失败")
-	}
-
-	// 更新群成员数量
-	group.MemberCnt++
-	group.UpdatedAt = time.Now()
-	err = uc.repo.UpdateGroup(ctx, group)
-	if err != nil {
-		uc.log.Errorf("更新群成员数量失败: %v", err)
-		// 回滚：删除成员记录
-		_ = uc.repo.DeleteGroupMember(ctx, member.ID)
-		return nil, fmt.Errorf("申请加入失败")
+	if err := uc.repo.CreateGroupApply(ctx, apply); err != nil {
+		uc.log.Errorf("创建加群申请失败: %v", err)
+		return nil, fmt.Errorf("申请失败")
 	}
 
 	return &ApplyJoinGroupResult{}, nil
@@ -478,6 +540,15 @@ func (uc *GroupUsecase) LeaveGroup(ctx context.Context, cmd *LeaveGroupCommand) 
 	if err != nil {
 		uc.log.Errorf("更新群成员数量失败: %v", err)
 		// 这里不进行回滚，因为成员已经删除
+	}
+
+	// 从群聊会话中移除成员
+	conv, err := uc.conversationRepo.GetGroupConversation(ctx, cmd.GroupID)
+	if err == nil && conv != nil {
+		// 从会话中移除成员
+		_ = uc.conversationRepo.RemoveConversationMember(ctx, conv.ID, cmd.UserID)
+		// 更新会话成员计数（减一）
+		_ = uc.conversationRepo.UpdateConversationMemberCount(ctx, conv.ID, -1)
 	}
 
 	return &LeaveGroupResult{}, nil
@@ -589,4 +660,91 @@ func (uc *GroupUsecase) GetGroupInfo(ctx context.Context, query *GetGroupInfoQue
 	}
 
 	return &GetGroupInfoResult{Group: group}, nil
+}
+
+func (uc *GroupUsecase) HandleGroupApply(ctx context.Context, cmd *HandleGroupApplyCommand) error {
+	// 获取申请记录
+	apply, err := uc.repo.GetGroupApply(ctx, cmd.ApplyID)
+	if err != nil {
+		return err
+	}
+	if apply == nil {
+		return fmt.Errorf("申请记录不存在")
+	}
+	if apply.Status != 0 {
+		return fmt.Errorf("申请已处理")
+	}
+
+	// 检查处理人权限（必须是群主或管理员）
+	isOwner, err := uc.repo.IsGroupOwner(ctx, apply.GroupID, cmd.HandlerID)
+	if err != nil {
+		return err
+	}
+	isAdmin, err := uc.repo.IsGroupAdmin(ctx, apply.GroupID, cmd.HandlerID)
+	if err != nil {
+		return err
+	}
+	if !isOwner && !isAdmin {
+		return fmt.Errorf("无权处理申请")
+	}
+
+	now := time.Now()
+	apply.HandlerID = cmd.HandlerID
+	apply.ReplyMsg = cmd.ReplyMsg
+	apply.UpdatedAt = now
+
+	if cmd.Accept {
+		apply.Status = 1 // 已通过
+
+		// 检查群成员数量限制
+		group, err := uc.repo.GetGroup(ctx, apply.GroupID)
+		if err != nil {
+			return err
+		}
+		if group.MemberCnt >= 500 {
+			return fmt.Errorf("群聊成员已满")
+		}
+
+		// 创建成员记录
+		member := &GroupMember{
+			UserID:   apply.UserID,
+			GroupID:  apply.GroupID,
+			Role:     0,
+			JoinTime: now,
+		}
+		member.ID = int64(uuid.New().ID())
+
+		if err := uc.repo.CreateGroupMember(ctx, member); err != nil {
+			return err
+		}
+
+		// 更新群成员数量
+		group.MemberCnt++
+		group.UpdatedAt = now
+		if err := uc.repo.UpdateGroup(ctx, group); err != nil {
+			// 回滚成员记录
+			_ = uc.repo.DeleteGroupMember(ctx, member.ID)
+			return err
+		}
+
+		// 同步到会话成员
+		conv, err := uc.conversationRepo.GetOrCreateGroupConversation(ctx, apply.GroupID)
+		if err == nil {
+			_ = uc.conversationRepo.AddConversationMember(ctx, &ConversationMember{
+				ConversationID: conv.ID,
+				UserID:         apply.UserID,
+				Type:           0,
+				JoinTime:       now,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			})
+			// 更新会话成员计数
+			_ = uc.conversationRepo.UpdateConversationMemberCount(ctx, conv.ID, 1)
+		}
+	} else {
+		apply.Status = 2 // 已拒绝
+	}
+
+	// 更新申请记录
+	return uc.repo.UpdateGroupApply(ctx, apply)
 }

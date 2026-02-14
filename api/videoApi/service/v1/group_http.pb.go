@@ -25,6 +25,8 @@ const OperationGroupServiceCreateGroup = "/api.videoApi.service.v1.GroupService/
 const OperationGroupServiceDismissGroup = "/api.videoApi.service.v1.GroupService/DismissGroup"
 const OperationGroupServiceEnterGroupDirectly = "/api.videoApi.service.v1.GroupService/EnterGroupDirectly"
 const OperationGroupServiceGetGroupInfo = "/api.videoApi.service.v1.GroupService/GetGroupInfo"
+const OperationGroupServiceGetGroupMembers = "/api.videoApi.service.v1.GroupService/GetGroupMembers"
+const OperationGroupServiceHandleGroupApply = "/api.videoApi.service.v1.GroupService/HandleGroupApply"
 const OperationGroupServiceLeaveGroup = "/api.videoApi.service.v1.GroupService/LeaveGroup"
 const OperationGroupServiceListMyJoinedGroups = "/api.videoApi.service.v1.GroupService/ListMyJoinedGroups"
 const OperationGroupServiceLoadMyGroup = "/api.videoApi.service.v1.GroupService/LoadMyGroup"
@@ -42,6 +44,10 @@ type GroupServiceHTTPServer interface {
 	EnterGroupDirectly(context.Context, *EnterGroupDirectlyReq) (*EnterGroupDirectlyResp, error)
 	// GetGroupInfo 获取群聊信息
 	GetGroupInfo(context.Context, *GetGroupInfoReq) (*GetGroupInfoResp, error)
+	// GetGroupMembers 获取群成员列表
+	GetGroupMembers(context.Context, *GetGroupMembersReq) (*GetGroupMembersResp, error)
+	// HandleGroupApply 处理加群申请
+	HandleGroupApply(context.Context, *HandleGroupApplyReq) (*HandleGroupApplyResp, error)
 	// LeaveGroup 退群
 	LeaveGroup(context.Context, *LeaveGroupReq) (*LeaveGroupResp, error)
 	// ListMyJoinedGroups 获取我加入的群聊
@@ -61,6 +67,8 @@ func RegisterGroupServiceHTTPServer(s *http.Server, srv GroupServiceHTTPServer) 
 	r.DELETE("/v1/group/{group_id}", _GroupService_DismissGroup0_HTTP_Handler(srv))
 	r.GET("/v1/group/{group_id}", _GroupService_GetGroupInfo0_HTTP_Handler(srv))
 	r.POST("/v1/group/joined", _GroupService_ListMyJoinedGroups0_HTTP_Handler(srv))
+	r.POST("/v1/group/apply/handle", _GroupService_HandleGroupApply0_HTTP_Handler(srv))
+	r.GET("/v1/group/{group_id}/members", _GroupService_GetGroupMembers0_HTTP_Handler(srv))
 }
 
 func _GroupService_CreateGroup0_HTTP_Handler(srv GroupServiceHTTPServer) func(ctx http.Context) error {
@@ -267,6 +275,50 @@ func _GroupService_ListMyJoinedGroups0_HTTP_Handler(srv GroupServiceHTTPServer) 
 	}
 }
 
+func _GroupService_HandleGroupApply0_HTTP_Handler(srv GroupServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in HandleGroupApplyReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationGroupServiceHandleGroupApply)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.HandleGroupApply(ctx, req.(*HandleGroupApplyReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*HandleGroupApplyResp)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _GroupService_GetGroupMembers0_HTTP_Handler(srv GroupServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetGroupMembersReq
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationGroupServiceGetGroupMembers)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetGroupMembers(ctx, req.(*GetGroupMembersReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetGroupMembersResp)
+		return ctx.Result(200, reply)
+	}
+}
+
 type GroupServiceHTTPClient interface {
 	ApplyJoinGroup(ctx context.Context, req *ApplyJoinGroupReq, opts ...http.CallOption) (rsp *ApplyJoinGroupResp, err error)
 	CheckGroupAddMode(ctx context.Context, req *CheckGroupAddModeReq, opts ...http.CallOption) (rsp *CheckGroupAddModeResp, err error)
@@ -274,6 +326,8 @@ type GroupServiceHTTPClient interface {
 	DismissGroup(ctx context.Context, req *DismissGroupReq, opts ...http.CallOption) (rsp *DismissGroupResp, err error)
 	EnterGroupDirectly(ctx context.Context, req *EnterGroupDirectlyReq, opts ...http.CallOption) (rsp *EnterGroupDirectlyResp, err error)
 	GetGroupInfo(ctx context.Context, req *GetGroupInfoReq, opts ...http.CallOption) (rsp *GetGroupInfoResp, err error)
+	GetGroupMembers(ctx context.Context, req *GetGroupMembersReq, opts ...http.CallOption) (rsp *GetGroupMembersResp, err error)
+	HandleGroupApply(ctx context.Context, req *HandleGroupApplyReq, opts ...http.CallOption) (rsp *HandleGroupApplyResp, err error)
 	LeaveGroup(ctx context.Context, req *LeaveGroupReq, opts ...http.CallOption) (rsp *LeaveGroupResp, err error)
 	ListMyJoinedGroups(ctx context.Context, req *ListMyJoinedGroupsReq, opts ...http.CallOption) (rsp *ListMyJoinedGroupsResp, err error)
 	LoadMyGroup(ctx context.Context, req *LoadMyGroupReq, opts ...http.CallOption) (rsp *LoadMyGroupResp, err error)
@@ -359,6 +413,32 @@ func (c *GroupServiceHTTPClientImpl) GetGroupInfo(ctx context.Context, in *GetGr
 	opts = append(opts, http.Operation(OperationGroupServiceGetGroupInfo))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *GroupServiceHTTPClientImpl) GetGroupMembers(ctx context.Context, in *GetGroupMembersReq, opts ...http.CallOption) (*GetGroupMembersResp, error) {
+	var out GetGroupMembersResp
+	pattern := "/v1/group/{group_id}/members"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationGroupServiceGetGroupMembers))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *GroupServiceHTTPClientImpl) HandleGroupApply(ctx context.Context, in *HandleGroupApplyReq, opts ...http.CallOption) (*HandleGroupApplyResp, error) {
+	var out HandleGroupApplyResp
+	pattern := "/v1/group/apply/handle"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationGroupServiceHandleGroupApply))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

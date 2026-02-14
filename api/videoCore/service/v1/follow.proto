@@ -14,6 +14,7 @@ service FollowService {
 	rpc ListFollowing(ListFollowingReq) returns (ListFollowingResp);
 	rpc IsFollowing(IsFollowingReq) returns (IsFollowingResp);
 	rpc CountFollow(CountFollowReq) returns (CountFollowResp);
+
 }
 
 message AddFollowReq{
@@ -71,3 +72,4 @@ message CountFollowResp{
 	int64 following_count = 2;
 	int64 follower_count = 3;
 }
+

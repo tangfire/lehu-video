@@ -605,6 +605,28 @@ func (r *conversationRepo) GetConversationView(
 	return view, nil
 }
 
+// UpdateConversationMemberCount 更新会话成员数量（增加或减少）
+func (r *conversationRepo) UpdateConversationMemberCount(ctx context.Context, conversationID int64, delta int) error {
+	if delta == 0 {
+		return nil
+	}
+
+	var expr string
+	if delta > 0 {
+		expr = "member_count + ?"
+	} else {
+		expr = "GREATEST(member_count - ?, 0)" // 确保不小于0
+	}
+
+	return r.data.db.WithContext(ctx).
+		Model(&model.Conversation{}).
+		Where("id = ?", conversationID).
+		Updates(map[string]interface{}{
+			"member_count": gorm.Expr(expr, abs(delta)),
+			"updated_at":   time.Now(),
+		}).Error
+}
+
 func abs(x int) int {
 	if x < 0 {
 		return -x

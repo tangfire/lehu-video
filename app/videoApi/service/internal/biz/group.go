@@ -87,6 +87,20 @@ type GroupUsecase struct {
 	log  *log.Helper
 }
 
+type HandleGroupApplyInput struct {
+	ApplyID  string
+	Accept   bool
+	ReplyMsg string
+}
+
+type GetGroupMembersInput struct {
+	GroupID string
+}
+
+type GetGroupMembersOutput struct {
+	MemberIDs []string
+}
+
 func NewGroupUsecase(chat ChatAdapter, logger log.Logger) *GroupUsecase {
 	return &GroupUsecase{
 		chat: chat,
@@ -252,4 +266,28 @@ func (uc *GroupUsecase) ListMyJoinedGroups(ctx context.Context, input *ListMyJoi
 		Groups: groups,
 		Total:  total,
 	}, nil
+}
+
+// 在 GroupUsecase 中添加方法
+func (uc *GroupUsecase) HandleGroupApply(ctx context.Context, input *HandleGroupApplyInput) error {
+	userID, err := claims.GetUserId(ctx)
+	if err != nil {
+		return errors.New("获取用户信息失败")
+	}
+	// 调用 chat 适配器
+	err = uc.chat.HandleGroupApply(ctx, input.ApplyID, userID, input.Accept, input.ReplyMsg)
+	if err != nil {
+		uc.log.WithContext(ctx).Errorf("处理加群申请失败: %v", err)
+		return errors.New("处理加群申请失败")
+	}
+	return nil
+}
+
+func (uc *GroupUsecase) GetGroupMembers(ctx context.Context, input *GetGroupMembersInput) (*GetGroupMembersOutput, error) {
+	memberIDs, err := uc.chat.GetGroupMembers(ctx, input.GroupID)
+	if err != nil {
+		uc.log.WithContext(ctx).Errorf("获取群成员列表失败: %v", err)
+		return nil, errors.New("获取群成员列表失败")
+	}
+	return &GetGroupMembersOutput{MemberIDs: memberIDs}, nil
 }

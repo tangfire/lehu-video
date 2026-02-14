@@ -20,6 +20,16 @@ type FriendInfo struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// FriendRelation 好友关系（来自chat）
+type FriendRelation struct {
+	ID        string
+	FriendID  string
+	Remark    string
+	GroupName string
+	Status    int32
+	CreatedAt string
+}
+
 // 好友申请
 type FriendApply struct {
 	ID          string     `json:"id"`
@@ -49,11 +59,6 @@ type ListFriendAppliesInput struct {
 	Page     int32
 	PageSize int32
 	Status   *int32
-}
-
-type ListFriendAppliesOutput struct {
-	Applies []*FriendApply
-	Total   int64
 }
 
 type ListFriendsInput struct {
@@ -105,6 +110,22 @@ type BatchGetUserOnlineStatusInput struct {
 
 type BatchGetUserOnlineStatusOutput struct {
 	OnlineStatus map[string]int32
+}
+
+// 在 biz/friend.go 中添加
+type FriendApplyDetail struct {
+	ID          string
+	Applicant   *UserInfo
+	Receiver    *UserInfo
+	ApplyReason string
+	Status      int32
+	HandledAt   *time.Time
+	CreatedAt   time.Time
+}
+
+type ListFriendAppliesOutput struct {
+	Applies []*FriendApplyDetail
+	Total   int64
 }
 
 // FriendUsecase 好友用例
@@ -163,7 +184,6 @@ func (uc *FriendUsecase) ListFriendApplies(ctx context.Context, input *ListFrien
 		return nil, errors.New("获取用户信息失败")
 	}
 
-	// 参数验证
 	if input.Page < 1 {
 		input.Page = 1
 	}
@@ -174,7 +194,8 @@ func (uc *FriendUsecase) ListFriendApplies(ctx context.Context, input *ListFrien
 		input.PageSize = 100
 	}
 
-	total, applies, err := uc.chat.ListFriendApplies(ctx, cast.ToString(userID), input.Status, &PageStats{
+	// 从 chat 获取申请列表（只包含 ID）
+	total, applies, err := uc.chat.ListFriendApplies(ctx, userID, input.Status, &PageStats{
 		Page:     int(input.Page),
 		PageSize: int(input.PageSize),
 	})
@@ -183,12 +204,76 @@ func (uc *FriendUsecase) ListFriendApplies(ctx context.Context, input *ListFrien
 		return nil, errors.New("获取好友申请列表失败")
 	}
 
+	if len(applies) == 0 {
+		return &ListFriendAppliesOutput{Applies: []*FriendApplyDetail{}, Total: total}, nil
+	}
+
+	// 收集所有需要查询的用户ID（申请人+接收人）
+	userIDSet := make(map[string]bool)
+	for _, apply := range applies {
+		userIDSet[apply.ApplicantID] = true
+		userIDSet[apply.ReceiverID] = true
+	}
+	userIDs := make([]string, 0, len(userIDSet))
+	for id := range userIDSet {
+		userIDs = append(userIDs, id)
+	}
+
+	// 从 core 批量获取用户基础信息
+	baseInfos, err := uc.core.BatchGetUserBaseInfo(ctx, userIDs)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("批量获取用户信息失败: %v", err)
+		// 降级：不填充详细信息
+	}
+
+	// 从 chat 批量获取在线状态（可选）
+	onlineStatusMap, _ := uc.chat.BatchGetUserOnlineStatus(ctx, userIDs)
+
+	// 构建 userInfo 映射
+	userInfoMap := make(map[string]*UserInfo)
+	for _, base := range baseInfos {
+		userInfoMap[base.ID] = &UserInfo{
+			ID:             base.ID,
+			Name:           base.Name,
+			Nickname:       base.Nickname,
+			Avatar:         base.Avatar,
+			Signature:      base.Signature,
+			Gender:         base.Gender,
+			OnlineStatus:   onlineStatusMap[base.ID],
+			LastOnlineTime: time.Now(), // 如果有最后在线时间可以填充
+		}
+	}
+
+	// 组装返回结果
+	details := make([]*FriendApplyDetail, 0, len(applies))
+	for _, apply := range applies {
+		detail := &FriendApplyDetail{
+			ID:          apply.ID,
+			ApplyReason: apply.ApplyReason,
+			Status:      apply.Status,
+			HandledAt:   apply.HandledAt,
+			CreatedAt:   apply.CreatedAt,
+		}
+		if u, ok := userInfoMap[apply.ApplicantID]; ok {
+			detail.Applicant = u
+		} else {
+			detail.Applicant = &UserInfo{ID: apply.ApplicantID}
+		}
+		if u, ok := userInfoMap[apply.ReceiverID]; ok {
+			detail.Receiver = u
+		} else {
+			detail.Receiver = &UserInfo{ID: apply.ReceiverID}
+		}
+		details = append(details, detail)
+	}
+
 	return &ListFriendAppliesOutput{
-		Applies: applies,
+		Applies: details,
 		Total:   total,
 	}, nil
 }
 
+// ListFriends 获取好友列表
 // ListFriends 获取好友列表
 func (uc *FriendUsecase) ListFriends(ctx context.Context, input *ListFriendsInput) (*ListFriendsOutput, error) {
 	userID, err := claims.GetUserId(ctx)
@@ -207,8 +292,8 @@ func (uc *FriendUsecase) ListFriends(ctx context.Context, input *ListFriendsInpu
 		input.PageSize = 100
 	}
 
-	// 1. 从chat服务获取好友列表
-	total, chatFriends, err := uc.chat.ListFriends(ctx, cast.ToString(userID), input.GroupName, &PageStats{
+	// 1. 从chat服务获取好友关系列表（只包含ID）
+	total, relations, err := uc.chat.ListFriends(ctx, cast.ToString(userID), input.GroupName, &PageStats{
 		Page:     int(input.Page),
 		PageSize: int(input.PageSize),
 	})
@@ -216,47 +301,67 @@ func (uc *FriendUsecase) ListFriends(ctx context.Context, input *ListFriendsInpu
 		uc.log.WithContext(ctx).Errorf("获取好友列表失败: %v", err)
 		return nil, errors.New("获取好友列表失败")
 	}
+	if len(relations) == 0 {
+		return &ListFriendsOutput{Friends: []*FriendInfo{}, Total: total}, nil
+	}
 
 	// 2. 提取好友ID列表
-	var friendIDs []string
-	for _, friend := range chatFriends {
-		friendIDs = append(friendIDs, friend.ID)
+	friendIDs := make([]string, 0, len(relations))
+	for _, rel := range relations {
+		friendIDs = append(friendIDs, rel.FriendID)
 	}
 
-	// 3. 从core服务获取好友详细信息
-	userInfoList, err := uc.core.GetUserInfoByIdList(ctx, friendIDs)
-	userInfos := make(map[int64]*UserInfo)
-	for _, userInfo := range userInfoList {
-		userInfos[cast.ToInt64(userInfo.ID)] = userInfo
-	}
+	// 3. 从core服务批量获取好友详细信息（返回 []*UserBaseInfo）
+	baseInfos, err := uc.core.BatchGetUserBaseInfo(ctx, friendIDs)
+	userMap := make(map[string]*UserInfo)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("获取好友详细信息失败: %v", err)
-		// 不返回错误，只记录日志
-		uc.log.WithContext(ctx).Warnf("无法获取好友详细信息，将使用基础信息")
-		userInfos = make(map[int64]*UserInfo)
+		// 降级：不填充详细信息，userMap为空
+	} else {
+		for _, base := range baseInfos {
+			// 将 UserBaseInfo 转换为 UserInfo（基础字段）
+			user := &UserInfo{
+				ID:        base.ID,
+				Name:      base.Name,
+				Nickname:  base.Nickname,
+				Avatar:    base.Avatar,
+				Signature: base.Signature,
+				Gender:    base.Gender,
+				// 其他字段如 OnlineStatus 后续填充
+			}
+			userMap[base.ID] = user
+		}
 	}
 
-	// 4. 合并数据
-	friends := make([]*FriendInfo, 0, len(chatFriends))
-	for _, chatFriend := range chatFriends {
+	// 4. 从chat服务批量获取在线状态
+	onlineStatusMap, err := uc.chat.BatchGetUserOnlineStatus(ctx, friendIDs)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("批量获取在线状态失败: %v", err)
+		onlineStatusMap = make(map[string]int32)
+	}
+
+	// 5. 合并数据
+	friends := make([]*FriendInfo, 0, len(relations))
+	for _, rel := range relations {
+		user, ok := userMap[rel.FriendID]
+		if !ok {
+			// 如果core返回缺失，创建占位对象（只包含ID）
+			user = &UserInfo{ID: rel.FriendID}
+		}
+		// 填充在线状态
+		if status, ok := onlineStatusMap[rel.FriendID]; ok {
+			user.OnlineStatus = status
+		}
+		// 转换时间
+		createdAt, _ := time.Parse("2006-01-02 15:04:05", rel.CreatedAt)
 		friendInfo := &FriendInfo{
-			ID:        chatFriend.ID,
-			Remark:    chatFriend.Remark,
-			GroupName: chatFriend.GroupName,
-			Status:    chatFriend.Status,
-			CreatedAt: chatFriend.CreatedAt,
+			ID:        rel.ID,
+			Friend:    user,
+			Remark:    rel.Remark,
+			GroupName: rel.GroupName,
+			Status:    rel.Status,
+			CreatedAt: createdAt,
 		}
-
-		// 填充好友信息
-		if userInfo, ok := userInfos[cast.ToInt64(chatFriend.Friend.ID)]; ok {
-			friendInfo.Friend = userInfo
-		} else {
-			// 如果没有获取到详细信息，使用基础信息
-			friendInfo.Friend = &UserInfo{
-				ID: chatFriend.Friend.ID,
-			}
-		}
-
 		friends = append(friends, friendInfo)
 	}
 
@@ -355,12 +460,8 @@ func (uc *FriendUsecase) BatchGetUserOnlineStatus(ctx context.Context, input *Ba
 		return nil, errors.New("批量获取用户在线状态失败")
 	}
 
-	os := make(map[string]int32)
-	for userID, user := range onlineStatus {
-		os[userID] = user.OnlineStatus
-	}
-
+	// onlineStatus 已经是 map[string]int32，直接使用
 	return &BatchGetUserOnlineStatusOutput{
-		OnlineStatus: os,
+		OnlineStatus: onlineStatus,
 	}, nil
 }

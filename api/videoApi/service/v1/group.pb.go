@@ -956,6 +956,192 @@ func (x *ListMyJoinedGroupsResp) GetPageStats() *PageStatsResp {
 	return nil
 }
 
+// 处理加群申请请求
+type HandleGroupApplyReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApplyId       string                 `protobuf:"bytes,1,opt,name=apply_id,json=applyId,proto3" json:"apply_id,omitempty"`
+	Accept        bool                   `protobuf:"varint,2,opt,name=accept,proto3" json:"accept,omitempty"`
+	ReplyMsg      string                 `protobuf:"bytes,3,opt,name=reply_msg,json=replyMsg,proto3" json:"reply_msg,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandleGroupApplyReq) Reset() {
+	*x = HandleGroupApplyReq{}
+	mi := &file_api_videoApi_service_v1_group_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandleGroupApplyReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandleGroupApplyReq) ProtoMessage() {}
+
+func (x *HandleGroupApplyReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_group_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandleGroupApplyReq.ProtoReflect.Descriptor instead.
+func (*HandleGroupApplyReq) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *HandleGroupApplyReq) GetApplyId() string {
+	if x != nil {
+		return x.ApplyId
+	}
+	return ""
+}
+
+func (x *HandleGroupApplyReq) GetAccept() bool {
+	if x != nil {
+		return x.Accept
+	}
+	return false
+}
+
+func (x *HandleGroupApplyReq) GetReplyMsg() string {
+	if x != nil {
+		return x.ReplyMsg
+	}
+	return ""
+}
+
+type HandleGroupApplyResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandleGroupApplyResp) Reset() {
+	*x = HandleGroupApplyResp{}
+	mi := &file_api_videoApi_service_v1_group_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandleGroupApplyResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandleGroupApplyResp) ProtoMessage() {}
+
+func (x *HandleGroupApplyResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_group_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandleGroupApplyResp.ProtoReflect.Descriptor instead.
+func (*HandleGroupApplyResp) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{20}
+}
+
+// 获取群成员列表请求
+type GetGroupMembersReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGroupMembersReq) Reset() {
+	*x = GetGroupMembersReq{}
+	mi := &file_api_videoApi_service_v1_group_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGroupMembersReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGroupMembersReq) ProtoMessage() {}
+
+func (x *GetGroupMembersReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_group_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGroupMembersReq.ProtoReflect.Descriptor instead.
+func (*GetGroupMembersReq) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetGroupMembersReq) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+type GetGroupMembersResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MemberIds     []string               `protobuf:"bytes,1,rep,name=member_ids,json=memberIds,proto3" json:"member_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGroupMembersResp) Reset() {
+	*x = GetGroupMembersResp{}
+	mi := &file_api_videoApi_service_v1_group_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGroupMembersResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGroupMembersResp) ProtoMessage() {}
+
+func (x *GetGroupMembersResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_videoApi_service_v1_group_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGroupMembersResp.ProtoReflect.Descriptor instead.
+func (*GetGroupMembersResp) Descriptor() ([]byte, []int) {
+	return file_api_videoApi_service_v1_group_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *GetGroupMembersResp) GetMemberIds() []string {
+	if x != nil {
+		return x.MemberIds
+	}
+	return nil
+}
+
 var File_api_videoApi_service_v1_group_proto protoreflect.FileDescriptor
 
 const file_api_videoApi_service_v1_group_proto_rawDesc = "" +
@@ -1017,7 +1203,17 @@ const file_api_videoApi_service_v1_group_proto_rawDesc = "" +
 	"\x16ListMyJoinedGroupsResp\x12:\n" +
 	"\x06groups\x18\x01 \x03(\v2\".api.videoApi.service.v1.GroupInfoR\x06groups\x12E\n" +
 	"\n" +
-	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats2\xf0\t\n" +
+	"page_stats\x18\x02 \x01(\v2&.api.videoApi.service.v1.PageStatsRespR\tpageStats\"e\n" +
+	"\x13HandleGroupApplyReq\x12\x19\n" +
+	"\bapply_id\x18\x01 \x01(\tR\aapplyId\x12\x16\n" +
+	"\x06accept\x18\x02 \x01(\bR\x06accept\x12\x1b\n" +
+	"\treply_msg\x18\x03 \x01(\tR\breplyMsg\"\x16\n" +
+	"\x14HandleGroupApplyResp\"/\n" +
+	"\x12GetGroupMembersReq\x12\x19\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"4\n" +
+	"\x13GetGroupMembersResp\x12\x1d\n" +
+	"\n" +
+	"member_ids\x18\x01 \x03(\tR\tmemberIds2\x9a\f\n" +
 	"\fGroupService\x12v\n" +
 	"\vCreateGroup\x12'.api.videoApi.service.v1.CreateGroupReq\x1a(.api.videoApi.service.v1.CreateGroupResp\"\x14\x82\xd3\xe4\x93\x02\x0e:\x01*\"\t/v1/group\x12y\n" +
 	"\vLoadMyGroup\x12'.api.videoApi.service.v1.LoadMyGroupReq\x1a(.api.videoApi.service.v1.LoadMyGroupResp\"\x17\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/group/my\x12\x99\x01\n" +
@@ -1028,7 +1224,9 @@ const file_api_videoApi_service_v1_group_proto_rawDesc = "" +
 	"LeaveGroup\x12&.api.videoApi.service.v1.LeaveGroupReq\x1a'.api.videoApi.service.v1.LeaveGroupResp\"\"\x82\xd3\xe4\x93\x02\x1c*\x1a/v1/group/{group_id}/leave\x12\x81\x01\n" +
 	"\fDismissGroup\x12(.api.videoApi.service.v1.DismissGroupReq\x1a).api.videoApi.service.v1.DismissGroupResp\"\x1c\x82\xd3\xe4\x93\x02\x16*\x14/v1/group/{group_id}\x12\x81\x01\n" +
 	"\fGetGroupInfo\x12(.api.videoApi.service.v1.GetGroupInfoReq\x1a).api.videoApi.service.v1.GetGroupInfoResp\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/group/{group_id}\x12\x92\x01\n" +
-	"\x12ListMyJoinedGroups\x12..api.videoApi.service.v1.ListMyJoinedGroupsReq\x1a/.api.videoApi.service.v1.ListMyJoinedGroupsResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/group/joinedBB\n" +
+	"\x12ListMyJoinedGroups\x12..api.videoApi.service.v1.ListMyJoinedGroupsReq\x1a/.api.videoApi.service.v1.ListMyJoinedGroupsResp\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/group/joined\x12\x92\x01\n" +
+	"\x10HandleGroupApply\x12,.api.videoApi.service.v1.HandleGroupApplyReq\x1a-.api.videoApi.service.v1.HandleGroupApplyResp\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/group/apply/handle\x12\x92\x01\n" +
+	"\x0fGetGroupMembers\x12+.api.videoApi.service.v1.GetGroupMembersReq\x1a,.api.videoApi.service.v1.GetGroupMembersResp\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/v1/group/{group_id}/membersBB\n" +
 	"\x17api.videoApi.service.v1P\x01Z%lehu-video/api/videoApi/service/v1;v1b\x06proto3"
 
 var (
@@ -1043,7 +1241,7 @@ func file_api_videoApi_service_v1_group_proto_rawDescGZIP() []byte {
 	return file_api_videoApi_service_v1_group_proto_rawDescData
 }
 
-var file_api_videoApi_service_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_api_videoApi_service_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_api_videoApi_service_v1_group_proto_goTypes = []any{
 	(*GroupInfo)(nil),              // 0: api.videoApi.service.v1.GroupInfo
 	(*CreateGroupReq)(nil),         // 1: api.videoApi.service.v1.CreateGroupReq
@@ -1064,17 +1262,21 @@ var file_api_videoApi_service_v1_group_proto_goTypes = []any{
 	(*GetGroupInfoResp)(nil),       // 16: api.videoApi.service.v1.GetGroupInfoResp
 	(*ListMyJoinedGroupsReq)(nil),  // 17: api.videoApi.service.v1.ListMyJoinedGroupsReq
 	(*ListMyJoinedGroupsResp)(nil), // 18: api.videoApi.service.v1.ListMyJoinedGroupsResp
-	(*PageStatsReq)(nil),           // 19: api.videoApi.service.v1.PageStatsReq
-	(*PageStatsResp)(nil),          // 20: api.videoApi.service.v1.PageStatsResp
+	(*HandleGroupApplyReq)(nil),    // 19: api.videoApi.service.v1.HandleGroupApplyReq
+	(*HandleGroupApplyResp)(nil),   // 20: api.videoApi.service.v1.HandleGroupApplyResp
+	(*GetGroupMembersReq)(nil),     // 21: api.videoApi.service.v1.GetGroupMembersReq
+	(*GetGroupMembersResp)(nil),    // 22: api.videoApi.service.v1.GetGroupMembersResp
+	(*PageStatsReq)(nil),           // 23: api.videoApi.service.v1.PageStatsReq
+	(*PageStatsResp)(nil),          // 24: api.videoApi.service.v1.PageStatsResp
 }
 var file_api_videoApi_service_v1_group_proto_depIdxs = []int32{
-	19, // 0: api.videoApi.service.v1.LoadMyGroupReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
+	23, // 0: api.videoApi.service.v1.LoadMyGroupReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
 	0,  // 1: api.videoApi.service.v1.LoadMyGroupResp.groups:type_name -> api.videoApi.service.v1.GroupInfo
-	20, // 2: api.videoApi.service.v1.LoadMyGroupResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
+	24, // 2: api.videoApi.service.v1.LoadMyGroupResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
 	0,  // 3: api.videoApi.service.v1.GetGroupInfoResp.group:type_name -> api.videoApi.service.v1.GroupInfo
-	19, // 4: api.videoApi.service.v1.ListMyJoinedGroupsReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
+	23, // 4: api.videoApi.service.v1.ListMyJoinedGroupsReq.page_stats:type_name -> api.videoApi.service.v1.PageStatsReq
 	0,  // 5: api.videoApi.service.v1.ListMyJoinedGroupsResp.groups:type_name -> api.videoApi.service.v1.GroupInfo
-	20, // 6: api.videoApi.service.v1.ListMyJoinedGroupsResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
+	24, // 6: api.videoApi.service.v1.ListMyJoinedGroupsResp.page_stats:type_name -> api.videoApi.service.v1.PageStatsResp
 	1,  // 7: api.videoApi.service.v1.GroupService.CreateGroup:input_type -> api.videoApi.service.v1.CreateGroupReq
 	3,  // 8: api.videoApi.service.v1.GroupService.LoadMyGroup:input_type -> api.videoApi.service.v1.LoadMyGroupReq
 	5,  // 9: api.videoApi.service.v1.GroupService.CheckGroupAddMode:input_type -> api.videoApi.service.v1.CheckGroupAddModeReq
@@ -1084,17 +1286,21 @@ var file_api_videoApi_service_v1_group_proto_depIdxs = []int32{
 	13, // 13: api.videoApi.service.v1.GroupService.DismissGroup:input_type -> api.videoApi.service.v1.DismissGroupReq
 	15, // 14: api.videoApi.service.v1.GroupService.GetGroupInfo:input_type -> api.videoApi.service.v1.GetGroupInfoReq
 	17, // 15: api.videoApi.service.v1.GroupService.ListMyJoinedGroups:input_type -> api.videoApi.service.v1.ListMyJoinedGroupsReq
-	2,  // 16: api.videoApi.service.v1.GroupService.CreateGroup:output_type -> api.videoApi.service.v1.CreateGroupResp
-	4,  // 17: api.videoApi.service.v1.GroupService.LoadMyGroup:output_type -> api.videoApi.service.v1.LoadMyGroupResp
-	6,  // 18: api.videoApi.service.v1.GroupService.CheckGroupAddMode:output_type -> api.videoApi.service.v1.CheckGroupAddModeResp
-	8,  // 19: api.videoApi.service.v1.GroupService.EnterGroupDirectly:output_type -> api.videoApi.service.v1.EnterGroupDirectlyResp
-	10, // 20: api.videoApi.service.v1.GroupService.ApplyJoinGroup:output_type -> api.videoApi.service.v1.ApplyJoinGroupResp
-	12, // 21: api.videoApi.service.v1.GroupService.LeaveGroup:output_type -> api.videoApi.service.v1.LeaveGroupResp
-	14, // 22: api.videoApi.service.v1.GroupService.DismissGroup:output_type -> api.videoApi.service.v1.DismissGroupResp
-	16, // 23: api.videoApi.service.v1.GroupService.GetGroupInfo:output_type -> api.videoApi.service.v1.GetGroupInfoResp
-	18, // 24: api.videoApi.service.v1.GroupService.ListMyJoinedGroups:output_type -> api.videoApi.service.v1.ListMyJoinedGroupsResp
-	16, // [16:25] is the sub-list for method output_type
-	7,  // [7:16] is the sub-list for method input_type
+	19, // 16: api.videoApi.service.v1.GroupService.HandleGroupApply:input_type -> api.videoApi.service.v1.HandleGroupApplyReq
+	21, // 17: api.videoApi.service.v1.GroupService.GetGroupMembers:input_type -> api.videoApi.service.v1.GetGroupMembersReq
+	2,  // 18: api.videoApi.service.v1.GroupService.CreateGroup:output_type -> api.videoApi.service.v1.CreateGroupResp
+	4,  // 19: api.videoApi.service.v1.GroupService.LoadMyGroup:output_type -> api.videoApi.service.v1.LoadMyGroupResp
+	6,  // 20: api.videoApi.service.v1.GroupService.CheckGroupAddMode:output_type -> api.videoApi.service.v1.CheckGroupAddModeResp
+	8,  // 21: api.videoApi.service.v1.GroupService.EnterGroupDirectly:output_type -> api.videoApi.service.v1.EnterGroupDirectlyResp
+	10, // 22: api.videoApi.service.v1.GroupService.ApplyJoinGroup:output_type -> api.videoApi.service.v1.ApplyJoinGroupResp
+	12, // 23: api.videoApi.service.v1.GroupService.LeaveGroup:output_type -> api.videoApi.service.v1.LeaveGroupResp
+	14, // 24: api.videoApi.service.v1.GroupService.DismissGroup:output_type -> api.videoApi.service.v1.DismissGroupResp
+	16, // 25: api.videoApi.service.v1.GroupService.GetGroupInfo:output_type -> api.videoApi.service.v1.GetGroupInfoResp
+	18, // 26: api.videoApi.service.v1.GroupService.ListMyJoinedGroups:output_type -> api.videoApi.service.v1.ListMyJoinedGroupsResp
+	20, // 27: api.videoApi.service.v1.GroupService.HandleGroupApply:output_type -> api.videoApi.service.v1.HandleGroupApplyResp
+	22, // 28: api.videoApi.service.v1.GroupService.GetGroupMembers:output_type -> api.videoApi.service.v1.GetGroupMembersResp
+	18, // [18:29] is the sub-list for method output_type
+	7,  // [7:18] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name
 	7,  // [7:7] is the sub-list for extension extendee
 	0,  // [0:7] is the sub-list for field type_name
@@ -1112,7 +1318,7 @@ func file_api_videoApi_service_v1_group_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_videoApi_service_v1_group_proto_rawDesc), len(file_api_videoApi_service_v1_group_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

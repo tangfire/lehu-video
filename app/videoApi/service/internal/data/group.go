@@ -252,3 +252,17 @@ func (r *chatAdapterImpl) GetGroupMembers(ctx context.Context, groupID string) (
 
 	return resp.MemberIds, nil
 }
+
+func (r *chatAdapterImpl) HandleGroupApply(ctx context.Context, applyID, handlerID string, accept bool, replyMsg string) error {
+	req := &chat.HandleGroupApplyReq{
+		ApplyId:   applyID,
+		HandlerId: handlerID,
+		Accept:    accept,
+		ReplyMsg:  replyMsg,
+	}
+	resp, err := r.group.HandleGroupApply(ctx, req)
+	if err != nil {
+		return err
+	}
+	return respcheck.ValidateResponseMeta(resp.Meta)
+}

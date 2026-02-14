@@ -571,34 +571,19 @@ func (s *MessageServiceService) GetMessage(
 }
 
 // CreateConversation 创建会话
-func (s *MessageServiceService) CreateConversation(
-	ctx context.Context,
-	req *pb.CreateConversationReq,
-) (*pb.CreateConversationResp, error) {
-
-	userIDs := cast.ToInt64Slice(req.UserIds)
-	GroupID := cast.ToInt64(req.GroupId)
-
-	if len(userIDs) <= 1 {
-		return &pb.CreateConversationResp{
-			Meta: utils.GetMetaWithError(errors.New("参数错误")),
-		}, nil
-	}
-
+func (s *MessageServiceService) CreateConversation(ctx context.Context, req *pb.CreateConversationReq) (*pb.CreateConversationResp, error) {
 	cmd := &biz.CreateConversationCommand{
-		UserIDs:        userIDs,
-		GroupID:        GroupID,
+		UserIDs:        cast.ToInt64Slice(req.UserIds),
+		GroupID:        cast.ToInt64(req.GroupId),
 		ConvType:       int32(req.ConvType),
 		InitialMessage: req.InitialMessage,
 	}
-
 	result, err := s.uc.CreateConversation(ctx, cmd)
 	if err != nil {
 		return &pb.CreateConversationResp{
 			Meta: utils.GetMetaWithError(err),
 		}, nil
 	}
-
 	return &pb.CreateConversationResp{
 		Meta:           utils.GetSuccessMeta(),
 		ConversationId: cast.ToString(result.ConversationID),
