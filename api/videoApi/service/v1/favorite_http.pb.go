@@ -20,6 +20,7 @@ var _ = binding.EncodeURL
 const _ = http.SupportPackageIsVersion1
 
 const OperationFavoriteServiceAddFavorite = "/api.videoApi.service.v1.FavoriteService/AddFavorite"
+const OperationFavoriteServiceBatchCheckFavoriteStatus = "/api.videoApi.service.v1.FavoriteService/BatchCheckFavoriteStatus"
 const OperationFavoriteServiceCheckFavoriteStatus = "/api.videoApi.service.v1.FavoriteService/CheckFavoriteStatus"
 const OperationFavoriteServiceGetFavoriteStats = "/api.videoApi.service.v1.FavoriteService/GetFavoriteStats"
 const OperationFavoriteServiceListFavoriteVideo = "/api.videoApi.service.v1.FavoriteService/ListFavoriteVideo"
@@ -27,6 +28,8 @@ const OperationFavoriteServiceRemoveFavorite = "/api.videoApi.service.v1.Favorit
 
 type FavoriteServiceHTTPServer interface {
 	AddFavorite(context.Context, *AddFavoriteReq) (*AddFavoriteResp, error)
+	// BatchCheckFavoriteStatus 批量检查点赞/点踩状态
+	BatchCheckFavoriteStatus(context.Context, *BatchCheckFavoriteStatusReq) (*BatchCheckFavoriteStatusResp, error)
 	CheckFavoriteStatus(context.Context, *CheckFavoriteStatusReq) (*CheckFavoriteStatusResp, error)
 	GetFavoriteStats(context.Context, *GetFavoriteStatsReq) (*GetFavoriteStatsResp, error)
 	ListFavoriteVideo(context.Context, *ListFavoriteVideoReq) (*ListFavoriteVideoResp, error)
@@ -40,6 +43,7 @@ func RegisterFavoriteServiceHTTPServer(s *http.Server, srv FavoriteServiceHTTPSe
 	r.POST("/v1/favorite/video/list", _FavoriteService_ListFavoriteVideo0_HTTP_Handler(srv))
 	r.POST("/v1/favorite/check", _FavoriteService_CheckFavoriteStatus0_HTTP_Handler(srv))
 	r.POST("/v1/favorite/stats", _FavoriteService_GetFavoriteStats0_HTTP_Handler(srv))
+	r.POST("/v1/favorite/batch-check", _FavoriteService_BatchCheckFavoriteStatus0_HTTP_Handler(srv))
 }
 
 func _FavoriteService_AddFavorite0_HTTP_Handler(srv FavoriteServiceHTTPServer) func(ctx http.Context) error {
@@ -152,8 +156,31 @@ func _FavoriteService_GetFavoriteStats0_HTTP_Handler(srv FavoriteServiceHTTPServ
 	}
 }
 
+func _FavoriteService_BatchCheckFavoriteStatus0_HTTP_Handler(srv FavoriteServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in BatchCheckFavoriteStatusReq
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationFavoriteServiceBatchCheckFavoriteStatus)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.BatchCheckFavoriteStatus(ctx, req.(*BatchCheckFavoriteStatusReq))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*BatchCheckFavoriteStatusResp)
+		return ctx.Result(200, reply)
+	}
+}
+
 type FavoriteServiceHTTPClient interface {
 	AddFavorite(ctx context.Context, req *AddFavoriteReq, opts ...http.CallOption) (rsp *AddFavoriteResp, err error)
+	BatchCheckFavoriteStatus(ctx context.Context, req *BatchCheckFavoriteStatusReq, opts ...http.CallOption) (rsp *BatchCheckFavoriteStatusResp, err error)
 	CheckFavoriteStatus(ctx context.Context, req *CheckFavoriteStatusReq, opts ...http.CallOption) (rsp *CheckFavoriteStatusResp, err error)
 	GetFavoriteStats(ctx context.Context, req *GetFavoriteStatsReq, opts ...http.CallOption) (rsp *GetFavoriteStatsResp, err error)
 	ListFavoriteVideo(ctx context.Context, req *ListFavoriteVideoReq, opts ...http.CallOption) (rsp *ListFavoriteVideoResp, err error)
@@ -173,6 +200,19 @@ func (c *FavoriteServiceHTTPClientImpl) AddFavorite(ctx context.Context, in *Add
 	pattern := "/v1/favorite"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationFavoriteServiceAddFavorite))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *FavoriteServiceHTTPClientImpl) BatchCheckFavoriteStatus(ctx context.Context, in *BatchCheckFavoriteStatusReq, opts ...http.CallOption) (*BatchCheckFavoriteStatusResp, error) {
+	var out BatchCheckFavoriteStatusResp
+	pattern := "/v1/favorite/batch-check"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationFavoriteServiceBatchCheckFavoriteStatus))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {

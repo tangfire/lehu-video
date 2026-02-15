@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	FavoriteService_AddFavorite_FullMethodName         = "/api.videoApi.service.v1.FavoriteService/AddFavorite"
-	FavoriteService_RemoveFavorite_FullMethodName      = "/api.videoApi.service.v1.FavoriteService/RemoveFavorite"
-	FavoriteService_ListFavoriteVideo_FullMethodName   = "/api.videoApi.service.v1.FavoriteService/ListFavoriteVideo"
-	FavoriteService_CheckFavoriteStatus_FullMethodName = "/api.videoApi.service.v1.FavoriteService/CheckFavoriteStatus"
-	FavoriteService_GetFavoriteStats_FullMethodName    = "/api.videoApi.service.v1.FavoriteService/GetFavoriteStats"
+	FavoriteService_AddFavorite_FullMethodName              = "/api.videoApi.service.v1.FavoriteService/AddFavorite"
+	FavoriteService_RemoveFavorite_FullMethodName           = "/api.videoApi.service.v1.FavoriteService/RemoveFavorite"
+	FavoriteService_ListFavoriteVideo_FullMethodName        = "/api.videoApi.service.v1.FavoriteService/ListFavoriteVideo"
+	FavoriteService_CheckFavoriteStatus_FullMethodName      = "/api.videoApi.service.v1.FavoriteService/CheckFavoriteStatus"
+	FavoriteService_GetFavoriteStats_FullMethodName         = "/api.videoApi.service.v1.FavoriteService/GetFavoriteStats"
+	FavoriteService_BatchCheckFavoriteStatus_FullMethodName = "/api.videoApi.service.v1.FavoriteService/BatchCheckFavoriteStatus"
 )
 
 // FavoriteServiceClient is the client API for FavoriteService service.
@@ -35,6 +36,8 @@ type FavoriteServiceClient interface {
 	ListFavoriteVideo(ctx context.Context, in *ListFavoriteVideoReq, opts ...grpc.CallOption) (*ListFavoriteVideoResp, error)
 	CheckFavoriteStatus(ctx context.Context, in *CheckFavoriteStatusReq, opts ...grpc.CallOption) (*CheckFavoriteStatusResp, error)
 	GetFavoriteStats(ctx context.Context, in *GetFavoriteStatsReq, opts ...grpc.CallOption) (*GetFavoriteStatsResp, error)
+	// 批量检查点赞/点踩状态
+	BatchCheckFavoriteStatus(ctx context.Context, in *BatchCheckFavoriteStatusReq, opts ...grpc.CallOption) (*BatchCheckFavoriteStatusResp, error)
 }
 
 type favoriteServiceClient struct {
@@ -95,6 +98,16 @@ func (c *favoriteServiceClient) GetFavoriteStats(ctx context.Context, in *GetFav
 	return out, nil
 }
 
+func (c *favoriteServiceClient) BatchCheckFavoriteStatus(ctx context.Context, in *BatchCheckFavoriteStatusReq, opts ...grpc.CallOption) (*BatchCheckFavoriteStatusResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchCheckFavoriteStatusResp)
+	err := c.cc.Invoke(ctx, FavoriteService_BatchCheckFavoriteStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FavoriteServiceServer is the server API for FavoriteService service.
 // All implementations must embed UnimplementedFavoriteServiceServer
 // for forward compatibility.
@@ -104,6 +117,8 @@ type FavoriteServiceServer interface {
 	ListFavoriteVideo(context.Context, *ListFavoriteVideoReq) (*ListFavoriteVideoResp, error)
 	CheckFavoriteStatus(context.Context, *CheckFavoriteStatusReq) (*CheckFavoriteStatusResp, error)
 	GetFavoriteStats(context.Context, *GetFavoriteStatsReq) (*GetFavoriteStatsResp, error)
+	// 批量检查点赞/点踩状态
+	BatchCheckFavoriteStatus(context.Context, *BatchCheckFavoriteStatusReq) (*BatchCheckFavoriteStatusResp, error)
 	mustEmbedUnimplementedFavoriteServiceServer()
 }
 
@@ -128,6 +143,9 @@ func (UnimplementedFavoriteServiceServer) CheckFavoriteStatus(context.Context, *
 }
 func (UnimplementedFavoriteServiceServer) GetFavoriteStats(context.Context, *GetFavoriteStatsReq) (*GetFavoriteStatsResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFavoriteStats not implemented")
+}
+func (UnimplementedFavoriteServiceServer) BatchCheckFavoriteStatus(context.Context, *BatchCheckFavoriteStatusReq) (*BatchCheckFavoriteStatusResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchCheckFavoriteStatus not implemented")
 }
 func (UnimplementedFavoriteServiceServer) mustEmbedUnimplementedFavoriteServiceServer() {}
 func (UnimplementedFavoriteServiceServer) testEmbeddedByValue()                         {}
@@ -240,6 +258,24 @@ func _FavoriteService_GetFavoriteStats_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FavoriteService_BatchCheckFavoriteStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchCheckFavoriteStatusReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FavoriteServiceServer).BatchCheckFavoriteStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FavoriteService_BatchCheckFavoriteStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FavoriteServiceServer).BatchCheckFavoriteStatus(ctx, req.(*BatchCheckFavoriteStatusReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FavoriteService_ServiceDesc is the grpc.ServiceDesc for FavoriteService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -266,6 +302,10 @@ var FavoriteService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFavoriteStats",
 			Handler:    _FavoriteService_GetFavoriteStats_Handler,
+		},
+		{
+			MethodName: "BatchCheckFavoriteStatus",
+			Handler:    _FavoriteService_BatchCheckFavoriteStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

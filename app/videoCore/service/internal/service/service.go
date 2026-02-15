@@ -11,5 +11,4 @@ var ProviderSet = wire.NewSet(
 	NewUserServiceService,
 	NewCollectionServiceService,
 	NewFeedServiceService,
-	NewLikeConsumer,
 )

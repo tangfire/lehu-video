@@ -3,19 +3,19 @@
 
 openapi: 3.0.3
 info:
-    title: FollowService API
+    title: FavoriteService API
     version: 0.0.1
 paths:
-    /v1/follow:
+    /v1/favorite:
         post:
             tags:
-                - FollowService
-            operationId: FollowService_AddFollow
+                - FavoriteService
+            operationId: FavoriteService_AddFavorite
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/AddFollowReq'
+                            $ref: '#/components/schemas/AddFavoriteReq'
                 required: true
             responses:
                 "200":
@@ -23,23 +23,24 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/AddFollowResp'
+                                $ref: '#/components/schemas/AddFavoriteResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/follow/list:
+    /v1/favorite/batch-check:
         post:
             tags:
-                - FollowService
-            operationId: FollowService_ListFollowing
+                - FavoriteService
+            description: 批量检查点赞/点踩状态
+            operationId: FavoriteService_BatchCheckFavoriteStatus
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/ListFollowingReq'
+                            $ref: '#/components/schemas/BatchCheckFavoriteStatusReq'
                 required: true
             responses:
                 "200":
@@ -47,32 +48,103 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ListFollowingResp'
+                                $ref: '#/components/schemas/BatchCheckFavoriteStatusResp'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/follow/{userId}:
-        delete:
+    /v1/favorite/check:
+        post:
             tags:
-                - FollowService
-            operationId: FollowService_RemoveFollow
-            parameters:
-                - name: userId
-                  in: path
-                  description: '@gotags: json:"userId,omitempty,string"'
-                  required: true
-                  schema:
-                    type: string
+                - FavoriteService
+            operationId: FavoriteService_CheckFavoriteStatus
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckFavoriteStatusReq'
+                required: true
             responses:
                 "200":
                     description: OK
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/RemoveFollowResp'
+                                $ref: '#/components/schemas/CheckFavoriteStatusResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/favorite/del:
+        post:
+            tags:
+                - FavoriteService
+            operationId: FavoriteService_RemoveFavorite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RemoveFavoriteReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RemoveFavoriteResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/favorite/stats:
+        post:
+            tags:
+                - FavoriteService
+            operationId: FavoriteService_GetFavoriteStats
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GetFavoriteStatsReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetFavoriteStatsResp'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/favorite/video/list:
+        post:
+            tags:
+                - FavoriteService
+            operationId: FavoriteService_ListFavoriteVideo
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListFavoriteVideoReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListFavoriteVideoResp'
                 default:
                     description: Default error response
                     content:
@@ -81,27 +153,104 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
-        AddFollowReq:
+        AddFavoriteReq:
             type: object
             properties:
-                userId:
+                target:
+                    type: integer
+                    format: enum
+                type:
+                    type: integer
+                    format: enum
+                id:
                     type: string
-                    description: '@gotags: json:"userId,omitempty,string"'
-        AddFollowResp:
+                    description: '@gotags: json:"id,omitempty,string"'
+        AddFavoriteResp:
             type: object
-            properties: {}
-        FollowUser:
+            properties:
+                alreadyFavorited:
+                    type: boolean
+                totalCount:
+                    type: string
+                totalLikes:
+                    type: string
+                totalDislikes:
+                    type: string
+        BatchCheckFavoriteStatusItem:
             type: object
             properties:
                 id:
                     type: string
-                    description: '@gotags: json:"id,omitempty,string"'
-                name:
-                    type: string
-                avatar:
-                    type: string
-                isFollowing:
+                isLiked:
                     type: boolean
+                isDisliked:
+                    type: boolean
+                likeCount:
+                    type: string
+                dislikeCount:
+                    type: string
+        BatchCheckFavoriteStatusReq:
+            type: object
+            properties:
+                target:
+                    type: integer
+                    format: enum
+                ids:
+                    type: array
+                    items:
+                        type: string
+        BatchCheckFavoriteStatusResp:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/BatchCheckFavoriteStatusItem'
+        CheckFavoriteStatusReq:
+            type: object
+            properties:
+                target:
+                    type: integer
+                    format: enum
+                type:
+                    type: integer
+                    format: enum
+                id:
+                    type: string
+        CheckFavoriteStatusResp:
+            type: object
+            properties:
+                isFavorite:
+                    type: boolean
+                favoriteType:
+                    type: integer
+                    format: enum
+                totalLikes:
+                    type: string
+                totalDislikes:
+                    type: string
+                totalCount:
+                    type: string
+        GetFavoriteStatsReq:
+            type: object
+            properties:
+                target:
+                    type: integer
+                    format: enum
+                id:
+                    type: string
+        GetFavoriteStatsResp:
+            type: object
+            properties:
+                likeCount:
+                    type: string
+                dislikeCount:
+                    type: string
+                totalCount:
+                    type: string
+                hotScore:
+                    type: number
+                    format: float
         GoogleProtobufAny:
             type: object
             properties:
@@ -110,26 +259,26 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
-        ListFollowingReq:
+        ListFavoriteVideoReq:
             type: object
             properties:
                 userId:
                     type: string
-                    description: '@gotags: json:"userId,omitempty,string"'
-                type:
-                    type: integer
-                    format: enum
                 pageStats:
                     $ref: '#/components/schemas/PageStatsReq'
-        ListFollowingResp:
+                includeStats:
+                    type: boolean
+        ListFavoriteVideoResp:
             type: object
             properties:
-                users:
+                videos:
                     type: array
                     items:
-                        $ref: '#/components/schemas/FollowUser'
+                        $ref: '#/components/schemas/Video'
                 pageStats:
                     $ref: '#/components/schemas/PageStatsResp'
+                totalCount:
+                    type: string
         PageStatsReq:
             type: object
             properties:
@@ -147,9 +296,29 @@ components:
                 total:
                     type: integer
                     format: int32
-        RemoveFollowResp:
+        RemoveFavoriteReq:
             type: object
-            properties: {}
+            properties:
+                target:
+                    type: integer
+                    format: enum
+                type:
+                    type: integer
+                    format: enum
+                id:
+                    type: string
+                    description: '@gotags: json:"id,omitempty,string"'
+        RemoveFavoriteResp:
+            type: object
+            properties:
+                notFavorited:
+                    type: boolean
+                totalCount:
+                    type: string
+                totalLikes:
+                    type: string
+                totalDislikes:
+                    type: string
         Status:
             type: object
             properties:
@@ -166,5 +335,44 @@ components:
                         $ref: '#/components/schemas/GoogleProtobufAny'
                     description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
             description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        Video:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: '@gotags: json:"id,omitempty,string"'
+                author:
+                    $ref: '#/components/schemas/VideoAuthor'
+                playUrl:
+                    type: string
+                coverUrl:
+                    type: string
+                favoriteCount:
+                    type: string
+                    description: '@gotags: json:"favoriteCount,omitempty,string"'
+                commentCount:
+                    type: string
+                    description: '@gotags: json:"commentCount,omitempty,string"'
+                isFavorite:
+                    type: boolean
+                title:
+                    type: string
+                isCollected:
+                    type: boolean
+                collectedCount:
+                    type: string
+                    description: '@gotags: json:"collectedCount,omitempty,string"'
+        VideoAuthor:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: '@gotags: json:"id,omitempty,string"'
+                name:
+                    type: string
+                avatar:
+                    type: string
+                isFollowing:
+                    type: boolean
 tags:
-    - name: FollowService
+    - name: FavoriteService

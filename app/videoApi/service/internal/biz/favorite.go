@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	core "lehu-video/api/videoCore/service/v1"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/spf13/cast"
@@ -206,4 +207,12 @@ func (uc *FavoriteUsecase) GetFavoriteStats(ctx context.Context, input *GetFavor
 	}
 
 	return stats, nil
+}
+
+// BatchIsFavorite 批量查询点赞/点踩状态（直接调用 core 服务）
+func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, req *core.BatchIsFavoriteReq) (*core.BatchIsFavoriteResp, error) {
+	if req == nil {
+		return nil, errors.New("req is nil")
+	}
+	return uc.core.BatchIsFavorite(ctx, req.UserId, req.BizIds, FavoriteTarget(req.Target))
 }

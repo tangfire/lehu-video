@@ -55,7 +55,6 @@ func newApp(logger log.Logger,
 	gs *grpc.Server,
 	hs *http.Server,
 	kcs *server.KafkaConsumerServer,
-	lcs *server.LikeConsumerServer,
 	rr registry.Registrar) *kratos.App {
 	return kratos.New(
 		kratos.ID(id),
@@ -67,7 +66,6 @@ func newApp(logger log.Logger,
 			gs,
 			hs,
 			kcs,
-			lcs,
 		),
 		kratos.Registrar(rr),
 	)

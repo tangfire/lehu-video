@@ -45,6 +45,14 @@ service FavoriteService {
 			body: "*"
 		};
 	};
+
+	// 批量检查点赞/点踩状态
+	rpc BatchCheckFavoriteStatus(BatchCheckFavoriteStatusReq) returns (BatchCheckFavoriteStatusResp) {
+		option (google.api.http) = {
+			post: "/v1/favorite/batch-check"
+			body: "*"
+		};
+	}
 }
 
 enum FavoriteTarget {
@@ -122,4 +130,22 @@ message GetFavoriteStatsResp {
 	int64 dislike_count = 2;
 	int64 total_count = 3;
 	float hot_score = 4; // 热度分数
+}
+
+message BatchCheckFavoriteStatusReq {
+	FavoriteTarget target = 1;
+	repeated string ids = 2;      // 业务ID列表
+	// 不传 type，同时返回点赞和点踩状态
+}
+
+message BatchCheckFavoriteStatusItem {
+	string id = 1;                 // 业务ID
+	bool is_liked = 2;             // 是否点赞
+	bool is_disliked = 3;          // 是否点踩
+	int64 like_count = 4;          // 点赞总数
+	int64 dislike_count = 5;       // 点踩总数
+}
+
+message BatchCheckFavoriteStatusResp {
+	repeated BatchCheckFavoriteStatusItem items = 1;
 }

@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	core "lehu-video/api/videoCore/service/v1"
 )
 
 // CoreAdapter 核心服务适配器接口
@@ -39,6 +40,8 @@ type CoreAdapter interface {
 	CheckFavoriteStatus(ctx context.Context, userId, targetId string, target *FavoriteTarget, _type *FavoriteType) (*CheckFavoriteResult, error)
 	GetFavoriteStats(ctx context.Context, targetId string, target *FavoriteTarget) (*FavoriteStats, error)
 	CountBeFavoriteNumber4User(ctx context.Context, userId string) (int64, error)
+	// BatchIsFavorite 批量查询点赞/点踩状态
+	BatchIsFavorite(ctx context.Context, userId string, targetIds []string, target FavoriteTarget) (*core.BatchIsFavoriteResp, error)
 
 	AddFollow(ctx context.Context, userId, targetUserId string) error
 	RemoveFollow(ctx context.Context, userId, targetUserId string) error

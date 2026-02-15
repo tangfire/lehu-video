@@ -10,5 +10,4 @@ var ProviderSet = wire.NewSet(
 	NewHTTPServer,
 	NewRegistrar,
 	NewKafkaConsumerServer,
-	NewLikeConsumerServer,
 )

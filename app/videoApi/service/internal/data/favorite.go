@@ -140,13 +140,12 @@ func (r *CoreAdapterImpl) ListUserFavoriteVideo(ctx context.Context, userId stri
 }
 
 func (r *CoreAdapterImpl) CheckFavoriteStatus(ctx context.Context, userId, targetId string, target *biz.FavoriteTarget, _type *biz.FavoriteType) (*biz.CheckFavoriteResult, error) {
-	// 如果userId为0，表示未登录用户，只返回统计信息
+	// 未登录用户只返回统计信息
 	if userId == "0" {
 		stats, err := r.GetFavoriteStats(ctx, targetId, target)
 		if err != nil {
 			return nil, err
 		}
-
 		return &biz.CheckFavoriteResult{
 			IsFavorite:    false,
 			FavoriteType:  -1,
@@ -160,63 +159,85 @@ func (r *CoreAdapterImpl) CheckFavoriteStatus(ctx context.Context, userId, targe
 		BizId:  targetId,
 		UserId: userId,
 		Target: core.FavoriteTarget(*target),
-		Type:   core.FavoriteType(*_type),
+		Type:   core.FavoriteType(*_type), // 该参数在 core 服务中可能被忽略，实际返回的是用户真正的点赞类型
 	})
 	if err != nil {
 		return nil, err
 	}
-
 	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
 		return nil, err
 	}
 
-	// 获取统计数据
+	// 获取最新统计数据
 	stats, err := r.GetFavoriteStats(ctx, targetId, target)
 	if err != nil {
 		return nil, err
 	}
 
+	// 根据 core 服务返回的实际类型设置 FavoriteType
+	var favoriteTypeInt int32
+	if resp.IsFavorite {
+		switch resp.FavoriteType {
+		case core.FavoriteType_FAVORITE_TYPE_LIKE:
+			favoriteTypeInt = 0
+		case core.FavoriteType_FAVORITE_TYPE_DISLIKE:
+			favoriteTypeInt = 1
+		default:
+			favoriteTypeInt = -1
+		}
+	} else {
+		favoriteTypeInt = -1
+	}
+
 	return &biz.CheckFavoriteResult{
 		IsFavorite:    resp.IsFavorite,
-		FavoriteType:  int32(*_type),
+		FavoriteType:  favoriteTypeInt,
 		TotalLikes:    stats.LikeCount,
 		TotalDislikes: stats.DislikeCount,
 		TotalCount:    stats.TotalCount,
 	}, nil
 }
 
+// GetFavoriteStats 获取点赞统计（动态根据目标类型选择聚合类型）
 func (r *CoreAdapterImpl) GetFavoriteStats(ctx context.Context, targetId string, target *biz.FavoriteTarget) (*biz.FavoriteStats, error) {
-	resp, err := r.favorite.CountFavorite(ctx, &core.CountFavoriteReq{
-		AggregateType: core.FavoriteAggregateType_FAVORITE_AGGREGATE_BY_VIDEO,
+	// 根据 target 类型选择聚合类型
+	var aggType core.FavoriteAggregateType
+	if *target == biz.FavoriteTargetVideo {
+		aggType = core.FavoriteAggregateType_FAVORITE_AGGREGATE_BY_VIDEO
+	} else {
+		aggType = core.FavoriteAggregateType_FAVORITE_AGGREGATE_BY_COMMENT
+	}
+
+	// 查询点赞数量
+	likeResp, err := r.favorite.CountFavorite(ctx, &core.CountFavoriteReq{
+		AggregateType: aggType,
 		Ids:           []string{targetId},
-		FavoriteType:  core.FavoriteType_FAVORITE_TYPE_LIKE, // 这里只查询点赞，需要分别查询点赞和点踩
+		FavoriteType:  core.FavoriteType_FAVORITE_TYPE_LIKE,
 	})
 	if err != nil {
 		return nil, err
 	}
-
-	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
+	if err := respcheck.ValidateResponseMeta(likeResp.Meta); err != nil {
 		return nil, err
 	}
 
 	// 查询点踩数量
 	dislikeResp, err := r.favorite.CountFavorite(ctx, &core.CountFavoriteReq{
-		AggregateType: core.FavoriteAggregateType_FAVORITE_AGGREGATE_BY_VIDEO,
+		AggregateType: aggType,
 		Ids:           []string{targetId},
 		FavoriteType:  core.FavoriteType_FAVORITE_TYPE_DISLIKE,
 	})
 	if err != nil {
 		return nil, err
 	}
-
 	if err := respcheck.ValidateResponseMeta(dislikeResp.Meta); err != nil {
 		return nil, err
 	}
 
 	// 解析结果
 	var likeCount, dislikeCount int64
-	if len(resp.Items) > 0 {
-		likeCount = resp.Items[0].LikeCount
+	if len(likeResp.Items) > 0 {
+		likeCount = likeResp.Items[0].LikeCount
 	}
 	if len(dislikeResp.Items) > 0 {
 		dislikeCount = dislikeResp.Items[0].DislikeCount
@@ -326,4 +347,26 @@ func (r *CoreAdapterImpl) IsUserFavoriteVideo(ctx context.Context, userId string
 	}
 
 	return result, nil
+}
+
+func (r *CoreAdapterImpl) BatchIsFavorite(ctx context.Context, userId string, targetIds []string, target biz.FavoriteTarget) (*core.BatchIsFavoriteResp, error) {
+	if len(targetIds) == 0 {
+		return &core.BatchIsFavoriteResp{
+			Meta:  &core.Metadata{Code: 0, Message: "success"},
+			Items: []*core.BatchIsFavoriteItem{},
+		}, nil
+	}
+
+	resp, err := r.favorite.BatchIsFavorite(ctx, &core.BatchIsFavoriteReq{
+		UserId: userId,
+		BizIds: targetIds,
+		Target: core.FavoriteTarget(target),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
