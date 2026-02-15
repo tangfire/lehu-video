@@ -28,7 +28,8 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	db := data.NewDB(confData, logger)
 	discovery := data.NewDiscovery(registry)
 	userServiceClient := data.NewUserServiceClient(discovery)
-	dataData, cleanup, err := data.NewData(db, userServiceClient, logger)
+	client := data.NewRedisClient(confData)
+	dataData, cleanup, err := data.NewData(db, userServiceClient, client, logger)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -37,7 +38,7 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	groupUsecase := biz.NewGroupUsecase(groupRepo, conversationRepo, logger)
 	groupServiceService := service.NewGroupServiceService(groupUsecase, logger)
 	messageRepo := data.NewMessageRepo(dataData, logger)
-	friendRepo := data.NewFriendRepo(dataData, userServiceClient, logger)
+	friendRepo := data.NewFriendRepo(dataData, userServiceClient, client, logger)
 	idGenerator, err := idgen.NewIDGenerator()
 	if err != nil {
 		cleanup()

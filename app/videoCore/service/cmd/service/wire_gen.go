@@ -57,8 +57,10 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	collectionServiceService := service.NewCollectionServiceService(collectionUsecase)
 	grpcServer := server.NewGRPCServer(confServer, videoServiceService, feedServiceService, userServiceService, followServiceService, favoriteServiceService, commentServiceService, collectionServiceService, logger)
 	httpServer := server.NewHTTPServer(confServer, videoServiceService, logger)
+	kafkaConsumer := biz.NewKafkaConsumer(confData, feedUsecase, logger)
+	kafkaConsumerServer := server.NewKafkaConsumerServer(kafkaConsumer, logger)
 	registrar := server.NewRegistrar(registry)
-	app := newApp(logger, grpcServer, httpServer, registrar)
+	app := newApp(logger, grpcServer, httpServer, kafkaConsumerServer, registrar)
 	return app, func() {
 		cleanup()
 	}, nil

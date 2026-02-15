@@ -12,6 +12,8 @@ import (
 	"lehu-video/app/videoApi/service/internal/biz"
 	"lehu-video/app/videoApi/service/internal/conf"
 	"lehu-video/app/videoApi/service/internal/data"
+	"lehu-video/app/videoApi/service/internal/pkg/kafka"
+	"lehu-video/app/videoApi/service/internal/pkg/websocket"
 	"lehu-video/app/videoApi/service/internal/server"
 	"lehu-video/app/videoApi/service/internal/service"
 )
@@ -63,9 +65,15 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	messageServiceService := service.NewMessageServiceService(messageUsecase, logger)
 	friendUsecase := biz.NewFriendUsecase(chatAdapter, coreAdapter, logger)
 	friendServiceService := service.NewFriendServiceService(friendUsecase, logger)
-	webSocketService := service.NewWebSocketService(messageUsecase, chatAdapter, logger)
+	producer := kafka.NewKafkaProducer(confData)
+	client := data.NewRedis(confData)
+	webSocketService := service.NewWebSocketService(messageUsecase, chatAdapter, producer, client, logger)
 	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, groupServiceService, messageServiceService, friendServiceService, webSocketService, logger)
-	app := newApp(logger, registrar, httpServer)
+	consumer := kafka.NewKafkaConsumer(confData)
+	manager := websocket.NewManager(logger, producer, client)
+	kafkaConsumerService := service.NewKafkaConsumerService(consumer, messageUsecase, manager, client, chatAdapter, logger)
+	kafkaConsumerServer := server.NewKafkaConsumerServer(kafkaConsumerService, logger)
+	app := newApp(logger, registrar, httpServer, kafkaConsumerServer)
 	return app, func() {
 	}, nil
 }

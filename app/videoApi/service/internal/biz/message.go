@@ -79,6 +79,7 @@ type Conversation struct {
 
 // 消息相关输入输出（修复版）
 type SendMessageInput struct {
+	SenderID       string // 新增
 	ConversationID string
 	ReceiverID     string
 	ConvType       int32
@@ -151,9 +152,17 @@ func NewMessageUsecase(chat ChatAdapter, logger log.Logger) *MessageUsecase {
 }
 
 func (uc *MessageUsecase) SendMessage(ctx context.Context, input *SendMessageInput) (*SendMessageOutput, error) {
-	userID, err := claims.GetUserId(ctx)
-	if err != nil {
-		return nil, errors.New("获取用户信息失败")
+	// 优先使用传入的 SenderID
+	userID := input.SenderID
+	if userID == "" {
+		uid, err := claims.GetUserId(ctx)
+		if err != nil {
+			return nil, errors.New("获取用户信息失败")
+		}
+		userID = cast.ToString(uid)
+	}
+	if userID == "" {
+		return nil, errors.New("发送者ID不能为空")
 	}
 
 	// 参数验证
@@ -189,7 +198,14 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, input *SendMessageInp
 	}
 
 	// 发送消息
-	messageID, conversationId, err := uc.chat.SendMessage(ctx, cast.ToString(input.ConversationID), cast.ToString(userID), input.ReceiverID, input.ConvType, input.MsgType, input.Content, input.ClientMsgID)
+	messageID, conversationId, err := uc.chat.SendMessage(ctx,
+		input.ConversationID,
+		userID,
+		input.ReceiverID,
+		input.ConvType,
+		input.MsgType,
+		input.Content,
+		input.ClientMsgID)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("发送消息失败: %v", err)
 		return nil, err

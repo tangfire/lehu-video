@@ -15,6 +15,12 @@ data:
     write_timeout: 20s
     password: "8888.216"
     db: 0
+  kafka:
+    brokers:
+      - "localhost:9092"               # 根据实际地址修改
+    producer_topic: "lehu-video.chat.message"
+    consumer_topic: "lehu-video.chat.message"
+    consumer_group: "video-api-message-consumer"
 
 auth:
   api_key: fireshine

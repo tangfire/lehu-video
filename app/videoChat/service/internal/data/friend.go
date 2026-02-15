@@ -2,7 +2,10 @@ package data
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cast"
 	"time"
 
@@ -15,16 +18,18 @@ import (
 )
 
 type friendRepo struct {
-	data *Data
-	log  *log.Helper
-	user core.UserServiceClient // videoCore用户服务客户端
+	data  *Data
+	redis *redis.Client
+	log   *log.Helper
+	user  core.UserServiceClient // videoCore用户服务客户端
 }
 
-func NewFriendRepo(data *Data, userClient core.UserServiceClient, logger log.Logger) biz.FriendRepo {
+func NewFriendRepo(data *Data, userClient core.UserServiceClient, redis *redis.Client, logger log.Logger) biz.FriendRepo {
 	return &friendRepo{
-		data: data,
-		user: userClient,
-		log:  log.NewHelper(logger),
+		data:  data,
+		user:  userClient,
+		redis: redis,
+		log:   log.NewHelper(logger),
 	}
 }
 
@@ -116,7 +121,7 @@ func (r *friendRepo) BatchGetUserInfo(ctx context.Context, userIDs []int64) (map
 
 // ==================== 好友关系 ====================
 func (r *friendRepo) CreateFriendRelation(ctx context.Context, relation *biz.FriendRelation) error {
-	dbRelation := &model.FriendRelation{
+	dbRelation := model.FriendRelation{
 		ID:          relation.ID,
 		UserID:      relation.UserID,
 		FriendID:    relation.FriendID,
@@ -125,10 +130,31 @@ func (r *friendRepo) CreateFriendRelation(ctx context.Context, relation *biz.Fri
 		GroupName:   relation.GroupName,
 		IsFollowing: relation.IsFollowing,
 		IsFollower:  relation.IsFollower,
-		CreatedAt:   relation.CreatedAt,
-		UpdatedAt:   relation.UpdatedAt,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
-	return r.data.db.WithContext(ctx).Create(dbRelation).Error
+	// 写数据库
+	if err := r.data.db.WithContext(ctx).Create(&dbRelation).Error; err != nil {
+		return err
+	}
+	// 更新缓存
+	key := fmt.Sprintf("friends:user:%d", relation.UserID)
+	r.redis.SAdd(ctx, key, relation.FriendID)
+	r.redis.Expire(ctx, key, 24*time.Hour)
+	return nil
+}
+
+func (r *friendRepo) DeleteFriendRelation(ctx context.Context, userID, friendID int64) error {
+	// 删除数据库记录
+	if err := r.data.db.WithContext(ctx).
+		Where("user_id = ? AND friend_id = ?", userID, friendID).
+		Delete(&model.FriendRelation{}).Error; err != nil {
+		return err
+	}
+	// 删除缓存
+	key := fmt.Sprintf("friends:user:%d", userID)
+	r.redis.SRem(ctx, key, friendID)
+	return nil
 }
 
 // 在 friend.go 文件的 friendRepo 结构体方法中添加
@@ -161,12 +187,6 @@ func (r *friendRepo) UpdateFriendRelation(ctx context.Context, relation *biz.Fri
 		}).Error
 }
 
-func (r *friendRepo) DeleteFriendRelation(ctx context.Context, userID, friendID int64) error {
-	return r.data.db.WithContext(ctx).
-		Where("user_id = ? AND friend_id = ?", userID, friendID).
-		Delete(&model.FriendRelation{}).Error
-}
-
 func (r *friendRepo) ListFriends(ctx context.Context, userID int64, offset, limit int, groupName *string) ([]*biz.FriendRelation, int64, error) {
 	db := r.data.db.WithContext(ctx).Where("user_id = ? AND status = 1", userID)
 	if groupName != nil && *groupName != "" {
@@ -192,15 +212,32 @@ func (r *friendRepo) ListFriends(ctx context.Context, userID int64, offset, limi
 }
 
 func (r *friendRepo) CheckFriendRelation(ctx context.Context, userID, friendID int64) (bool, error) {
+	// 先查缓存
+	key := fmt.Sprintf("friends:user:%d", userID)
+	exists, err := r.redis.SIsMember(ctx, key, friendID).Result()
+	if err == nil && exists {
+		return true, nil
+	}
+
+	// 缓存未命中，查数据库
 	var count int64
-	err := r.data.db.WithContext(ctx).
+	err = r.data.db.WithContext(ctx).
 		Model(&model.FriendRelation{}).
 		Where("user_id = ? AND friend_id = ? AND status = 1", userID, friendID).
 		Count(&count).Error
 	if err != nil {
 		return false, err
 	}
-	return count > 0, nil
+	isFriend := count > 0
+
+	// 若为好友，写入缓存
+	if isFriend {
+		pipe := r.redis.Pipeline()
+		pipe.SAdd(ctx, key, friendID)
+		pipe.Expire(ctx, key, 24*time.Hour)
+		_, _ = pipe.Exec(ctx)
+	}
+	return isFriend, nil
 }
 
 // ==================== 好友申请 ====================
@@ -298,31 +335,27 @@ func (r *friendRepo) CheckPendingApply(ctx context.Context, applicantID, receive
 
 // ==================== 在线状态 ====================
 
-func (r *friendRepo) UpdateUserOnlineStatus(ctx context.Context, userID int64, status int32, deviceType string) error {
-	now := time.Now()
-	// upsert
-	return r.data.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Assign(&model.UserOnlineStatus{
-			UserID:         userID,
-			OnlineStatus:   status,
-			DeviceType:     deviceType,
-			LastOnlineTime: now,
-			UpdatedAt:      now,
-		}).
-		FirstOrCreate(&model.UserOnlineStatus{}).Error
-}
-
 func (r *friendRepo) GetUserOnlineStatus(ctx context.Context, userID int64) (*biz.UserOnlineStatus, error) {
+	// 优先查缓存
+	key := fmt.Sprintf("online:user:%d", userID)
+	val, err := r.redis.Get(ctx, key).Result()
+	if err == nil {
+		var status biz.UserOnlineStatus
+		if err := json.Unmarshal([]byte(val), &status); err == nil {
+			return &status, nil
+		}
+	}
+
+	// 缓存未命中，查数据库
 	var db model.UserOnlineStatus
-	err := r.data.db.WithContext(ctx).Where("user_id = ?", userID).First(&db).Error
+	err = r.data.db.WithContext(ctx).Where("user_id = ?", userID).First(&db).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &biz.UserOnlineStatus{
+	status := &biz.UserOnlineStatus{
 		ID:             db.ID,
 		UserID:         db.UserID,
 		OnlineStatus:   db.OnlineStatus,
@@ -330,7 +363,40 @@ func (r *friendRepo) GetUserOnlineStatus(ctx context.Context, userID int64) (*bi
 		LastOnlineTime: db.LastOnlineTime,
 		CreatedAt:      db.CreatedAt,
 		UpdatedAt:      db.UpdatedAt,
-	}, nil
+	}
+
+	// 写入缓存
+	data, _ := json.Marshal(status)
+	r.redis.Set(ctx, key, data, 5*time.Minute) // 短时间缓存
+	return status, nil
+}
+
+func (r *friendRepo) UpdateUserOnlineStatus(ctx context.Context, userID int64, status int32, deviceType string) error {
+	now := time.Now()
+	// 更新数据库
+	err := r.data.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Assign(&model.UserOnlineStatus{
+			OnlineStatus:   status,
+			DeviceType:     deviceType,
+			LastOnlineTime: now,
+			UpdatedAt:      now,
+		}).
+		FirstOrCreate(&model.UserOnlineStatus{}).Error
+	if err != nil {
+		return err
+	}
+	// 更新缓存
+	key := fmt.Sprintf("online:user:%d", userID)
+	statusObj := &biz.UserOnlineStatus{
+		UserID:         userID,
+		OnlineStatus:   status,
+		DeviceType:     deviceType,
+		LastOnlineTime: now,
+	}
+	data, _ := json.Marshal(statusObj)
+	r.redis.Set(ctx, key, data, 5*time.Minute)
+	return nil
 }
 
 func (r *friendRepo) BatchGetUserOnlineStatus(ctx context.Context, userIDs []int64) (map[int64]*biz.UserOnlineStatus, error) {

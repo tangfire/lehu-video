@@ -14,3 +14,4 @@ data:
     password: "8888.216"
     read_timeout: 20s
     write_timeout: 20s
+    db: 0

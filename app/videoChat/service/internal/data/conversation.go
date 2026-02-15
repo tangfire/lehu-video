@@ -3,7 +3,9 @@ package data
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -239,31 +241,36 @@ func (r *conversationRepo) GetConversationMemberCount(ctx context.Context, conve
 	return count, err
 }
 
+// UpdateMemberUnreadCount 增加未读计数
 func (r *conversationRepo) UpdateMemberUnreadCount(ctx context.Context, conversationID, userID int64, delta int) error {
-	if delta == 0 {
-		return nil
-	}
-	expr := "unread_count + ?"
-	if delta < 0 {
-		expr = "GREATEST(unread_count - ?, 0)"
-	}
-	return r.data.db.WithContext(ctx).
+	// 1. 更新数据库
+	err := r.data.db.WithContext(ctx).
 		Model(&model.ConversationMember{}).
 		Where("conversation_id = ? AND user_id = ?", conversationID, userID).
-		Updates(map[string]interface{}{
-			"unread_count": gorm.Expr(expr, abs(delta)),
-			"updated_at":   time.Now(),
-		}).Error
+		Update("unread_count", gorm.Expr("unread_count + ?", delta)).Error
+	if err != nil {
+		return err
+	}
+
+	// 2. 更新缓存
+	key := fmt.Sprintf("conv_unread:%d:%d", conversationID, userID)
+	return r.data.redis.HIncrBy(ctx, key, "unread", int64(delta)).Err()
 }
 
+// ResetMemberUnreadCount 重置未读计数为0
 func (r *conversationRepo) ResetMemberUnreadCount(ctx context.Context, conversationID, userID int64) error {
-	return r.data.db.WithContext(ctx).
+	// 1. 更新数据库
+	err := r.data.db.WithContext(ctx).
 		Model(&model.ConversationMember{}).
 		Where("conversation_id = ? AND user_id = ?", conversationID, userID).
-		Updates(map[string]interface{}{
-			"unread_count": 0,
-			"updated_at":   time.Now(),
-		}).Error
+		Update("unread_count", 0).Error
+	if err != nil {
+		return err
+	}
+
+	// 2. 更新缓存
+	key := fmt.Sprintf("conv_unread:%d:%d", conversationID, userID)
+	return r.data.redis.HSet(ctx, key, "unread", 0).Err()
 }
 
 func (r *conversationRepo) UpdateMemberLastRead(ctx context.Context, conversationID, userID, lastReadMsgID int64) error {
@@ -318,6 +325,7 @@ func (r *conversationRepo) GetUserConversationUnreadCount(ctx context.Context, u
 	return m, nil
 }
 
+// 这里还没改!
 func (r *conversationRepo) ListConversationMembers(ctx context.Context, userID int64, page *biz.PageStats) ([]*biz.ConversationMember, int64, error) {
 	db := r.data.db.WithContext(ctx)
 	offset, limit := 0, 20
@@ -475,6 +483,15 @@ func (r *conversationRepo) toBizConversationMember(db *model.ConversationMember)
 		UpdatedAt:      db.UpdatedAt,
 		IsDeleted:      db.IsDeleted,
 	}
+}
+
+func (r *conversationRepo) GetMemberUnreadCount(ctx context.Context, conversationID, userID int64) (int64, error) {
+	key := fmt.Sprintf("conv_unread:%d:%d", conversationID, userID)
+	val, err := r.data.redis.HGet(ctx, key, "unread").Int64()
+	if errors.Is(err, redis.Nil) {
+		return 0, nil
+	}
+	return val, err
 }
 
 func abs(x int) int {

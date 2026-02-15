@@ -15,4 +15,5 @@ var ProviderSet = wire.NewSet(
 	NewGroupServiceService,
 	NewMessageServiceService,
 	NewFriendServiceService,
+	NewKafkaConsumerService,
 )

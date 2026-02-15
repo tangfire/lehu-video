@@ -4,6 +4,7 @@ package biz
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"lehu-video/app/videoCore/service/internal/conf"
 	"time"
 
@@ -42,11 +43,13 @@ func newKafkaConsumer(brokers []string, topic string, groupId string, feedUsecas
 	}
 }
 
-func (c *KafkaConsumer) Run(ctx context.Context) {
-	c.log.Infof("Kafka消费者启动，topic: %s", c.reader.Config().Topic)
+func (c *KafkaConsumer) Run(ctx context.Context) error {
 	for {
 		msg, err := c.reader.ReadMessage(ctx)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
 			c.log.Errorf("读取Kafka消息失败: %v", err)
 			time.Sleep(time.Second)
 			continue
@@ -67,6 +70,7 @@ func (c *KafkaConsumer) processMessage(ctx context.Context, msg kafka.Message) {
 }
 
 // pushToAllFollowers 分页获取大V的所有粉丝并推送
+// biz/kafka_consumer.go
 func (c *KafkaConsumer) pushToAllFollowers(ctx context.Context, event VideoPublishEvent) {
 	item := &TimelineItem{
 		VideoID:   event.VideoID,
@@ -81,12 +85,20 @@ func (c *KafkaConsumer) pushToAllFollowers(ctx context.Context, event VideoPubli
 			c.log.Errorf("分页获取粉丝失败: %v", err)
 			return
 		}
-		for _, followerID := range followers {
-			_ = c.feedUsecase.PushToUserTimeline(ctx, followerID, []*TimelineItem{item})
-		}
+		// ✅ 批量推送当前页粉丝
+		c.feedUsecase.pushTimelineToUsersBatch(ctx, followers, item)
 		if int64(len(followers)+offset) >= total {
 			break
 		}
 		offset += batchSize
 	}
+}
+
+// biz/kafka_consumer.go (在文件末尾添加)
+// Close 关闭消费者，释放资源
+func (c *KafkaConsumer) Close() error {
+	if c.reader != nil {
+		return c.reader.Close()
+	}
+	return nil
 }

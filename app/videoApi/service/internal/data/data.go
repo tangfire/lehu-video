@@ -10,6 +10,8 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"lehu-video/app/videoApi/service/internal/conf"
+	"lehu-video/app/videoApi/service/internal/pkg/kafka"
+	"lehu-video/app/videoApi/service/internal/pkg/websocket"
 )
 
 // ProviderSet is data providers.
@@ -35,6 +37,9 @@ var ProviderSet = wire.NewSet(
 	NewMessageServiceClient,
 	NewFriendServiceClient,
 	NewFeedServiceClient,
+	kafka.NewKafkaConsumer,
+	kafka.NewKafkaProducer,
+	websocket.NewManager,
 )
 
 // Data .

@@ -4,19 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	kjwt "github.com/go-kratos/kratos/v2/middleware/auth/jwt"
-	jwtv5 "github.com/golang-jwt/jwt/v5"
-	"github.com/spf13/cast"
-	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
+	"fmt"
+	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
+	kjwt "github.com/go-kratos/kratos/v2/middleware/auth/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
+	"github.com/spf13/cast"
 
 	"lehu-video/app/videoApi/service/internal/biz"
+	"lehu-video/app/videoApi/service/internal/pkg/kafka"
+	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 )
 
 var (
@@ -45,13 +49,14 @@ type Client struct {
 // Manager 管理所有WebSocket连接
 type Manager struct {
 	sync.RWMutex
-	clients    map[string]*Client
-	broadcast  chan *BroadcastMessage
-	register   chan *Client
-	unregister chan *Client
-	logger     log.Logger
-	onlineMgr  *OnlineManager
-	offlineMgr *OfflineManager
+	clients       map[string]*Client
+	broadcast     chan *BroadcastMessage
+	register      chan *Client
+	unregister    chan *Client
+	logger        log.Logger
+	onlineMgr     *OnlineManager
+	offlineMgr    *OfflineManager
+	kafkaProducer *kafka.Producer
 }
 
 // BroadcastMessage 广播消息结构
@@ -77,15 +82,20 @@ func (m *Manager) GetUserConnectionCount(userID string) int {
 }
 
 // NewManager 创建新的连接管理器
-func NewManager(logger log.Logger, messageUC *biz.MessageUsecase, chat biz.ChatAdapter) *Manager {
+func NewManager(
+	logger log.Logger,
+	kafkaProducer *kafka.Producer,
+	redisClient *redis.Client,
+) *Manager {
 	return &Manager{
-		clients:    make(map[string]*Client),
-		broadcast:  make(chan *BroadcastMessage, 256),
-		register:   make(chan *Client, 256),
-		unregister: make(chan *Client, 256),
-		logger:     logger,
-		onlineMgr:  NewOnlineManager(),
-		offlineMgr: NewOfflineManager(logger, messageUC, chat),
+		clients:       make(map[string]*Client),
+		broadcast:     make(chan *BroadcastMessage, 256),
+		register:      make(chan *Client, 256),
+		unregister:    make(chan *Client, 256),
+		logger:        logger,
+		onlineMgr:     NewOnlineManager(),
+		offlineMgr:    NewOfflineManager(redisClient, logger),
+		kafkaProducer: kafkaProducer,
 	}
 }
 
@@ -100,7 +110,7 @@ func (m *Manager) Start() {
 
 			if old, ok := m.clients[client.UserID]; ok {
 				go func(old *Client) {
-					time.Sleep(500 * time.Millisecond) // 延迟半秒
+					time.Sleep(500 * time.Millisecond)
 					old.Conn.WriteMessage(
 						websocket.CloseMessage,
 						websocket.FormatCloseMessage(
@@ -117,7 +127,23 @@ func (m *Manager) Start() {
 			m.Unlock()
 			m.logger.Log(log.LevelInfo, "msg", "用户已连接", "user_id", client.UserID)
 
-			go m.offlineMgr.DeliverOfflineMessages(client.UserID, client)
+			// 投递离线消息：启动 goroutine 避免阻塞
+			go func(c *Client) {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				// 定义发送函数，将消息写入 client.SendChan
+				sendFunc := func(msg []byte) {
+					select {
+					case c.SendChan <- msg:
+					default:
+						m.logger.Log(log.LevelWarn, "msg", "离线消息投递失败，发送通道已满", "user_id", c.UserID)
+					}
+				}
+				err := m.offlineMgr.DeliverOfflineMessages(ctx, c.UserID, sendFunc)
+				if err != nil {
+					m.logger.Log(log.LevelError, "msg", "投递离线消息失败", "user_id", c.UserID, "err", err)
+				}
+			}(client)
 
 		case client := <-m.unregister:
 			m.Lock()
@@ -167,7 +193,7 @@ func (m *Manager) startCleanupTask() {
 	}
 }
 
-// BroadcastToUser 向指定用户发送消息（增强版）
+// BroadcastToUser 向指定用户发送消息
 func (m *Manager) BroadcastToUser(userID string, message []byte) {
 	m.logger.Log(log.LevelInfo, "msg", "准备向用户推送消息",
 		"user_id", userID,
@@ -328,6 +354,25 @@ type SendMessageReq struct {
 	ClientMsgID    string                 `json:"client_msg_id"`
 }
 
+// 辅助函数
+func getString(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+func getInt64(m map[string]interface{}, key string) int64 {
+	switch v := m[key].(type) {
+	case float64:
+		return int64(v)
+	case int64:
+		return v
+	default:
+		return 0
+	}
+}
+
 // handleMessage 处理收到的消息
 func (c *Client) handleMessage(message []byte) {
 	var req WSMessageRequest
@@ -362,7 +407,7 @@ func (c *Client) handleAuth(data json.RawMessage) {
 	}, "")
 }
 
-// handleSendMessage 处理发送消息请求（增强版）
+// handleSendMessage 处理发送消息请求
 func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string) {
 	var msg SendMessageReq
 	if err := json.Unmarshal(data, &msg); err != nil {
@@ -370,161 +415,88 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 		return
 	}
 
-	// 优先使用 data 内部的 client_msg_id
 	effectiveClientMsgID := msg.ClientMsgID
 	if effectiveClientMsgID == "" {
 		effectiveClientMsgID = outerClientMsgID
 	}
 
-	// 验证必需字段
-	if msg.ConversationID == "" {
-		c.sendError("invalid_conversation", "会话ID不能为空", effectiveClientMsgID)
+	messageID := generateMessageID()
+
+	content := &biz.MessageContent{
+		Text:          getString(msg.Content, "text"),
+		ImageURL:      getString(msg.Content, "image_url"),
+		ImageWidth:    getInt64(msg.Content, "image_width"),
+		ImageHeight:   getInt64(msg.Content, "image_height"),
+		VoiceURL:      getString(msg.Content, "voice_url"),
+		VoiceDuration: getInt64(msg.Content, "voice_duration"),
+		VideoURL:      getString(msg.Content, "video_url"),
+		VideoCover:    getString(msg.Content, "video_cover"),
+		VideoDuration: getInt64(msg.Content, "video_duration"),
+		FileURL:       getString(msg.Content, "file_url"),
+		FileName:      getString(msg.Content, "file_name"),
+		FileSize:      getInt64(msg.Content, "file_size"),
+		Extra:         getString(msg.Content, "extra"),
+	}
+
+	messageData := map[string]interface{}{
+		"message_id":      messageID,
+		"sender_id":       c.UserID,
+		"receiver_id":     msg.ReceiverID,
+		"conversation_id": msg.ConversationID,
+		"conv_type":       msg.ConvType,
+		"msg_type":        msg.MsgType,
+		"content":         content,
+		"client_msg_id":   effectiveClientMsgID,
+		"timestamp":       time.Now().Unix(),
+	}
+	value, _ := json.Marshal(messageData)
+
+	// 发送到 Kafka
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err := c.Manager.kafkaProducer.SendMessage(ctx, []byte(c.UserID), value)
+	if err != nil {
+		c.logger.Log(log.LevelError, "msg", "发送消息到Kafka失败", "err", err)
+		c.sendError("kafka_failed", "消息发送失败，请重试", effectiveClientMsgID)
 		return
 	}
 
-	if cast.ToInt64(msg.ReceiverID) <= 0 {
-		c.sendError("invalid_receiver", "无效的接收者ID", effectiveClientMsgID)
-		return
-	}
+	// 给发送者返回 message_sent
+	c.sendResponse("message_sent", map[string]interface{}{
+		"message_id":      messageID,
+		"conversation_id": msg.ConversationID,
+		"status":          0,
+		"client_msg_id":   effectiveClientMsgID,
+	}, effectiveClientMsgID)
 
-	// 检查用户关系（仅在单聊时检查好友关系）
-	if msg.ConvType == 0 && c.chat != nil {
-		isFriend, _, err := c.chat.CheckFriendRelation(c.Ctx, c.UserID, msg.ReceiverID)
-		if err != nil {
-			c.sendError("relation_check_failed", "检查好友关系失败", effectiveClientMsgID)
-			return
-		}
-		if !isFriend {
-			c.sendError("not_friend", "你们不是好友，无法发送消息", effectiveClientMsgID)
-			return
-		}
-	} else if msg.ConvType == 1 && c.chat != nil {
-		// 群聊检查群成员关系
-		checker, ok := c.chat.(interface {
-			CheckUserRelation(ctx context.Context, userID, targetID string, convType int32) (bool, error)
-		})
+	// ========== 新增：立即推送给接收者 ==========
+	pushMsg := c.buildReceiveMessage(messageID, msg)
 
-		if ok {
-			isMember, err := checker.CheckUserRelation(c.Ctx, c.UserID, msg.ReceiverID, msg.ConvType)
-			if err != nil {
-				c.sendError("relation_check_failed", "检查群成员关系失败", effectiveClientMsgID)
-				return
-			}
-			if !isMember {
-				c.sendError("not_member", "你不是群成员，无法发送消息", effectiveClientMsgID)
-				return
-			}
-		}
-	}
-
-	// 构建消息内容
-	content := &biz.MessageContent{}
-
-	// 根据消息类型提取内容
-	if msg.Content != nil {
-		switch msg.MsgType {
-		case 0: // 文本
-			if text, ok := msg.Content["text"].(string); ok {
-				content.Text = text
-			}
-		case 1: // 图片
-			if imageURL, ok := msg.Content["image_url"].(string); ok {
-				content.ImageURL = imageURL
-			}
-			if width, ok := msg.Content["image_width"].(float64); ok {
-				content.ImageWidth = int64(width)
-			}
-			if height, ok := msg.Content["image_height"].(float64); ok {
-				content.ImageHeight = int64(height)
-			}
-		case 2: // 语音
-			if voiceURL, ok := msg.Content["voice_url"].(string); ok {
-				content.VoiceURL = voiceURL
-			}
-			if duration, ok := msg.Content["voice_duration"].(float64); ok {
-				content.VoiceDuration = int64(duration)
-			}
-		case 3: // 视频
-			if videoURL, ok := msg.Content["video_url"].(string); ok {
-				content.VideoURL = videoURL
-			}
-			if cover, ok := msg.Content["video_cover"].(string); ok {
-				content.VideoCover = cover
-			}
-			if duration, ok := msg.Content["video_duration"].(float64); ok {
-				content.VideoDuration = int64(duration)
-			}
-		case 4: // 文件
-			if fileURL, ok := msg.Content["file_url"].(string); ok {
-				content.FileURL = fileURL
-			}
-			if fileName, ok := msg.Content["file_name"].(string); ok {
-				content.FileName = fileName
-			}
-			if fileSize, ok := msg.Content["file_size"].(float64); ok {
-				content.FileSize = int64(fileSize)
-			}
-		}
-
-		// 处理额外字段
-		if extra, ok := msg.Content["extra"].(string); ok {
-			content.Extra = extra
-		}
-	}
-
-	// 调用MessageUsecase发送消息
-	if c.messageUC != nil {
-		input := &biz.SendMessageInput{
-			ConversationID: msg.ConversationID,
-			ReceiverID:     cast.ToString(msg.ReceiverID),
-			ConvType:       msg.ConvType,
-			MsgType:        msg.MsgType,
-			Content:        content,
-			ClientMsgID:    effectiveClientMsgID,
-		}
-
-		output, err := c.messageUC.SendMessage(c.Ctx, input)
-		if err != nil {
-			c.sendError("send_failed", "发送消息失败: "+err.Error(), effectiveClientMsgID)
-			return
-		}
-
-		// 发送成功响应给发送者
-		c.sendResponse("message_sent", map[string]interface{}{
-			"message_id":      output.MessageID,
-			"conversation_id": output.ConversationId,
-			"status":          1,
-			"client_msg_id":   effectiveClientMsgID,
-		}, effectiveClientMsgID)
-
-		// 构建推送消息给接收者
-		pushMsg := c.buildReceiveMessage(output.MessageID, msg)
-
-		// 记录推送日志
-		c.logger.Log(log.LevelInfo, "msg", "准备推送消息给接收者",
-			"sender", c.UserID,
-			"receiver", msg.ReceiverID,
-			"conversation_id", msg.ConversationID,
-			"message_id", output.MessageID)
-
-		// 处理消息推送
-		if msg.ConvType == 0 { // 单聊
-			go c.updateMessageStatus(output.MessageID, 2) // 已送达
+	if msg.ConvType == 0 { // 单聊
+		if c.Manager.IsUserOnline(msg.ReceiverID) {
 			c.Manager.BroadcastToUser(msg.ReceiverID, pushMsg)
-		} else if msg.ConvType == 1 { // 群聊
-			c.handleGroupMessage(msg.ReceiverID, output.MessageID, msg, pushMsg)
+			c.sendDeliveryConfirm(messageID, msg.ReceiverID)
+		} else {
+			c.storeOfflineMessage(msg.ReceiverID, messageID, msg)
 		}
-	} else {
-		c.sendError("service_unavailable", "消息服务不可用", effectiveClientMsgID)
+	} else if msg.ConvType == 1 { // 群聊
+		c.handleGroupMessage(msg.ReceiverID, messageID, msg, pushMsg)
 	}
+	// =======================================
+
+	c.logger.Log(log.LevelInfo, "msg", "消息已写入Kafka",
+		"message_id", messageID,
+		"client_msg_id", effectiveClientMsgID)
 }
 
-// updateMessageStatus 更新消息状态
+func generateMessageID() string {
+	return fmt.Sprintf("%d%d", time.Now().UnixNano(), rand.Intn(1000))
+}
+
 func (c *Client) updateMessageStatus(messageID string, status int32) {
 	if c.chat != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
 		err := c.chat.UpdateMessageStatus(ctx, messageID, status)
 		if err != nil {
 			c.logger.Log(log.LevelError, "msg", "更新消息状态失败",
@@ -535,14 +507,11 @@ func (c *Client) updateMessageStatus(messageID string, status int32) {
 	}
 }
 
-// handleGroupMessage 处理群聊消息推送
 func (c *Client) handleGroupMessage(groupID, messageID string, msg SendMessageReq, pushMsg []byte) {
-	// 获取群成员列表
 	if c.chat != nil {
 		gmGetter, ok := c.chat.(interface {
 			GetGroupMembers(ctx context.Context, groupID string) ([]string, error)
 		})
-
 		if !ok {
 			c.logger.Log(log.LevelError, "msg", "chat适配器不支持GetGroupMembers方法")
 			return
@@ -554,30 +523,24 @@ func (c *Client) handleGroupMessage(groupID, messageID string, msg SendMessageRe
 			return
 		}
 
-		// 统计在线/离线成员
 		onlineCount := 0
 		offlineCount := 0
 
 		for _, memberID := range members {
 			if memberID == c.UserID {
-				continue // 跳过发送者自己
+				continue
 			}
-
 			isOnline := c.Manager.IsUserOnline(memberID)
 			if isOnline {
 				onlineCount++
-				// 推送给在线成员
 				c.Manager.BroadcastToUser(memberID, pushMsg)
-				// 发送者可以看到送达状态
 				c.sendDeliveryConfirm(messageID, memberID)
 			} else {
 				offlineCount++
-				// 存储为离线消息
 				c.storeOfflineMessage(memberID, messageID, msg)
 			}
 		}
 
-		// 发送群消息统计
 		c.sendResponse("group_message_stat", map[string]interface{}{
 			"message_id":    messageID,
 			"group_id":      groupID,
@@ -585,19 +548,10 @@ func (c *Client) handleGroupMessage(groupID, messageID string, msg SendMessageRe
 			"offline_count": offlineCount,
 			"total_members": len(members) - 1,
 		}, "")
-
-		// 记录群推送日志
-		c.logger.Log(log.LevelInfo, "msg", "群消息推送完成",
-			"group_id", groupID,
-			"message_id", messageID,
-			"online_count", onlineCount,
-			"offline_count", offlineCount)
 	}
 }
 
-// storeOfflineMessage 存储离线消息
 func (c *Client) storeOfflineMessage(receiverID, messageID string, msg SendMessageReq) {
-	// 构建离线消息
 	offlineMsg := &OfflineMessage{
 		MessageID:      messageID,
 		SenderID:       c.UserID,
@@ -605,37 +559,28 @@ func (c *Client) storeOfflineMessage(receiverID, messageID string, msg SendMessa
 		ConversationID: msg.ConversationID,
 		ConvType:       msg.ConvType,
 		MsgType:        msg.MsgType,
-		Content:        json.RawMessage{}, // 需要序列化
+		Content:        json.RawMessage{},
 		CreatedAt:      time.Now(),
 	}
-
-	// 序列化内容
 	if contentBytes, err := json.Marshal(msg.Content); err == nil {
 		offlineMsg.Content = contentBytes
 	}
-
-	// 存储到离线管理器
 	c.Manager.offlineMgr.StoreOfflineMessage(receiverID, offlineMsg)
-
-	// 发送离线通知
 	c.sendOfflineNotification(messageID, msg)
 }
 
-// 发送送达确认
 func (c *Client) sendDeliveryConfirm(messageID string, receiverID string) {
-	// 更新消息状态为已送达
 	if c.chat != nil {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			err := c.chat.UpdateMessageStatus(ctx, cast.ToString(messageID), 2) // 2 = DELIVERED
+			err := c.chat.UpdateMessageStatus(ctx, cast.ToString(messageID), 2)
 			if err != nil {
 				c.logger.Log(log.LevelError, "msg", "更新消息状态失败", "message_id", messageID, "error", err)
 			}
 		}()
 	}
 
-	// 向发送方推送送达通知
 	response := WSMessageResponse{
 		Action: "message_delivered",
 		Data: map[string]interface{}{
@@ -645,14 +590,11 @@ func (c *Client) sendDeliveryConfirm(messageID string, receiverID string) {
 		},
 		Timestamp: time.Now().Unix(),
 	}
-
 	respBytes, _ := json.Marshal(response)
 	c.SendChan <- respBytes
 }
 
-// 发送离线通知
 func (c *Client) sendOfflineNotification(messageID string, msg SendMessageReq) {
-	// 向发送方推送离线通知
 	response := WSMessageResponse{
 		Action: "message_offline",
 		Data: map[string]interface{}{
@@ -663,12 +605,10 @@ func (c *Client) sendOfflineNotification(messageID string, msg SendMessageReq) {
 		},
 		Timestamp: time.Now().Unix(),
 	}
-
 	respBytes, _ := json.Marshal(response)
 	c.SendChan <- respBytes
 }
 
-// buildReceiveMessage 构建接收消息（增强版）
 func (c *Client) buildReceiveMessage(messageID string, msg SendMessageReq) []byte {
 	response := WSMessageResponse{
 		Action:    "receive_message",
@@ -683,74 +623,46 @@ func (c *Client) buildReceiveMessage(messageID string, msg SendMessageReq) []byt
 			"msg_type":        msg.MsgType,
 			"content":         msg.Content,
 			"timestamp":       time.Now().Unix(),
-			"status":          1, // 已送达
+			"status":          1,
 			"is_recalled":     false,
 			"created_at":      time.Now().Format(time.RFC3339),
 		},
 	}
-
 	respBytes, _ := json.Marshal(response)
-
-	// 记录构建的消息
-	c.logger.Log(log.LevelDebug, "msg", "构建接收消息",
-		"message_id", messageID,
-		"sender", c.UserID,
-		"receiver", msg.ReceiverID,
-		"size", len(respBytes))
-
 	return respBytes
 }
 
-// 处理消息撤回
 func (c *Client) handleRecallMessage(data json.RawMessage) {
 	var msg struct {
 		MessageID string `json:"message_id"`
 	}
-
 	if err := json.Unmarshal(data, &msg); err != nil {
 		c.sendError("parse_error", "解析撤回消息数据失败", "")
 		return
 	}
-
-	// 调用业务层撤回消息
 	if c.messageUC != nil {
-		input := &biz.RecallMessageInput{
-			MessageID: msg.MessageID,
-		}
-
+		input := &biz.RecallMessageInput{MessageID: msg.MessageID}
 		err := c.messageUC.RecallMessage(c.Ctx, input)
 		if err != nil {
 			c.sendError("recall_failed", "撤回消息失败: "+err.Error(), "")
 			return
 		}
-
 		c.sendResponse("message_recalled", map[string]interface{}{
 			"message_id": msg.MessageID,
 			"status":     "recalled",
 		}, "")
-
-		// 通知相关方消息已被撤回
 		c.notifyRecall(msg.MessageID)
 	} else {
 		c.sendError("service_unavailable", "消息服务不可用", "")
 	}
 }
 
-// notifyRecall 通知消息撤回
 func (c *Client) notifyRecall(messageID string) {
-	// 获取消息详情
 	if c.chat != nil {
 		message, err := c.chat.GetMessageByID(c.Ctx, messageID)
-		if err != nil {
-			c.logger.Log(log.LevelError, "msg", "获取消息详情失败", "message_id", messageID, "error", err)
+		if err != nil || message == nil {
 			return
 		}
-
-		if message == nil {
-			return
-		}
-
-		// 构建撤回通知
 		recallMsg := WSMessageResponse{
 			Action:    "message_recalled",
 			Timestamp: time.Now().Unix(),
@@ -763,18 +675,13 @@ func (c *Client) notifyRecall(messageID string) {
 				"timestamp":   time.Now().Unix(),
 			},
 		}
-
 		respBytes, _ := json.Marshal(recallMsg)
-
-		// 单聊：通知对方
 		if message.ConvType == 0 {
 			c.Manager.BroadcastToUser(message.ReceiverID, respBytes)
 		} else if message.ConvType == 1 {
-			// 群聊：通知所有群成员
 			gmGetter, ok := c.chat.(interface {
 				GetGroupMembers(ctx context.Context, groupID string) ([]string, error)
 			})
-
 			if ok {
 				members, err := gmGetter.GetGroupMembers(c.Ctx, message.ReceiverID)
 				if err == nil {
@@ -789,53 +696,42 @@ func (c *Client) notifyRecall(messageID string) {
 	}
 }
 
-// 处理已读消息
 func (c *Client) handleReadMessage(data json.RawMessage) {
 	var msg struct {
 		ConversationID string `json:"conversation_id"`
 		MessageID      string `json:"message_id"`
 	}
-
 	if err := json.Unmarshal(data, &msg); err != nil {
 		c.sendError("parse_error", "解析已读消息数据失败", "")
 		return
 	}
-
-	// 调用业务层标记消息已读
 	if c.messageUC != nil {
 		input := &biz.MarkMessagesReadInput{
 			ConversationID: msg.ConversationID,
 			LastMsgID:      msg.MessageID,
 		}
-
 		err := c.messageUC.MarkMessagesRead(c.Ctx, input)
 		if err != nil {
 			c.sendError("read_failed", "标记消息已读失败: "+err.Error(), "")
 			return
 		}
-
 		c.sendResponse("message_read", map[string]interface{}{
 			"conversation_id": msg.ConversationID,
 			"message_id":      msg.MessageID,
 			"status":          "read",
 		}, "")
-
-		// 通知发送方消息已读
 		c.notifyMessageRead(msg.MessageID, msg.ConversationID)
 	} else {
 		c.sendError("service_unavailable", "消息服务不可用", "")
 	}
 }
 
-// notifyMessageRead 通知消息已读
 func (c *Client) notifyMessageRead(messageID, conversationID string) {
 	if c.chat != nil {
 		message, err := c.chat.GetMessageByID(c.Ctx, messageID)
 		if err != nil || message == nil {
 			return
 		}
-
-		// 单聊判断还是用 message.ConvType
 		if message.ConvType == 0 && message.SenderID != c.UserID {
 			readMsg := WSMessageResponse{
 				Action:    "message_read_ack",
@@ -848,14 +744,12 @@ func (c *Client) notifyMessageRead(messageID, conversationID string) {
 					"conversation_id": conversationID,
 				},
 			}
-
 			respBytes, _ := json.Marshal(readMsg)
 			c.Manager.BroadcastToUser(message.SenderID, respBytes)
 		}
 	}
 }
 
-// handleTyping 处理正在输入状态
 func (c *Client) handleTyping(data json.RawMessage) {
 	var msg struct {
 		ReceiverID string `json:"receiver_id"`
@@ -863,13 +757,10 @@ func (c *Client) handleTyping(data json.RawMessage) {
 		IsTyping   bool   `json:"is_typing"`
 		Text       string `json:"text,omitempty"`
 	}
-
 	if err := json.Unmarshal(data, &msg); err != nil {
 		c.sendError("parse_error", "解析输入状态数据失败", "")
 		return
 	}
-
-	// 构建正在输入通知
 	response := WSMessageResponse{
 		Action:    "user_typing",
 		Timestamp: time.Now().Unix(),
@@ -882,16 +773,12 @@ func (c *Client) handleTyping(data json.RawMessage) {
 			"timestamp":   time.Now().Unix(),
 		},
 	}
-
 	respBytes, _ := json.Marshal(response)
-
-	// 发送给接收方
-	if msg.ConvType == 0 { // 单聊
+	if msg.ConvType == 0 {
 		c.Manager.BroadcastToUser(msg.ReceiverID, respBytes)
 	}
 }
 
-// sendPong 发送pong响应
 func (c *Client) sendPong() {
 	response := WSMessageResponse{
 		Action:    "pong",
@@ -901,7 +788,6 @@ func (c *Client) sendPong() {
 	c.SendChan <- respBytes
 }
 
-// sendResponse 发送成功响应
 func (c *Client) sendResponse(action string, data interface{}, clientMsgID string) {
 	response := WSMessageResponse{
 		Action:      action,
@@ -913,7 +799,6 @@ func (c *Client) sendResponse(action string, data interface{}, clientMsgID strin
 	c.SendChan <- respBytes
 }
 
-// sendError 发送错误响应
 func (c *Client) sendError(action, errorMsg, clientMsgID string) {
 	response := WSMessageResponse{
 		Action:      action,
@@ -952,7 +837,6 @@ func NewHandler(
 
 // ServeHTTP 处理 WebSocket 升级请求
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 1. 获取 Token
 	tokenStr := r.URL.Query().Get("token")
 	if tokenStr == "" {
 		auth := r.Header.Get("Authorization")
@@ -969,7 +853,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. 解析 JWT
 	claim, err := parseJWT(tokenStr, h.jwtSecret)
 	if err != nil {
 		h.logger.Log(log.LevelError, "msg", "Token 验证失败", "err", err)
@@ -977,7 +860,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. 升级 WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Log(log.LevelError, "msg", "WebSocket 升级失败", "err", err)
@@ -987,30 +869,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	ctx = kjwt.NewContext(ctx, claim)
 
-	// 4. 创建 Client
 	client := NewClient(ctx, claim.UserId, conn, h.manager, h.messageUC, h.chat, h.logger)
 
-	// 5. 通知chat服务：用户上线
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		err := h.chat.UpdateUserOnlineStatus(ctx, claim.UserId, 1, "web") // 1 在线
+		err := h.chat.UpdateUserOnlineStatus(ctx, claim.UserId, 1, "web")
 		if err != nil {
 			h.logger.Log(log.LevelError, "msg", "更新在线状态失败", "err", err)
 		}
 	}()
 
-	// 6. 注册连接
 	h.manager.register <- client
 
-	// 7. 启动读写循环
 	go client.WritePump()
-	client.ReadPump() // 阻塞，直到断开
+	client.ReadPump()
 }
 
-// 辅助函数：解析 JWT
 func parseJWT(tokenStr string, secret string) (*claims.Claims, error) {
-	token, err := jwtv5.ParseWithClaims(tokenStr, &claims.Claims{}, func(token *jwtv5.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &claims.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
 	})
 	if err != nil || !token.Valid {

@@ -39,8 +39,17 @@ message Data {
     string password = 5;
     int32 db = 6;
   }
+
+  // 新增 Kafka 配置
+  message Kafka {
+    repeated string brokers = 1;          // Kafka broker 地址列表
+    string producer_topic = 2;             // 生产者使用的 topic
+    string consumer_topic = 3;              // 消费者使用的 topic
+    string consumer_group = 4;               // 消费者组 ID
+  }
   Database database = 1;
   Redis redis = 2;
+  Kafka kafka = 3;                          // 添加 Kafka 配置
 }
 
 message Auth{

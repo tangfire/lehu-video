@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/go-kratos/kratos/v2/registry"
+	"lehu-video/app/videoCore/service/internal/server"
 	"math/rand"
 	"os"
 	"time"
@@ -50,7 +51,7 @@ func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
 }
 
-func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, rr registry.Registrar) *kratos.App {
+func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, kfs *server.KafkaConsumerServer, rr registry.Registrar) *kratos.App {
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),
@@ -60,6 +61,7 @@ func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, rr registry.Reg
 		kratos.Server(
 			gs,
 			hs,
+			kfs,
 		),
 		kratos.Registrar(rr),
 	)

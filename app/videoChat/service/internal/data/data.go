@@ -7,6 +7,7 @@ import (
 	"github.com/go-kratos/kratos/v2/registry"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 	consulAPI "github.com/hashicorp/consul/api"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	core "lehu-video/api/videoCore/service/v1"
@@ -29,22 +30,24 @@ var ProviderSet = wire.NewSet(
 	idgen.NewSnowflakeIDGenerator,
 	idgen.NewIDGenerator,
 	NewConversationRepo,
+	NewRedisClient,
 )
 
 // Data .
 type Data struct {
 	// TODO wrapped database client
-	db   *gorm.DB
-	log  *log.Helper
-	user core.UserServiceClient
+	db    *gorm.DB
+	redis *redis.Client
+	log   *log.Helper
+	user  core.UserServiceClient
 }
 
 // NewData .
-func NewData(db *gorm.DB, user core.UserServiceClient, logger log.Logger) (*Data, func(), error) {
+func NewData(db *gorm.DB, user core.UserServiceClient, redis *redis.Client, logger log.Logger) (*Data, func(), error) {
 	cleanup := func() {
 		log.NewHelper(logger).Info("closing the data resources")
 	}
-	return &Data{db: db, user: user, log: log.NewHelper(logger)}, cleanup, nil
+	return &Data{db: db, user: user, redis: redis, log: log.NewHelper(logger)}, cleanup, nil
 }
 
 func NewUserServiceClient(r registry.Discovery) core.UserServiceClient {
@@ -81,4 +84,12 @@ func NewDiscovery(conf *conf.Registry) registry.Discovery {
 	}
 	r := consul.New(cli, consul.WithHealthCheck(false))
 	return r
+}
+
+func NewRedisClient(conf *conf.Data) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr:     conf.Redis.Addr,
+		Password: conf.Redis.Password,
+		DB:       int(conf.Redis.Db),
+	})
 }
