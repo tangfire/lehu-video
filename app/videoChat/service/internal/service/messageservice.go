@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/spf13/cast"
+	"reflect"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -179,34 +181,93 @@ func (s *MessageServiceService) ListConversations(
 	}
 
 	views := make([]*pb.ConversationView, 0, len(result.Conversations))
-	for _, conv := range result.Conversations {
 
+	// 在循环前检查是否有数据
+	if result.Conversations == nil {
+		return &pb.ListConversationsResp{
+			Meta:          utils.GetSuccessMeta(),
+			Conversations: views,
+			PageStats: &pb.PageStatsResp{
+				Total: int32(result.Total),
+			},
+		}, nil
+	}
+
+	for _, conv := range result.Conversations {
+		if conv == nil {
+			// 跳过空记录
+			continue
+		}
+
+		// 基础字段初始化
 		pbConv := &pb.Conversation{
 			Id:          cast.ToString(conv.ID),
 			Type:        pb.ConversationType(conv.Type),
-			GroupId:     cast.ToString(conv.GroupID),
 			Name:        conv.Name,
 			Avatar:      conv.Avatar,
 			LastMessage: conv.LastMessage,
-			LastMsgType: (*pb.MessageType)(conv.LastMsgType),
-			LastMsgTime: &[]int64{conv.LastMsgTime.Unix()}[0], // 简洁写法,
 			MemberCount: conv.MemberCount,
-			CreatedAt:   conv.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt:   conv.UpdatedAt.Format("2006-01-02 15:04:05"),
-			MemberIds:   cast.ToStringSlice(conv.MemberIDs),
 		}
 
+		// 安全处理 CreatedAt 和 UpdatedAt
+		if !conv.CreatedAt.IsZero() {
+			pbConv.CreatedAt = conv.CreatedAt.Format("2006-01-02 15:04:05")
+		}
+
+		if !conv.UpdatedAt.IsZero() {
+			pbConv.UpdatedAt = conv.UpdatedAt.Format("2006-01-02 15:04:05")
+		}
+
+		// 安全处理 GroupID
 		if conv.GroupID != 0 {
-			groupID := cast.ToString(conv.GroupID)
-			pbConv.GroupId = groupID
+			pbConv.GroupId = cast.ToString(conv.GroupID)
 		}
+
+		// 安全处理 LastMsgType
 		if conv.LastMsgType != nil {
-			v := pb.MessageType(*conv.LastMsgType)
-			pbConv.LastMsgType = &v
+			lastMsgType := pb.MessageType(*conv.LastMsgType)
+			pbConv.LastMsgType = &lastMsgType
 		}
+
+		// 安全处理 LastMsgTime
 		if conv.LastMsgTime != nil {
-			t := conv.LastMsgTime.Unix()
-			pbConv.LastMsgTime = &t
+			lastMsgTime := conv.LastMsgTime.Unix()
+			pbConv.LastMsgTime = &lastMsgTime
+		}
+
+		// 安全处理 MemberIDs - 使用反射或类型断言
+		if conv.MemberIDs != nil {
+			// 使用反射检查类型
+			memberIDsValue := reflect.ValueOf(conv.MemberIDs)
+
+			if memberIDsValue.Kind() == reflect.Slice && memberIDsValue.Len() > 0 {
+				// 根据切片元素类型进行处理
+				elemType := memberIDsValue.Type().Elem()
+
+				switch elemType.Kind() {
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					length := memberIDsValue.Len()
+					memberIds := make([]string, length)
+					for i := 0; i < length; i++ {
+						memberIds[i] = fmt.Sprintf("%v", memberIDsValue.Index(i).Int())
+					}
+					pbConv.MemberIds = memberIds
+
+				case reflect.String:
+					length := memberIDsValue.Len()
+					memberIds := make([]string, length)
+					for i := 0; i < length; i++ {
+						memberIds[i] = memberIDsValue.Index(i).String()
+					}
+					pbConv.MemberIds = memberIds
+
+				default:
+					// 其他类型尝试使用 cast 包
+					pbConv.MemberIds = cast.ToStringSlice(conv.MemberIDs)
+				}
+			}
+		} else {
+			pbConv.MemberIds = []string{}
 		}
 
 		view := &pb.ConversationView{

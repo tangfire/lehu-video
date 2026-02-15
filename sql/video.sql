@@ -279,9 +279,6 @@ CREATE TABLE `conversation` (
                                 `updated_at` datetime NOT NULL COMMENT '更新时间',
                                 `is_deleted` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否删除',
                                 PRIMARY KEY (`id`),
-                                UNIQUE KEY `uk_single_chat` (`type`, `target_id`),
-                                UNIQUE KEY `uk_group_chat` (`type`, `group_id`),
-                                KEY `idx_type_target` (`type`, `target_id`),
                                 KEY `idx_group_id` (`group_id`),
                                 KEY `idx_last_msg_time` (`last_msg_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话主表';
