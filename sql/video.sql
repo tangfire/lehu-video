@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS `favorite` (
 
 
 
+
 CREATE TABLE IF NOT EXISTS `comment` (
                                          id BIGINT PRIMARY KEY,
                                          video_id BIGINT NOT NULL,

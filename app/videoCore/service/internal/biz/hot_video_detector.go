@@ -14,6 +14,11 @@ const (
 	hotVideoTopKey    = "hot:video:top100"  // 热门视频Set
 )
 
+type incrCmd struct {
+	videoID int64
+	delta   int64
+}
+
 type HotVideoDetector struct {
 	redis      *redis.Client
 	log        *log.Helper
@@ -22,17 +27,27 @@ type HotVideoDetector struct {
 	bucketSize time.Duration // 单个桶大小（1分钟）
 	windowSize int           // 滑动窗口桶数量（例如5分钟）
 	calcTicker *time.Ticker
+	// 新增：批量处理器
+	batchProc *BatchProcessor[*incrCmd]
 }
 
 func NewHotVideoDetector(redis *redis.Client, logger log.Logger) *HotVideoDetector {
-	return &HotVideoDetector{
+	d := &HotVideoDetector{
 		redis:      redis,
 		log:        log.NewHelper(logger),
 		stopCh:     make(chan struct{}),
 		topN:       100,
 		bucketSize: time.Minute,
-		windowSize: 5, // 最近5分钟
+		windowSize: 5,
 	}
+	// 初始化批量处理器：每2秒或积攒500条刷新
+	d.batchProc = NewBatchProcessor[*incrCmd](
+		500,
+		2*time.Second,
+		d.batchIncr, // 批量执行函数
+		logger,
+	)
+	return d
 }
 
 func (d *HotVideoDetector) Start() {
@@ -44,6 +59,9 @@ func (d *HotVideoDetector) Stop() {
 	close(d.stopCh)
 	if d.calcTicker != nil {
 		d.calcTicker.Stop()
+	}
+	if d.batchProc != nil {
+		d.batchProc.Stop()
 	}
 }
 
@@ -67,20 +85,41 @@ func (d *HotVideoDetector) getBucketKey(t time.Time) string {
 // 记录请求
 //////////////////////////////////////////////////////
 
+// IncrRequestCount 原方法改为聚合
 func (d *HotVideoDetector) IncrRequestCount(ctx context.Context, videoID int64) {
+	d.batchProc.Add(&incrCmd{
+		videoID: videoID,
+		delta:   1,
+	})
+}
+
+// batchIncr 批量执行 ZINCRBY
+func (d *HotVideoDetector) batchIncr(cmds []*incrCmd) error {
+	if len(cmds) == 0 {
+		return nil
+	}
 	now := time.Now()
 	key := d.getBucketKey(now)
-	member := strconv.FormatInt(videoID, 10)
+	expire := time.Duration(d.windowSize+1) * d.bucketSize
 
-	err := d.redis.ZIncrBy(ctx, key, 1, member).Err()
-	if err != nil {
-		d.log.Warnf("增加视频请求计数失败: %v", err)
-		return
+	// 聚合相同 videoID 的 delta
+	agg := make(map[int64]int64)
+	for _, cmd := range cmds {
+		agg[cmd.videoID] += cmd.delta
 	}
 
-	// 设置过期时间：窗口大小 + 1分钟缓冲
-	expire := time.Duration(d.windowSize+1) * d.bucketSize
-	d.redis.Expire(ctx, key, expire)
+	// 使用 Pipeline 批量执行
+	pipe := d.redis.Pipeline()
+	for videoID, delta := range agg {
+		member := strconv.FormatInt(videoID, 10)
+		pipe.ZIncrBy(context.Background(), key, float64(delta), member)
+	}
+	pipe.Expire(context.Background(), key, expire)
+	_, err := pipe.Exec(context.Background())
+	if err != nil {
+		d.log.Warnf("批量增加视频请求计数失败: %v", err)
+	}
+	return err
 }
 
 //////////////////////////////////////////////////////

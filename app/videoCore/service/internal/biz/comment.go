@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/coocood/freecache"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"time"
 
+	"github.com/coocood/freecache"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight" // 新增导入
 )
 
 // ============ Command/Query 结构体定义 ============
@@ -149,6 +150,7 @@ type CommentUsecase struct {
 	redis       *redis.Client     // Redis 客户端
 	hotDetector *HotVideoDetector // 热点检测器
 	log         *log.Helper
+	sfg         singleflight.Group // 新增：用于合并并发回源请求
 }
 
 func NewCommentUsecase(repo CommentRepo, cache *freecache.Cache, redis *redis.Client, hotDetector *HotVideoDetector, logger log.Logger) *CommentUsecase {
@@ -158,6 +160,7 @@ func NewCommentUsecase(repo CommentRepo, cache *freecache.Cache, redis *redis.Cl
 		redis:       redis,
 		hotDetector: hotDetector,
 		log:         log.NewHelper(logger),
+		// sfg 零值可用，无需显式初始化
 	}
 }
 
@@ -232,13 +235,7 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentC
 	return &RemoveCommentResult{}, nil
 }
 
-// ListVideoComments 获取视频评论列表（带多级缓存）
-// 注意：由于 Comment 结构体包含 ChildComments 字段，
-// 且为循环引用，直接 JSON 序列化会有问题。
-// 需要修改 Comment 结构体，移除 ChildComments 字段的指针循环，
-// 或者在序列化时忽略。简单方案：在缓存时不存储 ChildComments，查询时单独加载。
-// 但为了简化，我们缓存完整评论树时使用 []*Comment 本身没有问题（只要没有互相引用），
-// 但注意 ChildComments 中的 ParentID 指向父评论，不是循环引用。所以可以正常序列化。
+// ListVideoComments 获取视频评论列表（带多级缓存 + singleflight 防击穿）
 func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVideoCommentsQuery) (*ListVideoCommentsResult, error) {
 	// 1. 记录该视频的一次请求（用于热点统计）
 	uc.hotDetector.IncrRequestCount(ctx, query.VideoID)
@@ -274,18 +271,25 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 		return &result, nil
 	}
 
-	// 6. 缓存未命中，查询数据库
-	uc.log.Debugf("缓存未命中，查询数据库: %s", cacheKey)
-	dbResult, err := uc.queryVideoComments(ctx, query)
+	// 6. 缓存未命中，使用 singleflight 合并回源请求
+	uc.log.Debugf("缓存未命中，使用 singleflight 合并回源: %s", cacheKey)
+	v, err, _ := uc.sfg.Do(cacheKey, func() (interface{}, error) {
+		// 注意：singleflight 的回调函数中可能丢失外层 ctx 的超时控制，
+		// 但由于数据库查询通常很快，且此处使用 Do 方法会阻塞所有等待的请求，
+		// 若需更精细的超时控制，可改用 DoChan 并监听 ctx.Done()，这里简化处理。
+		dbResult, err := uc.queryVideoComments(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		// 回填缓存
+		_ = setToLocalCache(uc.cache, cacheKey, dbResult, localTTL)
+		_ = uc.setToRedis(ctx, cacheKey, dbResult, redisTTL)
+		return dbResult, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	// 7. 回填缓存
-	_ = setToLocalCache(uc.cache, cacheKey, dbResult, localTTL)
-	_ = uc.setToRedis(ctx, cacheKey, dbResult, redisTTL)
-
-	return dbResult, nil
+	return v.(*ListVideoCommentsResult), nil
 }
 
 // queryVideoComments 原 ListVideoComments 的实际查询逻辑

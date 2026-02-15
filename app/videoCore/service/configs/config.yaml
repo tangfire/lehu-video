@@ -20,5 +20,6 @@ data:
     group_id: feed_service
     topic:
       video_publish: video_publish_topic
+      like: like_topic
   local_cache:
     size: 100 * 1024 * 1024

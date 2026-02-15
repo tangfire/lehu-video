@@ -163,6 +163,7 @@ type FavoriteRepo interface {
 	// 统计操作
 	GetFavoriteStats(ctx context.Context, targetId int64, targetType int32) (*FavoriteStats, error)
 	BatchGetFavoriteStats(ctx context.Context, targetIds []int64, targetType int32) (map[int64]*FavoriteStats, error)
+	BatchUpsertFavorites(ctx context.Context, events map[string]*LikeEvent) error
 
 	// 事务操作
 	WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error
@@ -678,4 +679,12 @@ func (uc *FavoriteUsecase) updateCacheAsync(ctx context.Context, cmd *AddFavorit
 	// 更新统计缓存
 	countKey := uc.keyGen.TargetCountKey(cmd.TargetId, cmd.TargetType, cmd.FavoriteType)
 	uc.cache.Set(ctx, countKey, stats.TotalCount, time.Hour*24)
+}
+
+// BatchProcessLikes 批量处理点赞事件
+func (uc *FavoriteUsecase) BatchProcessLikes(ctx context.Context, events map[string]*LikeEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+	return uc.repo.BatchUpsertFavorites(ctx, events)
 }

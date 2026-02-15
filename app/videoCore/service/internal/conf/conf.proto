@@ -43,6 +43,7 @@ message Data {
     string group_id = 2;           // consumer group
     message Topic {
       string video_publish = 1;    // 视频发布 topic
+      string like = 2;   // 新增点赞主题
     }
     Topic topic = 3;
   }

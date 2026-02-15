@@ -51,7 +51,12 @@ func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
 }
 
-func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, kfs *server.KafkaConsumerServer, rr registry.Registrar) *kratos.App {
+func newApp(logger log.Logger,
+	gs *grpc.Server,
+	hs *http.Server,
+	kcs *server.KafkaConsumerServer,
+	lcs *server.LikeConsumerServer,
+	rr registry.Registrar) *kratos.App {
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),
@@ -61,7 +66,8 @@ func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, kfs *server.Kaf
 		kratos.Server(
 			gs,
 			hs,
-			kfs,
+			kcs,
+			lcs,
 		),
 		kratos.Registrar(rr),
 	)

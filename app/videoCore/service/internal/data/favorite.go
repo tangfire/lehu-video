@@ -3,6 +3,8 @@ package data
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -449,6 +451,42 @@ func (r *favoriteRepo) toBizFavorite(dbFavorite *model.Favorite) *biz.Favorite {
 		CreatedAt:    dbFavorite.CreatedAt,
 		UpdatedAt:    dbFavorite.UpdatedAt,
 	}
+}
+
+// BatchUpsertFavorites 批量插入或更新点赞记录
+func (r *favoriteRepo) BatchUpsertFavorites(ctx context.Context, events map[string]*biz.LikeEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	placeholders := make([]string, 0, len(events))
+	values := make([]interface{}, 0, len(events)*7)
+	now := time.Now()
+
+	for _, e := range events {
+		placeholders = append(placeholders, "(?, ?, ?, ?, ?, ?, ?)")
+		values = append(values,
+			e.UserID,
+			e.TargetID,
+			e.TargetType,
+			e.FavoriteType,
+			e.IsDeleted,
+			now, // created_at
+			now, // updated_at
+		)
+	}
+
+	sql := fmt.Sprintf(`
+        INSERT INTO favorite 
+            (user_id, target_id, target_type, favorite_type, is_deleted, created_at, updated_at)
+        VALUES %s
+        ON DUPLICATE KEY UPDATE
+            favorite_type = VALUES(favorite_type),
+            is_deleted = VALUES(is_deleted),
+            updated_at = VALUES(updated_at)
+    `, strings.Join(placeholders, ","))
+
+	return r.data.db.WithContext(ctx).Exec(sql, values...).Error
 }
 
 // 索引建议
