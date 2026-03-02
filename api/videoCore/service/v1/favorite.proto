@@ -41,8 +41,6 @@ message AddFavoriteReq {
 
 message AddFavoriteResp {
 	Metadata meta = 1;
-	bool already_favorited = 2;  // 是否已经点过赞
-	int64 total_count = 3;       // 当前总点赞数
 }
 
 message RemoveFavoriteReq {

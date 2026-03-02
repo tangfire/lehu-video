@@ -34,7 +34,7 @@ type CoreAdapter interface {
 	ListComment4Video(ctx context.Context, videoId string, pageStats *PageStats) (int64, []*Comment, error)
 
 	// 点赞相关接口（新增）
-	AddFavorite(ctx context.Context, id, userId string, target *FavoriteTarget, _type *FavoriteType) (*AddFavoriteResult, error)
+	AddFavorite(ctx context.Context, id, userId string, target *FavoriteTarget, _type *FavoriteType) error
 	RemoveFavorite(ctx context.Context, id, userId string, target *FavoriteTarget, _type *FavoriteType) (*RemoveFavoriteResult, error)
 	ListUserFavoriteVideo(ctx context.Context, userId string, pageStats *PageStats) (int64, []string, error)
 	CheckFavoriteStatus(ctx context.Context, userId, targetId string, target *FavoriteTarget, _type *FavoriteType) (*CheckFavoriteResult, error)
@@ -62,14 +62,6 @@ type FavoriteCount struct {
 	LikeCount    int64
 	DislikeCount int64
 	TotalCount   int64
-}
-
-type AddFavoriteResult struct {
-	AlreadyFavorited bool
-	TotalCount       int64
-	TotalLikes       int64
-	TotalDislikes    int64
-	PreviousType     int32
 }
 
 type RemoveFavoriteResult struct {

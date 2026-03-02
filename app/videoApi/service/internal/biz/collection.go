@@ -98,10 +98,7 @@ func (uc *CollectionUsecase) AddVideo2Collection(ctx context.Context, input *Add
 	if err != nil {
 		return errors.New("获取用户信息失败")
 	}
-	err = uc.checkCollectionBelongUser(ctx, input.CollectionId)
-	if err != nil {
-		return err
-	}
+
 	err = uc.core.AddVideo2Collection(ctx, userId, input.CollectionId, input.VideoId)
 	if err != nil {
 		log.Context(ctx).Errorf("failed to add video info: %v", err)
@@ -152,6 +149,7 @@ func (uc *CollectionUsecase) ListVideo4Collection(ctx context.Context, input *Li
 		return nil, errors.New("获取用户信息失败")
 	}
 
+	// todo 这个应该直接移动到core服务校验的
 	err = uc.checkCollectionBelongUser(ctx, input.CollectionId)
 	if err != nil {
 		log.Context(ctx).Errorf("failed to get collection info: %v", err)
@@ -181,10 +179,6 @@ func (uc *CollectionUsecase) ListVideo4Collection(ctx context.Context, input *Li
 }
 
 func (uc *CollectionUsecase) RemoveCollection(ctx context.Context, collectionId string) error {
-	err := uc.checkCollectionBelongUser(ctx, collectionId)
-	if err != nil {
-		return err
-	}
 
 	userId, err := claims.GetUserId(ctx)
 	if err != nil {
@@ -206,11 +200,7 @@ func (uc *CollectionUsecase) RemoveVideo4Collection(ctx context.Context, input *
 		log.Context(ctx).Errorf("failed to get user id: %v", err)
 		return errors.New("获取用户信息失败")
 	}
-	err = uc.checkCollectionBelongUser(ctx, input.CollectionId)
-	if err != nil {
-		log.Context(ctx).Errorf("failed to get collection info: %v", err)
-		return err
-	}
+
 	err = uc.core.RemoveVideo4Collection(ctx, userId, input.CollectionId, input.VideoId)
 	if err != nil {
 		log.Context(ctx).Errorf("failed to remove video info: %v", err)
@@ -220,10 +210,6 @@ func (uc *CollectionUsecase) RemoveVideo4Collection(ctx context.Context, input *
 }
 
 func (uc *CollectionUsecase) UpdateCollection(ctx context.Context, input *UpdateCollectionInput) error {
-	err := uc.checkCollectionBelongUser(ctx, input.Id)
-	if err != nil {
-		return err
-	}
 
 	userId, err := claims.GetUserId(ctx)
 	if err != nil {

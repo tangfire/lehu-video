@@ -22,7 +22,6 @@ const _ = http.SupportPackageIsVersion1
 const OperationFavoriteServiceAddFavorite = "/api.videoApi.service.v1.FavoriteService/AddFavorite"
 const OperationFavoriteServiceBatchCheckFavoriteStatus = "/api.videoApi.service.v1.FavoriteService/BatchCheckFavoriteStatus"
 const OperationFavoriteServiceCheckFavoriteStatus = "/api.videoApi.service.v1.FavoriteService/CheckFavoriteStatus"
-const OperationFavoriteServiceGetFavoriteStats = "/api.videoApi.service.v1.FavoriteService/GetFavoriteStats"
 const OperationFavoriteServiceListFavoriteVideo = "/api.videoApi.service.v1.FavoriteService/ListFavoriteVideo"
 const OperationFavoriteServiceRemoveFavorite = "/api.videoApi.service.v1.FavoriteService/RemoveFavorite"
 
@@ -31,7 +30,6 @@ type FavoriteServiceHTTPServer interface {
 	// BatchCheckFavoriteStatus 批量检查点赞/点踩状态
 	BatchCheckFavoriteStatus(context.Context, *BatchCheckFavoriteStatusReq) (*BatchCheckFavoriteStatusResp, error)
 	CheckFavoriteStatus(context.Context, *CheckFavoriteStatusReq) (*CheckFavoriteStatusResp, error)
-	GetFavoriteStats(context.Context, *GetFavoriteStatsReq) (*GetFavoriteStatsResp, error)
 	ListFavoriteVideo(context.Context, *ListFavoriteVideoReq) (*ListFavoriteVideoResp, error)
 	RemoveFavorite(context.Context, *RemoveFavoriteReq) (*RemoveFavoriteResp, error)
 }
@@ -42,7 +40,6 @@ func RegisterFavoriteServiceHTTPServer(s *http.Server, srv FavoriteServiceHTTPSe
 	r.POST("/v1/favorite/del", _FavoriteService_RemoveFavorite0_HTTP_Handler(srv))
 	r.POST("/v1/favorite/video/list", _FavoriteService_ListFavoriteVideo0_HTTP_Handler(srv))
 	r.POST("/v1/favorite/check", _FavoriteService_CheckFavoriteStatus0_HTTP_Handler(srv))
-	r.POST("/v1/favorite/stats", _FavoriteService_GetFavoriteStats0_HTTP_Handler(srv))
 	r.POST("/v1/favorite/batch-check", _FavoriteService_BatchCheckFavoriteStatus0_HTTP_Handler(srv))
 }
 
@@ -134,28 +131,6 @@ func _FavoriteService_CheckFavoriteStatus0_HTTP_Handler(srv FavoriteServiceHTTPS
 	}
 }
 
-func _FavoriteService_GetFavoriteStats0_HTTP_Handler(srv FavoriteServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in GetFavoriteStatsReq
-		if err := ctx.Bind(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationFavoriteServiceGetFavoriteStats)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetFavoriteStats(ctx, req.(*GetFavoriteStatsReq))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*GetFavoriteStatsResp)
-		return ctx.Result(200, reply)
-	}
-}
-
 func _FavoriteService_BatchCheckFavoriteStatus0_HTTP_Handler(srv FavoriteServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in BatchCheckFavoriteStatusReq
@@ -182,7 +157,6 @@ type FavoriteServiceHTTPClient interface {
 	AddFavorite(ctx context.Context, req *AddFavoriteReq, opts ...http.CallOption) (rsp *AddFavoriteResp, err error)
 	BatchCheckFavoriteStatus(ctx context.Context, req *BatchCheckFavoriteStatusReq, opts ...http.CallOption) (rsp *BatchCheckFavoriteStatusResp, err error)
 	CheckFavoriteStatus(ctx context.Context, req *CheckFavoriteStatusReq, opts ...http.CallOption) (rsp *CheckFavoriteStatusResp, err error)
-	GetFavoriteStats(ctx context.Context, req *GetFavoriteStatsReq, opts ...http.CallOption) (rsp *GetFavoriteStatsResp, err error)
 	ListFavoriteVideo(ctx context.Context, req *ListFavoriteVideoReq, opts ...http.CallOption) (rsp *ListFavoriteVideoResp, err error)
 	RemoveFavorite(ctx context.Context, req *RemoveFavoriteReq, opts ...http.CallOption) (rsp *RemoveFavoriteResp, err error)
 }
@@ -226,19 +200,6 @@ func (c *FavoriteServiceHTTPClientImpl) CheckFavoriteStatus(ctx context.Context,
 	pattern := "/v1/favorite/check"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationFavoriteServiceCheckFavoriteStatus))
-	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *FavoriteServiceHTTPClientImpl) GetFavoriteStats(ctx context.Context, in *GetFavoriteStatsReq, opts ...http.CallOption) (*GetFavoriteStatsResp, error) {
-	var out GetFavoriteStatsResp
-	pattern := "/v1/favorite/stats"
-	path := binding.EncodeURL(pattern, in, false)
-	opts = append(opts, http.Operation(OperationFavoriteServiceGetFavoriteStats))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {

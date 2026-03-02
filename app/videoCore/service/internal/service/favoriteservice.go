@@ -25,7 +25,7 @@ func (s *FavoriteServiceService) AddFavorite(ctx context.Context, req *pb.AddFav
 		FavoriteType: int32(req.Type),
 	}
 
-	result, err := s.uc.AddFavorite(ctx, cmd)
+	err := s.uc.AddFavorite(ctx, cmd)
 	if err != nil {
 		return &pb.AddFavoriteResp{
 			Meta: utils.GetMetaWithError(err),
@@ -33,9 +33,7 @@ func (s *FavoriteServiceService) AddFavorite(ctx context.Context, req *pb.AddFav
 	}
 
 	return &pb.AddFavoriteResp{
-		Meta:             utils.GetSuccessMeta(),
-		AlreadyFavorited: result.AlreadyFavorited,
-		TotalCount:       result.TotalCount,
+		Meta: utils.GetSuccessMeta(),
 	}, nil
 }
 
@@ -62,12 +60,10 @@ func (s *FavoriteServiceService) RemoveFavorite(ctx context.Context, req *pb.Rem
 }
 
 func (s *FavoriteServiceService) ListFavorite(ctx context.Context, req *pb.ListFavoriteReq) (*pb.ListFavoriteResp, error) {
-	// 处理分页参数
 	var pageStatsReq *pb.PageStatsReq
 	if req.PageStats != nil {
 		pageStatsReq = req.PageStats
 	} else {
-		// 默认分页参数
 		pageStatsReq = &pb.PageStatsReq{
 			Page: 1,
 			Size: 20,
@@ -89,7 +85,6 @@ func (s *FavoriteServiceService) ListFavorite(ctx context.Context, req *pb.ListF
 		}, nil
 	}
 
-	// 将int64类型的TargetIds转换为字符串数组
 	ids := make([]string, 0, len(result.TargetIds))
 	for _, id := range result.TargetIds {
 		ids = append(ids, cast.ToString(id))
@@ -114,7 +109,6 @@ func (s *FavoriteServiceService) CountFavorite(ctx context.Context, req *pb.Coun
 		FavoriteType:  int32(req.FavoriteType),
 	}
 
-	// 转换IDs
 	for _, id := range req.Ids {
 		query.Ids = append(query.Ids, cast.ToInt64(id))
 	}
@@ -163,8 +157,7 @@ func (s *FavoriteServiceService) IsFavorite(ctx context.Context, req *pb.IsFavor
 	} else if result.FavoriteType == 1 {
 		favoriteType = pb.FavoriteType_FAVORITE_TYPE_DISLIKE
 	} else {
-		// 未点赞状态
-		favoriteType = pb.FavoriteType_FAVORITE_TYPE_LIKE // 默认值
+		favoriteType = pb.FavoriteType_FAVORITE_TYPE_LIKE
 	}
 
 	return &pb.IsFavoriteResp{
@@ -177,14 +170,11 @@ func (s *FavoriteServiceService) IsFavorite(ctx context.Context, req *pb.IsFavor
 }
 
 func (s *FavoriteServiceService) BatchIsFavorite(ctx context.Context, req *pb.BatchIsFavoriteReq) (*pb.BatchIsFavoriteResp, error) {
-	// 将字符串IDs转换为int64
 	targetIds := make([]int64, 0, len(req.BizIds))
 	for _, id := range req.BizIds {
 		targetIds = append(targetIds, cast.ToInt64(id))
 	}
 
-	// 注意：proto中BatchIsFavoriteReq只有UserId，但biz层需要UserIds数组
-	// 这里假设是查询一个用户对多个目标的点赞状态
 	userIds := []int64{cast.ToInt64(req.UserId)}
 
 	query := &biz.BatchIsFavoriteQuery{
@@ -202,7 +192,6 @@ func (s *FavoriteServiceService) BatchIsFavorite(ctx context.Context, req *pb.Ba
 
 	var pbItems []*pb.BatchIsFavoriteItem
 	for _, item := range result.Items {
-		// 只返回请求的用户对应的记录
 		if item.UserId == cast.ToInt64(req.UserId) {
 			pbItems = append(pbItems, &pb.BatchIsFavoriteItem{
 				BizId:        cast.ToString(item.TargetId),

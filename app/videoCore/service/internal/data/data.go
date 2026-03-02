@@ -8,6 +8,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"lehu-video/app/videoCore/service/internal/conf"
+	"lehu-video/app/videoCore/service/internal/pkg/idgen"
 )
 
 // ProviderSet is data providers.
@@ -23,6 +24,7 @@ var ProviderSet = wire.NewSet(
 	NewRedis,
 	NewFreeCache,
 	NewCounterRepo,
+	NewIdGenerator,
 )
 
 // Data .
@@ -32,6 +34,11 @@ type Data struct {
 	log     *log.Helper
 	rdb     *redis.Client
 	syncJob *UserCounterSyncJob // 新增
+}
+
+// NewIdGenerator 从配置创建 ID 生成器
+func NewIdGenerator(c *conf.Idgen) idgen.Generator {
+	return idgen.NewGenerator(c.WorkerId)
 }
 
 // NewData .

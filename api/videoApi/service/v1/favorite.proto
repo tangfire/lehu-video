@@ -39,12 +39,6 @@ service FavoriteService {
 	};
 
 
-	rpc GetFavoriteStats(GetFavoriteStatsReq) returns (GetFavoriteStatsResp) {
-		option (google.api.http) = {
-			post: "/v1/favorite/stats"
-			body: "*"
-		};
-	};
 
 	// 批量检查点赞/点踩状态
 	rpc BatchCheckFavoriteStatus(BatchCheckFavoriteStatusReq) returns (BatchCheckFavoriteStatusResp) {
@@ -72,11 +66,8 @@ message AddFavoriteReq {
 	string id = 3;
 }
 
+
 message AddFavoriteResp {
-	bool already_favorited = 1;  // 是否已经点过赞
-	int64 total_count = 2;       // 当前总点赞数
-	int64 total_likes = 3;       // 当前点赞数
-	int64 total_dislikes = 4;    // 当前点踩数
 }
 
 message RemoveFavoriteReq {
@@ -119,18 +110,6 @@ message CheckFavoriteStatusResp {
 	int64 total_count = 5;
 }
 
-
-message GetFavoriteStatsReq {
-	FavoriteTarget target = 1;
-	string id = 2;
-}
-
-message GetFavoriteStatsResp {
-	int64 like_count = 1;
-	int64 dislike_count = 2;
-	int64 total_count = 3;
-	float hot_score = 4; // 热度分数
-}
 
 message BatchCheckFavoriteStatusReq {
 	FavoriteTarget target = 1;

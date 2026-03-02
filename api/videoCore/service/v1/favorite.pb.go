@@ -231,12 +231,10 @@ func (x *AddFavoriteReq) GetUserId() string {
 }
 
 type AddFavoriteResp struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Meta             *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	AlreadyFavorited bool                   `protobuf:"varint,2,opt,name=already_favorited,json=alreadyFavorited,proto3" json:"already_favorited,omitempty"` // 是否已经点过赞
-	TotalCount       int64                  `protobuf:"varint,3,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`                   // 当前总点赞数
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AddFavoriteResp) Reset() {
@@ -274,20 +272,6 @@ func (x *AddFavoriteResp) GetMeta() *Metadata {
 		return x.Meta
 	}
 	return nil
-}
-
-func (x *AddFavoriteResp) GetAlreadyFavorited() bool {
-	if x != nil {
-		return x.AlreadyFavorited
-	}
-	return false
-}
-
-func (x *AddFavoriteResp) GetTotalCount() int64 {
-	if x != nil {
-		return x.TotalCount
-	}
-	return 0
 }
 
 type RemoveFavoriteReq struct {
@@ -1083,12 +1067,9 @@ const file_api_videoCore_service_v1_favorite_proto_rawDesc = "" +
 	"\x06target\x18\x01 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\x12:\n" +
 	"\x04type\x18\x02 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\x12\x15\n" +
 	"\x06biz_id\x18\x03 \x01(\tR\x05bizId\x12\x17\n" +
-	"\auser_id\x18\x04 \x01(\tR\x06userId\"\x97\x01\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\"I\n" +
 	"\x0fAddFavoriteResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12+\n" +
-	"\x11already_favorited\x18\x02 \x01(\bR\x10alreadyFavorited\x12\x1f\n" +
-	"\vtotal_count\x18\x03 \x01(\x03R\n" +
-	"totalCount\"\xc1\x01\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\xc1\x01\n" +
 	"\x11RemoveFavoriteReq\x12@\n" +
 	"\x06target\x18\x01 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\x12:\n" +
 	"\x04type\x18\x02 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\x12\x15\n" +

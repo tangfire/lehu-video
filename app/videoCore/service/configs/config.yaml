@@ -22,3 +22,5 @@ data:
       video_publish: video_publish_topic
   local_cache:
     size: 100 * 1024 * 1024
+idgen:
+  worker_id: 1   # 每个服务实例唯一

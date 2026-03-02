@@ -148,6 +148,7 @@ func (a *VideoAssembler) getVideoCounts(ctx context.Context, videoIDs []string) 
 	// 并发获取收藏数
 	go func() {
 		defer wg.Done()
+		// todo 这里直接查mysql了，很恐怖，如果1w人收藏，或者很多人点开视频，都查这个数据库，不直接炸了？？？
 		counts, err := a.core.CountCollected4Video(ctx, videoIDs)
 		mu.Lock()
 		collectCounts = counts

@@ -24,9 +24,9 @@ func (r *CoreAdapterImpl) CountBeFavoriteNumber4User(ctx context.Context, userId
 	return resp.Items[0].LikeCount, nil
 }
 
-func (r *CoreAdapterImpl) AddFavorite(ctx context.Context, id, userId string, target *biz.FavoriteTarget, _type *biz.FavoriteType) (*biz.AddFavoriteResult, error) {
+func (r *CoreAdapterImpl) AddFavorite(ctx context.Context, id, userId string, target *biz.FavoriteTarget, _type *biz.FavoriteType) error {
 	if target == nil || _type == nil {
-		return nil, errors.New("参数不完整")
+		return errors.New("参数不完整")
 	}
 
 	resp, err := r.favorite.AddFavorite(ctx, &core.AddFavoriteReq{
@@ -36,34 +36,14 @@ func (r *CoreAdapterImpl) AddFavorite(ctx context.Context, id, userId string, ta
 		UserId: userId,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := respcheck.ValidateResponseMeta(resp.Meta); err != nil {
-		return nil, err
+		return err
 	}
 
-	// 获取最新的统计数据
-	stats, err := r.GetFavoriteStats(ctx, id, target)
-	if err != nil {
-		// 即使获取统计失败，也返回添加成功
-		r.log.Warnf("获取点赞统计失败: targetId=%s, err=%v", id, err)
-		return &biz.AddFavoriteResult{
-			AlreadyFavorited: resp.AlreadyFavorited,
-			TotalCount:       0,
-			TotalLikes:       0,
-			TotalDislikes:    0,
-			PreviousType:     -1,
-		}, nil
-	}
-
-	return &biz.AddFavoriteResult{
-		AlreadyFavorited: resp.AlreadyFavorited,
-		TotalCount:       stats.TotalCount,
-		TotalLikes:       stats.LikeCount,
-		TotalDislikes:    stats.DislikeCount,
-		PreviousType:     -1, // 新版本core服务没有返回这个字段
-	}, nil
+	return nil
 }
 
 func (r *CoreAdapterImpl) RemoveFavorite(ctx context.Context, id, userId string, target *biz.FavoriteTarget, _type *biz.FavoriteType) (*biz.RemoveFavoriteResult, error) {

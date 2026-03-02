@@ -23,7 +23,6 @@ const (
 	FavoriteService_RemoveFavorite_FullMethodName           = "/api.videoApi.service.v1.FavoriteService/RemoveFavorite"
 	FavoriteService_ListFavoriteVideo_FullMethodName        = "/api.videoApi.service.v1.FavoriteService/ListFavoriteVideo"
 	FavoriteService_CheckFavoriteStatus_FullMethodName      = "/api.videoApi.service.v1.FavoriteService/CheckFavoriteStatus"
-	FavoriteService_GetFavoriteStats_FullMethodName         = "/api.videoApi.service.v1.FavoriteService/GetFavoriteStats"
 	FavoriteService_BatchCheckFavoriteStatus_FullMethodName = "/api.videoApi.service.v1.FavoriteService/BatchCheckFavoriteStatus"
 )
 
@@ -35,7 +34,6 @@ type FavoriteServiceClient interface {
 	RemoveFavorite(ctx context.Context, in *RemoveFavoriteReq, opts ...grpc.CallOption) (*RemoveFavoriteResp, error)
 	ListFavoriteVideo(ctx context.Context, in *ListFavoriteVideoReq, opts ...grpc.CallOption) (*ListFavoriteVideoResp, error)
 	CheckFavoriteStatus(ctx context.Context, in *CheckFavoriteStatusReq, opts ...grpc.CallOption) (*CheckFavoriteStatusResp, error)
-	GetFavoriteStats(ctx context.Context, in *GetFavoriteStatsReq, opts ...grpc.CallOption) (*GetFavoriteStatsResp, error)
 	// 批量检查点赞/点踩状态
 	BatchCheckFavoriteStatus(ctx context.Context, in *BatchCheckFavoriteStatusReq, opts ...grpc.CallOption) (*BatchCheckFavoriteStatusResp, error)
 }
@@ -88,16 +86,6 @@ func (c *favoriteServiceClient) CheckFavoriteStatus(ctx context.Context, in *Che
 	return out, nil
 }
 
-func (c *favoriteServiceClient) GetFavoriteStats(ctx context.Context, in *GetFavoriteStatsReq, opts ...grpc.CallOption) (*GetFavoriteStatsResp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetFavoriteStatsResp)
-	err := c.cc.Invoke(ctx, FavoriteService_GetFavoriteStats_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *favoriteServiceClient) BatchCheckFavoriteStatus(ctx context.Context, in *BatchCheckFavoriteStatusReq, opts ...grpc.CallOption) (*BatchCheckFavoriteStatusResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(BatchCheckFavoriteStatusResp)
@@ -116,7 +104,6 @@ type FavoriteServiceServer interface {
 	RemoveFavorite(context.Context, *RemoveFavoriteReq) (*RemoveFavoriteResp, error)
 	ListFavoriteVideo(context.Context, *ListFavoriteVideoReq) (*ListFavoriteVideoResp, error)
 	CheckFavoriteStatus(context.Context, *CheckFavoriteStatusReq) (*CheckFavoriteStatusResp, error)
-	GetFavoriteStats(context.Context, *GetFavoriteStatsReq) (*GetFavoriteStatsResp, error)
 	// 批量检查点赞/点踩状态
 	BatchCheckFavoriteStatus(context.Context, *BatchCheckFavoriteStatusReq) (*BatchCheckFavoriteStatusResp, error)
 	mustEmbedUnimplementedFavoriteServiceServer()
@@ -140,9 +127,6 @@ func (UnimplementedFavoriteServiceServer) ListFavoriteVideo(context.Context, *Li
 }
 func (UnimplementedFavoriteServiceServer) CheckFavoriteStatus(context.Context, *CheckFavoriteStatusReq) (*CheckFavoriteStatusResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CheckFavoriteStatus not implemented")
-}
-func (UnimplementedFavoriteServiceServer) GetFavoriteStats(context.Context, *GetFavoriteStatsReq) (*GetFavoriteStatsResp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetFavoriteStats not implemented")
 }
 func (UnimplementedFavoriteServiceServer) BatchCheckFavoriteStatus(context.Context, *BatchCheckFavoriteStatusReq) (*BatchCheckFavoriteStatusResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchCheckFavoriteStatus not implemented")
@@ -240,24 +224,6 @@ func _FavoriteService_CheckFavoriteStatus_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
-func _FavoriteService_GetFavoriteStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetFavoriteStatsReq)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(FavoriteServiceServer).GetFavoriteStats(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: FavoriteService_GetFavoriteStats_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FavoriteServiceServer).GetFavoriteStats(ctx, req.(*GetFavoriteStatsReq))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _FavoriteService_BatchCheckFavoriteStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BatchCheckFavoriteStatusReq)
 	if err := dec(in); err != nil {
@@ -298,10 +264,6 @@ var FavoriteService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CheckFavoriteStatus",
 			Handler:    _FavoriteService_CheckFavoriteStatus_Handler,
-		},
-		{
-			MethodName: "GetFavoriteStats",
-			Handler:    _FavoriteService_GetFavoriteStats_Handler,
 		},
 		{
 			MethodName: "BatchCheckFavoriteStatus",

@@ -2,6 +2,10 @@ CREATE database lehu_video_db;
 
 use lehu_video_db;
 
+# todo 感觉是不是少了unlike_count????
+# todo 还有收藏数量
+# todo 好像可以直接删除了都，都是先查的，没必要搞这些count好像
+# todo 那这里的设计有问题嘛？那些点赞数，收藏数，是否关注，是否点赞，都是返回的时候先查的？？？？？数据库不存储？？
 CREATE TABLE `video` (
                          `id` bigint(20) NOT NULL AUTO_INCREMENT,
                          `user_id` bigint(20) DEFAULT NULL,
@@ -76,31 +80,26 @@ CREATE TABLE IF NOT EXISTS `follow` (
 );
 
 
+
+
 CREATE TABLE IF NOT EXISTS `favorite` (
                                           id BIGINT PRIMARY KEY COMMENT '主键ID',
                                           user_id BIGINT NOT NULL COMMENT '用户ID',
                                           target_type TINYINT NOT NULL COMMENT '点赞对象类型 0-视频 1-评论',
                                           target_id BIGINT NOT NULL COMMENT '点赞对象ID',
                                           favorite_type TINYINT NOT NULL COMMENT '点赞类型 0-点赞 1-踩',
-                                          is_deleted BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否删除',
+                                          delete_at BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间戳(0表示未删除)',
                                           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                                           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
-    -- 核心：条件唯一索引（仅对未删除的记录建立唯一约束）
-    -- MySQL 8.0+ 支持函数索引
-                                          UNIQUE INDEX `uniq_user_target_active` (
-                                                                                  user_id,
-                                                                                  target_id,
-                                                                                  target_type,
-                                                                                  favorite_type,
-                                              (CASE WHEN is_deleted = FALSE THEN 1 END)
-                                              ),
+    -- 唯一索引：保证同一用户对同一目标每种类型只有一条有效记录（delete_at=0）
+                                          UNIQUE INDEX uniq_user_target (user_id, target_id, target_type, favorite_type, delete_at),
 
     -- 查询索引
-                                          INDEX `idx_user_target_type` (user_id, target_type, is_deleted),
-                                          INDEX `idx_target` (target_type, target_id, is_deleted),
-                                          INDEX `idx_created_at` (created_at)
-) COMMENT='用户收藏表';
+                                          INDEX idx_user_target_type (user_id, target_type, delete_at),
+                                          INDEX idx_target (target_type, target_id, delete_at),
+                                          INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 
@@ -188,7 +187,7 @@ CREATE TABLE IF NOT EXISTS `collection_video` (
                                                   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                                   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                                   INDEX `collection_id_idx` (`collection_id`, `is_deleted`)
-);
+)COMMENT='用户收藏表';
 
 
 -- 创建群聊信息表

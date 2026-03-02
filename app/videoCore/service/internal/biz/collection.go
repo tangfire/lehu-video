@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
+	"lehu-video/app/videoCore/service/internal/pkg/idgen"
 )
 
 type Collection struct {
@@ -134,22 +135,24 @@ type CollectionRepo interface {
 	CreateCollectionVideo(ctx context.Context, relation *CollectionVideoRelation) error
 	GetCollectionVideo(ctx context.Context, userId, collectionId, videoId int64) (*CollectionVideoRelation, error)
 	DeleteCollectionVideo(ctx context.Context, relationId int64) error
-	ListVideoIdsByCollectionId(ctx context.Context, collectionId int64, offset, limit int) ([]int64, error)
-	CountVideosByCollectionId(ctx context.Context, collectionId int64) (int64, error)
+	ListVideoIdsByCollectionId(ctx context.Context, collectionId int64, offset, limit int) (int64, []int64, error)
 	CountCollectionsByVideoId(ctx context.Context, videoId int64) (int64, error)
+	BatchCountCollectionsByVideoId(ctx context.Context, videoIds []int64) (map[int64]int64, error)
 	ListCollectedVideoIds(ctx context.Context, userId int64, videoIds []int64) ([]int64, error)
 }
 
 type CollectionUsecase struct {
 	repo        CollectionRepo
 	counterRepo CounterRepo // 新增
+	idGen       idgen.Generator
 	log         *log.Helper
 }
 
-func NewCollectionUsecase(repo CollectionRepo, counterRepo CounterRepo, logger log.Logger) *CollectionUsecase {
+func NewCollectionUsecase(repo CollectionRepo, counterRepo CounterRepo, idGen idgen.Generator, logger log.Logger) *CollectionUsecase {
 	return &CollectionUsecase{
 		repo:        repo,
 		counterRepo: counterRepo,
+		idGen:       idGen,
 		log:         log.NewHelper(logger),
 	}
 }
@@ -166,11 +169,11 @@ func (uc *CollectionUsecase) CreateCollection(ctx context.Context, cmd *CreateCo
 
 	// 业务逻辑：创建收藏夹
 	collection := &Collection{
+		Id:          uc.idGen.NextID(),
 		UserId:      cmd.UserId,
 		Title:       cmd.Name,
 		Description: cmd.Description,
 	}
-	collection.SetId()
 
 	// 业务逻辑：确保用户有默认收藏夹
 	_, err := uc.ensureUserHasDefaultCollection(ctx, cmd.UserId)
@@ -207,7 +210,7 @@ func (uc *CollectionUsecase) GetCollectionById(ctx context.Context, query *GetCo
 }
 
 func (uc *CollectionUsecase) RemoveCollection(ctx context.Context, cmd *RemoveCollectionCommand) (*RemoveCollectionResult, error) {
-	// todo 其实这里可以放在api服务进行校验是不是自己的收藏夹
+	// todo 应该把api服务的那些校验是不是自己收藏夹的删除，应该都在core服务校验的
 	// 业务逻辑：权限验证 - 只能删除自己的收藏夹
 	collection, err := uc.repo.GetCollectionByUserIdAndId(ctx, cmd.UserId, cmd.CollectionId)
 	if err != nil {
@@ -334,11 +337,11 @@ func (uc *CollectionUsecase) AddVideoToCollection(ctx context.Context, cmd *AddV
 	}
 
 	relation := &CollectionVideoRelation{
+		Id:           uc.idGen.NextID(),
 		CollectionId: collectionId,
 		UserId:       cmd.UserId,
 		VideoId:      cmd.VideoId,
 	}
-	relation.Id = int64(uuid.New().ID())
 
 	err = uc.repo.CreateCollectionVideo(ctx, relation)
 	if err != nil {
@@ -346,6 +349,7 @@ func (uc *CollectionUsecase) AddVideoToCollection(ctx context.Context, cmd *AddV
 		return nil, err
 	}
 
+	// todo 这里有点奇怪，我们不是收藏嘛？怎么加的是favorite_count？
 	// ---------- 新增：增加用户 favorite_count ----------
 	if _, err := uc.counterRepo.IncrUserCounter(ctx, cmd.UserId, "favorite_count", 1); err != nil {
 		uc.log.Warnf("增加用户 favorite_count 失败: userId=%d, err=%v", cmd.UserId, err)
@@ -365,6 +369,15 @@ func (uc *CollectionUsecase) RemoveVideoFromCollection(ctx context.Context, cmd 
 		collectionId = defaultCollection.Id
 	}
 
+	collection, err := uc.repo.GetCollectionByUserIdAndId(ctx, cmd.UserId, cmd.CollectionId)
+	if err != nil {
+		return nil, fmt.Errorf("查询收藏夹失败: %v", err)
+	}
+
+	if collection == nil {
+		return nil, fmt.Errorf("收藏夹不存在或无权操作")
+	}
+
 	relation, err := uc.repo.GetCollectionVideo(ctx, cmd.UserId, collectionId, cmd.VideoId)
 	if err != nil {
 		return nil, fmt.Errorf("检查收藏关系失败: %v", err)
@@ -379,6 +392,7 @@ func (uc *CollectionUsecase) RemoveVideoFromCollection(ctx context.Context, cmd 
 		return nil, err
 	}
 
+	// todo 同上
 	// ---------- 新增：减少用户 favorite_count ----------
 	if _, err := uc.counterRepo.DecrUserCounter(ctx, cmd.UserId, "favorite_count", 1); err != nil {
 		uc.log.Warnf("减少用户 favorite_count 失败: userId=%d, err=%v", cmd.UserId, err)
@@ -401,17 +415,9 @@ func (uc *CollectionUsecase) ListVideo4Collection(ctx context.Context, query *Li
 	}
 
 	offset := (query.PageStats.Page - 1) * query.PageStats.PageSize
-
-	// todo 这两步应该可以合成一步的，一般我们ListVideoIdsByCollectionId的时候，就要获取total了
-	videoIds, err := uc.repo.ListVideoIdsByCollectionId(ctx, query.CollectionId, int(offset), int(query.PageStats.PageSize))
+	total, videoIds, err := uc.repo.ListVideoIdsByCollectionId(ctx, query.CollectionId, int(offset), int(query.PageStats.PageSize))
 	if err != nil {
 		uc.log.Errorf("查询收藏夹视频列表失败: %v", err)
-		return nil, err
-	}
-
-	total, err := uc.repo.CountVideosByCollectionId(ctx, query.CollectionId)
-	if err != nil {
-		uc.log.Errorf("统计收藏夹视频数量失败: %v", err)
 		return nil, err
 	}
 
@@ -442,14 +448,17 @@ func (uc *CollectionUsecase) CountCollectedNumber4Video(ctx context.Context, que
 		return &CountCollect4VideoResult{Counts: []*CountResult{}}, nil
 	}
 
-	var counts []*CountResult
-	for _, videoId := range query.VideoIds {
-		count, err := uc.repo.CountCollectionsByVideoId(ctx, videoId)
-		if err != nil {
-			uc.log.Errorf("统计视频收藏数失败: %v", err)
-			return nil, err
-		}
+	// 一次性批量查询
+	countMap, err := uc.repo.BatchCountCollectionsByVideoId(ctx, query.VideoIds)
+	if err != nil {
+		uc.log.Errorf("批量统计视频收藏数失败: %v", err)
+		return nil, err
+	}
 
+	// 组装结果，确保顺序与输入一致（如果顺序重要）
+	counts := make([]*CountResult, 0, len(query.VideoIds))
+	for _, videoId := range query.VideoIds {
+		count := countMap[videoId] // 如果map中不存在，则 count 为 0
 		counts = append(counts, &CountResult{
 			Id:    videoId,
 			Count: count,
@@ -478,11 +487,11 @@ func (uc *CollectionUsecase) ensureUserHasDefaultCollection(ctx context.Context,
 
 	// 如果没有，创建默认收藏夹
 	defaultCollection := &Collection{
+		Id:          uc.idGen.NextID(),
 		UserId:      userId,
 		Title:       "默认收藏夹",
 		Description: "默认收藏夹",
 	}
-	defaultCollection.SetId()
 
 	err = uc.repo.CreateCollection(ctx, defaultCollection)
 	if err != nil {

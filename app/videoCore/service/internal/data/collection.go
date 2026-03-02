@@ -178,8 +178,14 @@ func (r *collectionRepo) DeleteCollectionVideo(ctx context.Context, relationId i
 		Update("is_deleted", true).Error
 }
 
-func (r *collectionRepo) ListVideoIdsByCollectionId(ctx context.Context, collectionId int64, offset, limit int) ([]int64, error) {
+func (r *collectionRepo) ListVideoIdsByCollectionId(ctx context.Context, collectionId int64, offset, limit int) (int64, []int64, error) {
 	var videoIds []int64
+
+	var count int64
+	err := r.data.db.WithContext(ctx).
+		Model(&model.CollectionVideo{}).
+		Where("collection_id = ? AND is_deleted = ?", collectionId, false).
+		Count(&count).Error
 
 	query := r.data.db.WithContext(ctx).
 		Model(&model.CollectionVideo{}).
@@ -191,18 +197,8 @@ func (r *collectionRepo) ListVideoIdsByCollectionId(ctx context.Context, collect
 		query = query.Offset(offset).Limit(limit)
 	}
 
-	err := query.Pluck("video_id", &videoIds).Error
-	return videoIds, err
-}
-
-func (r *collectionRepo) CountVideosByCollectionId(ctx context.Context, collectionId int64) (int64, error) {
-	var count int64
-	err := r.data.db.WithContext(ctx).
-		Model(&model.CollectionVideo{}).
-		Where("collection_id = ? AND is_deleted = ?", collectionId, false).
-		Count(&count).Error
-
-	return count, err
+	err = query.Pluck("video_id", &videoIds).Error
+	return count, videoIds, err
 }
 
 func (r *collectionRepo) CountCollectionsByVideoId(ctx context.Context, videoId int64) (int64, error) {
@@ -213,6 +209,37 @@ func (r *collectionRepo) CountCollectionsByVideoId(ctx context.Context, videoId 
 		Count(&count).Error
 
 	return count, err
+}
+
+// 在 collectionRepo 中增加此方法
+func (r *collectionRepo) BatchCountCollectionsByVideoId(ctx context.Context, videoIds []int64) (map[int64]int64, error) {
+	if len(videoIds) == 0 {
+		return make(map[int64]int64), nil
+	}
+
+	var results []struct {
+		VideoID int64
+		Count   int64
+	}
+
+	// 单次查询，使用 IN 条件
+	err := r.data.db.WithContext(ctx).
+		Model(&model.CollectionVideo{}).
+		Select("video_id, COUNT(*) as count").
+		Where("video_id IN (?) AND is_deleted = ?", videoIds, false).
+		Group("video_id").
+		Find(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 将结果转换为 map，方便上层使用
+	countMap := make(map[int64]int64, len(results))
+	for _, rc := range results {
+		countMap[rc.VideoID] = rc.Count
+	}
+	return countMap, nil
 }
 
 func (r *collectionRepo) ListCollectedVideoIds(ctx context.Context, userId int64, videoIds []int64) ([]int64, error) {

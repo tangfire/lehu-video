@@ -32,17 +32,12 @@ func (s *FavoriteServiceService) AddFavorite(ctx context.Context, req *pb.AddFav
 		Id:     req.Id,
 	}
 
-	result, err := s.uc.AddFavorite(ctx, input)
+	err := s.uc.AddFavorite(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.AddFavoriteResp{
-		AlreadyFavorited: result.AlreadyFavorited,
-		TotalCount:       result.TotalCount,
-		TotalLikes:       result.TotalLikes,
-		TotalDislikes:    result.TotalDislikes,
-	}, nil
+	return &pb.AddFavoriteResp{}, nil
 }
 
 func (s *FavoriteServiceService) RemoveFavorite(ctx context.Context, req *pb.RemoveFavoriteReq) (*pb.RemoveFavoriteResp, error) {
@@ -154,27 +149,6 @@ func (s *FavoriteServiceService) CheckFavoriteStatus(ctx context.Context, req *p
 		TotalLikes:    result.TotalLikes,
 		TotalDislikes: result.TotalDislikes,
 		TotalCount:    result.TotalCount,
-	}, nil
-}
-
-func (s *FavoriteServiceService) GetFavoriteStats(ctx context.Context, req *pb.GetFavoriteStatsReq) (*pb.GetFavoriteStatsResp, error) {
-	target := biz.FavoriteTarget(req.Target)
-
-	input := &biz.GetFavoriteStatsInput{
-		Target: &target,
-		Id:     req.Id,
-	}
-
-	stats, err := s.uc.GetFavoriteStats(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
-	return &pb.GetFavoriteStatsResp{
-		LikeCount:    stats.LikeCount,
-		DislikeCount: stats.DislikeCount,
-		TotalCount:   stats.TotalCount,
-		HotScore:     float32(stats.HotScore),
 	}, nil
 }
 

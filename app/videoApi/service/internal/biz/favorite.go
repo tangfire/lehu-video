@@ -69,27 +69,27 @@ func NewFavoriteUsecase(core CoreAdapter, assembler *VideoAssembler, logger log.
 	}
 }
 
-func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, input *AddFavoriteInput) (*AddFavoriteResult, error) {
+func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, input *AddFavoriteInput) error {
 	userId, err := claims.GetUserId(ctx)
 	if err != nil {
-		return nil, errors.New("获取用户信息失败")
+		return errors.New("获取用户信息失败")
 	}
 
 	// 参数验证
 	if input.Target == nil || input.Type == nil {
-		return nil, errors.New("参数不完整")
+		return errors.New("参数不完整")
 	}
 	if input.Id == "" {
-		return nil, errors.New("目标ID不能为空")
+		return errors.New("目标ID不能为空")
 	}
 
-	result, err := uc.core.AddFavorite(ctx, input.Id, userId, input.Target, input.Type)
+	err = uc.core.AddFavorite(ctx, input.Id, userId, input.Target, input.Type)
 	if err != nil {
 		uc.log.Errorf("添加点赞失败: userId=%s, targetId=%s, err=%v", userId, input.Id, err)
-		return nil, fmt.Errorf("添加点赞失败: %w", err)
+		return fmt.Errorf("添加点赞失败: %w", err)
 	}
 
-	return result, nil
+	return nil
 }
 
 func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, input *RemoveFavoriteInput) (*RemoveFavoriteResult, error) {
@@ -115,6 +115,7 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, input *RemoveFavo
 	return result, nil
 }
 
+// ListFavoriteVideo 获取用户点赞视频列表,可以获取自己的，也可以获取别人的，毕竟你应该知道那种可以查看别人点赞的视频对吧
 func (uc *FavoriteUsecase) ListFavoriteVideo(ctx context.Context, input *ListFavoriteVideoInput) (int64, []*Video, error) {
 	// 获取用户ID
 	currentUserId, err := claims.GetUserId(ctx)
@@ -189,24 +190,6 @@ func (uc *FavoriteUsecase) CheckFavoriteStatus(ctx context.Context, input *Check
 	}
 
 	return result, nil
-}
-
-func (uc *FavoriteUsecase) GetFavoriteStats(ctx context.Context, input *GetFavoriteStatsInput) (*FavoriteStats, error) {
-	// 参数验证
-	if input.Target == nil {
-		return nil, errors.New("目标类型不能为空")
-	}
-	if input.Id == "" {
-		return nil, errors.New("目标ID不能为空")
-	}
-
-	stats, err := uc.core.GetFavoriteStats(ctx, input.Id, input.Target)
-	if err != nil {
-		uc.log.Errorf("获取点赞统计失败: targetId=%s, err=%v", input.Id, err)
-		return nil, fmt.Errorf("获取点赞统计失败: %w", err)
-	}
-
-	return stats, nil
 }
 
 // BatchIsFavorite 批量查询点赞/点踩状态（直接调用 core 服务）

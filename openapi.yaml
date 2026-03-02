@@ -103,30 +103,6 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/favorite/stats:
-        post:
-            tags:
-                - FavoriteService
-            operationId: FavoriteService_GetFavoriteStats
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GetFavoriteStatsReq'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/GetFavoriteStatsResp'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
     /v1/favorite/video/list:
         post:
             tags:
@@ -167,15 +143,7 @@ components:
                     description: '@gotags: json:"id,omitempty,string"'
         AddFavoriteResp:
             type: object
-            properties:
-                alreadyFavorited:
-                    type: boolean
-                totalCount:
-                    type: string
-                totalLikes:
-                    type: string
-                totalDislikes:
-                    type: string
+            properties: {}
         BatchCheckFavoriteStatusItem:
             type: object
             properties:
@@ -231,26 +199,6 @@ components:
                     type: string
                 totalCount:
                     type: string
-        GetFavoriteStatsReq:
-            type: object
-            properties:
-                target:
-                    type: integer
-                    format: enum
-                id:
-                    type: string
-        GetFavoriteStatsResp:
-            type: object
-            properties:
-                likeCount:
-                    type: string
-                dislikeCount:
-                    type: string
-                totalCount:
-                    type: string
-                hotScore:
-                    type: number
-                    format: float
         GoogleProtobufAny:
             type: object
             properties:
