@@ -50,17 +50,12 @@ func (s *FavoriteServiceService) RemoveFavorite(ctx context.Context, req *pb.Rem
 		Id:     req.Id,
 	}
 
-	result, err := s.uc.RemoveFavorite(ctx, input)
+	err := s.uc.RemoveFavorite(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.RemoveFavoriteResp{
-		NotFavorited:  result.NotFavorited,
-		TotalCount:    result.TotalCount,
-		TotalLikes:    result.TotalLikes,
-		TotalDislikes: result.TotalDislikes,
-	}, nil
+	return &pb.RemoveFavoriteResp{}, nil
 }
 
 func (s *FavoriteServiceService) ListFavoriteVideo(ctx context.Context, req *pb.ListFavoriteVideoReq) (*pb.ListFavoriteVideoResp, error) {

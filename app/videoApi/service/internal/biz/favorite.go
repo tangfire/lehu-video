@@ -92,27 +92,27 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, input *AddFavoriteIn
 	return nil
 }
 
-func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, input *RemoveFavoriteInput) (*RemoveFavoriteResult, error) {
+func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, input *RemoveFavoriteInput) error {
 	userId, err := claims.GetUserId(ctx)
 	if err != nil {
-		return nil, errors.New("获取用户信息失败")
+		return errors.New("获取用户信息失败")
 	}
 
 	// 参数验证
 	if input.Target == nil || input.Type == nil {
-		return nil, errors.New("参数不完整")
+		return errors.New("参数不完整")
 	}
 	if input.Id == "" {
-		return nil, errors.New("目标ID不能为空")
+		return errors.New("目标ID不能为空")
 	}
 
-	result, err := uc.core.RemoveFavorite(ctx, input.Id, userId, input.Target, input.Type)
+	err = uc.core.RemoveFavorite(ctx, input.Id, userId, input.Target, input.Type)
 	if err != nil {
 		uc.log.Errorf("取消点赞失败: userId=%s, targetId=%s, err=%v", userId, input.Id, err)
-		return nil, fmt.Errorf("取消点赞失败: %w", err)
+		return fmt.Errorf("取消点赞失败: %w", err)
 	}
 
-	return result, nil
+	return nil
 }
 
 // ListFavoriteVideo 获取用户点赞视频列表,可以获取自己的，也可以获取别人的，毕竟你应该知道那种可以查看别人点赞的视频对吧

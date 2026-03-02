@@ -274,10 +274,6 @@ func (x *RemoveFavoriteReq) GetId() string {
 
 type RemoveFavoriteResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	NotFavorited  bool                   `protobuf:"varint,1,opt,name=not_favorited,json=notFavorited,proto3" json:"not_favorited,omitempty"`    // 是否本来就没点赞
-	TotalCount    int64                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`          // 当前总点赞数
-	TotalLikes    int64                  `protobuf:"varint,3,opt,name=total_likes,json=totalLikes,proto3" json:"total_likes,omitempty"`          // 当前点赞数
-	TotalDislikes int64                  `protobuf:"varint,4,opt,name=total_dislikes,json=totalDislikes,proto3" json:"total_dislikes,omitempty"` // 当前点踩数
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -310,34 +306,6 @@ func (x *RemoveFavoriteResp) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RemoveFavoriteResp.ProtoReflect.Descriptor instead.
 func (*RemoveFavoriteResp) Descriptor() ([]byte, []int) {
 	return file_api_videoApi_service_v1_favorite_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *RemoveFavoriteResp) GetNotFavorited() bool {
-	if x != nil {
-		return x.NotFavorited
-	}
-	return false
-}
-
-func (x *RemoveFavoriteResp) GetTotalCount() int64 {
-	if x != nil {
-		return x.TotalCount
-	}
-	return 0
-}
-
-func (x *RemoveFavoriteResp) GetTotalLikes() int64 {
-	if x != nil {
-		return x.TotalLikes
-	}
-	return 0
-}
-
-func (x *RemoveFavoriteResp) GetTotalDislikes() int64 {
-	if x != nil {
-		return x.TotalDislikes
-	}
-	return 0
 }
 
 type ListFavoriteVideoReq struct {
@@ -781,14 +749,8 @@ const file_api_videoApi_service_v1_favorite_proto_rawDesc = "" +
 	"\x11RemoveFavoriteReq\x12?\n" +
 	"\x06target\x18\x01 \x01(\x0e2'.api.videoApi.service.v1.FavoriteTargetR\x06target\x129\n" +
 	"\x04type\x18\x02 \x01(\x0e2%.api.videoApi.service.v1.FavoriteTypeR\x04type\x12\x0e\n" +
-	"\x02id\x18\x03 \x01(\tR\x02id\"\xa2\x01\n" +
-	"\x12RemoveFavoriteResp\x12#\n" +
-	"\rnot_favorited\x18\x01 \x01(\bR\fnotFavorited\x12\x1f\n" +
-	"\vtotal_count\x18\x02 \x01(\x03R\n" +
-	"totalCount\x12\x1f\n" +
-	"\vtotal_likes\x18\x03 \x01(\x03R\n" +
-	"totalLikes\x12%\n" +
-	"\x0etotal_dislikes\x18\x04 \x01(\x03R\rtotalDislikes\"\x99\x01\n" +
+	"\x02id\x18\x03 \x01(\tR\x02id\"\x14\n" +
+	"\x12RemoveFavoriteResp\"\x99\x01\n" +
 	"\x14ListFavoriteVideoReq\x12\x16\n" +
 	"\x06userId\x18\x01 \x01(\tR\x06userId\x12D\n" +
 	"\n" +

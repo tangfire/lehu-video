@@ -52,8 +52,6 @@ message RemoveFavoriteReq {
 
 message RemoveFavoriteResp {
 	Metadata meta = 1;
-	bool not_favorited = 2;     // 是否本来就没点赞
-	int64 total_count = 3;      // 当前总点赞数
 }
 
 message ListFavoriteReq {

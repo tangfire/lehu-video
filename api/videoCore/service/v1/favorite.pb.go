@@ -345,8 +345,6 @@ func (x *RemoveFavoriteReq) GetUserId() string {
 type RemoveFavoriteResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	NotFavorited  bool                   `protobuf:"varint,2,opt,name=not_favorited,json=notFavorited,proto3" json:"not_favorited,omitempty"` // 是否本来就没点赞
-	TotalCount    int64                  `protobuf:"varint,3,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`       // 当前总点赞数
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -386,20 +384,6 @@ func (x *RemoveFavoriteResp) GetMeta() *Metadata {
 		return x.Meta
 	}
 	return nil
-}
-
-func (x *RemoveFavoriteResp) GetNotFavorited() bool {
-	if x != nil {
-		return x.NotFavorited
-	}
-	return false
-}
-
-func (x *RemoveFavoriteResp) GetTotalCount() int64 {
-	if x != nil {
-		return x.TotalCount
-	}
-	return 0
 }
 
 type ListFavoriteReq struct {
@@ -1074,12 +1058,9 @@ const file_api_videoCore_service_v1_favorite_proto_rawDesc = "" +
 	"\x06target\x18\x01 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\x12:\n" +
 	"\x04type\x18\x02 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\x12\x15\n" +
 	"\x06biz_id\x18\x03 \x01(\tR\x05bizId\x12\x17\n" +
-	"\auser_id\x18\x04 \x01(\tR\x06userId\"\x92\x01\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\"L\n" +
 	"\x12RemoveFavoriteResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12#\n" +
-	"\rnot_favorited\x18\x02 \x01(\bR\fnotFavorited\x12\x1f\n" +
-	"\vtotal_count\x18\x03 \x01(\x03R\n" +
-	"totalCount\"\xb6\x02\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\xb6\x02\n" +
 	"\x0fListFavoriteReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12V\n" +
 	"\x0eaggregate_type\x18\x02 \x01(\x0e2/.api.videoCore.service.v1.FavoriteAggregateTypeR\raggregateType\x12K\n" +

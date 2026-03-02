@@ -45,7 +45,7 @@ func (s *FavoriteServiceService) RemoveFavorite(ctx context.Context, req *pb.Rem
 		FavoriteType: int32(req.Type),
 	}
 
-	result, err := s.uc.RemoveFavorite(ctx, cmd)
+	err := s.uc.RemoveFavorite(ctx, cmd)
 	if err != nil {
 		return &pb.RemoveFavoriteResp{
 			Meta: utils.GetMetaWithError(err),
@@ -53,9 +53,7 @@ func (s *FavoriteServiceService) RemoveFavorite(ctx context.Context, req *pb.Rem
 	}
 
 	return &pb.RemoveFavoriteResp{
-		Meta:         utils.GetSuccessMeta(),
-		NotFavorited: result.NotFavorited,
-		TotalCount:   result.TotalCount,
+		Meta: utils.GetSuccessMeta(),
 	}, nil
 }
 

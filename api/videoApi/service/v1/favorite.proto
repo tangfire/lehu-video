@@ -78,10 +78,6 @@ message RemoveFavoriteReq {
 }
 
 message RemoveFavoriteResp {
-	bool not_favorited = 1;     // 是否本来就没点赞
-	int64 total_count = 2;      // 当前总点赞数
-	int64 total_likes = 3;      // 当前点赞数
-	int64 total_dislikes = 4;   // 当前点踩数
 }
 
 message ListFavoriteVideoReq {

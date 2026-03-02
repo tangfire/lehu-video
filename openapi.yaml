@@ -258,15 +258,7 @@ components:
                     description: '@gotags: json:"id,omitempty,string"'
         RemoveFavoriteResp:
             type: object
-            properties:
-                notFavorited:
-                    type: boolean
-                totalCount:
-                    type: string
-                totalLikes:
-                    type: string
-                totalDislikes:
-                    type: string
+            properties: {}
         Status:
             type: object
             properties:

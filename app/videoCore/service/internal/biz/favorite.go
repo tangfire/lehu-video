@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"fmt"
+	"lehu-video/app/videoCore/service/internal/pkg/idgen"
 	"sync"
 	"time"
 
@@ -70,11 +71,6 @@ type RemoveFavoriteCommand struct {
 	TargetId     int64
 	TargetType   int32
 	FavoriteType int32
-}
-
-type RemoveFavoriteResult struct {
-	NotFavorited bool
-	TotalCount   int64
 }
 
 type ListFavoriteQuery struct {
@@ -180,14 +176,14 @@ type FavoriteStats struct {
 }
 
 type FavoriteUsecase struct {
-	repo        FavoriteRepo
-	videoRepo   VideoRepo
-	counterRepo CounterRepo
-	cache       *redis.Client
-	log         *log.Helper
-	limiter     *rate.Limiter
-	keyGen      CacheKeyGenerator
-
+	repo             FavoriteRepo
+	videoRepo        VideoRepo
+	counterRepo      CounterRepo
+	cache            *redis.Client
+	log              *log.Helper
+	limiter          *rate.Limiter
+	keyGen           CacheKeyGenerator
+	idGen            idgen.Generator
 	maxBatchSize     int
 	favoriteCooldown time.Duration
 	mutex            sync.RWMutex
@@ -199,6 +195,7 @@ func NewFavoriteUsecase(
 	videoRepo VideoRepo,
 	counterRepo CounterRepo,
 	cache *redis.Client,
+	idGen idgen.Generator,
 	logger log.Logger,
 ) *FavoriteUsecase {
 	return &FavoriteUsecase{
@@ -206,6 +203,7 @@ func NewFavoriteUsecase(
 		videoRepo:        videoRepo,
 		counterRepo:      counterRepo,
 		cache:            cache,
+		idGen:            idGen,
 		log:              log.NewHelper(logger),
 		limiter:          rate.NewLimiter(rate.Limit(1000), 100),
 		keyGen:           &defaultCacheKeyGenerator{},
@@ -296,6 +294,7 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 		}
 
 		favorite := &Favorite{
+			Id:           uc.idGen.NextID(),
 			UserId:       cmd.UserId,
 			TargetId:     cmd.TargetId,
 			TargetType:   cmd.TargetType,
@@ -304,7 +303,7 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 			CreatedAt:    time.Now(),
 			UpdatedAt:    time.Now(),
 		}
-		favorite.SetId()
+
 		if err := uc.repo.CreateFavorite(ctx, favorite); err != nil {
 			return fmt.Errorf("创建点赞记录失败: %w", err)
 		}
@@ -339,12 +338,11 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 }
 
 // RemoveFavorite 取消点赞/点踩
-func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavoriteCommand) (*RemoveFavoriteResult, error) {
+func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavoriteCommand) error {
 	if cmd.UserId <= 0 || cmd.TargetId <= 0 {
-		return nil, fmt.Errorf("参数无效")
+		return fmt.Errorf("参数无效")
 	}
 
-	var result *RemoveFavoriteResult
 	var targetAuthorID int64
 	var targetIsVideo bool
 
@@ -354,30 +352,18 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 			return fmt.Errorf("查询点赞记录失败: %w", err)
 		}
 		if favorite == nil || favorite.DeleteAt != 0 {
-			stats, _ := uc.repo.GetFavoriteStats(ctx, cmd.TargetId, cmd.TargetType)
-			result = &RemoveFavoriteResult{
-				NotFavorited: true,
-				TotalCount:   stats.TotalCount,
-			}
+			// 未点赞或已删除，视为操作成功（幂等）
 			return nil
 		}
 
+		// 软删除
 		favorite.DeleteAt = time.Now().Unix()
 		favorite.UpdatedAt = time.Now()
 		if err := uc.repo.UpdateFavorite(ctx, favorite); err != nil {
 			return fmt.Errorf("取消点赞失败: %w", err)
 		}
 
-		stats, err := uc.repo.GetFavoriteStats(ctx, cmd.TargetId, cmd.TargetType)
-		if err != nil {
-			uc.log.Warnf("获取最新统计失败: %v", err)
-			stats = &FavoriteStats{TotalCount: 0}
-		}
-		result = &RemoveFavoriteResult{
-			NotFavorited: false,
-			TotalCount:   stats.TotalCount,
-		}
-
+		// 如果是视频点赞取消，记录作者ID用于异步更新获赞数
 		if cmd.TargetType == 0 && cmd.FavoriteType == 0 {
 			targetIsVideo = true
 			exist, video, err := uc.videoRepo.GetVideoById(ctx, cmd.TargetId)
@@ -391,9 +377,10 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 	})
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
+	// 异步更新作者总获赞数（减1）
 	if targetIsVideo && targetAuthorID > 0 {
 		go func() {
 			bgCtx := context.Background()
@@ -403,13 +390,15 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 		}()
 	}
 
+	// 异步使缓存失效
 	go uc.updateCacheAsync(context.Background(), &AddFavoriteCommand{
 		UserId:       cmd.UserId,
 		TargetId:     cmd.TargetId,
 		TargetType:   cmd.TargetType,
 		FavoriteType: cmd.FavoriteType,
 	})
-	return result, nil
+
+	return nil
 }
 
 // ListFavorite 查询点赞列表
