@@ -39,9 +39,9 @@ func (r *userRepo) CreateUser(ctx context.Context, in *biz.User) error {
 		Gender:          in.Gender,
 		FollowCount:     in.FollowCount,
 		FollowerCount:   in.FollowerCount,
-		TotalFavorited:  in.TotalFavorited,
+		BeLikedCount:    in.BeLikedCount, // 原 TotalFavorited
 		WorkCount:       in.WorkCount,
-		FavoriteCount:   in.FavoriteCount,
+		CollectionCount: in.CollectionCount, // 原 FavoriteCount
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
@@ -67,9 +67,9 @@ func (r *userRepo) UpdateUser(ctx context.Context, in *biz.User) error {
 		Gender:          in.Gender,
 		FollowCount:     in.FollowCount,
 		FollowerCount:   in.FollowerCount,
-		TotalFavorited:  in.TotalFavorited,
+		BeLikedCount:    in.BeLikedCount,
 		WorkCount:       in.WorkCount,
-		FavoriteCount:   in.FavoriteCount,
+		CollectionCount: in.CollectionCount,
 		CreatedAt:       in.CreatedAt,
 		UpdatedAt:       time.Now(),
 	}
@@ -195,9 +195,9 @@ func convertToBizUser(user *model.User) *biz.User {
 		Gender:          user.Gender,
 		FollowCount:     user.FollowCount,
 		FollowerCount:   user.FollowerCount,
-		TotalFavorited:  user.TotalFavorited,
+		BeLikedCount:    user.BeLikedCount, // 原 TotalFavorited
 		WorkCount:       user.WorkCount,
-		FavoriteCount:   user.FavoriteCount,
+		CollectionCount: user.CollectionCount, // 原 FavoriteCount
 		CreatedAt:       user.CreatedAt,
 		UpdatedAt:       user.UpdatedAt,
 	}

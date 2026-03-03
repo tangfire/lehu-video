@@ -23,12 +23,10 @@ func NewCounterRepo(redis *redis.Client, logger log.Logger) biz.CounterRepo {
 	}
 }
 
-// 用户计数器 Redis Hash key
 func userCounterKey(userId int64) string {
 	return fmt.Sprintf("user:counter:%d", userId)
 }
 
-// 脏用户集合 key (用于记录需要落库的用户ID)
 const dirtyUserSetKey = "user:counter:dirty"
 
 func (r *counterRepo) GetUserCounters(ctx context.Context, userId int64) (map[string]int64, error) {
@@ -87,9 +85,7 @@ func (r *counterRepo) IncrUserCounter(ctx context.Context, userId int64, field s
 	key := userCounterKey(userId)
 	pipe := r.redis.Pipeline()
 	incr := pipe.HIncrBy(ctx, key, field, delta)
-	// 同时记录该用户为脏数据，等待同步
 	pipe.SAdd(ctx, dirtyUserSetKey, userId)
-	// 设置过期时间，避免永久占用
 	pipe.Expire(ctx, key, 7*24*time.Hour)
 	_, err := pipe.Exec(ctx)
 	if err != nil {

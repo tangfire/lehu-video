@@ -21,7 +21,25 @@ func NewCollectionRepo(data *Data, logger log.Logger) biz.CollectionRepo {
 	}
 }
 
-// 纯数据访问方法 - 不包含业务逻辑
+// db 返回当前上下文中的数据库连接，支持事务
+func (r *collectionRepo) db(ctx context.Context) *gorm.DB {
+	if tx, ok := ctx.Value("db").(*gorm.DB); ok {
+		return tx
+	}
+	return r.data.db.WithContext(ctx)
+}
+
+// WithTransaction 实现事务支持
+func (r *collectionRepo) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 将事务对象存入上下文，键为 "db"，以便被 db() 方法识别
+		newCtx := context.WithValue(ctx, "db", tx)
+		return fn(newCtx)
+	})
+}
+
+// 以下方法全部使用 r.db(ctx) 代替 r.data.db.WithContext(ctx)
+
 func (r *collectionRepo) CreateCollection(ctx context.Context, collection *biz.Collection) error {
 	dbCollection := model.Collection{
 		Id:          collection.Id,
@@ -33,12 +51,12 @@ func (r *collectionRepo) CreateCollection(ctx context.Context, collection *biz.C
 		UpdatedAt:   time.Now(),
 	}
 
-	return r.data.db.WithContext(ctx).Create(&dbCollection).Error
+	return r.db(ctx).Create(&dbCollection).Error
 }
 
 func (r *collectionRepo) GetCollectionById(ctx context.Context, id int64) (*biz.Collection, error) {
 	var dbCollection model.Collection
-	err := r.data.db.WithContext(ctx).
+	err := r.db(ctx).
 		Where("id = ? AND is_deleted = ?", id, false).
 		First(&dbCollection).Error
 
@@ -59,7 +77,7 @@ func (r *collectionRepo) GetCollectionById(ctx context.Context, id int64) (*biz.
 
 func (r *collectionRepo) GetCollectionByUserIdAndId(ctx context.Context, userId, id int64) (*biz.Collection, error) {
 	var dbCollection model.Collection
-	err := r.data.db.WithContext(ctx).
+	err := r.db(ctx).
 		Where("id = ? AND user_id = ? AND is_deleted = ?", id, userId, false).
 		First(&dbCollection).Error
 
@@ -79,7 +97,7 @@ func (r *collectionRepo) GetCollectionByUserIdAndId(ctx context.Context, userId,
 }
 
 func (r *collectionRepo) DeleteCollection(ctx context.Context, id int64) error {
-	return r.data.db.WithContext(ctx).
+	return r.db(ctx).
 		Model(&model.Collection{}).
 		Where("id = ?", id).
 		Update("is_deleted", true).Error
@@ -88,7 +106,7 @@ func (r *collectionRepo) DeleteCollection(ctx context.Context, id int64) error {
 func (r *collectionRepo) ListCollectionsByUserId(ctx context.Context, userId int64, offset, limit int) ([]*biz.Collection, error) {
 	var dbCollections []*model.Collection
 
-	query := r.data.db.WithContext(ctx).
+	query := r.db(ctx).
 		Where("user_id = ? AND is_deleted = ?", userId, false).
 		Order("created_at DESC")
 
@@ -116,7 +134,7 @@ func (r *collectionRepo) ListCollectionsByUserId(ctx context.Context, userId int
 
 func (r *collectionRepo) CountCollectionsByUserId(ctx context.Context, userId int64) (int64, error) {
 	var count int64
-	err := r.data.db.WithContext(ctx).
+	err := r.db(ctx).
 		Model(&model.Collection{}).
 		Where("user_id = ? AND is_deleted = ?", userId, false).
 		Count(&count).Error
@@ -125,7 +143,7 @@ func (r *collectionRepo) CountCollectionsByUserId(ctx context.Context, userId in
 }
 
 func (r *collectionRepo) UpdateCollection(ctx context.Context, collection *biz.Collection) error {
-	return r.data.db.WithContext(ctx).
+	return r.db(ctx).
 		Model(&model.Collection{}).
 		Where("id = ?", collection.Id).
 		Updates(map[string]interface{}{
@@ -146,12 +164,12 @@ func (r *collectionRepo) CreateCollectionVideo(ctx context.Context, relation *bi
 		UpdatedAt:    time.Now(),
 	}
 
-	return r.data.db.WithContext(ctx).Create(&dbRelation).Error
+	return r.db(ctx).Create(&dbRelation).Error
 }
 
 func (r *collectionRepo) GetCollectionVideo(ctx context.Context, userId, collectionId, videoId int64) (*biz.CollectionVideoRelation, error) {
 	var dbRelation model.CollectionVideo
-	err := r.data.db.WithContext(ctx).
+	err := r.db(ctx).
 		Where("user_id = ? AND collection_id = ? AND video_id = ? AND is_deleted = ?",
 			userId, collectionId, videoId, false).
 		First(&dbRelation).Error
@@ -172,7 +190,7 @@ func (r *collectionRepo) GetCollectionVideo(ctx context.Context, userId, collect
 }
 
 func (r *collectionRepo) DeleteCollectionVideo(ctx context.Context, relationId int64) error {
-	return r.data.db.WithContext(ctx).
+	return r.db(ctx).
 		Model(&model.CollectionVideo{}).
 		Where("id = ?", relationId).
 		Update("is_deleted", true).Error
@@ -182,12 +200,12 @@ func (r *collectionRepo) ListVideoIdsByCollectionId(ctx context.Context, collect
 	var videoIds []int64
 
 	var count int64
-	err := r.data.db.WithContext(ctx).
+	err := r.db(ctx).
 		Model(&model.CollectionVideo{}).
 		Where("collection_id = ? AND is_deleted = ?", collectionId, false).
 		Count(&count).Error
 
-	query := r.data.db.WithContext(ctx).
+	query := r.db(ctx).
 		Model(&model.CollectionVideo{}).
 		Select("video_id").
 		Where("collection_id = ? AND is_deleted = ?", collectionId, false).
@@ -203,7 +221,7 @@ func (r *collectionRepo) ListVideoIdsByCollectionId(ctx context.Context, collect
 
 func (r *collectionRepo) CountCollectionsByVideoId(ctx context.Context, videoId int64) (int64, error) {
 	var count int64
-	err := r.data.db.WithContext(ctx).
+	err := r.db(ctx).
 		Model(&model.CollectionVideo{}).
 		Where("video_id = ? AND is_deleted = ?", videoId, false).
 		Count(&count).Error
@@ -211,7 +229,6 @@ func (r *collectionRepo) CountCollectionsByVideoId(ctx context.Context, videoId 
 	return count, err
 }
 
-// 在 collectionRepo 中增加此方法
 func (r *collectionRepo) BatchCountCollectionsByVideoId(ctx context.Context, videoIds []int64) (map[int64]int64, error) {
 	if len(videoIds) == 0 {
 		return make(map[int64]int64), nil
@@ -222,8 +239,7 @@ func (r *collectionRepo) BatchCountCollectionsByVideoId(ctx context.Context, vid
 		Count   int64
 	}
 
-	// 单次查询，使用 IN 条件
-	err := r.data.db.WithContext(ctx).
+	err := r.db(ctx).
 		Model(&model.CollectionVideo{}).
 		Select("video_id, COUNT(*) as count").
 		Where("video_id IN (?) AND is_deleted = ?", videoIds, false).
@@ -234,7 +250,6 @@ func (r *collectionRepo) BatchCountCollectionsByVideoId(ctx context.Context, vid
 		return nil, err
 	}
 
-	// 将结果转换为 map，方便上层使用
 	countMap := make(map[int64]int64, len(results))
 	for _, rc := range results {
 		countMap[rc.VideoID] = rc.Count
@@ -245,7 +260,7 @@ func (r *collectionRepo) BatchCountCollectionsByVideoId(ctx context.Context, vid
 func (r *collectionRepo) ListCollectedVideoIds(ctx context.Context, userId int64, videoIds []int64) ([]int64, error) {
 	var collectedVideoIds []int64
 
-	err := r.data.db.WithContext(ctx).
+	err := r.db(ctx).
 		Model(&model.CollectionVideo{}).
 		Select("video_id").
 		Where("user_id = ? AND video_id IN ? AND is_deleted = ?", userId, videoIds, false).

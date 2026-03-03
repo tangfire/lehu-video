@@ -48,6 +48,14 @@ CREATE TABLE `user` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
+-- 修改用户表字段名（谨慎操作，建议用工具或临时方案）
+ALTER TABLE `user` CHANGE `total_favorited` `be_liked_count` bigint(20) DEFAULT '0';
+ALTER TABLE `user` CHANGE `favorite_count` `collection_count` bigint(20) DEFAULT '0';
+
+-- 为视频表添加收藏计数
+ALTER TABLE `video` ADD COLUMN `collection_count` bigint(20) NOT NULL DEFAULT '0' AFTER `comment_count`;
+
+
 
 
 

@@ -54,7 +54,7 @@ func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry
 	commentUsecase := biz.NewCommentUsecase(commentRepo, cache, client, hotVideoDetector, logger)
 	commentServiceService := service.NewCommentServiceService(commentUsecase)
 	collectionRepo := data.NewCollectionRepo(dataData, logger)
-	collectionUsecase := biz.NewCollectionUsecase(collectionRepo, counterRepo, generator, logger)
+	collectionUsecase := biz.NewCollectionUsecase(collectionRepo, videoRepo, counterRepo, generator, logger)
 	collectionServiceService := service.NewCollectionServiceService(collectionUsecase)
 	grpcServer := server.NewGRPCServer(confServer, videoServiceService, feedServiceService, userServiceService, followServiceService, favoriteServiceService, commentServiceService, collectionServiceService, logger)
 	httpServer := server.NewHTTPServer(confServer, videoServiceService, logger)

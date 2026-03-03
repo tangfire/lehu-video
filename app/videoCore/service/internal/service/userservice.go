@@ -67,9 +67,9 @@ func (s *UserServiceService) GetUserBaseInfo(ctx context.Context, req *pb.GetUse
 		Gender:          result.User.Gender,
 		FollowCount:     result.User.FollowCount,
 		FollowerCount:   result.User.FollowerCount,
-		TotalFavorited:  result.User.TotalFavorited,
+		BeLikedCount:    result.User.BeLikedCount, // 原 TotalFavorited
 		WorkCount:       result.User.WorkCount,
-		FavoriteCount:   result.User.FavoriteCount,
+		CollectionCount: result.User.CollectionCount, // 原 FavoriteCount
 		CreatedAt:       result.User.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:       result.User.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
@@ -129,9 +129,9 @@ func (s *UserServiceService) BatchGetUserBaseInfo(ctx context.Context, req *pb.B
 			Gender:          user.Gender,
 			FollowCount:     user.FollowCount,
 			FollowerCount:   user.FollowerCount,
-			TotalFavorited:  user.TotalFavorited,
+			BeLikedCount:    user.BeLikedCount,
 			WorkCount:       user.WorkCount,
-			FavoriteCount:   user.FavoriteCount,
+			CollectionCount: user.CollectionCount,
 			CreatedAt:       user.CreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:       user.UpdatedAt.Format("2006-01-02 15:04:05"),
 		})
@@ -171,9 +171,9 @@ func (s *UserServiceService) SearchUsers(ctx context.Context, req *pb.SearchUser
 			Gender:          user.Gender,
 			FollowCount:     user.FollowCount,
 			FollowerCount:   user.FollowerCount,
-			TotalFavorited:  user.TotalFavorited,
+			BeLikedCount:    user.BeLikedCount,
 			WorkCount:       user.WorkCount,
-			FavoriteCount:   user.FavoriteCount,
+			CollectionCount: user.CollectionCount,
 			CreatedAt:       user.CreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:       user.UpdatedAt.Format("2006-01-02 15:04:05"),
 		})
@@ -187,7 +187,7 @@ func (s *UserServiceService) SearchUsers(ctx context.Context, req *pb.SearchUser
 }
 
 func (s *UserServiceService) UpdateUserStats(ctx context.Context, req *pb.UpdateUserStatsReq) (*pb.UpdateUserStatsResp, error) {
-	var followCount, followerCount, totalFavorited, workCount, favoriteCount *int64
+	var followCount, followerCount, beLikedCount, workCount, collectionCount *int64
 
 	if req.FollowCount != nil {
 		followCount = req.FollowCount
@@ -195,23 +195,23 @@ func (s *UserServiceService) UpdateUserStats(ctx context.Context, req *pb.Update
 	if req.FollowerCount != nil {
 		followerCount = req.FollowerCount
 	}
-	if req.TotalFavorited != nil {
-		totalFavorited = req.TotalFavorited
+	if req.BeLikedCount != nil {
+		beLikedCount = req.BeLikedCount
 	}
 	if req.WorkCount != nil {
 		workCount = req.WorkCount
 	}
-	if req.FavoriteCount != nil {
-		favoriteCount = req.FavoriteCount
+	if req.CollectionCount != nil {
+		collectionCount = req.CollectionCount
 	}
 
 	cmd := &biz.UpdateUserStatsCommand{
-		UserId:         cast.ToInt64(req.UserId),
-		FollowCount:    followCount,
-		FollowerCount:  followerCount,
-		TotalFavorited: totalFavorited,
-		WorkCount:      workCount,
-		FavoriteCount:  favoriteCount,
+		UserId:          cast.ToInt64(req.UserId),
+		FollowCount:     followCount,
+		FollowerCount:   followerCount,
+		BeLikedCount:    beLikedCount,
+		WorkCount:       workCount,
+		CollectionCount: collectionCount,
 	}
 
 	_, err := s.uc.UpdateUserStats(ctx, cmd)

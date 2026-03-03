@@ -25,7 +25,7 @@ func (r *CoreAdapterImpl) GetUserBaseInfo(ctx context.Context, userID, accountID
 	return convertToBizUserBaseInfo(resp.User), nil
 }
 
-// 转换函数
+// 转换函数（适配core新字段 → API服务biz旧字段）
 func convertToBizUserBaseInfo(user *core.UserBaseInfo) *biz.UserBaseInfo {
 	if user == nil {
 		return nil
@@ -43,9 +43,9 @@ func convertToBizUserBaseInfo(user *core.UserBaseInfo) *biz.UserBaseInfo {
 		Gender:          user.Gender,
 		FollowCount:     user.FollowCount,
 		FollowerCount:   user.FollowerCount,
-		TotalFavorited:  user.TotalFavorited,
+		TotalFavorited:  user.BeLikedCount, // 原 total_favorited → be_liked_count
 		WorkCount:       user.WorkCount,
-		FavoriteCount:   user.FavoriteCount,
+		FavoriteCount:   user.CollectionCount, // 原 favorite_count → collection_count
 		CreatedAt:       user.CreatedAt,
 		UpdatedAt:       user.UpdatedAt,
 	}
@@ -89,8 +89,6 @@ func (r *CoreAdapterImpl) GetUserInfoByIdList(ctx context.Context, userIdList []
 		return nil, err
 	}
 
-	// 注意：这里返回的是 []*biz.UserBaseInfo，不是 []*biz.UserInfo
-	// 我们需要转换成 []*biz.UserInfo
 	var retUserInfos []*biz.UserInfo
 	for _, user := range resp.Users {
 		retUserInfos = append(retUserInfos, &biz.UserInfo{
@@ -105,9 +103,9 @@ func (r *CoreAdapterImpl) GetUserInfoByIdList(ctx context.Context, userIdList []
 			Gender:          user.Gender,
 			FollowCount:     user.FollowCount,
 			FollowerCount:   user.FollowerCount,
-			TotalFavorited:  user.TotalFavorited,
+			TotalFavorited:  user.BeLikedCount, // 适配新字段
 			WorkCount:       user.WorkCount,
-			FavoriteCount:   user.FavoriteCount,
+			FavoriteCount:   user.CollectionCount, // 适配新字段
 			CreatedAt:       user.CreatedAt,
 			// OnlineStatus 和 LastOnlineTime 需要从chat服务获取
 		})
@@ -161,9 +159,9 @@ func (r *CoreAdapterImpl) SearchUsers(ctx context.Context, keyword string, page,
 			Gender:          user.Gender,
 			FollowCount:     user.FollowCount,
 			FollowerCount:   user.FollowerCount,
-			TotalFavorited:  user.TotalFavorited,
+			TotalFavorited:  user.BeLikedCount,
 			WorkCount:       user.WorkCount,
-			FavoriteCount:   user.FavoriteCount,
+			FavoriteCount:   user.CollectionCount,
 			CreatedAt:       user.CreatedAt,
 			UpdatedAt:       user.UpdatedAt,
 		})
@@ -200,9 +198,9 @@ func (r *CoreAdapterImpl) BatchGetUserBaseInfo(ctx context.Context, userIDs []st
 			Gender:          user.Gender,
 			FollowCount:     user.FollowCount,
 			FollowerCount:   user.FollowerCount,
-			TotalFavorited:  user.TotalFavorited,
+			TotalFavorited:  user.BeLikedCount,
 			WorkCount:       user.WorkCount,
-			FavoriteCount:   user.FavoriteCount,
+			FavoriteCount:   user.CollectionCount,
 			CreatedAt:       user.CreatedAt,
 			UpdatedAt:       user.UpdatedAt,
 		})

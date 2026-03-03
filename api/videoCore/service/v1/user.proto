@@ -22,9 +22,9 @@ message UserBaseInfo {
 	// 统计信息
 	int64 follow_count = 10;
 	int64 follower_count = 11;
-	int64 total_favorited = 12;
+	int64 be_liked_count = 12;      // 原 total_favorited
 	int64 work_count = 13;
-	int64 favorite_count = 14;
+	int64 collection_count = 14;     // 原 favorite_count
 
 	// 时间信息
 	string created_at = 15;
@@ -112,9 +112,9 @@ message UpdateUserStatsReq {
 	string user_id = 1;
 	optional int64 follow_count = 2;
 	optional int64 follower_count = 3;
-	optional int64 total_favorited = 4;
+	optional int64 be_liked_count = 4;      // 原 total_favorited
 	optional int64 work_count = 5;
-	optional int64 favorite_count = 6;
+	optional int64 collection_count = 6;    // 原 favorite_count
 }
 
 message UpdateUserStatsResp {

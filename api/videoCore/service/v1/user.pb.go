@@ -34,11 +34,11 @@ type UserBaseInfo struct {
 	Email           string                 `protobuf:"bytes,8,opt,name=email,proto3" json:"email,omitempty"`
 	Gender          int32                  `protobuf:"varint,9,opt,name=gender,proto3" json:"gender,omitempty"`
 	// 统计信息
-	FollowCount    int64 `protobuf:"varint,10,opt,name=follow_count,json=followCount,proto3" json:"follow_count,omitempty"`
-	FollowerCount  int64 `protobuf:"varint,11,opt,name=follower_count,json=followerCount,proto3" json:"follower_count,omitempty"`
-	TotalFavorited int64 `protobuf:"varint,12,opt,name=total_favorited,json=totalFavorited,proto3" json:"total_favorited,omitempty"`
-	WorkCount      int64 `protobuf:"varint,13,opt,name=work_count,json=workCount,proto3" json:"work_count,omitempty"`
-	FavoriteCount  int64 `protobuf:"varint,14,opt,name=favorite_count,json=favoriteCount,proto3" json:"favorite_count,omitempty"`
+	FollowCount     int64 `protobuf:"varint,10,opt,name=follow_count,json=followCount,proto3" json:"follow_count,omitempty"`
+	FollowerCount   int64 `protobuf:"varint,11,opt,name=follower_count,json=followerCount,proto3" json:"follower_count,omitempty"`
+	BeLikedCount    int64 `protobuf:"varint,12,opt,name=be_liked_count,json=beLikedCount,proto3" json:"be_liked_count,omitempty"` // 原 total_favorited
+	WorkCount       int64 `protobuf:"varint,13,opt,name=work_count,json=workCount,proto3" json:"work_count,omitempty"`
+	CollectionCount int64 `protobuf:"varint,14,opt,name=collection_count,json=collectionCount,proto3" json:"collection_count,omitempty"` // 原 favorite_count
 	// 时间信息
 	CreatedAt     string `protobuf:"bytes,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     string `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
@@ -153,9 +153,9 @@ func (x *UserBaseInfo) GetFollowerCount() int64 {
 	return 0
 }
 
-func (x *UserBaseInfo) GetTotalFavorited() int64 {
+func (x *UserBaseInfo) GetBeLikedCount() int64 {
 	if x != nil {
-		return x.TotalFavorited
+		return x.BeLikedCount
 	}
 	return 0
 }
@@ -167,9 +167,9 @@ func (x *UserBaseInfo) GetWorkCount() int64 {
 	return 0
 }
 
-func (x *UserBaseInfo) GetFavoriteCount() int64 {
+func (x *UserBaseInfo) GetCollectionCount() int64 {
 	if x != nil {
-		return x.FavoriteCount
+		return x.CollectionCount
 	}
 	return 0
 }
@@ -765,15 +765,15 @@ func (x *SearchUsersResp) GetMeta() *Metadata {
 }
 
 type UpdateUserStatsReq struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	FollowCount    *int64                 `protobuf:"varint,2,opt,name=follow_count,json=followCount,proto3,oneof" json:"follow_count,omitempty"`
-	FollowerCount  *int64                 `protobuf:"varint,3,opt,name=follower_count,json=followerCount,proto3,oneof" json:"follower_count,omitempty"`
-	TotalFavorited *int64                 `protobuf:"varint,4,opt,name=total_favorited,json=totalFavorited,proto3,oneof" json:"total_favorited,omitempty"`
-	WorkCount      *int64                 `protobuf:"varint,5,opt,name=work_count,json=workCount,proto3,oneof" json:"work_count,omitempty"`
-	FavoriteCount  *int64                 `protobuf:"varint,6,opt,name=favorite_count,json=favoriteCount,proto3,oneof" json:"favorite_count,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	FollowCount     *int64                 `protobuf:"varint,2,opt,name=follow_count,json=followCount,proto3,oneof" json:"follow_count,omitempty"`
+	FollowerCount   *int64                 `protobuf:"varint,3,opt,name=follower_count,json=followerCount,proto3,oneof" json:"follower_count,omitempty"`
+	BeLikedCount    *int64                 `protobuf:"varint,4,opt,name=be_liked_count,json=beLikedCount,proto3,oneof" json:"be_liked_count,omitempty"` // 原 total_favorited
+	WorkCount       *int64                 `protobuf:"varint,5,opt,name=work_count,json=workCount,proto3,oneof" json:"work_count,omitempty"`
+	CollectionCount *int64                 `protobuf:"varint,6,opt,name=collection_count,json=collectionCount,proto3,oneof" json:"collection_count,omitempty"` // 原 favorite_count
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpdateUserStatsReq) Reset() {
@@ -827,9 +827,9 @@ func (x *UpdateUserStatsReq) GetFollowerCount() int64 {
 	return 0
 }
 
-func (x *UpdateUserStatsReq) GetTotalFavorited() int64 {
-	if x != nil && x.TotalFavorited != nil {
-		return *x.TotalFavorited
+func (x *UpdateUserStatsReq) GetBeLikedCount() int64 {
+	if x != nil && x.BeLikedCount != nil {
+		return *x.BeLikedCount
 	}
 	return 0
 }
@@ -841,9 +841,9 @@ func (x *UpdateUserStatsReq) GetWorkCount() int64 {
 	return 0
 }
 
-func (x *UpdateUserStatsReq) GetFavoriteCount() int64 {
-	if x != nil && x.FavoriteCount != nil {
-		return *x.FavoriteCount
+func (x *UpdateUserStatsReq) GetCollectionCount() int64 {
+	if x != nil && x.CollectionCount != nil {
+		return *x.CollectionCount
 	}
 	return 0
 }
@@ -896,7 +896,7 @@ var File_api_videoCore_service_v1_user_proto protoreflect.FileDescriptor
 
 const file_api_videoCore_service_v1_user_proto_rawDesc = "" +
 	"\n" +
-	"#api/videoCore/service/v1/user.proto\x12\x18api.videoCore.service.v1\x1a#api/videoCore/service/v1/base.proto\"\xec\x03\n" +
+	"#api/videoCore/service/v1/user.proto\x12\x18api.videoCore.service.v1\x1a#api/videoCore/service/v1/base.proto\"\xed\x03\n" +
 	"\fUserBaseInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -909,11 +909,11 @@ const file_api_videoCore_service_v1_user_proto_rawDesc = "" +
 	"\x06gender\x18\t \x01(\x05R\x06gender\x12!\n" +
 	"\ffollow_count\x18\n" +
 	" \x01(\x03R\vfollowCount\x12%\n" +
-	"\x0efollower_count\x18\v \x01(\x03R\rfollowerCount\x12'\n" +
-	"\x0ftotal_favorited\x18\f \x01(\x03R\x0etotalFavorited\x12\x1d\n" +
+	"\x0efollower_count\x18\v \x01(\x03R\rfollowerCount\x12$\n" +
+	"\x0ebe_liked_count\x18\f \x01(\x03R\fbeLikedCount\x12\x1d\n" +
 	"\n" +
-	"work_count\x18\r \x01(\x03R\tworkCount\x12%\n" +
-	"\x0efavorite_count\x18\x0e \x01(\x03R\rfavoriteCount\x12\x1d\n" +
+	"work_count\x18\r \x01(\x03R\tworkCount\x12)\n" +
+	"\x10collection_count\x18\x0e \x01(\x03R\x0fcollectionCount\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x0f \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
@@ -956,20 +956,20 @@ const file_api_videoCore_service_v1_user_proto_rawDesc = "" +
 	"\x0fSearchUsersResp\x12<\n" +
 	"\x05users\x18\x01 \x03(\v2&.api.videoCore.service.v1.UserBaseInfoR\x05users\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x126\n" +
-	"\x04meta\x18\x03 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\xd9\x02\n" +
+	"\x04meta\x18\x03 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"\xdb\x02\n" +
 	"\x12UpdateUserStatsReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12&\n" +
 	"\ffollow_count\x18\x02 \x01(\x03H\x00R\vfollowCount\x88\x01\x01\x12*\n" +
-	"\x0efollower_count\x18\x03 \x01(\x03H\x01R\rfollowerCount\x88\x01\x01\x12,\n" +
-	"\x0ftotal_favorited\x18\x04 \x01(\x03H\x02R\x0etotalFavorited\x88\x01\x01\x12\"\n" +
+	"\x0efollower_count\x18\x03 \x01(\x03H\x01R\rfollowerCount\x88\x01\x01\x12)\n" +
+	"\x0ebe_liked_count\x18\x04 \x01(\x03H\x02R\fbeLikedCount\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"work_count\x18\x05 \x01(\x03H\x03R\tworkCount\x88\x01\x01\x12*\n" +
-	"\x0efavorite_count\x18\x06 \x01(\x03H\x04R\rfavoriteCount\x88\x01\x01B\x0f\n" +
+	"work_count\x18\x05 \x01(\x03H\x03R\tworkCount\x88\x01\x01\x12.\n" +
+	"\x10collection_count\x18\x06 \x01(\x03H\x04R\x0fcollectionCount\x88\x01\x01B\x0f\n" +
 	"\r_follow_countB\x11\n" +
-	"\x0f_follower_countB\x12\n" +
-	"\x10_total_favoritedB\r\n" +
-	"\v_work_countB\x11\n" +
-	"\x0f_favorite_count\"M\n" +
+	"\x0f_follower_countB\x11\n" +
+	"\x0f_be_liked_countB\r\n" +
+	"\v_work_countB\x13\n" +
+	"\x11_collection_count\"M\n" +
 	"\x13UpdateUserStatsResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta2\xa0\x05\n" +
 	"\vUserService\x12a\n" +

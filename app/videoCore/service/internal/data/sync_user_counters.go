@@ -22,7 +22,7 @@ func NewUserCounterSyncJob(db *gorm.DB, counterRepo biz.CounterRepo, logger log.
 		db:          db,
 		counterRepo: counterRepo,
 		log:         log.NewHelper(logger),
-		interval:    5 * time.Minute, // 默认每5分钟同步一次
+		interval:    5 * time.Minute,
 		stopCh:      make(chan struct{}),
 	}
 }
@@ -38,7 +38,7 @@ func (j *UserCounterSyncJob) Stop() {
 func (j *UserCounterSyncJob) run() {
 	ticker := time.NewTicker(j.interval)
 	defer ticker.Stop()
-	j.sync() // 立即执行一次
+	j.sync()
 	for {
 		select {
 		case <-ticker.C:
@@ -61,22 +61,20 @@ func (j *UserCounterSyncJob) sync() {
 	}
 	j.log.Infof("开始同步用户计数器，用户数量: %d", len(userIDs))
 
-	// 批量获取 Redis 中的计数值
-	fields := []string{"follow_count", "follower_count", "total_favorited", "work_count", "favorite_count"}
+	// 字段名已更新
+	fields := []string{"follow_count", "follower_count", "be_liked_count", "work_count", "collection_count"}
 	countersMap, err := j.counterRepo.BatchGetUserCounters(ctx, userIDs, fields)
 	if err != nil {
 		j.log.Errorf("批量获取用户计数器失败: %v", err)
 		return
 	}
 
-	// 批量更新 MySQL
 	err = j.batchUpdateMySQL(ctx, countersMap)
 	if err != nil {
 		j.log.Errorf("批量更新 MySQL 失败: %v", err)
 		return
 	}
 
-	// 清除脏标记
 	for _, uid := range userIDs {
 		if err := j.counterRepo.ClearDirtyFlag(ctx, uid); err != nil {
 			j.log.Warnf("清除用户 %d 脏标记失败: %v", uid, err)
@@ -89,7 +87,6 @@ func (j *UserCounterSyncJob) batchUpdateMySQL(ctx context.Context, countersMap m
 	if len(countersMap) == 0 {
 		return nil
 	}
-	// 使用事务批量更新
 	tx := j.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -103,7 +100,9 @@ func (j *UserCounterSyncJob) batchUpdateMySQL(ctx context.Context, countersMap m
 	for uid, counters := range countersMap {
 		updates := make(map[string]interface{})
 		for field, val := range counters {
-			updates[field] = val
+			// 字段名映射到数据库列名
+			colName := field
+			updates[colName] = val
 		}
 		if len(updates) == 0 {
 			continue

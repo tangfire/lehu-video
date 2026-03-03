@@ -25,11 +25,11 @@ type User struct {
 	LastOnlineTime  time.Time
 
 	// 统计信息
-	FollowCount    int64
-	FollowerCount  int64
-	TotalFavorited int64
-	WorkCount      int64
-	FavoriteCount  int64
+	FollowCount     int64
+	FollowerCount   int64
+	BeLikedCount    int64 // 原 TotalFavorited
+	WorkCount       int64
+	CollectionCount int64 // 原 FavoriteCount
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -37,7 +37,6 @@ type User struct {
 
 func (u *User) GenerateId() {
 	// 使用雪花ID或UUID
-	// 这里简化为使用UUID
 	u.Id = int64(uuid.New().ID())
 }
 
@@ -94,12 +93,12 @@ type SearchUsersResult struct {
 }
 
 type UpdateUserStatsCommand struct {
-	UserId         int64
-	FollowCount    *int64
-	FollowerCount  *int64
-	TotalFavorited *int64
-	WorkCount      *int64
-	FavoriteCount  *int64
+	UserId          int64
+	FollowCount     *int64
+	FollowerCount   *int64
+	BeLikedCount    *int64 // 原 TotalFavorited
+	WorkCount       *int64
+	CollectionCount *int64 // 原 FavoriteCount
 }
 
 type UpdateUserStatsResult struct{}
@@ -109,7 +108,6 @@ type UserRepo interface {
 	CreateUser(ctx context.Context, user *User) error
 	UpdateUser(ctx context.Context, user *User) error
 	GetUserById(ctx context.Context, id int64) (bool, *User, error)
-	// todo
 	GetUserByAccountId(ctx context.Context, accountId int64) (bool, *User, error)
 	GetUserByIdList(ctx context.Context, idList []int64) ([]*User, error)
 	SearchUsers(ctx context.Context, keyword string, offset, limit int) ([]*User, int64, error)
@@ -118,7 +116,7 @@ type UserRepo interface {
 
 type UserUsecase struct {
 	repo        UserRepo
-	counterRepo CounterRepo // 新增
+	counterRepo CounterRepo
 	log         *log.Helper
 }
 
@@ -139,9 +137,9 @@ func (uc *UserUsecase) CreateUser(ctx context.Context, cmd *CreateUserCommand) (
 		Gender:          0,
 		FollowCount:     0,
 		FollowerCount:   0,
-		TotalFavorited:  0,
+		BeLikedCount:    0,
 		WorkCount:       0,
-		FavoriteCount:   0,
+		CollectionCount: 0,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
@@ -176,27 +174,26 @@ func (uc *UserUsecase) GetUserBaseInfo(ctx context.Context, query *GetUserBaseIn
 		return nil, errors.New("用户不存在")
 	}
 
-	// todo 感觉这里是不是写的有点问题?因为这些count字段不是好像都已经在数据库了嘛？？好像不需要什么额外的查询
 	// 从 Redis 获取计数器
 	counters, err := uc.counterRepo.GetUserCounters(ctx, existUser.Id)
 	if err != nil {
 		uc.log.Warnf("从 Redis 获取用户计数器失败: %v, 使用 DB 值", err)
 	} else if counters != nil {
-		// 使用 Redis 中的值覆盖
+		// 使用 Redis 中的值覆盖，注意 key 名称已更新
 		if val, ok := counters["follow_count"]; ok {
 			existUser.FollowCount = val
 		}
 		if val, ok := counters["follower_count"]; ok {
 			existUser.FollowerCount = val
 		}
-		if val, ok := counters["total_favorited"]; ok {
-			existUser.TotalFavorited = val
+		if val, ok := counters["be_liked_count"]; ok {
+			existUser.BeLikedCount = val
 		}
 		if val, ok := counters["work_count"]; ok {
 			existUser.WorkCount = val
 		}
-		if val, ok := counters["favorite_count"]; ok {
-			existUser.FavoriteCount = val
+		if val, ok := counters["collection_count"]; ok {
+			existUser.CollectionCount = val
 		}
 	} else {
 		// Redis 中没有，则从 DB 加载并同步到 Redis
@@ -209,11 +206,11 @@ func (uc *UserUsecase) GetUserBaseInfo(ctx context.Context, query *GetUserBaseIn
 // 将 DB 中的计数器同步到 Redis（异步）
 func (uc *UserUsecase) syncUserCountersToRedis(ctx context.Context, user *User) {
 	counters := map[string]int64{
-		"follow_count":    user.FollowCount,
-		"follower_count":  user.FollowerCount,
-		"total_favorited": user.TotalFavorited,
-		"work_count":      user.WorkCount,
-		"favorite_count":  user.FavoriteCount,
+		"follow_count":     user.FollowCount,
+		"follower_count":   user.FollowerCount,
+		"be_liked_count":   user.BeLikedCount,
+		"work_count":       user.WorkCount,
+		"collection_count": user.CollectionCount,
 	}
 	err := uc.counterRepo.SetUserCounters(ctx, user.Id, counters)
 	if err != nil {
@@ -261,7 +258,6 @@ func (uc *UserUsecase) UpdateUserInfo(ctx context.Context, cmd *UpdateUserInfoCo
 }
 
 func (uc *UserUsecase) BatchGetUserBaseInfo(ctx context.Context, query *BatchGetUserBaseInfoQuery) (*BatchGetUserBaseInfoResult, error) {
-
 	if len(query.UserIds) == 0 {
 		return &BatchGetUserBaseInfoResult{Users: []*User{}}, nil
 	}
@@ -305,7 +301,7 @@ func (uc *UserUsecase) SearchUsers(ctx context.Context, query *SearchUsersQuery)
 	}, nil
 }
 
-// todo 是不是因为你点赞什么的，然后就去操作数据库，感觉压力太大了，所以这里有个先操作缓存的操作呢???
+// UpdateUserStats 更新用户统计信息（直接操作 Redis 计数器）
 func (uc *UserUsecase) UpdateUserStats(ctx context.Context, cmd *UpdateUserStatsCommand) (*UpdateUserStatsResult, error) {
 	updates := make(map[string]int64)
 	if cmd.FollowCount != nil {
@@ -314,14 +310,14 @@ func (uc *UserUsecase) UpdateUserStats(ctx context.Context, cmd *UpdateUserStats
 	if cmd.FollowerCount != nil {
 		updates["follower_count"] = *cmd.FollowerCount
 	}
-	if cmd.TotalFavorited != nil {
-		updates["total_favorited"] = *cmd.TotalFavorited
+	if cmd.BeLikedCount != nil {
+		updates["be_liked_count"] = *cmd.BeLikedCount
 	}
 	if cmd.WorkCount != nil {
 		updates["work_count"] = *cmd.WorkCount
 	}
-	if cmd.FavoriteCount != nil {
-		updates["favorite_count"] = *cmd.FavoriteCount
+	if cmd.CollectionCount != nil {
+		updates["collection_count"] = *cmd.CollectionCount
 	}
 
 	if len(updates) == 0 {
