@@ -1,6 +1,9 @@
 package biz
 
-import "github.com/google/wire"
+import (
+	"github.com/google/wire"
+	"lehu-video/app/videoCore/service/internal/deprecated"
+)
 
 // ProviderSet is biz providers.
 var ProviderSet = wire.NewSet(
@@ -13,7 +16,7 @@ var ProviderSet = wire.NewSet(
 	NewFeedUsecase,
 	NewKafkaConsumer,
 	NewKafkaProducer,
-	NewHotVideoDetector,
+	deprecated.NewHotVideoDetector,
 	NewRecentViewedManager,
 )
 

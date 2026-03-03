@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"lehu-video/app/videoCore/service/internal/deprecated"
 	"time"
 
 	"github.com/coocood/freecache"
@@ -146,15 +147,15 @@ type CommentRepo interface {
 // CommentUsecase 业务逻辑层
 type CommentUsecase struct {
 	repo         CommentRepo
-	cache        *freecache.Cache  // 本地缓存
-	redis        *redis.Client     // Redis 客户端
-	videoCounter VideoCounterRepo  // 新增
-	hotDetector  *HotVideoDetector // 热点检测器
+	cache        *freecache.Cache             // 本地缓存
+	redis        *redis.Client                // Redis 客户端
+	videoCounter VideoCounterRepo             // 新增
+	hotDetector  *deprecated.HotVideoDetector // 热点检测器
 	log          *log.Helper
 	sfg          singleflight.Group // 新增：用于合并并发回源请求
 }
 
-func NewCommentUsecase(repo CommentRepo, cache *freecache.Cache, redis *redis.Client, hotDetector *HotVideoDetector, videoCounter VideoCounterRepo, logger log.Logger) *CommentUsecase {
+func NewCommentUsecase(repo CommentRepo, cache *freecache.Cache, redis *redis.Client, hotDetector *deprecated.HotVideoDetector, videoCounter VideoCounterRepo, logger log.Logger) *CommentUsecase {
 	return &CommentUsecase{
 		repo:         repo,
 		cache:        cache,

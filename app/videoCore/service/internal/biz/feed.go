@@ -40,10 +40,6 @@ type FeedResult struct {
 	NextTime int64
 }
 
-type KafkaProducer interface {
-	SendMessage(topic string, key, value []byte) error
-}
-
 type FeedStrategy struct {
 	PushThreshold     int64         // 推模式粉丝数阈值
 	BigVCacheKey      string        // 大V缓存key
@@ -135,6 +131,7 @@ func (uc *FeedUsecase) GetFeed(ctx context.Context, query *FeedQuery) (*FeedResu
 	return &FeedResult{Items: items, NextTime: nextTime}, nil
 }
 
+// todo 那是不是要有代码，我们发布视频的时候，要推给粉丝呢
 // getFollowingFeed 关注流（推拉结合）
 func (uc *FeedUsecase) getFollowingFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
 	var allItems []*FeedItem
@@ -447,26 +444,25 @@ func (uc *FeedUsecase) PushToUserTimeline(ctx context.Context, userID string, it
 
 // VideoPublishedHandler 视频发布事件处理
 func (uc *FeedUsecase) VideoPublishedHandler(ctx context.Context, videoID, authorID string) error {
-	isBigV, err := uc.isBigV(ctx, authorID)
-	if err != nil {
-		return err
-	}
 	timestamp := time.Now().Unix()
-	item := &TimelineItem{
+	// 所有用户都通过 Kafka 异步推送
+	go uc.pushPublishEventToKafka(videoID, authorID, timestamp)
+	// 加入热门池（异步）
+	go uc.hotPool.AddVideo(context.Background(), videoID, authorID, timestamp)
+	return nil
+}
+
+// pushPublishEventToKafka 将发布事件发往Kafka（原pushBigVEventToKafka改名）
+func (uc *FeedUsecase) pushPublishEventToKafka(videoID, authorID string, timestamp int64) {
+	event := VideoPublishEvent{
 		VideoID:   videoID,
 		AuthorID:  authorID,
 		Timestamp: timestamp,
 	}
-	if isBigV {
-		// 大V：异步发送Kafka
-		go uc.pushBigVEventToKafka(videoID, authorID, timestamp)
-	} else {
-		// 普通用户：使用独立 context.Background 推送
-		go uc.pushToFollowersSync(context.Background(), authorID, item)
+	data, _ := json.Marshal(event)
+	if err := uc.kafkaProducer.SendMessage("video_publish_topic", []byte(videoID), data); err != nil {
+		uc.log.Errorf("发送Kafka消息失败: %v", err)
 	}
-	// 加入热门池（异步）
-	go uc.hotPool.AddVideo(context.Background(), videoID, authorID, timestamp)
-	return nil
 }
 
 // pushToFollowersSync 同步推送到粉丝（批量）
@@ -523,7 +519,7 @@ func (uc *FeedUsecase) pushBigVEventToKafka(videoID, authorID string, timestamp 
 		Timestamp: timestamp,
 	}
 	data, _ := json.Marshal(event)
-	if err := uc.kafkaProducer.SendMessage("video_publish", []byte(videoID), data); err != nil {
+	if err := uc.kafkaProducer.SendMessage("video_publish_topic", []byte(videoID), data); err != nil {
 		uc.log.Errorf("发送Kafka消息失败: %v", err)
 	}
 }

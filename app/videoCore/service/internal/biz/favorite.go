@@ -2,6 +2,8 @@ package biz
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"lehu-video/app/videoCore/service/internal/pkg/idgen"
 	"sync"
@@ -12,6 +14,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// ----------------------------- 类型定义 ---------------------------------
 type Favorite struct {
 	Id           int64
 	UserId       int64
@@ -24,23 +27,18 @@ type Favorite struct {
 }
 
 type CacheKeyGenerator interface {
-	UserFavoriteKey(userId, targetId int64, targetType, favoriteType int32) string
-	TargetCountKey(targetId int64, targetType, favoriteType int32) string
 	UserTargetKey(userId, targetId int64, targetType int32) string
+	TargetCountKey(targetId int64, targetType, favoriteType int32) string // 保留，可能用于统计
 }
 
 type defaultCacheKeyGenerator struct{}
 
-func (g *defaultCacheKeyGenerator) UserFavoriteKey(userId, targetId int64, targetType, favoriteType int32) string {
-	return fmt.Sprintf("fav:u%d:t%d:ty%d:ft%d", userId, targetId, targetType, favoriteType)
+func (g *defaultCacheKeyGenerator) UserTargetKey(userId, targetId int64, targetType int32) string {
+	return fmt.Sprintf("fav:u%d:t%d:ty%d", userId, targetId, targetType)
 }
 
 func (g *defaultCacheKeyGenerator) TargetCountKey(targetId int64, targetType, favoriteType int32) string {
 	return fmt.Sprintf("fav:count:t%d:ty%d:ft%d", targetId, targetType, favoriteType)
-}
-
-func (g *defaultCacheKeyGenerator) UserTargetKey(userId, targetId int64, targetType int32) string {
-	return fmt.Sprintf("fav:u%d:t%d:ty%d", userId, targetId, targetType)
 }
 
 type AddFavoriteCommand struct {
@@ -101,12 +99,12 @@ type IsFavoriteQuery struct {
 	UserId       int64
 	TargetId     int64
 	TargetType   int32
-	FavoriteType int32
+	FavoriteType int32 // 仅在查询特定类型时使用，一般传 -1
 }
 
 type IsFavoriteResult struct {
-	IsFavorite    bool
-	FavoriteType  int32
+	IsFavorite    bool  // 是否点赞（包括点赞和点踩）
+	FavoriteType  int32 // 实际类型：0=点赞，1=点踩，-1=无
 	TotalLikes    int64
 	TotalDislikes int64
 }
@@ -166,11 +164,12 @@ type FavoriteStats struct {
 	HotScore     float64
 }
 
+// ----------------------------- FavoriteUsecase ---------------------------------
 type FavoriteUsecase struct {
 	repo             FavoriteRepo
 	videoRepo        VideoRepo
 	userCounter      UserCounterRepo
-	videoCounter     VideoCounterRepo // 新增
+	videoCounter     VideoCounterRepo
 	cache            *redis.Client
 	log              *log.Helper
 	limiter          *rate.Limiter
@@ -186,7 +185,7 @@ func NewFavoriteUsecase(
 	repo FavoriteRepo,
 	videoRepo VideoRepo,
 	userCounter UserCounterRepo,
-	videoCounter VideoCounterRepo, // 新增
+	videoCounter VideoCounterRepo,
 	cache *redis.Client,
 	idGen idgen.Generator,
 	logger log.Logger,
@@ -251,7 +250,7 @@ func (uc *FavoriteUsecase) validateCommand(cmd *AddFavoriteCommand) error {
 	return nil
 }
 
-// AddFavorite 添加点赞/点踩（支持事务，计数先更新Redis，异步同步MySQL）
+// AddFavorite 添加点赞/点踩
 func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteCommand) error {
 	if err := uc.validateCommand(cmd); err != nil {
 		return err
@@ -260,7 +259,6 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 		return err
 	}
 
-	// 数据库操作（事务内）
 	err := uc.repo.WithTransaction(ctx, func(ctx context.Context) error {
 		existing, err := uc.repo.GetFavoriteByUserTarget(ctx, cmd.UserId, cmd.TargetId, cmd.TargetType)
 		if err != nil {
@@ -301,7 +299,6 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 	}
 
 	// 事务成功后，更新Redis计数
-	// 如果是视频点赞，更新视频点赞计数和作者获赞数
 	if cmd.TargetType == 0 && cmd.FavoriteType == 0 {
 		// 增加视频 like_count
 		if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.TargetId, "like_count", 1); err != nil {
@@ -320,7 +317,7 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 	}
 
 	// 异步使缓存失效
-	go uc.invalidateCacheAsync(context.Background(), cmd)
+	go uc.invalidateCache(context.Background(), cmd.UserId, cmd.TargetId, cmd.TargetType)
 	return nil
 }
 
@@ -330,7 +327,6 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 		return fmt.Errorf("参数无效")
 	}
 
-	// 数据库操作（事务内）
 	err := uc.repo.WithTransaction(ctx, func(ctx context.Context) error {
 		favorite, err := uc.repo.GetFavorite(ctx, cmd.UserId, cmd.TargetId, cmd.TargetType, cmd.FavoriteType)
 		if err != nil {
@@ -340,7 +336,6 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 			return nil // 幂等
 		}
 
-		// 软删除记录
 		favorite.DeleteAt = time.Now().Unix()
 		favorite.UpdatedAt = time.Now()
 		if err := uc.repo.UpdateFavorite(ctx, favorite); err != nil {
@@ -371,12 +366,7 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 	}
 
 	// 异步使缓存失效
-	go uc.invalidateCacheAsync(context.Background(), &AddFavoriteCommand{
-		UserId:       cmd.UserId,
-		TargetId:     cmd.TargetId,
-		TargetType:   cmd.TargetType,
-		FavoriteType: cmd.FavoriteType,
-	})
+	go uc.invalidateCache(context.Background(), cmd.UserId, cmd.TargetId, cmd.TargetType)
 	return nil
 }
 
@@ -449,11 +439,28 @@ func (uc *FavoriteUsecase) CountFavorite(ctx context.Context, query *CountFavori
 	return &CountFavoriteResult{Items: items}, nil
 }
 
+// IsFavorite 查询单个点赞状态（带缓存）
 func (uc *FavoriteUsecase) IsFavorite(ctx context.Context, query *IsFavoriteQuery) (*IsFavoriteResult, error) {
 	if query.UserId <= 0 || query.TargetId <= 0 {
 		return nil, fmt.Errorf("参数无效")
 	}
 
+	// 1. 尝试从缓存读取
+	if uc.cache != nil {
+		key := uc.keyGen.UserTargetKey(query.UserId, query.TargetId, query.TargetType)
+		cached, err := uc.cache.Get(ctx, key).Result()
+		if err == nil && cached != "" {
+			var result IsFavoriteResult
+			if err := json.Unmarshal([]byte(cached), &result); err == nil {
+				return &result, nil
+			}
+			uc.log.Warnf("缓存反序列化失败: key=%s, err=%v", key, err)
+		} else if err != nil && !errors.Is(err, redis.Nil) {
+			uc.log.Warnf("缓存读取失败: key=%s, err=%v", key, err)
+		}
+	}
+
+	// 2. 缓存未命中，查询数据库
 	favorite, err := uc.repo.GetFavoriteByUserTarget(ctx, query.UserId, query.TargetId, query.TargetType)
 	if err != nil {
 		return nil, fmt.Errorf("查询点赞状态失败: %w", err)
@@ -483,15 +490,24 @@ func (uc *FavoriteUsecase) IsFavorite(ctx context.Context, query *IsFavoriteQuer
 		TotalDislikes: stats.DislikeCount,
 	}
 
+	// 3. 同步写入缓存（使用短超时避免阻塞过久）
 	if uc.cache != nil {
-		go func() {
+		if data, err := json.Marshal(result); err == nil {
 			key := uc.keyGen.UserTargetKey(query.UserId, query.TargetId, query.TargetType)
-			uc.cache.Set(ctx, key, fmt.Sprintf("%v", result), time.Hour)
-		}()
+			// 设置5秒超时，避免缓存写入失败影响主流程
+			setCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			if err := uc.cache.Set(setCtx, key, string(data), time.Hour).Err(); err != nil {
+				uc.log.Warnf("缓存写入失败: key=%s, err=%v", key, err)
+			}
+		} else {
+			uc.log.Warnf("JSON序列化失败: %v", err)
+		}
 	}
 	return result, nil
 }
 
+// BatchIsFavorite 批量查询点赞状态（带缓存优化）
 func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, query *BatchIsFavoriteQuery) (*BatchIsFavoriteResult, error) {
 	if len(query.TargetIds) == 0 || len(query.UserIds) == 0 {
 		return &BatchIsFavoriteResult{Items: []BatchIsFavoriteResultItem{}}, nil
@@ -500,29 +516,94 @@ func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, query *BatchIsFa
 		return nil, fmt.Errorf("批量查询数量过大，最多支持%d个", uc.maxBatchSize)
 	}
 
-	favorites, err := uc.repo.BatchGetFavorites(ctx, query.UserIds, query.TargetIds, query.TargetType)
-	if err != nil {
-		return nil, fmt.Errorf("批量查询失败: %w", err)
+	// 生成所有缓存键
+	keys := make([]string, 0, len(query.UserIds)*len(query.TargetIds))
+	keyToPair := make(map[string]struct{ userId, targetId int64 })
+	for _, uid := range query.UserIds {
+		for _, tid := range query.TargetIds {
+			key := uc.keyGen.UserTargetKey(uid, tid, query.TargetType)
+			keys = append(keys, key)
+			keyToPair[key] = struct{ userId, targetId int64 }{uid, tid}
+		}
 	}
 
-	statsMap, err := uc.repo.BatchGetFavoriteStats(ctx, query.TargetIds, query.TargetType)
-	if err != nil {
-		uc.log.Warnf("批量获取统计失败: %v", err)
+	// 1. 批量从缓存读取
+	cachedResults := make(map[string]*IsFavoriteResult)
+	if uc.cache != nil {
+		vals, err := uc.cache.MGet(ctx, keys...).Result()
+		if err != nil {
+			uc.log.Warnf("批量缓存读取失败: %v", err)
+		} else {
+			for i, val := range vals {
+				if val == nil {
+					continue
+				}
+				key := keys[i]
+				if str, ok := val.(string); ok && str != "" {
+					var res IsFavoriteResult
+					if err := json.Unmarshal([]byte(str), &res); err == nil {
+						cachedResults[key] = &res
+					} else {
+						uc.log.Warnf("缓存反序列化失败: key=%s, err=%v", key, err)
+					}
+				}
+			}
+		}
 	}
 
-	favoriteMap := make(map[string]*Favorite)
-	for _, fav := range favorites {
-		key := fmt.Sprintf("%d_%d", fav.UserId, fav.TargetId)
-		favoriteMap[key] = fav
+	// 2. 找出未命中的组合
+	var missPairs []struct{ userId, targetId int64 }
+	for _, key := range keys {
+		if _, hit := cachedResults[key]; !hit {
+			missPairs = append(missPairs, keyToPair[key])
+		}
 	}
 
-	items := make([]BatchIsFavoriteResultItem, 0)
-	for _, userId := range query.UserIds {
-		for _, targetId := range query.TargetIds {
-			key := fmt.Sprintf("%d_%d", userId, targetId)
-			fav := favoriteMap[key]
+	// 3. 批量查询数据库（未命中部分）
+	dbResults := make(map[string]*IsFavoriteResult)
+	if len(missPairs) > 0 {
+		// 提取未命中的 userIds 和 targetIds（去重）
+		missUserIds := make([]int64, 0, len(missPairs))
+		missTargetIds := make([]int64, 0, len(missPairs))
+		userSet := make(map[int64]bool)
+		targetSet := make(map[int64]bool)
+		for _, p := range missPairs {
+			if !userSet[p.userId] {
+				userSet[p.userId] = true
+				missUserIds = append(missUserIds, p.userId)
+			}
+			if !targetSet[p.targetId] {
+				targetSet[p.targetId] = true
+				missTargetIds = append(missTargetIds, p.targetId)
+			}
+		}
 
-			var isLiked, isDisliked bool
+		// 批量查询点赞记录
+		favorites, err := uc.repo.BatchGetFavorites(ctx, missUserIds, missTargetIds, query.TargetType)
+		if err != nil {
+			return nil, fmt.Errorf("批量查询失败: %w", err)
+		}
+
+		// 批量查询统计信息
+		statsMap, err := uc.repo.BatchGetFavoriteStats(ctx, missTargetIds, query.TargetType)
+		if err != nil {
+			uc.log.Warnf("批量获取统计失败: %v", err)
+		}
+
+		// 构建 favorite 映射
+		favMap := make(map[string]*Favorite)
+		for _, f := range favorites {
+			key := uc.keyGen.UserTargetKey(f.UserId, f.TargetId, query.TargetType)
+			favMap[key] = f
+		}
+
+		// 为每个未命中组合构造结果
+		for _, p := range missPairs {
+			key := uc.keyGen.UserTargetKey(p.userId, p.targetId, query.TargetType)
+			fav := favMap[key]
+
+			isLiked := false
+			isDisliked := false
 			if fav != nil && fav.DeleteAt == 0 {
 				if fav.FavoriteType == 0 {
 					isLiked = true
@@ -531,33 +612,101 @@ func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, query *BatchIsFa
 				}
 			}
 
-			stats := statsMap[targetId]
-			if stats == nil {
-				stats = &FavoriteStats{}
+			// 获取统计
+			stats := statsMap[p.targetId]
+			likeCount := int64(0)
+			dislikeCount := int64(0)
+			if stats != nil {
+				likeCount = stats.LikeCount
+				dislikeCount = stats.DislikeCount
 			}
 
-			items = append(items, BatchIsFavoriteResultItem{
-				UserId:       userId,
-				TargetId:     targetId,
-				IsLiked:      isLiked,
-				IsDisliked:   isDisliked,
-				LikeCount:    stats.LikeCount,
-				DislikeCount: stats.DislikeCount,
-			})
+			res := &IsFavoriteResult{
+				IsFavorite:    isLiked || isDisliked,
+				FavoriteType:  -1,
+				TotalLikes:    likeCount,
+				TotalDislikes: dislikeCount,
+			}
+			if isLiked {
+				res.FavoriteType = 0
+			} else if isDisliked {
+				res.FavoriteType = 1
+			}
+			dbResults[key] = res
+		}
+
+		// 异步回填缓存
+		if uc.cache != nil {
+			go func() {
+				bgCtx := context.Background()
+				for key, res := range dbResults {
+					if data, err := json.Marshal(res); err == nil {
+						// 短超时，避免阻塞
+						setCtx, cancel := context.WithTimeout(bgCtx, 100*time.Millisecond)
+						if err := uc.cache.Set(setCtx, key, string(data), time.Hour).Err(); err != nil {
+							uc.log.Warnf("缓存回填失败: key=%s, err=%v", key, err)
+						}
+						cancel()
+					}
+				}
+			}()
+		}
+	}
+
+	// 4. 组装最终结果（按原始顺序）
+	items := make([]BatchIsFavoriteResultItem, 0, len(query.UserIds)*len(query.TargetIds))
+	for _, uid := range query.UserIds {
+		for _, tid := range query.TargetIds {
+			key := uc.keyGen.UserTargetKey(uid, tid, query.TargetType)
+			var res *IsFavoriteResult
+			if cached, ok := cachedResults[key]; ok {
+				res = cached
+			} else {
+				res = dbResults[key]
+			}
+
+			item := BatchIsFavoriteResultItem{
+				UserId:       uid,
+				TargetId:     tid,
+				IsLiked:      false,
+				IsDisliked:   false,
+				LikeCount:    0,
+				DislikeCount: 0,
+			}
+			if res != nil {
+				item.LikeCount = res.TotalLikes
+				item.DislikeCount = res.TotalDislikes
+				if res.IsFavorite {
+					if res.FavoriteType == 0 {
+						item.IsLiked = true
+					} else if res.FavoriteType == 1 {
+						item.IsDisliked = true
+					}
+				}
+			}
+			items = append(items, item)
 		}
 	}
 
 	return &BatchIsFavoriteResult{Items: items}, nil
 }
 
-func (uc *FavoriteUsecase) invalidateCacheAsync(ctx context.Context, cmd *AddFavoriteCommand) {
+// invalidateCache 使缓存失效（同步删除，确保一致性）
+func (uc *FavoriteUsecase) invalidateCache(ctx context.Context, userId, targetId int64, targetType int32) {
 	if uc.cache == nil {
 		return
 	}
-	userTargetKey := uc.keyGen.UserTargetKey(cmd.UserId, cmd.TargetId, cmd.TargetType)
-	uc.cache.Del(ctx, userTargetKey)
+	// 使用独立的 background context 避免父 context 取消导致删除失败
+	bgCtx := context.Background()
+	userTargetKey := uc.keyGen.UserTargetKey(userId, targetId, targetType)
+	if err := uc.cache.Del(bgCtx, userTargetKey).Err(); err != nil {
+		uc.log.Warnf("删除用户目标缓存失败: key=%s, err=%v", userTargetKey, err)
+	}
 
-	countKeyLike := uc.keyGen.TargetCountKey(cmd.TargetId, cmd.TargetType, 0)
-	countKeyDislike := uc.keyGen.TargetCountKey(cmd.TargetId, cmd.TargetType, 1)
-	uc.cache.Del(ctx, countKeyLike, countKeyDislike)
+	// 如果未来有统计缓存，也一并删除（当前未使用，但保留）
+	countKeyLike := uc.keyGen.TargetCountKey(targetId, targetType, 0)
+	countKeyDislike := uc.keyGen.TargetCountKey(targetId, targetType, 1)
+	if err := uc.cache.Del(bgCtx, countKeyLike, countKeyDislike).Err(); err != nil {
+		uc.log.Warnf("删除计数缓存失败: keys=%s,%s, err=%v", countKeyLike, countKeyDislike, err)
+	}
 }

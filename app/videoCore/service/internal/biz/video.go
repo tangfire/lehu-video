@@ -174,6 +174,7 @@ func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoComma
 	if err != nil {
 		return nil, err
 	}
+	// todo 靠，我发现我们的这个设计，一旦这个IncrUserCounter失败，那岂不是数据不一致了？？？
 	// 增加用户作品计数（本地事务？此处使用最终一致性）
 	if _, err := uc.userCounterRepo.IncrUserCounter(ctx, cmd.UserId, "work_count", 1); err != nil {
 		uc.log.Warnf("增加用户 work_count 失败: userId=%d, err=%v", cmd.UserId, err)

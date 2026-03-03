@@ -3,11 +3,14 @@ package biz
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/segmentio/kafka-go"
 )
+
+type KafkaProducer interface {
+	SendMessage(topic string, key, value []byte) error
+}
 
 // KafkaProducerImpl Kafka生产者实现
 type KafkaProducerImpl struct {
@@ -51,36 +54,4 @@ func (p *KafkaProducerImpl) SendMessage(topic string, key, value []byte) error {
 		Key:   key,
 		Value: value,
 	})
-}
-
-// MockKafkaProducer 用于测试的Mock生产者
-type MockKafkaProducer struct{}
-
-func (m *MockKafkaProducer) SendMessage(topic string, key, value []byte) error {
-	// 在测试环境下，只打印日志
-	// log.Infof("Kafka Mock - Topic: %s, Key: %s, Value: %s", topic, string(key), string(value))
-	return nil
-}
-
-// VideoPublishMessage 视频发布消息结构
-type VideoPublishMessage struct {
-	VideoID   string   `json:"video_id"`
-	AuthorID  string   `json:"author_id"`
-	Timestamp int64    `json:"timestamp"`
-	Followers []string `json:"followers,omitempty"`
-	EventType string   `json:"event_type"`
-}
-
-// CreateVideoPublishMessage 创建视频发布消息
-func CreateVideoPublishMessage(videoID, authorID string, timestamp int64, followers []string) []byte {
-	msg := VideoPublishMessage{
-		VideoID:   videoID,
-		AuthorID:  authorID,
-		Timestamp: timestamp,
-		Followers: followers,
-		EventType: "video_published",
-	}
-
-	data, _ := json.Marshal(msg)
-	return data
 }

@@ -1,7 +1,9 @@
-package biz
+// DEPRECATED: 此模块暂未启用，保留仅供未来参考。最后更新于 2026-03-03。
+package deprecated
 
 import (
 	"context"
+	"lehu-video/app/videoCore/service/internal/biz"
 	"strconv"
 	"time"
 
@@ -28,7 +30,7 @@ type HotVideoDetector struct {
 	windowSize int           // 滑动窗口桶数量（例如5分钟）
 	calcTicker *time.Ticker
 	// 新增：批量处理器
-	batchProc *BatchProcessor[*incrCmd]
+	batchProc *biz.BatchProcessor[*incrCmd]
 }
 
 func NewHotVideoDetector(redis *redis.Client, logger log.Logger) *HotVideoDetector {
@@ -41,7 +43,7 @@ func NewHotVideoDetector(redis *redis.Client, logger log.Logger) *HotVideoDetect
 		windowSize: 5,
 	}
 	// 初始化批量处理器：每2秒或积攒500条刷新
-	d.batchProc = NewBatchProcessor[*incrCmd](
+	d.batchProc = biz.NewBatchProcessor[*incrCmd](
 		500,
 		2*time.Second,
 		d.batchIncr, // 批量执行函数
