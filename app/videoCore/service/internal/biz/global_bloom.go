@@ -1,4 +1,4 @@
-// biz/global_bloom.go
+// biz/global_bloom.go - 修复版
 package biz
 
 import (
@@ -14,10 +14,8 @@ type GlobalVideoBloomFilter struct {
 	mu        sync.RWMutex
 	videoRepo VideoRepo
 	log       *log.Helper
-	// 预期数据量（可根据实际调整）
 	expectedN uint
-	// 误判率
-	fpRate float64
+	fpRate    float64
 }
 
 // NewGlobalVideoBloomFilter 创建全局布隆过滤器
@@ -27,7 +25,7 @@ func NewGlobalVideoBloomFilter(videoRepo VideoRepo, logger log.Logger, expectedN
 		log:       log.NewHelper(logger),
 		expectedN: expectedN,
 		fpRate:    fpRate,
-		filter:    bloom.NewWithEstimates(expectedN, fpRate), // 先初始化一个空过滤器
+		filter:    bloom.NewWithEstimates(expectedN, fpRate),
 	}
 }
 
@@ -37,7 +35,7 @@ func (g *GlobalVideoBloomFilter) Init(ctx context.Context) error {
 	newFilter := bloom.NewWithEstimates(g.expectedN, g.fpRate)
 
 	var offset int64 = 0
-	limit := 10000 // 每批加载1万个ID，防止内存暴涨
+	limit := 10000
 	totalLoaded := 0
 
 	for {
@@ -63,9 +61,10 @@ func (g *GlobalVideoBloomFilter) Init(ctx context.Context) error {
 	return nil
 }
 
-// Rebuild 重建过滤器（可定时调用，例如每天凌晨）
+// Rebuild 重建过滤器（可定时调用，增量更新方式）
 func (g *GlobalVideoBloomFilter) Rebuild(ctx context.Context) error {
 	g.log.Info("开始重建全局视频布隆过滤器")
+	// 先创建一个新的过滤器，然后从数据库加载所有ID
 	newFilter := bloom.NewWithEstimates(g.expectedN, g.fpRate)
 
 	var offset int64 = 0

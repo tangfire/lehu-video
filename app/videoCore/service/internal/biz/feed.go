@@ -1,4 +1,4 @@
-// biz/feed.go - 完整修复版
+// biz/feed.go - 最终修复版
 package biz
 
 import (
@@ -19,7 +19,7 @@ type FeedItem struct {
 	VideoID   string  `json:"video_id"`
 	AuthorID  string  `json:"author_id"`
 	Timestamp int64   `json:"timestamp"`
-	Score     float64 `json:"score"` // 用于推荐流的热度分数
+	Score     float64 `json:"score"`
 }
 
 type TimelineItem struct {
@@ -47,9 +47,10 @@ type KafkaProducer interface {
 type FeedStrategy struct {
 	PushThreshold     int64         // 推模式粉丝数阈值
 	BigVCacheKey      string        // 大V缓存key
+	BigVCacheTTL      time.Duration // 大V缓存过期时间
 	TimelineMaxSize   int           // 单个用户Timeline保留的最大视频数
 	TimelineTTL       time.Duration // Timeline过期时间
-	MaxFollowing      int           // 拉取关注列表时最多考虑的用户数
+	MaxFollowing      int           // 拉取关注列表时最多考虑的用户数（防止过度拉取）
 	MaxPullSize       int           // 单次拉取最大视频数
 	FollowerBatchSize int           // 粉丝分批处理每批数量
 }
@@ -60,10 +61,10 @@ type FeedUsecase struct {
 	redis         *redis.Client
 	kafkaProducer KafkaProducer
 	log           *log.Helper
-	recentViewed  *RecentViewedManager // 新增
+	recentViewed  *RecentViewedManager
 	strategy      *FeedStrategy
 	hotPool       *HotPoolService
-	cancelHotPool context.CancelFunc // 用于停止 hotPool goroutine
+	cancelHotPool context.CancelFunc
 }
 
 func NewFeedUsecase(
@@ -71,12 +72,13 @@ func NewFeedUsecase(
 	followRepo FollowRepo,
 	redis *redis.Client,
 	kafka KafkaProducer,
-	recentViewed *RecentViewedManager, // 新增参数
+	recentViewed *RecentViewedManager,
 	logger log.Logger,
 ) *FeedUsecase {
 	strategy := &FeedStrategy{
 		PushThreshold:     10000,
 		BigVCacheKey:      "big_v_users",
+		BigVCacheTTL:      10 * time.Minute, // 缩短缓存时间
 		TimelineMaxSize:   1000,
 		TimelineTTL:       7 * 24 * time.Hour,
 		MaxFollowing:      1000,
@@ -89,7 +91,7 @@ func NewFeedUsecase(
 		redis:         redis,
 		kafkaProducer: kafka,
 		log:           log.NewHelper(logger),
-		recentViewed:  recentViewed, // 赋值
+		recentViewed:  recentViewed,
 		strategy:      strategy,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -99,26 +101,25 @@ func NewFeedUsecase(
 	return usecase
 }
 
-// Close 释放资源，停止后台 goroutine
 func (uc *FeedUsecase) Close() {
 	if uc.cancelHotPool != nil {
 		uc.cancelHotPool()
 	}
 }
 
-// GetFeed - 核心Feed流接口
+// GetFeed 核心Feed流接口
 func (uc *FeedUsecase) GetFeed(ctx context.Context, query *FeedQuery) (*FeedResult, error) {
 	var items []*FeedItem
 	var err error
 
 	switch query.FeedType {
-	case 0: // 关注流
+	case 0:
 		items, err = uc.getFollowingFeed(ctx, query)
-	case 1: // 推荐流
+	case 1:
 		items, err = uc.getRecommendFeed(ctx, query)
-	case 2: // 热门流
+	case 2:
 		items, err = uc.getHotFeed(ctx, query)
-	case 3: // 混合流
+	case 3:
 		items, err = uc.getMixedFeed(ctx, query)
 	default:
 		items, err = uc.getMixedFeed(ctx, query)
@@ -130,16 +131,11 @@ func (uc *FeedUsecase) GetFeed(ctx context.Context, query *FeedQuery) (*FeedResu
 	// 去重、过滤已看过的
 	items = uc.filterFeedItems(ctx, query.UserID, items)
 
-	// 计算下次请求的时间
 	nextTime := uc.calculateNextTime(items)
-
-	return &FeedResult{
-		Items:    items,
-		NextTime: nextTime,
-	}, nil
+	return &FeedResult{Items: items, NextTime: nextTime}, nil
 }
 
-// getFollowingFeed - 关注流（推拉结合）
+// getFollowingFeed 关注流（推拉结合）
 func (uc *FeedUsecase) getFollowingFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
 	var allItems []*FeedItem
 
@@ -152,20 +148,28 @@ func (uc *FeedUsecase) getFollowingFeed(ctx context.Context, query *FeedQuery) (
 		allItems = append(allItems, timelineItems...)
 	}
 
+	// 如果已经足够，直接返回
+	if len(allItems) >= int(query.PageSize) {
+		return allItems[:query.PageSize], nil
+	}
+
 	// 2. 如果不够，从关注的普通用户拉取（拉模式）
-	if len(allItems) < int(query.PageSize) {
-		remaining := int(query.PageSize) - len(allItems)
-		pullItems, err := uc.pullFromFollowing(ctx, query.UserID, query.LatestTime, remaining)
-		if err != nil {
-			uc.log.Warnf("从关注列表拉取失败: %v", err)
-		} else {
-			allItems = append(allItems, pullItems...)
-		}
+	remaining := int(query.PageSize) - len(allItems)
+	// 获取已存在于timeline中的videoID，用于去重
+	existingIDs := make([]string, 0, len(allItems))
+	for _, item := range allItems {
+		existingIDs = append(existingIDs, item.VideoID)
+	}
+	pullItems, err := uc.pullFromFollowing(ctx, query.UserID, query.LatestTime, remaining, existingIDs)
+	if err != nil {
+		uc.log.Warnf("从关注列表拉取失败: %v", err)
+	} else {
+		allItems = append(allItems, pullItems...)
 	}
 	return allItems, nil
 }
 
-// getTimelineItems - 从Redis有序集合获取timeline，score为时间戳
+// getTimelineItems 从Redis有序集合获取timeline，score为时间戳
 func (uc *FeedUsecase) getTimelineItems(ctx context.Context, key string, maxScore int64, limit int) ([]*FeedItem, error) {
 	opts := &redis.ZRangeBy{
 		Min:    "-inf",
@@ -179,7 +183,6 @@ func (uc *FeedUsecase) getTimelineItems(ctx context.Context, key string, maxScor
 	}
 	items := make([]*FeedItem, 0, len(members))
 	for _, z := range members {
-		// member格式: video_id:author_id:timestamp
 		parts := strings.Split(z.Member.(string), ":")
 		if len(parts) == 3 {
 			timestamp, _ := strconv.ParseInt(parts[2], 10, 64)
@@ -187,27 +190,44 @@ func (uc *FeedUsecase) getTimelineItems(ctx context.Context, key string, maxScor
 				VideoID:   parts[0],
 				AuthorID:  parts[1],
 				Timestamp: timestamp,
-				Score:     z.Score, // 这里score是时间戳
+				Score:     z.Score,
 			})
 		}
 	}
 	return items, nil
 }
 
-// pullFromFollowing - 从关注的**普通用户**拉取最新视频（大V的内容应已推送）
-func (uc *FeedUsecase) pullFromFollowing(ctx context.Context, userID string, latestTime int64, limit int) ([]*FeedItem, error) {
-	// 1. 获取用户关注列表（限制数量）
-	following, err := uc.followRepo.ListFollowing(ctx, userID, 0, &PageStats{
-		Page:     1,
-		PageSize: int32(uc.strategy.MaxFollowing),
-	})
-	if err != nil || len(following) == 0 {
-		return nil, err
+// pullFromFollowing 从关注的普通用户拉取最新视频，支持排除已有视频
+func (uc *FeedUsecase) pullFromFollowing(ctx context.Context, userID string, latestTime int64, limit int, excludeIDs []string) ([]*FeedItem, error) {
+	// 1. 获取用户关注列表（分页获取全部）
+	var allFollowing []string
+	page := 1
+	pageSize := 1000 // 每次获取1000个
+	for {
+		pageStats := &PageStats{
+			Page:     int32(page),
+			PageSize: int32(pageSize),
+		}
+		following, err := uc.followRepo.ListFollowing(ctx, userID, 0, pageStats)
+		if err != nil {
+			return nil, err
+		}
+		if len(following) == 0 {
+			break
+		}
+		allFollowing = append(allFollowing, following...)
+		if len(following) < pageSize {
+			break
+		}
+		page++
+	}
+	if len(allFollowing) == 0 {
+		return nil, nil
 	}
 
 	// 2. 过滤出普通用户（非大V）
 	var normalUsers []string
-	for _, authorID := range following {
+	for _, authorID := range allFollowing {
 		isBigV, err := uc.isBigV(ctx, authorID)
 		if err != nil {
 			uc.log.Warnf("检查大V状态失败: %v", err)
@@ -221,8 +241,8 @@ func (uc *FeedUsecase) pullFromFollowing(ctx context.Context, userID string, lat
 		return nil, nil
 	}
 
-	// 3. 从数据库获取最新视频
-	videos, err := uc.videoRepo.GetVideosByAuthors(ctx, normalUsers, latestTime, limit)
+	// 3. 从数据库获取最新视频（排除已存在ID）
+	videos, err := uc.videoRepo.GetVideosByAuthorsExclude(ctx, normalUsers, latestTime, limit, excludeIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -239,21 +259,20 @@ func (uc *FeedUsecase) pullFromFollowing(ctx context.Context, userID string, lat
 	return items, nil
 }
 
-// getRecommendFeed - 推荐流（基于热门池，降级为最新视频）
+// getRecommendFeed 推荐流（基于热门池，降级为最新视频）
 func (uc *FeedUsecase) getRecommendFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
 	items, err := uc.hotPool.GetHotFeedItems(ctx, int(query.PageSize))
 	if err != nil {
 		return nil, err
 	}
 	if len(items) == 0 {
-		// 热门池为空时降级为最新视频
 		uc.log.Infof("热门池为空，降级为最新视频，user_id=%s", query.UserID)
 		return uc.getLatestFeed(ctx, query)
 	}
 	return items, nil
 }
 
-// getHotFeed - 热门流（直接取热门池，降级为最新视频）
+// getHotFeed 热门流（直接取热门池）
 func (uc *FeedUsecase) getHotFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
 	items, err := uc.hotPool.GetHotFeedItems(ctx, int(query.PageSize))
 	if err != nil {
@@ -265,7 +284,7 @@ func (uc *FeedUsecase) getHotFeed(ctx context.Context, query *FeedQuery) ([]*Fee
 	return items, nil
 }
 
-// getLatestFeed - 获取最新发布的视频（后备方法）
+// getLatestFeed 获取最新发布的视频（后备方法）
 func (uc *FeedUsecase) getLatestFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
 	latestTime := time.Now()
 	if query.LatestTime > 0 {
@@ -287,7 +306,7 @@ func (uc *FeedUsecase) getLatestFeed(ctx context.Context, query *FeedQuery) ([]*
 	return items, nil
 }
 
-// getMixedFeed - 混合流（30%关注 + 70%推荐）
+// getMixedFeed 混合流（30%关注 + 70%推荐，去重）
 func (uc *FeedUsecase) getMixedFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
 	followCount := int(float64(query.PageSize) * 0.3)
 	recommendCount := int(query.PageSize) - followCount
@@ -319,12 +338,32 @@ func (uc *FeedUsecase) getMixedFeed(ctx context.Context, query *FeedQuery) ([]*F
 	if recErr != nil {
 		return nil, recErr
 	}
-	allItems := append(followItems, recommendItems...)
-	uc.shuffleItems(allItems)
+
+	// 合并并去重（优先保留关注流的顺序）
+	allItems := uc.mergeAndDeduplicate(followItems, recommendItems)
 	return allItems, nil
 }
 
-// filterFeedItems - 过滤掉用户最近看过的视频
+// mergeAndDeduplicate 合并两个切片并去重，保持第一个切片顺序
+func (uc *FeedUsecase) mergeAndDeduplicate(first, second []*FeedItem) []*FeedItem {
+	seen := make(map[string]bool)
+	result := make([]*FeedItem, 0, len(first)+len(second))
+	for _, item := range first {
+		if !seen[item.VideoID] {
+			seen[item.VideoID] = true
+			result = append(result, item)
+		}
+	}
+	for _, item := range second {
+		if !seen[item.VideoID] {
+			seen[item.VideoID] = true
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+// filterFeedItems 过滤掉用户最近看过的视频
 func (uc *FeedUsecase) filterFeedItems(ctx context.Context, userID string, items []*FeedItem) []*FeedItem {
 	if userID == "0" || userID == "" {
 		return items
@@ -336,7 +375,7 @@ func (uc *FeedUsecase) filterFeedItems(ctx context.Context, userID string, items
 	existsMap, err := uc.recentViewed.BatchExists(ctx, userID, videoIDs)
 	if err != nil {
 		uc.log.Warnf("批量查询最近观看失败: %v", err)
-		return items // 出错时保守返回全部
+		return items
 	}
 	filtered := make([]*FeedItem, 0, len(items))
 	for _, item := range items {
@@ -370,7 +409,7 @@ func (uc *FeedUsecase) calculateNextTime(items []*FeedItem) int64 {
 	return minTime - 1
 }
 
-// isBigV 判断是否为大V（粉丝数≥阈值）
+// isBigV 判断是否为大V，缓存10分钟
 func (uc *FeedUsecase) isBigV(ctx context.Context, authorID string) (bool, error) {
 	cacheKey := fmt.Sprintf("%s:%s", uc.strategy.BigVCacheKey, authorID)
 	cached, err := uc.redis.Get(ctx, cacheKey).Result()
@@ -382,12 +421,11 @@ func (uc *FeedUsecase) isBigV(ctx context.Context, authorID string) (bool, error
 		return false, err
 	}
 	isBigV := followerCount >= uc.strategy.PushThreshold
-	_ = uc.redis.Set(ctx, cacheKey, strconv.FormatBool(isBigV), time.Hour).Err()
+	_ = uc.redis.Set(ctx, cacheKey, strconv.FormatBool(isBigV), uc.strategy.BigVCacheTTL).Err()
 	return isBigV, nil
 }
 
-// PushToUserTimeline - 推送视频到用户Timeline（推模式）
-// score直接使用时间戳，member格式: video_id:author_id:timestamp
+// PushToUserTimeline 推送视频到用户Timeline（推模式）
 func (uc *FeedUsecase) PushToUserTimeline(ctx context.Context, userID string, items []*TimelineItem) error {
 	if len(items) == 0 {
 		return nil
@@ -401,15 +439,13 @@ func (uc *FeedUsecase) PushToUserTimeline(ctx context.Context, userID string, it
 			Member: member,
 		})
 	}
-	// 修剪，保留最新的 N 条
 	pipe.ZRemRangeByRank(ctx, key, 0, -int64(uc.strategy.TimelineMaxSize)-1)
 	pipe.Expire(ctx, key, uc.strategy.TimelineTTL)
 	_, err := pipe.Exec(ctx)
 	return err
 }
 
-// VideoPublishedHandler - 视频发布事件处理
-// VideoPublishedHandler - 视频发布事件处理（✅ 使用 context.Background 异步）
+// VideoPublishedHandler 视频发布事件处理
 func (uc *FeedUsecase) VideoPublishedHandler(ctx context.Context, videoID, authorID string) error {
 	isBigV, err := uc.isBigV(ctx, authorID)
 	if err != nil {
@@ -433,7 +469,7 @@ func (uc *FeedUsecase) VideoPublishedHandler(ctx context.Context, videoID, autho
 	return nil
 }
 
-// pushToFollowersSync - 同步推送到粉丝（✅ 批量 Pipeline 优化）
+// pushToFollowersSync 同步推送到粉丝（批量）
 func (uc *FeedUsecase) pushToFollowersSync(ctx context.Context, authorID string, item *TimelineItem) {
 	offset := 0
 	limit := uc.strategy.FollowerBatchSize
@@ -443,7 +479,6 @@ func (uc *FeedUsecase) pushToFollowersSync(ctx context.Context, authorID string,
 			uc.log.Errorf("分页获取粉丝失败: %v", err)
 			return
 		}
-		// ✅ 批量推送：一个 Pipeline 处理一批粉丝的所有 ZAdd 操作
 		uc.pushTimelineToUsersBatch(ctx, followers, item)
 		if int64(len(followers)+offset) >= total {
 			break
@@ -452,28 +487,35 @@ func (uc *FeedUsecase) pushToFollowersSync(ctx context.Context, authorID string,
 	}
 }
 
-// pushTimelineToUsersBatch - 批量推送 Timeline 给多个用户（Redis Pipeline）
+// pushTimelineToUsersBatch 批量推送 Timeline 给多个用户（Redis Pipeline）
 func (uc *FeedUsecase) pushTimelineToUsersBatch(ctx context.Context, userIDs []string, item *TimelineItem) {
 	if len(userIDs) == 0 {
 		return
 	}
-	pipe := uc.redis.Pipeline()
-	member := fmt.Sprintf("%s:%s:%d", item.VideoID, item.AuthorID, item.Timestamp)
-	score := float64(item.Timestamp)
-
-	for _, uid := range userIDs {
-		key := fmt.Sprintf("timeline:%s", uid)
-		pipe.ZAdd(ctx, key, redis.Z{Score: score, Member: member})
-		// 修剪并设置过期（每个 key 单独操作，但放在同一个 pipeline 中）
-		pipe.ZRemRangeByRank(ctx, key, 0, -int64(uc.strategy.TimelineMaxSize)-1)
-		pipe.Expire(ctx, key, uc.strategy.TimelineTTL)
-	}
-	if _, err := pipe.Exec(ctx); err != nil {
-		uc.log.Errorf("批量推送 timeline 失败: %v", err)
+	// 分批处理，每批不超过500人，避免Pipeline过大
+	const batchSize = 500
+	for i := 0; i < len(userIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(userIDs) {
+			end = len(userIDs)
+		}
+		batch := userIDs[i:end]
+		pipe := uc.redis.Pipeline()
+		member := fmt.Sprintf("%s:%s:%d", item.VideoID, item.AuthorID, item.Timestamp)
+		score := float64(item.Timestamp)
+		for _, uid := range batch {
+			key := fmt.Sprintf("timeline:%s", uid)
+			pipe.ZAdd(ctx, key, redis.Z{Score: score, Member: member})
+			pipe.ZRemRangeByRank(ctx, key, 0, -int64(uc.strategy.TimelineMaxSize)-1)
+			pipe.Expire(ctx, key, uc.strategy.TimelineTTL)
+		}
+		if _, err := pipe.Exec(ctx); err != nil {
+			uc.log.Errorf("批量推送 timeline 失败: %v", err)
+		}
 	}
 }
 
-// pushBigVEventToKafka - 大V事件发往Kafka
+// pushBigVEventToKafka 大V事件发往Kafka
 func (uc *FeedUsecase) pushBigVEventToKafka(videoID, authorID string, timestamp int64) {
 	event := VideoPublishEvent{
 		VideoID:   videoID,
@@ -486,7 +528,7 @@ func (uc *FeedUsecase) pushBigVEventToKafka(videoID, authorID string, timestamp 
 	}
 }
 
-// GetHotVideos - 获取热门视频ID列表（兼容旧调用）
+// GetHotVideos 获取热门视频ID列表
 func (uc *FeedUsecase) GetHotVideos(ctx context.Context, limit int) ([]string, error) {
 	items, err := uc.hotPool.GetHotFeedItems(ctx, limit)
 	if err != nil {

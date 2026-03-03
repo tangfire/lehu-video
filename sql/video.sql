@@ -2,10 +2,7 @@ CREATE database lehu_video_db;
 
 use lehu_video_db;
 
-# todo 感觉是不是少了unlike_count????
-# todo 还有收藏数量
-# todo 好像可以直接删除了都，都是先查的，没必要搞这些count好像
-# todo 那这里的设计有问题嘛？那些点赞数，收藏数，是否关注，是否点赞，都是返回的时候先查的？？？？？数据库不存储？？
+-- 视频表（包含点赞、评论、收藏计数）
 CREATE TABLE `video` (
                          `id` bigint(20) NOT NULL AUTO_INCREMENT,
                          `user_id` bigint(20) DEFAULT NULL,
@@ -13,48 +10,39 @@ CREATE TABLE `video` (
                          `description` varchar(50) DEFAULT NULL,
                          `video_url` varchar(2048) DEFAULT NULL,
                          `cover_url` varchar(2048) DEFAULT NULL,
-                         `like_count` bigint(20) DEFAULT 0,
-                         `comment_count` bigint(20) DEFAULT 0,
-                         `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                         `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                         `like_count` bigint(20) DEFAULT '0',
+                         `comment_count` bigint(20) DEFAULT '0',
+                         `collection_count` bigint(20) NOT NULL DEFAULT '0',
+                         `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                         `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                          PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-
--- 创建新表
+-- 用户表（已包含重命名后的字段：be_liked_count 替代 total_favorited，collection_count 替代 favorite_count）
 CREATE TABLE `user` (
-                            `id` bigint(20) NOT NULL AUTO_INCREMENT,
-                            `account_id` bigint(20) DEFAULT NULL,
-                            `mobile` varchar(20) DEFAULT NULL,
-                            `email` varchar(100) DEFAULT NULL,
-                            `name` varchar(100) DEFAULT NULL,
-                            `nickname` varchar(100) DEFAULT NULL,
-                            `avatar` varchar(500) DEFAULT NULL,
-                            `background_image` varchar(500) DEFAULT NULL,
-                            `signature` varchar(500) DEFAULT NULL,
-                            `gender` int(11) DEFAULT '0',
-                            `follow_count` bigint(20) DEFAULT '0',
-                            `follower_count` bigint(20) DEFAULT '0',
-                            `total_favorited` bigint(20) DEFAULT '0',
-                            `work_count` bigint(20) DEFAULT '0',
-                            `favorite_count` bigint(20) DEFAULT '0',
-                            `created_at` datetime(3) DEFAULT NULL,
-                            `updated_at` datetime(3) DEFAULT NULL,
-                            PRIMARY KEY (`id`),
-                            KEY `idx_account_id` (`account_id`),
-                            KEY `idx_mobile` (`mobile`),
-                            KEY `idx_email` (`email`),
-                            KEY `idx_nickname` (`nickname`)
+                        `id` bigint(20) NOT NULL AUTO_INCREMENT,
+                        `account_id` bigint(20) DEFAULT NULL,
+                        `mobile` varchar(20) DEFAULT NULL,
+                        `email` varchar(100) DEFAULT NULL,
+                        `name` varchar(100) DEFAULT NULL,
+                        `nickname` varchar(100) DEFAULT NULL,
+                        `avatar` varchar(500) DEFAULT NULL,
+                        `background_image` varchar(500) DEFAULT NULL,
+                        `signature` varchar(500) DEFAULT NULL,
+                        `gender` int(11) DEFAULT '0',
+                        `follow_count` bigint(20) DEFAULT '0',
+                        `follower_count` bigint(20) DEFAULT '0',
+                        `be_liked_count` bigint(20) DEFAULT '0',   -- 原 total_favorited
+                        `work_count` bigint(20) DEFAULT '0',
+                        `collection_count` bigint(20) DEFAULT '0', -- 原 favorite_count
+                        `created_at` datetime(3) DEFAULT NULL,
+                        `updated_at` datetime(3) DEFAULT NULL,
+                        PRIMARY KEY (`id`),
+                        KEY `idx_account_id` (`account_id`),
+                        KEY `idx_mobile` (`mobile`),
+                        KEY `idx_email` (`email`),
+                        KEY `idx_nickname` (`nickname`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- 修改用户表字段名（谨慎操作，建议用工具或临时方案）
-ALTER TABLE `user` CHANGE `total_favorited` `be_liked_count` bigint(20) DEFAULT '0';
-ALTER TABLE `user` CHANGE `favorite_count` `collection_count` bigint(20) DEFAULT '0';
-
--- 为视频表添加收藏计数
-ALTER TABLE `video` ADD COLUMN `collection_count` bigint(20) NOT NULL DEFAULT '0' AFTER `comment_count`;
-
 
 
 

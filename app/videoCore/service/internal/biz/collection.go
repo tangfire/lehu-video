@@ -135,20 +135,22 @@ type CollectionRepo interface {
 }
 
 type CollectionUsecase struct {
-	repo        CollectionRepo
-	videoRepo   VideoRepo // 新增
-	counterRepo CounterRepo
-	idGen       idgen.Generator
-	log         *log.Helper
+	repo         CollectionRepo
+	videoRepo    VideoRepo // 新增
+	userCounter  UserCounterRepo
+	videoCounter VideoCounterRepo // 新增
+	idGen        idgen.Generator
+	log          *log.Helper
 }
 
-func NewCollectionUsecase(repo CollectionRepo, videoRepo VideoRepo, counterRepo CounterRepo, idGen idgen.Generator, logger log.Logger) *CollectionUsecase {
+func NewCollectionUsecase(repo CollectionRepo, videoRepo VideoRepo, userCounter UserCounterRepo, videoCounter VideoCounterRepo, idGen idgen.Generator, logger log.Logger) *CollectionUsecase {
 	return &CollectionUsecase{
-		repo:        repo,
-		videoRepo:   videoRepo,
-		counterRepo: counterRepo,
-		idGen:       idGen,
-		log:         log.NewHelper(logger),
+		repo:         repo,
+		videoRepo:    videoRepo,
+		userCounter:  userCounter,
+		videoCounter: videoCounter,
+		idGen:        idGen,
+		log:          log.NewHelper(logger),
 	}
 }
 
@@ -269,7 +271,7 @@ func (uc *CollectionUsecase) UpdateCollection(ctx context.Context, cmd *UpdateCo
 	return &UpdateCollectionResult{}, nil
 }
 
-// AddVideoToCollection 添加视频到收藏夹（支持事务）
+// AddVideoToCollection 添加视频到收藏夹
 func (uc *CollectionUsecase) AddVideoToCollection(ctx context.Context, cmd *AddVideoToCollectionCommand) (*AddVideoToCollectionResult, error) {
 	collectionId := cmd.CollectionId
 	if collectionId == 0 {
@@ -280,6 +282,7 @@ func (uc *CollectionUsecase) AddVideoToCollection(ctx context.Context, cmd *AddV
 		collectionId = defaultCollection.Id
 	}
 
+	// 数据库操作（事务内）
 	err := uc.repo.WithTransaction(ctx, func(ctx context.Context) error {
 		// 重新查询收藏夹（在事务内）
 		collection, err := uc.repo.GetCollectionByUserIdAndId(ctx, cmd.UserId, collectionId)
@@ -309,28 +312,26 @@ func (uc *CollectionUsecase) AddVideoToCollection(ctx context.Context, cmd *AddV
 		if err := uc.repo.CreateCollectionVideo(ctx, relation); err != nil {
 			return fmt.Errorf("创建收藏关系失败: %v", err)
 		}
-
-		// 更新视频的收藏计数
-		if err := uc.videoRepo.IncrVideoCollectionCount(ctx, cmd.VideoId, 1); err != nil {
-			uc.log.Warnf("更新视频收藏计数失败: videoId=%d, err=%v", cmd.VideoId, err)
-			return err
-		}
-
-		// 更新用户的收藏计数（Redis计数器，与数据库事务不保证强一致，但可接受）
-		if _, err := uc.counterRepo.IncrUserCounter(ctx, cmd.UserId, "collection_count", 1); err != nil {
-			uc.log.Warnf("增加用户 collection_count 失败: userId=%d, err=%v", cmd.UserId, err)
-			return err
-		}
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
+
+	// 事务成功后，更新计数
+	// 更新视频收藏计数（使用 videoCounter）
+	if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.VideoId, "collection_count", 1); err != nil {
+		uc.log.Warnf("更新视频收藏计数失败: videoId=%d, err=%v", cmd.VideoId, err)
+	}
+	// 更新用户的收藏计数（Redis计数器）
+	if _, err := uc.userCounter.IncrUserCounter(ctx, cmd.UserId, "collection_count", 1); err != nil {
+		uc.log.Warnf("增加用户 collection_count 失败: userId=%d, err=%v", cmd.UserId, err)
+	}
+
 	return &AddVideoToCollectionResult{}, nil
 }
 
-// RemoveVideoFromCollection 从收藏夹移除视频（支持事务）
+// RemoveVideoFromCollection 从收藏夹移除视频
 func (uc *CollectionUsecase) RemoveVideoFromCollection(ctx context.Context, cmd *RemoveVideoFromCollectionCommand) (*RemoveVideoFromCollectionResult, error) {
 	collectionId := cmd.CollectionId
 	if collectionId == 0 {
@@ -341,6 +342,7 @@ func (uc *CollectionUsecase) RemoveVideoFromCollection(ctx context.Context, cmd 
 		collectionId = defaultCollection.Id
 	}
 
+	// 数据库操作（事务内）
 	err := uc.repo.WithTransaction(ctx, func(ctx context.Context) error {
 		collection, err := uc.repo.GetCollectionByUserIdAndId(ctx, cmd.UserId, collectionId)
 		if err != nil {
@@ -361,24 +363,22 @@ func (uc *CollectionUsecase) RemoveVideoFromCollection(ctx context.Context, cmd 
 		if err := uc.repo.DeleteCollectionVideo(ctx, relation.Id); err != nil {
 			return fmt.Errorf("删除收藏关系失败: %v", err)
 		}
-
-		// 更新视频收藏计数
-		if err := uc.videoRepo.IncrVideoCollectionCount(ctx, cmd.VideoId, -1); err != nil {
-			uc.log.Warnf("更新视频收藏计数失败: videoId=%d, err=%v", cmd.VideoId, err)
-			return err
-		}
-
-		// 更新用户收藏计数
-		if _, err := uc.counterRepo.IncrUserCounter(ctx, cmd.UserId, "collection_count", -1); err != nil {
-			uc.log.Warnf("减少用户 collection_count 失败: userId=%d, err=%v", cmd.UserId, err)
-			return err
-		}
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
+
+	// 事务成功后，更新计数
+	// 更新视频收藏计数
+	if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.VideoId, "collection_count", -1); err != nil {
+		uc.log.Warnf("更新视频收藏计数失败: videoId=%d, err=%v", cmd.VideoId, err)
+	}
+	// 更新用户收藏计数
+	if _, err := uc.userCounter.IncrUserCounter(ctx, cmd.UserId, "collection_count", -1); err != nil {
+		uc.log.Warnf("减少用户 collection_count 失败: userId=%d, err=%v", cmd.UserId, err)
+	}
+
 	return &RemoveVideoFromCollectionResult{}, nil
 }
 

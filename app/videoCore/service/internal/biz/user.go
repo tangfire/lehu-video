@@ -116,11 +116,11 @@ type UserRepo interface {
 
 type UserUsecase struct {
 	repo        UserRepo
-	counterRepo CounterRepo
+	counterRepo UserCounterRepo
 	log         *log.Helper
 }
 
-func NewUserUsecase(repo UserRepo, counterRepo CounterRepo, logger log.Logger) *UserUsecase {
+func NewUserUsecase(repo UserRepo, counterRepo UserCounterRepo, logger log.Logger) *UserUsecase {
 	return &UserUsecase{repo: repo, counterRepo: counterRepo, log: log.NewHelper(logger)}
 }
 

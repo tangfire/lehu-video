@@ -2,7 +2,7 @@ package biz
 
 import "context"
 
-type CounterRepo interface {
+type UserCounterRepo interface {
 	// GetUserCounters 获取单个用户的多个计数字段
 	GetUserCounters(ctx context.Context, userId int64) (map[string]int64, error)
 	// BatchGetUserCounters 批量获取多个用户的指定计数字段
@@ -17,4 +17,27 @@ type CounterRepo interface {
 	GetDirtyUserIDs(ctx context.Context) ([]int64, error)
 	// ClearDirtyFlag 清除脏标记（同步后调用）
 	ClearDirtyFlag(ctx context.Context, userId int64) error
+}
+
+// VideoCounterRepo 视频计数器仓储接口
+type VideoCounterRepo interface {
+	// IncrVideoCounter 增加视频某个字段的计数
+	IncrVideoCounter(ctx context.Context, videoId int64, field string, delta int64) error
+
+	// GetVideoCounters 获取视频的多个计数字段
+	GetVideoCounters(ctx context.Context, videoId int64, fields ...string) (map[string]int64, error)
+
+	// BatchGetVideoCounters 批量获取视频计数
+	BatchGetVideoCounters(ctx context.Context, videoIds []int64, fields ...string) (map[int64]map[string]int64, error)
+
+	// MarkVideoDirty 标记视频为脏（需要同步到MySQL）
+	MarkVideoDirty(ctx context.Context, videoId int64) error
+
+	// GetDirtyVideoIDs 获取所有脏视频ID
+	GetDirtyVideoIDs(ctx context.Context) ([]int64, error)
+
+	// ClearDirtyFlag 清除脏标记
+	ClearDirtyFlag(ctx context.Context, videoId int64) error
+
+	SetVideoCounters(ctx context.Context, videoId int64, counters map[string]int64) error
 }

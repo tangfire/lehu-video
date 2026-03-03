@@ -23,17 +23,18 @@ var ProviderSet = wire.NewSet(
 	NewCollectionRepo,
 	NewRedis,
 	NewFreeCache,
-	NewCounterRepo,
+	NewUserCounterRepo,
 	NewIdGenerator,
+	NewVideoCounterRepo,
 )
 
 // Data .
 type Data struct {
-	// TODO wrapped database client
-	db      *gorm.DB
-	log     *log.Helper
-	rdb     *redis.Client
-	syncJob *UserCounterSyncJob // 新增
+	db           *gorm.DB
+	log          *log.Helper
+	rdb          *redis.Client
+	userSyncJob  *UserCounterSyncJob
+	videoSyncJob *VideoCounterSyncJob // 新增视频计数器同步任务
 }
 
 // NewIdGenerator 从配置创建 ID 生成器
@@ -49,15 +50,25 @@ func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), 
 		rdb: rdb,
 		log: logHelper,
 	}
-	// 创建 CounterRepo 并启动同步任务
-	counterRepo := NewCounterRepo(rdb, logger)
-	syncJob := NewUserCounterSyncJob(db, counterRepo, logger)
-	syncJob.Start()
-	d.syncJob = syncJob
+
+	// 创建并启动用户计数器同步任务
+	counterRepo := NewUserCounterRepo(rdb, logger)
+	userSyncJob := NewUserCounterSyncJob(db, counterRepo, logger)
+	userSyncJob.Start()
+	d.userSyncJob = userSyncJob
+
+	// 创建并启动视频计数器同步任务
+	videoCounterRepo := NewVideoCounterRepo(rdb, logger)
+	videoSyncJob := NewVideoCounterSyncJob(db, videoCounterRepo, logger)
+	videoSyncJob.Start()
+	d.videoSyncJob = videoSyncJob
 
 	cleanup := func() {
-		if d.syncJob != nil {
-			d.syncJob.Stop()
+		if d.userSyncJob != nil {
+			d.userSyncJob.Stop()
+		}
+		if d.videoSyncJob != nil {
+			d.videoSyncJob.Stop()
 		}
 		if err := d.rdb.Close(); err != nil {
 			logHelper.Errorf("Redis close error: %v", err)

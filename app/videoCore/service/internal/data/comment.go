@@ -249,38 +249,44 @@ func (r *commentRepo) CountGroupByParentID(ctx context.Context, parentIDs []int6
 }
 
 // GetLikeCounts 获取评论点赞数统计
+// GetLikeCounts 获取评论点赞数统计（从 favorite 表查询）
 func (r *commentRepo) GetLikeCounts(ctx context.Context, commentIDs []int64) (map[int64]int64, error) {
 	if len(commentIDs) == 0 {
 		return map[int64]int64{}, nil
 	}
 
-	// 这里需要根据实际的点赞表结构来查询
-	// 假设有一个comment_likes表，包含comment_id字段
-	type LikeResult struct {
+	type Result struct {
 		CommentID int64
 		Count     int64
 	}
 
-	var results []LikeResult
-	// 示例查询，需要根据实际表结构调整
+	var results []Result
 	err := r.data.db.WithContext(ctx).
-		Table("comment_likes").
-		Select("comment_id, COUNT(*) as count").
-		Where("comment_id IN (?)", commentIDs).
-		Group("comment_id").
+		Table("favorite").
+		Select("target_id as comment_id, COUNT(*) as count").
+		Where("target_type = ?", 1).   // 1 表示评论
+		Where("favorite_type = ?", 0). // 0 表示点赞
+		Where("delete_at = ?", 0).     // 只统计有效记录
+		Where("target_id IN (?)", commentIDs).
+		Group("target_id").
 		Find(&results).Error
 
 	if err != nil {
-		// 如果表不存在或其他错误，返回空map
-		r.log.Warnf("查询点赞数失败: %v", err)
+		r.log.Warnf("查询评论点赞数失败: %v", err)
+		// 返回空 map 而不是 nil，避免调用方判空
 		return map[int64]int64{}, nil
 	}
 
-	counts := make(map[int64]int64)
-	for _, result := range results {
-		counts[result.CommentID] = result.Count
+	// 构造结果 map，并确保每个评论 ID 都有值（默认为 0）
+	counts := make(map[int64]int64, len(commentIDs))
+	for _, res := range results {
+		counts[res.CommentID] = res.Count
 	}
-
+	for _, id := range commentIDs {
+		if _, ok := counts[id]; !ok {
+			counts[id] = 0
+		}
+	}
 	return counts, nil
 }
 

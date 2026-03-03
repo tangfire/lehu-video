@@ -26,7 +26,6 @@ func NewVideoRepo(data *Data, logger log.Logger) biz.VideoRepo {
 	}
 }
 
-// db 返回事务中的数据库连接，支持事务
 func (r *videoRepo) db(ctx context.Context) *gorm.DB {
 	if tx, ok := ctx.Value("db").(*gorm.DB); ok {
 		return tx
@@ -127,26 +126,12 @@ func (r *videoRepo) GetVideoListByUid(ctx context.Context, uid int64, latestTime
 		return 0, nil, err
 	}
 
-	var videoBizList []*biz.Video
-	for _, video := range videoList {
-		videoBizList = append(videoBizList, &biz.Video{
-			Id:              video.Id,
-			Title:           video.Title,
-			Description:     video.Description,
-			VideoUrl:        video.VideoUrl,
-			CoverUrl:        video.CoverUrl,
-			LikeCount:       video.LikeCount,
-			CommentCount:    video.CommentCount,
-			CollectionCount: video.CollectionCount,
-			Author: &biz.Author{
-				Id:     user.Id,
-				Name:   user.Name,
-				Avatar: user.Avatar,
-			},
-			UploadTime: video.CreatedAt,
-		})
+	// 使用公共转换方法
+	bizVideos, err := r.convertDBVideosToBiz(ctx, videoList)
+	if err != nil {
+		return 0, nil, err
 	}
-	return total, videoBizList, nil
+	return total, bizVideos, nil
 }
 
 func (r *videoRepo) GetVideoByIdList(ctx context.Context, idList []int64) ([]*biz.Video, error) {
@@ -161,61 +146,7 @@ func (r *videoRepo) GetVideoByIdList(ctx context.Context, idList []int64) ([]*bi
 	if err != nil {
 		return nil, err
 	}
-
-	userIds := make([]int64, 0)
-	userVideoMap := make(map[int64][]*model.Video)
-	for _, video := range videoList {
-		userIds = append(userIds, video.UserId)
-		userVideoMap[video.UserId] = append(userVideoMap[video.UserId], video)
-	}
-
-	var users []*model.User
-	if len(userIds) > 0 {
-		err = r.db(ctx).Table(model.User{}.TableName()).
-			Where("id IN (?)", userIds).
-			Find(&users).Error
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	userMap := make(map[int64]*model.User)
-	for _, user := range users {
-		userMap[user.Id] = user
-	}
-
-	var videoBizList []*biz.Video
-	for userId, videos := range userVideoMap {
-		user, exists := userMap[userId]
-		var author *biz.Author
-		if exists {
-			author = &biz.Author{
-				Id:     user.Id,
-				Name:   user.Name,
-				Avatar: user.Avatar,
-			}
-		} else {
-			author = &biz.Author{
-				Id:   userId,
-				Name: "用户已注销",
-			}
-		}
-		for _, video := range videos {
-			videoBizList = append(videoBizList, &biz.Video{
-				Id:              video.Id,
-				Title:           video.Title,
-				Description:     video.Description,
-				VideoUrl:        video.VideoUrl,
-				CoverUrl:        video.CoverUrl,
-				LikeCount:       video.LikeCount,
-				CommentCount:    video.CommentCount,
-				CollectionCount: video.CollectionCount,
-				Author:          author,
-				UploadTime:      video.CreatedAt,
-			})
-		}
-	}
-	return videoBizList, nil
+	return r.convertDBVideosToBiz(ctx, videoList)
 }
 
 func (r *videoRepo) GetFeedVideos(ctx context.Context, latestTime time.Time, pageStats biz.PageStats) ([]*biz.Video, error) {
@@ -231,68 +162,17 @@ func (r *videoRepo) GetFeedVideos(ctx context.Context, latestTime time.Time, pag
 	if err != nil {
 		return nil, err
 	}
-
-	userIds := make([]int64, 0)
-	userVideoMap := make(map[int64][]*model.Video)
-	for _, video := range videoList {
-		userIds = append(userIds, video.UserId)
-		userVideoMap[video.UserId] = append(userVideoMap[video.UserId], video)
-	}
-
-	var users []*model.User
-	if len(userIds) > 0 {
-		err = r.db(ctx).Table(model.User{}.TableName()).
-			Where("id IN (?)", userIds).
-			Find(&users).Error
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	userMap := make(map[int64]*model.User)
-	for _, user := range users {
-		userMap[user.Id] = user
-	}
-
-	var videoBizList []*biz.Video
-	for _, video := range videoList {
-		user, exists := userMap[video.UserId]
-		var author *biz.Author
-		if exists {
-			author = &biz.Author{
-				Id:     user.Id,
-				Name:   user.Name,
-				Avatar: user.Avatar,
-			}
-		} else {
-			author = &biz.Author{
-				Id:   video.UserId,
-				Name: "用户已注销",
-			}
-		}
-		videoBizList = append(videoBizList, &biz.Video{
-			Id:              video.Id,
-			Title:           video.Title,
-			Description:     video.Description,
-			VideoUrl:        video.VideoUrl,
-			CoverUrl:        video.CoverUrl,
-			LikeCount:       video.LikeCount,
-			CommentCount:    video.CommentCount,
-			CollectionCount: video.CollectionCount,
-			Author:          author,
-			UploadTime:      video.CreatedAt,
-		})
-	}
-	return videoBizList, nil
+	return r.convertDBVideosToBiz(ctx, videoList)
 }
 
+// GetHotVideos 获取近7天视频，用于热门池计算（只返回必要字段）
 func (r *videoRepo) GetHotVideos(ctx context.Context, limit int) ([]*biz.Video, error) {
 	var videos []*model.Video
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 	err := r.db(ctx).
 		Table(model.Video{}.TableName()).
+		Select("id", "user_id", "created_at", "like_count", "comment_count", "collection_count").
 		Where("created_at > ?", sevenDaysAgo).
-		Order("(like_count * 2 + comment_count) DESC").
 		Limit(limit).
 		Find(&videos).Error
 	if err != nil {
@@ -313,6 +193,11 @@ func (r *videoRepo) GetHotVideos(ctx context.Context, limit int) ([]*biz.Video, 
 }
 
 func (r *videoRepo) GetVideosByAuthors(ctx context.Context, authorIDs []string, latestTime int64, limit int) ([]*biz.Video, error) {
+	return r.GetVideosByAuthorsExclude(ctx, authorIDs, latestTime, limit, nil)
+}
+
+// GetVideosByAuthorsExclude 根据作者ID列表获取视频，并排除指定ID
+func (r *videoRepo) GetVideosByAuthorsExclude(ctx context.Context, authorIDs []string, latestTime int64, limit int, excludeIDs []string) ([]*biz.Video, error) {
 	if len(authorIDs) == 0 {
 		return []*biz.Video{}, nil
 	}
@@ -326,23 +211,36 @@ func (r *videoRepo) GetVideosByAuthors(ctx context.Context, authorIDs []string, 
 		return []*biz.Video{}, nil
 	}
 	query := r.db(ctx).
+		Table(model.Video{}.TableName()).
 		Where("user_id IN (?)", ids).
 		Order("created_at DESC").
 		Limit(limit)
 	if latestTime > 0 {
 		query = query.Where("created_at < ?", time.Unix(latestTime, 0))
 	}
+	if len(excludeIDs) > 0 {
+		var excludeInts []int64
+		for _, id := range excludeIDs {
+			if intID, err := strconv.ParseInt(id, 10, 64); err == nil {
+				excludeInts = append(excludeInts, intID)
+			}
+		}
+		if len(excludeInts) > 0 {
+			query = query.Where("id NOT IN (?)", excludeInts)
+		}
+	}
 	var videos []*model.Video
 	err := query.Find(&videos).Error
 	if err != nil {
 		return nil, err
 	}
-	return r.convertDBVideosToBiz(videos)
+	return r.convertDBVideosToBiz(ctx, videos)
 }
 
 func (r *videoRepo) GetVideoListByTime(ctx context.Context, latestTime time.Time, limit int) ([]*biz.Video, error) {
 	var videos []*model.Video
 	err := r.db(ctx).
+		Table(model.Video{}.TableName()).
 		Where("created_at < ?", latestTime).
 		Order("created_at DESC").
 		Limit(limit).
@@ -350,7 +248,7 @@ func (r *videoRepo) GetVideoListByTime(ctx context.Context, latestTime time.Time
 	if err != nil {
 		return nil, err
 	}
-	return r.convertDBVideosToBiz(videos)
+	return r.convertDBVideosToBiz(ctx, videos)
 }
 
 func (r *videoRepo) GetAuthorInfo(ctx context.Context, authorID string) (*biz.Author, error) {
@@ -427,26 +325,8 @@ func (r *videoRepo) GetAllVideoIDs(ctx context.Context, offset int64, limit int)
 	return strIDs, nil
 }
 
-// 新增：增加视频点赞计数
-func (r *videoRepo) IncrVideoLikeCount(ctx context.Context, videoId int64, delta int64) error {
-	return r.db(ctx).Model(&model.Video{}).Where("id = ?", videoId).
-		UpdateColumn("like_count", gorm.Expr("like_count + ?", delta)).Error
-}
-
-// 新增：增加视频收藏计数
-func (r *videoRepo) IncrVideoCollectionCount(ctx context.Context, videoId int64, delta int64) error {
-	return r.db(ctx).Model(&model.Video{}).Where("id = ?", videoId).
-		UpdateColumn("collection_count", gorm.Expr("collection_count + ?", delta)).Error
-}
-
-// 新增：增加作者被点赞总数（用户表的 be_liked_count）
-func (r *videoRepo) IncrAuthorBeLikedCount(ctx context.Context, authorId int64, delta int64) error {
-	return r.db(ctx).Model(&model.User{}).Where("id = ?", authorId).
-		UpdateColumn("be_liked_count", gorm.Expr("be_liked_count + ?", delta)).Error
-}
-
-// 辅助方法：转换数据库视频列表为业务层视频列表
-func (r *videoRepo) convertDBVideosToBiz(dbVideos []*model.Video) ([]*biz.Video, error) {
+// convertDBVideosToBiz 通用的数据库视频列表转业务视频列表（包括作者信息）
+func (r *videoRepo) convertDBVideosToBiz(ctx context.Context, dbVideos []*model.Video) ([]*biz.Video, error) {
 	if len(dbVideos) == 0 {
 		return []*biz.Video{}, nil
 	}
@@ -455,10 +335,9 @@ func (r *videoRepo) convertDBVideosToBiz(dbVideos []*model.Video) ([]*biz.Video,
 		userIds = append(userIds, video.UserId)
 	}
 	var users []*model.User
-	err := r.db(context.Background()).Table(model.User{}.TableName()).
+	err := r.db(ctx).Table(model.User{}.TableName()).
 		Where("id IN (?)", userIds).
-		Find(&users).Error // 注意这里用 background 可能会导致事务丢失，但此方法只在非事务场景调用（如 GetHotVideos），如果需要在事务内使用，应改造
-	// 为了简单，此处不处理事务，因为当前调用者不会在事务内使用该方法
+		Find(&users).Error
 	if err != nil {
 		return nil, err
 	}

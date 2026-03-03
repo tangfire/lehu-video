@@ -11,13 +11,13 @@ import (
 
 type UserCounterSyncJob struct {
 	db          *gorm.DB
-	counterRepo biz.CounterRepo
+	counterRepo biz.UserCounterRepo
 	log         *log.Helper
 	interval    time.Duration
 	stopCh      chan struct{}
 }
 
-func NewUserCounterSyncJob(db *gorm.DB, counterRepo biz.CounterRepo, logger log.Logger) *UserCounterSyncJob {
+func NewUserCounterSyncJob(db *gorm.DB, counterRepo biz.UserCounterRepo, logger log.Logger) *UserCounterSyncJob {
 	return &UserCounterSyncJob{
 		db:          db,
 		counterRepo: counterRepo,

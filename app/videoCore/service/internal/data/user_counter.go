@@ -11,13 +11,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type counterRepo struct {
+type userCounterRepo struct {
 	redis *redis.Client
 	log   *log.Helper
 }
 
-func NewCounterRepo(redis *redis.Client, logger log.Logger) biz.CounterRepo {
-	return &counterRepo{
+func NewUserCounterRepo(redis *redis.Client, logger log.Logger) biz.UserCounterRepo {
+	return &userCounterRepo{
 		redis: redis,
 		log:   log.NewHelper(logger),
 	}
@@ -29,7 +29,7 @@ func userCounterKey(userId int64) string {
 
 const dirtyUserSetKey = "user:counter:dirty"
 
-func (r *counterRepo) GetUserCounters(ctx context.Context, userId int64) (map[string]int64, error) {
+func (r *userCounterRepo) GetUserCounters(ctx context.Context, userId int64) (map[string]int64, error) {
 	key := userCounterKey(userId)
 	vals, err := r.redis.HGetAll(ctx, key).Result()
 	if err != nil {
@@ -46,7 +46,7 @@ func (r *counterRepo) GetUserCounters(ctx context.Context, userId int64) (map[st
 	return res, nil
 }
 
-func (r *counterRepo) BatchGetUserCounters(ctx context.Context, userIds []int64, fields []string) (map[int64]map[string]int64, error) {
+func (r *userCounterRepo) BatchGetUserCounters(ctx context.Context, userIds []int64, fields []string) (map[int64]map[string]int64, error) {
 	pipe := r.redis.Pipeline()
 	cmds := make([]*redis.MapStringStringCmd, len(userIds))
 	for i, uid := range userIds {
@@ -81,7 +81,7 @@ func (r *counterRepo) BatchGetUserCounters(ctx context.Context, userIds []int64,
 	return result, nil
 }
 
-func (r *counterRepo) IncrUserCounter(ctx context.Context, userId int64, field string, delta int64) (int64, error) {
+func (r *userCounterRepo) IncrUserCounter(ctx context.Context, userId int64, field string, delta int64) (int64, error) {
 	key := userCounterKey(userId)
 	pipe := r.redis.Pipeline()
 	incr := pipe.HIncrBy(ctx, key, field, delta)
@@ -94,11 +94,11 @@ func (r *counterRepo) IncrUserCounter(ctx context.Context, userId int64, field s
 	return incr.Val(), nil
 }
 
-func (r *counterRepo) DecrUserCounter(ctx context.Context, userId int64, field string, delta int64) (int64, error) {
+func (r *userCounterRepo) DecrUserCounter(ctx context.Context, userId int64, field string, delta int64) (int64, error) {
 	return r.IncrUserCounter(ctx, userId, field, -delta)
 }
 
-func (r *counterRepo) SetUserCounters(ctx context.Context, userId int64, counters map[string]int64) error {
+func (r *userCounterRepo) SetUserCounters(ctx context.Context, userId int64, counters map[string]int64) error {
 	key := userCounterKey(userId)
 	fields := make(map[string]interface{})
 	for k, v := range counters {
@@ -112,7 +112,7 @@ func (r *counterRepo) SetUserCounters(ctx context.Context, userId int64, counter
 	return err
 }
 
-func (r *counterRepo) GetDirtyUserIDs(ctx context.Context) ([]int64, error) {
+func (r *userCounterRepo) GetDirtyUserIDs(ctx context.Context) ([]int64, error) {
 	vals, err := r.redis.SMembers(ctx, dirtyUserSetKey).Result()
 	if err != nil {
 		return nil, err
@@ -127,6 +127,6 @@ func (r *counterRepo) GetDirtyUserIDs(ctx context.Context) ([]int64, error) {
 	return ids, nil
 }
 
-func (r *counterRepo) ClearDirtyFlag(ctx context.Context, userId int64) error {
+func (r *userCounterRepo) ClearDirtyFlag(ctx context.Context, userId int64) error {
 	return r.redis.SRem(ctx, dirtyUserSetKey, userId).Err()
 }

@@ -145,25 +145,28 @@ type CommentRepo interface {
 
 // CommentUsecase 业务逻辑层
 type CommentUsecase struct {
-	repo        CommentRepo
-	cache       *freecache.Cache  // 本地缓存
-	redis       *redis.Client     // Redis 客户端
-	hotDetector *HotVideoDetector // 热点检测器
-	log         *log.Helper
-	sfg         singleflight.Group // 新增：用于合并并发回源请求
+	repo         CommentRepo
+	cache        *freecache.Cache  // 本地缓存
+	redis        *redis.Client     // Redis 客户端
+	videoCounter VideoCounterRepo  // 新增
+	hotDetector  *HotVideoDetector // 热点检测器
+	log          *log.Helper
+	sfg          singleflight.Group // 新增：用于合并并发回源请求
 }
 
-func NewCommentUsecase(repo CommentRepo, cache *freecache.Cache, redis *redis.Client, hotDetector *HotVideoDetector, logger log.Logger) *CommentUsecase {
+func NewCommentUsecase(repo CommentRepo, cache *freecache.Cache, redis *redis.Client, hotDetector *HotVideoDetector, videoCounter VideoCounterRepo, logger log.Logger) *CommentUsecase {
 	return &CommentUsecase{
-		repo:        repo,
-		cache:       cache,
-		redis:       redis,
-		hotDetector: hotDetector,
-		log:         log.NewHelper(logger),
+		repo:         repo,
+		cache:        cache,
+		redis:        redis,
+		hotDetector:  hotDetector,
+		videoCounter: videoCounter,
+		log:          log.NewHelper(logger),
 		// sfg 零值可用，无需显式初始化
 	}
 }
 
+// biz/comment.go (修改后，仅列出修改的方法)
 // CreateComment 创建评论
 func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentCommand) (*CreateCommentResult, error) {
 	// 1. 参数验证
@@ -171,7 +174,6 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 		return nil, ErrInvalidParams
 	}
 
-	// 3. 构建评论对象
 	now := time.Now()
 	comment := &Comment{
 		ID:          0,
@@ -185,24 +187,19 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 		ReplyCount:  0,
 		IsDeleted:   false,
 	}
-
 	comment.GenerateId()
 
-	// 4. 如果parentID > 0，验证父评论是否存在
-	if cmd.ParentID > 0 {
-		parentComment, err := uc.repo.GetByID(ctx, cmd.ParentID)
-		if err != nil {
-			return nil, err
-		}
-		if parentComment == nil || parentComment.IsDeleted {
-			return nil, ErrParentCommentNotFound
-		}
-	}
-
-	// 5. 保存评论
+	// 数据库操作（此处没有事务，如果需要可以添加，但评论表独立，暂时无事务）
+	// 注意：评论模块没有实现 WithTransaction，我们这里直接插入数据库
+	// 但为了保持一致性，我们假设数据库操作成功后再更新计数
 	_, err := uc.repo.Create(ctx, comment)
 	if err != nil {
 		return nil, err
+	}
+
+	// 更新视频评论计数（使用 videoCounter）
+	if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.VideoID, "comment_count", 1); err != nil {
+		uc.log.Warnf("更新视频评论计数失败: videoId=%d, err=%v", cmd.VideoID, err)
 	}
 
 	return &CreateCommentResult{
@@ -212,7 +209,6 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 
 // RemoveComment 删除评论
 func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentCommand) (*RemoveCommentResult, error) {
-	// 1. 验证评论是否存在且属于该用户
 	comment, err := uc.repo.GetByID(ctx, cmd.CommentID)
 	if err != nil {
 		return nil, err
@@ -220,16 +216,19 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentC
 	if comment == nil {
 		return nil, ErrCommentNotFound
 	}
-
-	// 2. 验证权限（只能删除自己的评论）
 	if comment.UserID != cmd.UserID {
 		return nil, ErrNoPermission
 	}
 
-	// 3. 删除评论（软删除）
+	// 软删除
 	err = uc.repo.SoftDelete(ctx, cmd.CommentID, cmd.UserID)
 	if err != nil {
 		return nil, err
+	}
+
+	// 更新视频评论计数（减少）
+	if err := uc.videoCounter.IncrVideoCounter(ctx, comment.VideoID, "comment_count", -1); err != nil {
+		uc.log.Warnf("更新视频评论计数失败: videoId=%d, err=%v", comment.VideoID, err)
 	}
 
 	return &RemoveCommentResult{}, nil

@@ -12,7 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// HotPoolService 热门池管理，存储FeedItem所需全部信息
+// HotPoolService 热门池管理
 type HotPoolService struct {
 	videoRepo VideoRepo
 	redis     *redis.Client
@@ -42,13 +42,12 @@ func (s *HotPoolService) Run(ctx context.Context) {
 	}
 }
 
-// GetHotFeedItems 获取热门Feed项（包含完整信息）
+// GetHotFeedItems 获取热门Feed项
 func (s *HotPoolService) GetHotFeedItems(ctx context.Context, limit int) ([]*FeedItem, error) {
 	key := "feed:hot:pool"
 	if limit <= 0 {
 		limit = 20
 	}
-	// 按分数从高到低取
 	results, err := s.redis.ZRevRangeWithScores(ctx, key, 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, err
@@ -59,7 +58,6 @@ func (s *HotPoolService) GetHotFeedItems(ctx context.Context, limit int) ([]*Fee
 		if !ok {
 			continue
 		}
-		// member格式: video_id:author_id:timestamp
 		parts := strings.Split(member, ":")
 		if len(parts) != 3 {
 			continue
@@ -83,27 +81,28 @@ func (s *HotPoolService) AddVideo(ctx context.Context, videoID, authorID string,
 		Score:  float64(timestamp), // 初始用时间戳，后续刷新会重新计算
 		Member: member,
 	}
+	// 使用ZAdd，不需要修剪，因为刷新时会整体替换
 	if err := s.redis.ZAdd(ctx, key, z).Err(); err != nil {
 		s.log.Warnf("添加视频到热门池失败: %v", err)
 	}
-	// 修剪池子大小，保留最新1000个（按分数，即时间戳）
-	s.redis.ZRemRangeByRank(ctx, key, 0, -1000)
 }
 
-// refreshHotPool 刷新热门池，重新计算热度分数
+// refreshHotPool 刷新热门池，原子替换
 func (s *HotPoolService) refreshHotPool(ctx context.Context) {
-	// 1. 从数据库获取候选视频（近7天，按互动量排序取2000条）
-	// todo 感觉video表还要加个收藏量的字段
-	hotVideos, err := s.videoRepo.GetHotVideos(ctx, 2000)
+	// 1. 从数据库获取候选视频（近7天，只需要基础信息）
+	hotVideos, err := s.videoRepo.GetHotVideos(ctx, 2000) // 只获取ID、作者ID、上传时间、互动数
 	if err != nil {
 		s.log.Errorf("获取热门视频失败: %v", err)
 		return
 	}
-	// 2. 计算热度分数并存入Redis
+	if len(hotVideos) == 0 {
+		return
+	}
+
+	// 2. 计算热度分数并构建ZSet成员
 	scoredMembers := make([]redis.Z, 0, len(hotVideos))
 	now := time.Now().Unix()
 	for _, video := range hotVideos {
-		// todo calculateHotScore计算了一下，那为什么我们GetHotVideos的时候也要计算呢？这样不就算了两次了嘛？
 		score := s.calculateHotScore(video, now)
 		member := s.buildMember(
 			strconv.FormatInt(video.Id, 10),
@@ -115,17 +114,31 @@ func (s *HotPoolService) refreshHotPool(ctx context.Context) {
 			Member: member,
 		})
 	}
-	// todo 下面的注释说原子替换热门池，但是我看起来怎么感觉不是很原子呢?
-	// 3. 原子替换热门池
+
+	// 3. 原子替换热门池：使用Lua脚本保证原子性
 	key := "feed:hot:pool"
-	pipe := s.redis.Pipeline()
-	pipe.Del(ctx, key)
-	if len(scoredMembers) > 0 {
-		pipe.ZAdd(ctx, key, scoredMembers...)
+	luaScript := `
+		redis.call('DEL', KEYS[1])
+		if #ARGV > 0 then
+			for i = 1, #ARGV, 3 do
+				redis.call('ZADD', KEYS[1], ARGV[i+1], ARGV[i])
+			end
+		end
+		redis.call('EXPIRE', KEYS[1], 86400)
+		return 1
+	`
+	// 将members扁平化为字符串数组
+	args := make([]interface{}, 0, len(scoredMembers)*3)
+	for _, zm := range scoredMembers {
+		args = append(args, zm.Member.(string), zm.Score)
 	}
-	pipe.Expire(ctx, key, 24*time.Hour)
-	if _, err := pipe.Exec(ctx); err != nil {
-		s.log.Errorf("写入热门池失败: %v", err)
+	if len(args) > 0 {
+		err = s.redis.Eval(ctx, luaScript, []string{key}, args...).Err()
+	} else {
+		err = s.redis.Del(ctx, key).Err()
+	}
+	if err != nil {
+		s.log.Errorf("原子替换热门池失败: %v", err)
 		return
 	}
 	s.log.Infof("热门池刷新完成，视频数量: %d", len(scoredMembers))
@@ -161,7 +174,7 @@ func (s *HotPoolService) buildMember(videoID, authorID string, timestamp int64) 
 	return strings.Join([]string{videoID, authorID, strconv.FormatInt(timestamp, 10)}, ":")
 }
 
-// 以下为旧接口兼容或内部使用，可保留
+// GetHotVideos 兼容旧接口
 func (s *HotPoolService) GetHotVideos(ctx context.Context, limit int) ([]string, error) {
 	items, err := s.GetHotFeedItems(ctx, limit)
 	if err != nil {
