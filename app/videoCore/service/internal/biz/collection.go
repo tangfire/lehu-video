@@ -118,8 +118,8 @@ type CollectionRepo interface {
 	GetCollectionById(ctx context.Context, id int64) (*Collection, error)
 	GetCollectionByUserIdAndId(ctx context.Context, userId, id int64) (*Collection, error)
 	DeleteCollection(ctx context.Context, id int64) error
-	ListCollectionsByUserId(ctx context.Context, userId int64, offset, limit int) ([]*Collection, error)
-	CountCollectionsByUserId(ctx context.Context, userId int64) (int64, error)
+	ListCollectionsByUserId(ctx context.Context, userId int64, offset, limit int) (int64, []*Collection, error)
+
 	UpdateCollection(ctx context.Context, collection *Collection) error
 
 	CreateCollectionVideo(ctx context.Context, relation *CollectionVideoRelation) error
@@ -231,16 +231,12 @@ func (uc *CollectionUsecase) ListCollection(ctx context.Context, query *ListColl
 		return nil, fmt.Errorf("创建默认收藏夹失败: %v", err)
 	}
 
-	collections, err := uc.repo.ListCollectionsByUserId(ctx, query.UserId, int(offset), int(query.PageStats.PageSize))
+	total, collections, err := uc.repo.ListCollectionsByUserId(ctx, query.UserId, int(offset), int(query.PageStats.PageSize))
 	if err != nil {
 		uc.log.Errorf("查询收藏夹列表失败: %v", err)
 		return nil, err
 	}
-	total, err := uc.repo.CountCollectionsByUserId(ctx, query.UserId)
-	if err != nil {
-		uc.log.Errorf("统计收藏夹数量失败: %v", err)
-		return nil, err
-	}
+
 	return &ListCollectionResult{
 		Collections: collections,
 		Total:       total,
@@ -439,7 +435,7 @@ func (uc *CollectionUsecase) CountCollectedNumber4Video(ctx context.Context, que
 
 // ensureUserHasDefaultCollection 确保用户有默认收藏夹
 func (uc *CollectionUsecase) ensureUserHasDefaultCollection(ctx context.Context, userId int64) (*Collection, error) {
-	collections, err := uc.repo.ListCollectionsByUserId(ctx, userId, 0, 10)
+	_, collections, err := uc.repo.ListCollectionsByUserId(ctx, userId, 0, 10)
 	if err != nil {
 		return nil, err
 	}

@@ -103,8 +103,14 @@ func (r *collectionRepo) DeleteCollection(ctx context.Context, id int64) error {
 		Update("is_deleted", true).Error
 }
 
-func (r *collectionRepo) ListCollectionsByUserId(ctx context.Context, userId int64, offset, limit int) ([]*biz.Collection, error) {
+func (r *collectionRepo) ListCollectionsByUserId(ctx context.Context, userId int64, offset, limit int) (int64, []*biz.Collection, error) {
 	var dbCollections []*model.Collection
+
+	var count int64
+	err := r.db(ctx).
+		Model(&model.Collection{}).
+		Where("user_id = ? AND is_deleted = ?", userId, false).
+		Count(&count).Error
 
 	query := r.db(ctx).
 		Where("user_id = ? AND is_deleted = ?", userId, false).
@@ -114,9 +120,9 @@ func (r *collectionRepo) ListCollectionsByUserId(ctx context.Context, userId int
 		query = query.Offset(offset).Limit(limit)
 	}
 
-	err := query.Find(&dbCollections).Error
+	err = query.Find(&dbCollections).Error
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	collections := make([]*biz.Collection, 0, len(dbCollections))
@@ -129,17 +135,7 @@ func (r *collectionRepo) ListCollectionsByUserId(ctx context.Context, userId int
 		})
 	}
 
-	return collections, nil
-}
-
-func (r *collectionRepo) CountCollectionsByUserId(ctx context.Context, userId int64) (int64, error) {
-	var count int64
-	err := r.db(ctx).
-		Model(&model.Collection{}).
-		Where("user_id = ? AND is_deleted = ?", userId, false).
-		Count(&count).Error
-
-	return count, err
+	return count, collections, nil
 }
 
 func (r *collectionRepo) UpdateCollection(ctx context.Context, collection *biz.Collection) error {
