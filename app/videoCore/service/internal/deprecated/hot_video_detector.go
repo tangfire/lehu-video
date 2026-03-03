@@ -1,4 +1,4 @@
-// DEPRECATED: 此模块暂未启用，保留仅供未来参考。最后更新于 2026-03-03。
+// // DEPRECATED: 此模块暂未启用，保留仅供未来参考。最后更新于 2026-03-03。
 package deprecated
 
 import (

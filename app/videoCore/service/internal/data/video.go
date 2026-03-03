@@ -84,6 +84,7 @@ func (r *videoRepo) GetVideoById(ctx context.Context, id int64) (bool, *biz.Vide
 		LikeCount:       video.LikeCount,
 		CommentCount:    video.CommentCount,
 		CollectionCount: video.CollectionCount,
+		ViewCount:       video.ViewCount,
 		Author: &biz.Author{
 			Id:     user.Id,
 			Name:   user.Name,
@@ -126,7 +127,6 @@ func (r *videoRepo) GetVideoListByUid(ctx context.Context, uid int64, latestTime
 		return 0, nil, err
 	}
 
-	// 使用公共转换方法
 	bizVideos, err := r.convertDBVideosToBiz(ctx, videoList)
 	if err != nil {
 		return 0, nil, err
@@ -165,13 +165,13 @@ func (r *videoRepo) GetFeedVideos(ctx context.Context, latestTime time.Time, pag
 	return r.convertDBVideosToBiz(ctx, videoList)
 }
 
-// GetHotVideos 获取近7天视频，用于热门池计算（只返回必要字段）
+// GetHotVideos 获取近7天视频，用于热门池计算（返回ID、作者ID、上传时间、互动数、播放量）
 func (r *videoRepo) GetHotVideos(ctx context.Context, limit int) ([]*biz.Video, error) {
 	var videos []*model.Video
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 	err := r.db(ctx).
 		Table(model.Video{}.TableName()).
-		Select("id", "user_id", "created_at", "like_count", "comment_count", "collection_count").
+		Select("id", "user_id", "created_at", "like_count", "comment_count", "collection_count", "view_count").
 		Where("created_at > ?", sevenDaysAgo).
 		Limit(limit).
 		Find(&videos).Error
@@ -185,6 +185,7 @@ func (r *videoRepo) GetHotVideos(ctx context.Context, limit int) ([]*biz.Video, 
 			LikeCount:       v.LikeCount,
 			CommentCount:    v.CommentCount,
 			CollectionCount: v.CollectionCount,
+			ViewCount:       v.ViewCount,
 			UploadTime:      v.CreatedAt,
 			Author:          &biz.Author{Id: v.UserId},
 		})
@@ -295,13 +296,13 @@ func (r *videoRepo) GetVideoStats(ctx context.Context, videoID string) (*biz.Vid
 	if err != nil {
 		return nil, err
 	}
-	hotScore := float64(video.LikeCount)*0.4 + float64(video.CommentCount)*0.3
+	hotScore := float64(video.LikeCount)*0.4 + float64(video.CommentCount)*0.3 + float64(video.ViewCount)*0.1
 	return &biz.VideoStats{
 		VideoID:      videoID,
 		LikeCount:    video.LikeCount,
 		CommentCount: video.CommentCount,
 		ShareCount:   0,
-		ViewCount:    0,
+		ViewCount:    video.ViewCount,
 		HotScore:     hotScore,
 	}, nil
 }
@@ -364,6 +365,7 @@ func (r *videoRepo) convertDBVideosToBiz(ctx context.Context, dbVideos []*model.
 			LikeCount:       dbVideo.LikeCount,
 			CommentCount:    dbVideo.CommentCount,
 			CollectionCount: dbVideo.CollectionCount,
+			ViewCount:       dbVideo.ViewCount,
 			Author:          author,
 			UploadTime:      dbVideo.CreatedAt,
 		})

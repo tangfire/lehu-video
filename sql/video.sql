@@ -2,7 +2,6 @@ CREATE database lehu_video_db;
 
 use lehu_video_db;
 
--- 视频表（包含点赞、评论、收藏计数）
 CREATE TABLE `video` (
                          `id` bigint(20) NOT NULL AUTO_INCREMENT,
                          `user_id` bigint(20) DEFAULT NULL,
@@ -13,6 +12,7 @@ CREATE TABLE `video` (
                          `like_count` bigint(20) DEFAULT '0',
                          `comment_count` bigint(20) DEFAULT '0',
                          `collection_count` bigint(20) NOT NULL DEFAULT '0',
+                         `view_count` bigint(20) NOT NULL DEFAULT '0' COMMENT '播放量',
                          `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
                          `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                          PRIMARY KEY (`id`)

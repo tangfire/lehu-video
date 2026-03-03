@@ -1,4 +1,4 @@
-// biz/video.go - 修复版（视频用例）
+// biz/video.go - 加入播放量统计
 package biz
 
 import (
@@ -13,7 +13,7 @@ type Author struct {
 	Id          int64
 	Name        string
 	Avatar      string
-	IsFollowing int64 // 注意：这个字段可能由上层填充，这里保留
+	IsFollowing int64
 }
 
 type Video struct {
@@ -25,6 +25,7 @@ type Video struct {
 	LikeCount       int64
 	CommentCount    int64
 	CollectionCount int64
+	ViewCount       int64 // 新增播放量字段
 	Author          *Author
 	UploadTime      time.Time
 }
@@ -87,16 +88,15 @@ type VideoStats struct {
 	HotScore     float64
 }
 
-// VideoRepo 接口（保持不变，但需要增加新方法 GetVideosByAuthorsExclude）
 type VideoRepo interface {
 	PublishVideo(ctx context.Context, video *Video) (int64, error)
 	GetVideoById(ctx context.Context, id int64) (bool, *Video, error)
 	GetVideoListByUid(ctx context.Context, uid int64, latestTime time.Time, pageStats PageStats) (int64, []*Video, error)
 	GetVideoByIdList(ctx context.Context, idList []int64) ([]*Video, error)
 	GetFeedVideos(ctx context.Context, latestTime time.Time, pageStats PageStats) ([]*Video, error)
-	GetHotVideos(ctx context.Context, limit int) ([]*Video, error) // 返回ID、作者ID、上传时间、点赞数、评论数
+	GetHotVideos(ctx context.Context, limit int) ([]*Video, error) // 需要返回 view_count
 	GetVideosByAuthors(ctx context.Context, authorIDs []string, latestTime int64, limit int) ([]*Video, error)
-	GetVideosByAuthorsExclude(ctx context.Context, authorIDs []string, latestTime int64, limit int, excludeIDs []string) ([]*Video, error) // 新增
+	GetVideosByAuthorsExclude(ctx context.Context, authorIDs []string, latestTime int64, limit int, excludeIDs []string) ([]*Video, error)
 	GetAuthorInfo(ctx context.Context, authorID string) (*Author, error)
 	GetVideoListByTime(ctx context.Context, latestTime time.Time, limit int) ([]*Video, error)
 	GetVideoStats(ctx context.Context, videoID string) (*VideoStats, error)
@@ -174,11 +174,8 @@ func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoComma
 	if err != nil {
 		return nil, err
 	}
-	// todo 靠，我发现我们的这个设计，一旦这个IncrUserCounter失败，那岂不是数据不一致了？？？
-	// 增加用户作品计数（本地事务？此处使用最终一致性）
 	if _, err := uc.userCounterRepo.IncrUserCounter(ctx, cmd.UserId, "work_count", 1); err != nil {
 		uc.log.Warnf("增加用户 work_count 失败: userId=%d, err=%v", cmd.UserId, err)
-		// 可以添加重试或本地消息表，这里简化处理
 	}
 	uc.globalBloom.Add(strconv.FormatInt(videoId, 10))
 	if uc.feedUsecase != nil {
@@ -191,7 +188,7 @@ func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoComma
 	return &PublishVideoResult{VideoId: videoId}, nil
 }
 
-// GetVideoById 获取视频详情（填充计数器）
+// GetVideoById 获取视频详情（填充计数器），同时增加播放量计数
 func (uc *VideoUsecase) GetVideoById(ctx context.Context, query *GetVideoByIdQuery) (*GetVideoByIdResult, error) {
 	videoIDStr := strconv.FormatInt(query.VideoId, 10)
 	if !uc.globalBloom.Exists(videoIDStr) {
@@ -205,9 +202,18 @@ func (uc *VideoUsecase) GetVideoById(ctx context.Context, query *GetVideoByIdQue
 	if !exist {
 		return nil, nil
 	}
-	// 填充计数
+	// 填充计数（从 Redis 获取）
 	if err := uc.fillVideoCounters(ctx, video); err != nil {
 		uc.log.Warnf("填充视频计数失败: %v", err)
+	}
+	// 增加播放量计数
+	if uc.videoCounter != nil {
+		go func() {
+			// 异步增加播放量，不影响主流程
+			if err := uc.videoCounter.IncrVideoCounter(context.Background(), query.VideoId, "view_count", 1); err != nil {
+				uc.log.Warnf("增加视频播放量失败: videoId=%d, err=%v", query.VideoId, err)
+			}
+		}()
 	}
 	if query.UserId != 0 {
 		go func() {
@@ -272,11 +278,10 @@ func (uc *VideoUsecase) fillVideoCounters(ctx context.Context, video *Video) err
 	if video == nil {
 		return nil
 	}
-	counters, err := uc.videoCounter.GetVideoCounters(ctx, video.Id, "like_count", "comment_count", "collection_count")
+	counters, err := uc.videoCounter.GetVideoCounters(ctx, video.Id, "like_count", "comment_count", "collection_count", "view_count")
 	if err != nil {
 		return err
 	}
-	// 如果Redis中有值，则覆盖；否则保持MySQL原值，并同步回填Redis
 	needSet := false
 	setCounts := make(map[string]int64)
 	if val, ok := counters["like_count"]; ok {
@@ -297,8 +302,13 @@ func (uc *VideoUsecase) fillVideoCounters(ctx context.Context, video *Video) err
 		setCounts["collection_count"] = video.CollectionCount
 		needSet = true
 	}
+	if val, ok := counters["view_count"]; ok {
+		video.ViewCount = val
+	} else {
+		setCounts["view_count"] = video.ViewCount
+		needSet = true
+	}
 	if needSet {
-		// 同步回填Redis，使用短超时避免阻塞过久
 		setCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 		if err := uc.videoCounter.SetVideoCounters(setCtx, video.Id, setCounts); err != nil {
@@ -317,11 +327,10 @@ func (uc *VideoUsecase) batchFillVideoCounters(ctx context.Context, videos []*Vi
 	for i, v := range videos {
 		videoIds[i] = v.Id
 	}
-	countersMap, err := uc.videoCounter.BatchGetVideoCounters(ctx, videoIds, "like_count", "comment_count", "collection_count")
+	countersMap, err := uc.videoCounter.BatchGetVideoCounters(ctx, videoIds, "like_count", "comment_count", "collection_count", "view_count")
 	if err != nil {
 		return err
 	}
-	// 收集需要回填的计数
 	needSet := make(map[int64]map[string]int64)
 	for _, v := range videos {
 		if counters, ok := countersMap[v.Id]; ok {
@@ -349,16 +358,23 @@ func (uc *VideoUsecase) batchFillVideoCounters(ctx context.Context, videos []*Vi
 				}
 				needSet[v.Id]["collection_count"] = v.CollectionCount
 			}
+			if val, ok := counters["view_count"]; ok {
+				v.ViewCount = val
+			} else {
+				if needSet[v.Id] == nil {
+					needSet[v.Id] = make(map[string]int64)
+				}
+				needSet[v.Id]["view_count"] = v.ViewCount
+			}
 		} else {
-			// Redis中完全没有该视频的计数器，需要回填全部
 			needSet[v.Id] = map[string]int64{
 				"like_count":       v.LikeCount,
 				"comment_count":    v.CommentCount,
 				"collection_count": v.CollectionCount,
+				"view_count":       v.ViewCount,
 			}
 		}
 	}
-	// 异步回填
 	if len(needSet) > 0 {
 		go func() {
 			bgCtx := context.Background()

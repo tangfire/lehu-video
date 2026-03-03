@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"lehu-video/app/videoCore/service/internal/deprecated"
 	"time"
 
 	"github.com/coocood/freecache"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/sync/singleflight" // 新增导入
+	"golang.org/x/sync/singleflight"
 )
 
 // ============ Command/Query 结构体定义 ============
@@ -147,27 +146,30 @@ type CommentRepo interface {
 // CommentUsecase 业务逻辑层
 type CommentUsecase struct {
 	repo         CommentRepo
-	cache        *freecache.Cache             // 本地缓存
-	redis        *redis.Client                // Redis 客户端
-	videoCounter VideoCounterRepo             // 新增
-	hotDetector  *deprecated.HotVideoDetector // 热点检测器
+	cache        *freecache.Cache // 本地缓存
+	redis        *redis.Client    // Redis 客户端
+	videoCounter VideoCounterRepo // 视频计数器
 	log          *log.Helper
-	sfg          singleflight.Group // 新增：用于合并并发回源请求
+	sfg          singleflight.Group // 用于合并并发回源请求
 }
 
-func NewCommentUsecase(repo CommentRepo, cache *freecache.Cache, redis *redis.Client, hotDetector *deprecated.HotVideoDetector, videoCounter VideoCounterRepo, logger log.Logger) *CommentUsecase {
+func NewCommentUsecase(
+	repo CommentRepo,
+	cache *freecache.Cache,
+	redis *redis.Client,
+	videoCounter VideoCounterRepo,
+	logger log.Logger,
+) *CommentUsecase {
 	return &CommentUsecase{
 		repo:         repo,
 		cache:        cache,
 		redis:        redis,
-		hotDetector:  hotDetector,
 		videoCounter: videoCounter,
 		log:          log.NewHelper(logger),
 		// sfg 零值可用，无需显式初始化
 	}
 }
 
-// biz/comment.go (修改后，仅列出修改的方法)
 // CreateComment 创建评论
 func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentCommand) (*CreateCommentResult, error) {
 	// 1. 参数验证
@@ -190,15 +192,13 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 	}
 	comment.GenerateId()
 
-	// 数据库操作（此处没有事务，如果需要可以添加，但评论表独立，暂时无事务）
-	// 注意：评论模块没有实现 WithTransaction，我们这里直接插入数据库
-	// 但为了保持一致性，我们假设数据库操作成功后再更新计数
+	// 数据库操作
 	_, err := uc.repo.Create(ctx, comment)
 	if err != nil {
 		return nil, err
 	}
 
-	// 更新视频评论计数（使用 videoCounter）
+	// 更新视频评论计数
 	if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.VideoID, "comment_count", 1); err != nil {
 		uc.log.Warnf("更新视频评论计数失败: videoId=%d, err=%v", cmd.VideoID, err)
 	}
@@ -237,24 +237,14 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentC
 
 // ListVideoComments 获取视频评论列表（带多级缓存 + singleflight 防击穿）
 func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVideoCommentsQuery) (*ListVideoCommentsResult, error) {
-	// 1. 记录该视频的一次请求（用于热点统计）
-	uc.hotDetector.IncrRequestCount(ctx, query.VideoID)
+	// 固定缓存时间（不再依赖热点检测）
+	localTTL := 5  // 本地缓存5秒
+	redisTTL := 60 // Redis缓存1分钟
 
-	// 2. 判断是否为热门视频，决定缓存时间
-	isHot := uc.hotDetector.IsHotVideo(ctx, query.VideoID)
-	var localTTL, redisTTL int
-	if isHot {
-		localTTL = 30  // 本地缓存30秒
-		redisTTL = 300 // Redis缓存5分钟
-	} else {
-		localTTL = 5  // 本地缓存5秒
-		redisTTL = 60 // Redis缓存1分钟
-	}
-
-	// 3. 构建缓存 key
+	// 构建缓存 key
 	cacheKey := fmt.Sprintf("video_comments:%d:page:%d:size:%d", query.VideoID, query.PageStats.Page, query.PageStats.PageSize)
 
-	// 4. 尝试从本地缓存读取
+	// 尝试从本地缓存读取
 	var result ListVideoCommentsResult
 	found, err := getFromLocalCache(uc.cache, cacheKey, &result)
 	if err == nil && found {
@@ -262,7 +252,7 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 		return &result, nil
 	}
 
-	// 5. 尝试从 Redis 读取
+	// 尝试从 Redis 读取
 	found, err = uc.getFromRedis(ctx, cacheKey, &result)
 	if err == nil && found {
 		uc.log.Debugf("Redis缓存命中: %s", cacheKey)
@@ -271,12 +261,9 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 		return &result, nil
 	}
 
-	// 6. 缓存未命中，使用 singleflight 合并回源请求
+	// 缓存未命中，使用 singleflight 合并回源请求
 	uc.log.Debugf("缓存未命中，使用 singleflight 合并回源: %s", cacheKey)
 	v, err, _ := uc.sfg.Do(cacheKey, func() (interface{}, error) {
-		// 注意：singleflight 的回调函数中可能丢失外层 ctx 的超时控制，
-		// 但由于数据库查询通常很快，且此处使用 Do 方法会阻塞所有等待的请求，
-		// 若需更精细的超时控制，可改用 DoChan 并监听 ctx.Done()，这里简化处理。
 		dbResult, err := uc.queryVideoComments(ctx, query)
 		if err != nil {
 			return nil, err
@@ -294,7 +281,6 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 
 // queryVideoComments 原 ListVideoComments 的实际查询逻辑
 func (uc *CommentUsecase) queryVideoComments(ctx context.Context, query *ListVideoCommentsQuery) (*ListVideoCommentsResult, error) {
-	// 原有的 ListVideoComments 业务逻辑（去掉缓存部分）
 	if query.VideoID <= 0 {
 		return nil, ErrInvalidParams
 	}
@@ -395,12 +381,10 @@ func (uc *CommentUsecase) setToRedis(ctx context.Context, key string, value inte
 
 // ListChildComments 获取子评论列表
 func (uc *CommentUsecase) ListChildComments(ctx context.Context, query *ListChildCommentsQuery) (*ListChildCommentsResult, error) {
-	// 1. 参数验证
 	if query.ParentID <= 0 {
 		return nil, ErrInvalidParams
 	}
 
-	// 2. 验证父评论是否存在
 	parent, err := uc.repo.GetByID(ctx, query.ParentID)
 	if err != nil {
 		return nil, err
@@ -409,7 +393,6 @@ func (uc *CommentUsecase) ListChildComments(ctx context.Context, query *ListChil
 		return nil, ErrParentCommentNotFound
 	}
 
-	// 3. 构建查询条件
 	condition := map[string]interface{}{
 		"parent_id": query.ParentID,
 		"limit":     query.PageStats.PageSize,
@@ -417,13 +400,11 @@ func (uc *CommentUsecase) ListChildComments(ctx context.Context, query *ListChil
 		"order_by":  "created_at ASC",
 	}
 
-	// 4. 查询子评论
 	comments, err := uc.repo.FindByCondition(ctx, condition)
 	if err != nil {
 		return nil, err
 	}
 
-	// 5. 查询总数
 	countCondition := map[string]interface{}{
 		"parent_id": query.ParentID,
 	}
@@ -432,7 +413,6 @@ func (uc *CommentUsecase) ListChildComments(ctx context.Context, query *ListChil
 		return nil, err
 	}
 
-	// 6. 获取点赞数统计
 	commentIDs := make([]int64, len(comments))
 	for i, comment := range comments {
 		commentIDs[i] = comment.ID
@@ -456,18 +436,15 @@ func (uc *CommentUsecase) ListChildComments(ctx context.Context, query *ListChil
 
 // GetCommentByID 根据ID获取评论
 func (uc *CommentUsecase) GetCommentByID(ctx context.Context, query *GetCommentQuery) (*GetCommentResult, error) {
-	// 1. 参数验证
 	if query.CommentID <= 0 {
 		return nil, ErrInvalidParams
 	}
 
-	// 2. 查询评论
 	comment, err := uc.repo.GetByID(ctx, query.CommentID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 3. 如果评论已删除，返回特定错误
 	if comment != nil && comment.IsDeleted {
 		return nil, ErrCommentNotFound
 	}
@@ -485,7 +462,6 @@ func (uc *CommentUsecase) CountVideoComments(ctx context.Context, query *CountVi
 		}, nil
 	}
 
-	// 批量统计
 	counts, err := uc.repo.CountByVideoIDs(ctx, query.VideoIDs)
 	if err != nil {
 		return nil, err
@@ -504,7 +480,6 @@ func (uc *CommentUsecase) CountUserComments(ctx context.Context, query *CountUse
 		}, nil
 	}
 
-	// 批量统计
 	counts, err := uc.repo.CountByUserIDs(ctx, query.UserIDs)
 	if err != nil {
 		return nil, err
@@ -521,22 +496,19 @@ func (uc *CommentUsecase) loadChildComments(ctx context.Context, parentComments 
 		return nil
 	}
 
-	// 1. 收集父评论ID
 	parentIDs := make([]int64, len(parentComments))
 	for i, comment := range parentComments {
 		parentIDs[i] = comment.ID
 	}
 
-	// 2. 批量查询子评论数量
 	childCounts, err := uc.repo.CountGroupByParentID(ctx, parentIDs)
 	if err != nil {
 		return err
 	}
 
-	// 3. 批量查询子评论（只查前5条）
 	childComments, err := uc.repo.FindByCondition(ctx, map[string]interface{}{
 		"parent_id":  parentIDs,
-		"is_deleted": false, // 明确指定不查询已删除的
+		"is_deleted": false,
 		"limit":      5,
 		"order_by":   "created_at ASC",
 	})
@@ -544,7 +516,6 @@ func (uc *CommentUsecase) loadChildComments(ctx context.Context, parentComments 
 		return err
 	}
 
-	// 4. 获取子评论点赞数
 	childCommentIDs := make([]int64, len(childComments))
 	for i, child := range childComments {
 		childCommentIDs[i] = child.ID
@@ -560,13 +531,11 @@ func (uc *CommentUsecase) loadChildComments(ctx context.Context, parentComments 
 		}
 	}
 
-	// 5. 按父评论ID分组
 	childCommentsMap := make(map[int64][]*Comment)
 	for _, child := range childComments {
 		childCommentsMap[child.ParentID] = append(childCommentsMap[child.ParentID], child)
 	}
 
-	// 6. 组装数据
 	for _, parent := range parentComments {
 		if count, exists := childCounts[parent.ID]; exists {
 			parent.ReplyCount = count

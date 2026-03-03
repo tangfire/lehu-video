@@ -1,4 +1,4 @@
-// biz/hot_pool_service.go - 修复版
+// biz/hot_pool_service.go - 加入播放量统计
 package biz
 
 import (
@@ -81,7 +81,6 @@ func (s *HotPoolService) AddVideo(ctx context.Context, videoID, authorID string,
 		Score:  float64(timestamp), // 初始用时间戳，后续刷新会重新计算
 		Member: member,
 	}
-	// 使用ZAdd，不需要修剪，因为刷新时会整体替换
 	if err := s.redis.ZAdd(ctx, key, z).Err(); err != nil {
 		s.log.Warnf("添加视频到热门池失败: %v", err)
 	}
@@ -90,7 +89,7 @@ func (s *HotPoolService) AddVideo(ctx context.Context, videoID, authorID string,
 // refreshHotPool 刷新热门池，原子替换
 func (s *HotPoolService) refreshHotPool(ctx context.Context) {
 	// 1. 从数据库获取候选视频（近7天，只需要基础信息）
-	hotVideos, err := s.videoRepo.GetHotVideos(ctx, 2000) // 只获取ID、作者ID、上传时间、互动数
+	hotVideos, err := s.videoRepo.GetHotVideos(ctx, 2000) // 现在会返回 view_count
 	if err != nil {
 		s.log.Errorf("获取热门视频失败: %v", err)
 		return
@@ -127,7 +126,6 @@ func (s *HotPoolService) refreshHotPool(ctx context.Context) {
 		redis.call('EXPIRE', KEYS[1], 86400)
 		return 1
 	`
-	// 将members扁平化为字符串数组
 	args := make([]interface{}, 0, len(scoredMembers)*3)
 	for _, zm := range scoredMembers {
 		args = append(args, zm.Member.(string), zm.Score)
@@ -144,15 +142,18 @@ func (s *HotPoolService) refreshHotPool(ctx context.Context) {
 	s.log.Infof("热门池刷新完成，视频数量: %d", len(scoredMembers))
 }
 
-// calculateHotScore 热度算法：威尔逊区间 + 时间衰减
+// calculateHotScore 热度算法：威尔逊区间 + 时间衰减，加入播放量权重
 func (s *HotPoolService) calculateHotScore(video *Video, now int64) float64 {
 	like := float64(video.LikeCount)
 	comment := float64(video.CommentCount)
-	// 总互动量（可调整权重）
-	n := like*1.5 + comment*1.0
+	view := float64(video.ViewCount)
+
+	// 总互动量：点赞权重1.5，评论权重1.0，播放量权重0.1（可根据业务调整）
+	n := like*1.5 + comment*1.0 + view*0.1
 	p := 0.0
 	if n > 0 {
-		p = (like * 1.5) / n
+		// 分子以点赞为主，但播放量也有贡献
+		p = (like*1.5 + view*0.05) / n
 	}
 	z := 1.96 // 95%置信度
 	score := 0.0
@@ -172,17 +173,4 @@ func (s *HotPoolService) calculateHotScore(video *Video, now int64) float64 {
 // buildMember 构造member字符串
 func (s *HotPoolService) buildMember(videoID, authorID string, timestamp int64) string {
 	return strings.Join([]string{videoID, authorID, strconv.FormatInt(timestamp, 10)}, ":")
-}
-
-// GetHotVideos 兼容旧接口
-func (s *HotPoolService) GetHotVideos(ctx context.Context, limit int) ([]string, error) {
-	items, err := s.GetHotFeedItems(ctx, limit)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, len(items))
-	for i, item := range items {
-		ids[i] = item.VideoID
-	}
-	return ids, nil
 }

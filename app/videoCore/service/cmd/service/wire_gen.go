@@ -12,7 +12,6 @@ import (
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/conf"
 	"lehu-video/app/videoCore/service/internal/data"
-	"lehu-video/app/videoCore/service/internal/deprecated"
 	"lehu-video/app/videoCore/service/internal/server"
 	"lehu-video/app/videoCore/service/internal/service"
 )
@@ -52,8 +51,7 @@ func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry
 	favoriteServiceService := service.NewFavoriteServiceService(favoriteUsecase)
 	commentRepo := data.NewCommentRepo(dataData, logger)
 	cache := data.NewFreeCache(confData)
-	hotVideoDetector := deprecated.NewHotVideoDetector(client, logger)
-	commentUsecase := biz.NewCommentUsecase(commentRepo, cache, client, hotVideoDetector, videoCounterRepo, logger)
+	commentUsecase := biz.NewCommentUsecase(commentRepo, cache, client, videoCounterRepo, logger)
 	commentServiceService := service.NewCommentServiceService(commentUsecase)
 	collectionRepo := data.NewCollectionRepo(dataData, logger)
 	collectionUsecase := biz.NewCollectionUsecase(collectionRepo, videoRepo, userCounterRepo, videoCounterRepo, generator, logger)

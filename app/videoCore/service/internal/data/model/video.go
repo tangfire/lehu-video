@@ -11,7 +11,8 @@ type Video struct {
 	CoverUrl        string    `json:"cover_url" gorm:"column:cover_url"`
 	LikeCount       int64     `json:"like_count" gorm:"column:like_count"`
 	CommentCount    int64     `json:"comment_count" gorm:"column:comment_count"`
-	CollectionCount int64     `json:"collection_count" gorm:"column:collection_count;default:0"` // 新增
+	CollectionCount int64     `json:"collection_count" gorm:"column:collection_count;default:0"`
+	ViewCount       int64     `json:"view_count" gorm:"column:view_count;default:0"` // 新增播放量字段
 	CreatedAt       time.Time `json:"created_at" gorm:"column:created_at"`
 	UpdatedAt       time.Time `json:"updated_at" gorm:"column:updated_at"`
 }
