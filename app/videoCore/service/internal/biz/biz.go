@@ -13,9 +13,10 @@ var ProviderSet = wire.NewSet(
 	NewFollowUsecase,
 	NewCollectionUsecase,
 	NewFeedUsecase,
-	NewKafkaConsumer,
-	NewKafkaProducer,
+	NewVideoConsumer,
+	NewVideoProducer,
 	NewRecentViewedManager,
+	NewFavoriteConsumer,
 )
 
 type PageStats struct {

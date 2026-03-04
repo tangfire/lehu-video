@@ -1,4 +1,4 @@
-// biz/kafka_consumer.go - 修复版
+// biz/video_consumer.go - 修复版
 package biz
 
 import (
@@ -24,11 +24,11 @@ type KafkaConsumer struct {
 	log         *log.Helper
 }
 
-func NewKafkaConsumer(conf *conf.Data, feedUsecase *FeedUsecase, logger log.Logger) *KafkaConsumer {
-	return newKafkaConsumer(conf.Kafka.Brokers, conf.Kafka.Topic.VideoPublish, conf.Kafka.GroupId, feedUsecase, logger)
+func NewVideoConsumer(conf *conf.Data, feedUsecase *FeedUsecase, logger log.Logger) *KafkaConsumer {
+	return newVideoConsumer(conf.Kafka.Brokers, conf.Kafka.Topic.VideoPublish, conf.Kafka.GroupId, feedUsecase, logger)
 }
 
-func newKafkaConsumer(brokers []string, topic string, groupId string, feedUsecase *FeedUsecase, logger log.Logger) *KafkaConsumer {
+func newVideoConsumer(brokers []string, topic string, groupId string, feedUsecase *FeedUsecase, logger log.Logger) *KafkaConsumer {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
 		Topic:    topic,
@@ -70,7 +70,7 @@ func (c *KafkaConsumer) processMessage(ctx context.Context, msg kafka.Message) {
 }
 
 // pushToAllFollowers 分页获取大V的所有粉丝并推送
-// biz/kafka_consumer.go
+// biz/video_consumer.go
 func (c *KafkaConsumer) pushToAllFollowers(ctx context.Context, event VideoPublishEvent) {
 	item := &TimelineItem{
 		VideoID:   event.VideoID,
@@ -94,7 +94,7 @@ func (c *KafkaConsumer) pushToAllFollowers(ctx context.Context, event VideoPubli
 	}
 }
 
-// biz/kafka_consumer.go (在文件末尾添加)
+// biz/video_consumer.go (在文件末尾添加)
 // Close 关闭消费者，释放资源
 func (c *KafkaConsumer) Close() error {
 	if c.reader != nil {

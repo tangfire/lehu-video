@@ -1,4 +1,4 @@
-// biz/kafka_producer.go - Kafka生产者实现
+// biz/video_producer.go - Kafka生产者实现
 package biz
 
 import (
@@ -17,7 +17,7 @@ type KafkaProducerImpl struct {
 	writers map[string]*kafka.Writer
 }
 
-func NewKafkaProducer() KafkaProducer {
+func NewVideoProducer() KafkaProducer {
 	return &KafkaProducerImpl{
 		writers: make(map[string]*kafka.Writer),
 	}

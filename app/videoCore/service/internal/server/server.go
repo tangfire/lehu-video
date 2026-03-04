@@ -9,5 +9,6 @@ var ProviderSet = wire.NewSet(
 	NewGRPCServer,
 	NewHTTPServer,
 	NewRegistrar,
-	NewKafkaConsumerServer,
+	NewVideoKafkaConsumerServer,
+	NewFavoriteKafkaConsumerServer,
 )

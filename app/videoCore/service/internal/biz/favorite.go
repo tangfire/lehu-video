@@ -14,6 +14,16 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// FavoriteEvent 点赞/点踩事件
+type FavoriteEvent struct {
+	UserId       int64 `json:"user_id"`
+	TargetId     int64 `json:"target_id"`
+	TargetType   int32 `json:"target_type"`   // 0:视频 1:评论
+	FavoriteType int32 `json:"favorite_type"` // 0:点赞 1:点踩
+	Action       int32 `json:"action"`        // 1:添加 -1:取消
+	Timestamp    int64 `json:"timestamp"`
+}
+
 // ----------------------------- 类型定义 ---------------------------------
 type Favorite struct {
 	Id           int64
@@ -28,7 +38,7 @@ type Favorite struct {
 
 type CacheKeyGenerator interface {
 	UserTargetKey(userId, targetId int64, targetType int32) string
-	TargetCountKey(targetId int64, targetType, favoriteType int32) string // 保留，可能用于统计
+	TargetCountKey(targetId int64, targetType, favoriteType int32) string
 }
 
 type defaultCacheKeyGenerator struct{}
@@ -99,12 +109,12 @@ type IsFavoriteQuery struct {
 	UserId       int64
 	TargetId     int64
 	TargetType   int32
-	FavoriteType int32 // 仅在查询特定类型时使用，一般传 -1
+	FavoriteType int32
 }
 
 type IsFavoriteResult struct {
-	IsFavorite    bool  // 是否点赞（包括点赞和点踩）
-	FavoriteType  int32 // 实际类型：0=点赞，1=点踩，-1=无
+	IsFavorite    bool
+	FavoriteType  int32
 	TotalLikes    int64
 	TotalDislikes int64
 }
@@ -133,6 +143,7 @@ type FavoriteRepo interface {
 	UpdateFavorite(ctx context.Context, favorite *Favorite) error
 	GetFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) (*Favorite, error)
 	GetFavoriteByUserTarget(ctx context.Context, userId, targetId int64, targetType int32) (*Favorite, error)
+	GetFavoriteIncludeDeleted(ctx context.Context, userId, targetId int64, targetType int32) (*Favorite, error)
 	SoftDeleteFavorite(ctx context.Context, favoriteId int64) error
 	HardDeleteFavorite(ctx context.Context, favoriteId int64) error
 
@@ -179,6 +190,8 @@ type FavoriteUsecase struct {
 	favoriteCooldown time.Duration
 	mutex            sync.RWMutex
 	rateLimiters     map[string]*rate.Limiter
+	kafkaProducer    KafkaProducer
+	favoriteTopic    string
 }
 
 func NewFavoriteUsecase(
@@ -188,6 +201,7 @@ func NewFavoriteUsecase(
 	videoCounter VideoCounterRepo,
 	cache *redis.Client,
 	idGen idgen.Generator,
+	kafkaProducer KafkaProducer,
 	logger log.Logger,
 ) *FavoriteUsecase {
 	return &FavoriteUsecase{
@@ -203,6 +217,8 @@ func NewFavoriteUsecase(
 		maxBatchSize:     1000,
 		favoriteCooldown: time.Second,
 		rateLimiters:     make(map[string]*rate.Limiter),
+		kafkaProducer:    kafkaProducer,
+		favoriteTopic:    "favorite_topic",
 	}
 }
 
@@ -259,65 +275,72 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 		return err
 	}
 
-	err := uc.repo.WithTransaction(ctx, func(ctx context.Context) error {
-		existing, err := uc.repo.GetFavoriteByUserTarget(ctx, cmd.UserId, cmd.TargetId, cmd.TargetType)
-		if err != nil {
-			return fmt.Errorf("查询点赞状态失败: %w", err)
-		}
-
-		if existing != nil {
-			if existing.FavoriteType == cmd.FavoriteType {
-				// 类型相同，幂等返回
-				return nil
+	// 1. 更新Redis计数（前端即时反馈）
+	if cmd.TargetType == 0 { // 视频
+		switch cmd.FavoriteType {
+		case 0: // 点赞
+			if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.TargetId, "like_count", 1); err != nil {
+				uc.log.Warnf("更新视频点赞计数失败: %v", err)
 			}
-			// 类型不同：软删旧记录
-			existing.DeleteAt = time.Now().Unix()
-			existing.UpdatedAt = time.Now()
-			if err := uc.repo.UpdateFavorite(ctx, existing); err != nil {
-				return fmt.Errorf("取消原有操作失败: %w", err)
+			// 获取作者ID并增加其 be_liked_count
+			exist, video, err := uc.videoRepo.GetVideoById(ctx, cmd.TargetId)
+			if err != nil {
+				uc.log.Warnf("获取视频信息失败: %v", err)
+			} else if exist {
+				authorId := video.Author.Id
+				if _, err := uc.userCounter.IncrUserCounter(ctx, authorId, "be_liked_count", 1); err != nil {
+					uc.log.Warnf("更新作者获赞数失败: %v", err)
+				}
 			}
+		case 1: // 点踩
+			if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.TargetId, "dislike_count", 1); err != nil {
+				uc.log.Warnf("更新视频点踩计数失败: %v", err)
+			}
+			// 点踩不计入作者获赞数，无需更新
 		}
-
-		// 创建新记录
-		favorite := &Favorite{
-			Id:           uc.idGen.NextID(),
-			UserId:       cmd.UserId,
-			TargetId:     cmd.TargetId,
-			TargetType:   cmd.TargetType,
-			FavoriteType: cmd.FavoriteType,
-			DeleteAt:     0,
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
-		}
-		if err := uc.repo.CreateFavorite(ctx, favorite); err != nil {
-			return fmt.Errorf("创建点赞记录失败: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
+	} else if cmd.TargetType == 1 { // 评论，类似处理（如有需要）
+		// 可根据业务补充评论点赞逻辑
 	}
 
-	// 事务成功后，更新Redis计数
-	if cmd.TargetType == 0 && cmd.FavoriteType == 0 {
-		// 增加视频 like_count
-		if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.TargetId, "like_count", 1); err != nil {
-			uc.log.Warnf("更新视频点赞计数失败: %v", err)
+	// 2. 发送Kafka事件（持久化明细）
+	event := FavoriteEvent{
+		UserId:       cmd.UserId,
+		TargetId:     cmd.TargetId,
+		TargetType:   cmd.TargetType,
+		FavoriteType: cmd.FavoriteType,
+		Action:       1,
+		Timestamp:    time.Now().Unix(),
+	}
+	data, _ := json.Marshal(event)
+	key := fmt.Sprintf("%d:%d:%d", cmd.UserId, cmd.TargetId, cmd.TargetType)
+	if err := uc.kafkaProducer.SendMessage(uc.favoriteTopic, []byte(key), data); err != nil {
+		uc.log.Errorf("发送点赞事件失败: %v", err)
+		return fmt.Errorf("操作失败，请稍后重试")
+	}
+
+	// 3. 主动更新缓存（确保后续查询立即正确）
+	if uc.cache != nil {
+		// 获取最新计数（用于缓存）
+		var likeCount, dislikeCount int64
+		if cmd.TargetType == 0 {
+			counters, _ := uc.videoCounter.GetVideoCounters(ctx, cmd.TargetId, "like_count", "dislike_count")
+			likeCount = counters["like_count"]
+			dislikeCount = counters["dislike_count"]
 		}
-		// 获取作者ID并增加其 be_liked_count
-		exist, video, err := uc.videoRepo.GetVideoById(ctx, cmd.TargetId)
-		if err != nil {
-			uc.log.Warnf("获取视频信息失败: %v", err)
-		} else if exist {
-			authorId := video.Author.Id
-			if _, err := uc.userCounter.IncrUserCounter(ctx, authorId, "be_liked_count", 1); err != nil {
-				uc.log.Warnf("更新作者获赞数失败: %v", err)
+
+		result := &IsFavoriteResult{
+			IsFavorite:    true,
+			FavoriteType:  cmd.FavoriteType,
+			TotalLikes:    likeCount,
+			TotalDislikes: dislikeCount,
+		}
+		if data, err := json.Marshal(result); err == nil {
+			key := uc.keyGen.UserTargetKey(cmd.UserId, cmd.TargetId, cmd.TargetType)
+			if err := uc.cache.Set(ctx, key, string(data), time.Hour).Err(); err != nil {
+				uc.log.Warnf("写入用户状态缓存失败: %v", err)
 			}
 		}
 	}
-
-	// 异步使缓存失效
-	go uc.invalidateCache(context.Background(), cmd.UserId, cmd.TargetId, cmd.TargetType)
 	return nil
 }
 
@@ -327,50 +350,74 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 		return fmt.Errorf("参数无效")
 	}
 
-	err := uc.repo.WithTransaction(ctx, func(ctx context.Context) error {
-		favorite, err := uc.repo.GetFavorite(ctx, cmd.UserId, cmd.TargetId, cmd.TargetType, cmd.FavoriteType)
-		if err != nil {
-			return fmt.Errorf("查询点赞记录失败: %w", err)
-		}
-		if favorite == nil || favorite.DeleteAt != 0 {
-			return nil // 幂等
-		}
-
-		favorite.DeleteAt = time.Now().Unix()
-		favorite.UpdatedAt = time.Now()
-		if err := uc.repo.UpdateFavorite(ctx, favorite); err != nil {
-			return fmt.Errorf("取消点赞失败: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	// 事务成功后，更新Redis计数
-	if cmd.TargetType == 0 && cmd.FavoriteType == 0 {
-		// 减少视频 like_count
-		if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.TargetId, "like_count", -1); err != nil {
-			uc.log.Warnf("更新视频点赞计数失败: %v", err)
-		}
-		// 获取作者ID并减少其 be_liked_count
-		exist, video, err := uc.videoRepo.GetVideoById(ctx, cmd.TargetId)
-		if err != nil {
-			uc.log.Warnf("获取视频信息失败: %v", err)
-		} else if exist {
-			authorId := video.Author.Id
-			if _, err := uc.userCounter.IncrUserCounter(ctx, authorId, "be_liked_count", -1); err != nil {
-				uc.log.Warnf("更新作者获赞数失败: %v", err)
+	// 1. 更新Redis计数
+	if cmd.TargetType == 0 {
+		switch cmd.FavoriteType {
+		case 0: // 取消点赞
+			if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.TargetId, "like_count", -1); err != nil {
+				uc.log.Warnf("更新视频点赞计数失败: %v", err)
+			}
+			exist, video, err := uc.videoRepo.GetVideoById(ctx, cmd.TargetId)
+			if err != nil {
+				uc.log.Warnf("获取视频信息失败: %v", err)
+			} else if exist {
+				authorId := video.Author.Id
+				if _, err := uc.userCounter.IncrUserCounter(ctx, authorId, "be_liked_count", -1); err != nil {
+					uc.log.Warnf("更新作者获赞数失败: %v", err)
+				}
+			}
+		case 1: // 取消点踩
+			if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.TargetId, "dislike_count", -1); err != nil {
+				uc.log.Warnf("更新视频点踩计数失败: %v", err)
 			}
 		}
 	}
 
-	// 异步使缓存失效
-	go uc.invalidateCache(context.Background(), cmd.UserId, cmd.TargetId, cmd.TargetType)
+	// 2. 发送Kafka事件
+	event := FavoriteEvent{
+		UserId:       cmd.UserId,
+		TargetId:     cmd.TargetId,
+		TargetType:   cmd.TargetType,
+		FavoriteType: cmd.FavoriteType,
+		Action:       -1,
+		Timestamp:    time.Now().Unix(),
+	}
+	data, _ := json.Marshal(event)
+	key := fmt.Sprintf("%d:%d:%d", cmd.UserId, cmd.TargetId, cmd.TargetType)
+	if err := uc.kafkaProducer.SendMessage(uc.favoriteTopic, []byte(key), data); err != nil {
+		uc.log.Errorf("发送取消点赞事件失败: %v", err)
+		return fmt.Errorf("操作失败，请稍后重试")
+	}
+
+	// 3. 主动更新缓存（覆盖）
+	if uc.cache != nil {
+		var likeCount, dislikeCount int64
+		if cmd.TargetType == 0 {
+			counters, _ := uc.videoCounter.GetVideoCounters(ctx, cmd.TargetId, "like_count", "dislike_count")
+			likeCount = counters["like_count"]
+			dislikeCount = counters["dislike_count"]
+		}
+
+		result := &IsFavoriteResult{
+			IsFavorite:    false,
+			FavoriteType:  -1,
+			TotalLikes:    likeCount,
+			TotalDislikes: dislikeCount,
+		}
+		if data, err := json.Marshal(result); err == nil {
+			key := uc.keyGen.UserTargetKey(cmd.UserId, cmd.TargetId, cmd.TargetType)
+			// 短过期，覆盖 Kafka 批处理延迟
+			if err := uc.cache.Set(ctx, key, string(data), 5*time.Second).Err(); err != nil {
+				uc.log.Warnf("写入用户状态缓存失败: %v", err)
+			}
+		}
+	}
 	return nil
 }
 
+// ListFavorite 保持不变
 func (uc *FavoriteUsecase) ListFavorite(ctx context.Context, query *ListFavoriteQuery) (*ListFavoriteResult, error) {
+	// ... 原有代码不变 ...
 	if query.Id <= 0 {
 		return nil, fmt.Errorf("查询ID无效")
 	}
@@ -402,6 +449,7 @@ func (uc *FavoriteUsecase) ListFavorite(ctx context.Context, query *ListFavorite
 	}, nil
 }
 
+// CountFavorite 保持不变
 func (uc *FavoriteUsecase) CountFavorite(ctx context.Context, query *CountFavoriteQuery) (*CountFavoriteResult, error) {
 	if len(query.Ids) == 0 {
 		return &CountFavoriteResult{Items: []CountFavoriteResultItem{}}, nil
@@ -439,7 +487,7 @@ func (uc *FavoriteUsecase) CountFavorite(ctx context.Context, query *CountFavori
 	return &CountFavoriteResult{Items: items}, nil
 }
 
-// IsFavorite 查询单个点赞状态（带缓存）
+// IsFavorite 查询单个点赞状态（优先读缓存，计数从Redis实时获取）
 func (uc *FavoriteUsecase) IsFavorite(ctx context.Context, query *IsFavoriteQuery) (*IsFavoriteResult, error) {
 	if query.UserId <= 0 || query.TargetId <= 0 {
 		return nil, fmt.Errorf("参数无效")
@@ -452,6 +500,13 @@ func (uc *FavoriteUsecase) IsFavorite(ctx context.Context, query *IsFavoriteQuer
 		if err == nil && cached != "" {
 			var result IsFavoriteResult
 			if err := json.Unmarshal([]byte(cached), &result); err == nil {
+				// 从 Redis 获取最新计数覆盖缓存中的计数（可选，保持实时）
+				if query.TargetType == 0 {
+					if counters, err := uc.videoCounter.GetVideoCounters(ctx, query.TargetId, "like_count", "dislike_count"); err == nil {
+						result.TotalLikes = counters["like_count"]
+						result.TotalDislikes = counters["dislike_count"]
+					}
+				}
 				return &result, nil
 			}
 			uc.log.Warnf("缓存反序列化失败: key=%s, err=%v", key, err)
@@ -466,14 +521,12 @@ func (uc *FavoriteUsecase) IsFavorite(ctx context.Context, query *IsFavoriteQuer
 		return nil, fmt.Errorf("查询点赞状态失败: %w", err)
 	}
 
-	stats, err := uc.repo.GetFavoriteStats(ctx, query.TargetId, query.TargetType)
-	if err != nil {
-		stats = &FavoriteStats{
-			TargetId:     query.TargetId,
-			TargetType:   query.TargetType,
-			LikeCount:    0,
-			DislikeCount: 0,
-			TotalCount:   0,
+	// 3. 从Redis获取实时计数
+	var likeCount, dislikeCount int64
+	if query.TargetType == 0 {
+		if counters, err := uc.videoCounter.GetVideoCounters(ctx, query.TargetId, "like_count", "dislike_count"); err == nil {
+			likeCount = counters["like_count"]
+			dislikeCount = counters["dislike_count"]
 		}
 	}
 
@@ -486,28 +539,29 @@ func (uc *FavoriteUsecase) IsFavorite(ctx context.Context, query *IsFavoriteQuer
 	result := &IsFavoriteResult{
 		IsFavorite:    isFavorite,
 		FavoriteType:  favType,
-		TotalLikes:    stats.LikeCount,
-		TotalDislikes: stats.DislikeCount,
+		TotalLikes:    likeCount,
+		TotalDislikes: dislikeCount,
 	}
 
-	// 3. 同步写入缓存（使用短超时避免阻塞过久）
+	// 4. 写入缓存（根据状态设置不同过期时间）
 	if uc.cache != nil {
 		if data, err := json.Marshal(result); err == nil {
 			key := uc.keyGen.UserTargetKey(query.UserId, query.TargetId, query.TargetType)
-			// 设置5秒超时，避免缓存写入失败影响主流程
+			expiration := time.Hour
+			if !result.IsFavorite {
+				expiration = 5 * time.Second // 未点赞状态短过期，避免延迟影响
+			}
 			setCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 			defer cancel()
-			if err := uc.cache.Set(setCtx, key, string(data), time.Hour).Err(); err != nil {
+			if err := uc.cache.Set(setCtx, key, string(data), expiration).Err(); err != nil {
 				uc.log.Warnf("缓存写入失败: key=%s, err=%v", key, err)
 			}
-		} else {
-			uc.log.Warnf("JSON序列化失败: %v", err)
 		}
 	}
 	return result, nil
 }
 
-// BatchIsFavorite 批量查询点赞状态（带缓存优化）
+// BatchIsFavorite 批量查询点赞状态（优化版，计数从Redis批量获取）
 func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, query *BatchIsFavoriteQuery) (*BatchIsFavoriteResult, error) {
 	if len(query.TargetIds) == 0 || len(query.UserIds) == 0 {
 		return &BatchIsFavoriteResult{Items: []BatchIsFavoriteResultItem{}}, nil
@@ -578,16 +632,16 @@ func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, query *BatchIsFa
 			}
 		}
 
-		// 批量查询点赞记录
+		// 批量查询点赞记录（只查有效记录）
 		favorites, err := uc.repo.BatchGetFavorites(ctx, missUserIds, missTargetIds, query.TargetType)
 		if err != nil {
 			return nil, fmt.Errorf("批量查询失败: %w", err)
 		}
 
-		// 批量查询统计信息
-		statsMap, err := uc.repo.BatchGetFavoriteStats(ctx, missTargetIds, query.TargetType)
+		// 批量从Redis获取计数（替换原来的数据库统计）
+		countersMap, err := uc.videoCounter.BatchGetVideoCounters(ctx, missTargetIds, "like_count", "dislike_count")
 		if err != nil {
-			uc.log.Warnf("批量获取统计失败: %v", err)
+			uc.log.Warnf("批量获取视频计数器失败: %v", err)
 		}
 
 		// 构建 favorite 映射
@@ -612,13 +666,12 @@ func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, query *BatchIsFa
 				}
 			}
 
-			// 获取统计
-			stats := statsMap[p.targetId]
+			// 从 countersMap 获取计数
 			likeCount := int64(0)
 			dislikeCount := int64(0)
-			if stats != nil {
-				likeCount = stats.LikeCount
-				dislikeCount = stats.DislikeCount
+			if counters, ok := countersMap[p.targetId]; ok {
+				likeCount = counters["like_count"]
+				dislikeCount = counters["dislike_count"]
 			}
 
 			res := &IsFavoriteResult{
@@ -635,15 +688,18 @@ func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, query *BatchIsFa
 			dbResults[key] = res
 		}
 
-		// 异步回填缓存
+		// 异步回填缓存（按状态设置过期时间）
 		if uc.cache != nil {
 			go func() {
 				bgCtx := context.Background()
 				for key, res := range dbResults {
 					if data, err := json.Marshal(res); err == nil {
-						// 短超时，避免阻塞
+						expiration := time.Hour
+						if !res.IsFavorite {
+							expiration = 5 * time.Second
+						}
 						setCtx, cancel := context.WithTimeout(bgCtx, 100*time.Millisecond)
-						if err := uc.cache.Set(setCtx, key, string(data), time.Hour).Err(); err != nil {
+						if err := uc.cache.Set(setCtx, key, string(data), expiration).Err(); err != nil {
 							uc.log.Warnf("缓存回填失败: key=%s, err=%v", key, err)
 						}
 						cancel()
@@ -689,24 +745,4 @@ func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, query *BatchIsFa
 	}
 
 	return &BatchIsFavoriteResult{Items: items}, nil
-}
-
-// invalidateCache 使缓存失效（同步删除，确保一致性）
-func (uc *FavoriteUsecase) invalidateCache(ctx context.Context, userId, targetId int64, targetType int32) {
-	if uc.cache == nil {
-		return
-	}
-	// 使用独立的 background context 避免父 context 取消导致删除失败
-	bgCtx := context.Background()
-	userTargetKey := uc.keyGen.UserTargetKey(userId, targetId, targetType)
-	if err := uc.cache.Del(bgCtx, userTargetKey).Err(); err != nil {
-		uc.log.Warnf("删除用户目标缓存失败: key=%s, err=%v", userTargetKey, err)
-	}
-
-	// 如果未来有统计缓存，也一并删除（当前未使用，但保留）
-	countKeyLike := uc.keyGen.TargetCountKey(targetId, targetType, 0)
-	countKeyDislike := uc.keyGen.TargetCountKey(targetId, targetType, 1)
-	if err := uc.cache.Del(bgCtx, countKeyLike, countKeyDislike).Err(); err != nil {
-		uc.log.Warnf("删除计数缓存失败: keys=%s,%s, err=%v", countKeyLike, countKeyDislike, err)
-	}
 }

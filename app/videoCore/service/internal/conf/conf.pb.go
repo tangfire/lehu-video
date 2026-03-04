@@ -645,6 +645,7 @@ func (x *Data_LocalCache) GetSize() int64 {
 type Data_Kafka_Topic struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	VideoPublish  string                 `protobuf:"bytes,1,opt,name=video_publish,json=videoPublish,proto3" json:"video_publish,omitempty"` // 视频发布 topic
+	Favorite      string                 `protobuf:"bytes,2,opt,name=favorite,proto3" json:"favorite,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -682,6 +683,13 @@ func (*Data_Kafka_Topic) Descriptor() ([]byte, []int) {
 func (x *Data_Kafka_Topic) GetVideoPublish() string {
 	if x != nil {
 		return x.VideoPublish
+	}
+	return ""
+}
+
+func (x *Data_Kafka_Topic) GetFavorite() string {
+	if x != nil {
+		return x.Favorite
 	}
 	return ""
 }
@@ -761,7 +769,7 @@ const file_conf_proto_rawDesc = "" +
 	"\x04GRPC\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
 	"\x04addr\x18\x02 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xa8\x05\n" +
+	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xc4\x05\n" +
 	"\x04Data\x125\n" +
 	"\bdatabase\x18\x01 \x01(\v2\x19.kratos.api.Data.DatabaseR\bdatabase\x12,\n" +
 	"\x05redis\x18\x02 \x01(\v2\x16.kratos.api.Data.RedisR\x05redis\x12,\n" +
@@ -776,13 +784,14 @@ const file_conf_proto_rawDesc = "" +
 	"\x04addr\x18\x02 \x01(\tR\x04addr\x12<\n" +
 	"\fread_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\vreadTimeout\x12>\n" +
 	"\rwrite_timeout\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\fwriteTimeout\x12\x1a\n" +
-	"\bpassword\x18\x05 \x01(\tR\bpassword\x1a\x9e\x01\n" +
+	"\bpassword\x18\x05 \x01(\tR\bpassword\x1a\xba\x01\n" +
 	"\x05Kafka\x12\x18\n" +
 	"\abrokers\x18\x01 \x03(\tR\abrokers\x12\x19\n" +
 	"\bgroup_id\x18\x02 \x01(\tR\agroupId\x122\n" +
-	"\x05topic\x18\x03 \x01(\v2\x1c.kratos.api.Data.Kafka.TopicR\x05topic\x1a,\n" +
+	"\x05topic\x18\x03 \x01(\v2\x1c.kratos.api.Data.Kafka.TopicR\x05topic\x1aH\n" +
 	"\x05Topic\x12#\n" +
-	"\rvideo_publish\x18\x01 \x01(\tR\fvideoPublish\x1a \n" +
+	"\rvideo_publish\x18\x01 \x01(\tR\fvideoPublish\x12\x1a\n" +
+	"\bfavorite\x18\x02 \x01(\tR\bfavorite\x1a \n" +
 	"\n" +
 	"LocalCache\x12\x12\n" +
 	"\x04size\x18\x01 \x01(\x03R\x04size\"}\n" +

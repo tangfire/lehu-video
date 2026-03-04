@@ -24,12 +24,10 @@ func NewVideoCounterRepo(redis *redis.Client, logger log.Logger) biz.VideoCounte
 	}
 }
 
-// videoCounterKey 视频计数器在Redis中的Hash key
 func videoCounterKey(videoId int64) string {
 	return fmt.Sprintf("video:counter:%d", videoId)
 }
 
-// dirtyVideoSetKey 脏视频ID集合
 const dirtyVideoSetKey = "video:counter:dirty"
 
 // IncrVideoCounter 增加视频计数
@@ -37,23 +35,38 @@ func (r *videoCounterRepo) IncrVideoCounter(ctx context.Context, videoId int64, 
 	key := videoCounterKey(videoId)
 	pipe := r.redis.Pipeline()
 	pipe.HIncrBy(ctx, key, field, delta)
-	// 设置过期时间，避免冷数据长期占用内存
 	pipe.Expire(ctx, key, 7*24*time.Hour)
-	// 标记为脏，待同步到MySQL
 	pipe.SAdd(ctx, dirtyVideoSetKey, videoId)
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		r.log.Warnf("IncrVideoCounter failed: videoId=%d, field=%s, delta=%d, err=%v", videoId, field, delta, err)
-		return err
 	}
-	return nil
+	return err
+}
+
+// BatchIncrVideoCounters 批量增加多个视频的计数（field固定为view_count）
+func (r *videoCounterRepo) BatchIncrVideoCounters(ctx context.Context, counts map[int64]int64) error {
+	if len(counts) == 0 {
+		return nil
+	}
+	pipe := r.redis.Pipeline()
+	for vid, delta := range counts {
+		key := videoCounterKey(vid)
+		pipe.HIncrBy(ctx, key, "view_count", delta)
+		pipe.Expire(ctx, key, 7*24*time.Hour)
+		pipe.SAdd(ctx, dirtyVideoSetKey, vid)
+	}
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		r.log.Warnf("BatchIncrVideoCounters failed: %v", err)
+	}
+	return err
 }
 
 // GetVideoCounters 获取视频计数
 func (r *videoCounterRepo) GetVideoCounters(ctx context.Context, videoId int64, fields ...string) (map[string]int64, error) {
 	key := videoCounterKey(videoId)
 	if len(fields) == 0 {
-		// 获取所有字段
 		vals, err := r.redis.HGetAll(ctx, key).Result()
 		if err != nil {
 			return nil, err
@@ -65,7 +78,6 @@ func (r *videoCounterRepo) GetVideoCounters(ctx context.Context, videoId int64, 
 		}
 		return res, nil
 	}
-	// 获取指定字段
 	vals, err := r.redis.HMGet(ctx, key, fields...).Result()
 	if err != nil {
 		return nil, err
@@ -91,12 +103,7 @@ func (r *videoCounterRepo) BatchGetVideoCounters(ctx context.Context, videoIds [
 	cmds := make([]*redis.MapStringStringCmd, len(videoIds))
 	for i, vid := range videoIds {
 		key := videoCounterKey(vid)
-		if len(fields) == 0 {
-			cmds[i] = pipe.HGetAll(ctx, key)
-		} else {
-			// 由于 HMGet 返回的是数组，不方便批量解析，这里统一用 HGetAll 然后过滤
-			cmds[i] = pipe.HGetAll(ctx, key)
-		}
+		cmds[i] = pipe.HGetAll(ctx, key)
 	}
 	_, err := pipe.Exec(ctx)
 	if err != nil {
@@ -110,13 +117,11 @@ func (r *videoCounterRepo) BatchGetVideoCounters(ctx context.Context, videoIds [
 		}
 		counters := make(map[string]int64)
 		if len(fields) == 0 {
-			// 返回所有字段
 			for k, v := range vals {
 				val, _ := strconv.ParseInt(v, 10, 64)
 				counters[k] = val
 			}
 		} else {
-			// 只返回指定字段
 			for _, field := range fields {
 				if v, ok := vals[field]; ok {
 					val, _ := strconv.ParseInt(v, 10, 64)
@@ -159,7 +164,7 @@ func (r *videoCounterRepo) ClearDirtyFlag(ctx context.Context, videoId int64) er
 	return r.redis.SRem(ctx, dirtyVideoSetKey, videoId).Err()
 }
 
-// data/video_counter.go (追加)
+// SetVideoCounters 设置视频计数（覆盖，用于回填）
 func (r *videoCounterRepo) SetVideoCounters(ctx context.Context, videoId int64, counters map[string]int64) error {
 	key := videoCounterKey(videoId)
 	fields := make(map[string]interface{})
@@ -169,7 +174,6 @@ func (r *videoCounterRepo) SetVideoCounters(ctx context.Context, videoId int64, 
 	pipe := r.redis.Pipeline()
 	pipe.HSet(ctx, key, fields)
 	pipe.Expire(ctx, key, 7*24*time.Hour)
-	// 注意：设置时不标记脏，因为是从MySQL同步过来的，无需再同步回去
 	_, err := pipe.Exec(ctx)
 	return err
 }

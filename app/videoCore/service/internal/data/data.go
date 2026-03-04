@@ -28,27 +28,23 @@ var ProviderSet = wire.NewSet(
 	NewVideoCounterRepo,
 )
 
-// Data .
 type Data struct {
-	db           *gorm.DB
-	log          *log.Helper
-	rdb          *redis.Client
-	userSyncJob  *UserCounterSyncJob
-	videoSyncJob *VideoCounterSyncJob // 新增视频计数器同步任务
+	db              *gorm.DB
+	log             *log.Helper
+	rdb             *redis.Client
+	userSyncJob     *UserCounterSyncJob
+	videoSyncJob    *VideoCounterSyncJob
+	reconcileJob    *FavoriteReconcileJob
+	reconcileStopCh chan struct{} // 用于停止对账任务
 }
 
-// NewIdGenerator 从配置创建 ID 生成器
-func NewIdGenerator(c *conf.Idgen) idgen.Generator {
-	return idgen.NewGenerator(c.WorkerId)
-}
-
-// NewData .
 func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), error) {
 	logHelper := log.NewHelper(logger)
 	d := &Data{
-		db:  db,
-		rdb: rdb,
-		log: logHelper,
+		db:              db,
+		rdb:             rdb,
+		log:             logHelper,
+		reconcileStopCh: make(chan struct{}),
 	}
 
 	// 创建并启动用户计数器同步任务
@@ -63,7 +59,15 @@ func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), 
 	videoSyncJob.Start()
 	d.videoSyncJob = videoSyncJob
 
+	// 创建并启动视频点赞数对账任务（每日凌晨3点执行）
+	reconcileJob := NewFavoriteReconcileJob(db, logger)
+	reconcileJob.StartCron(d.reconcileStopCh) // 传入停止通道
+	d.reconcileJob = reconcileJob
+
 	cleanup := func() {
+		// 停止对账任务（关闭通道即可）
+		close(d.reconcileStopCh)
+
 		if d.userSyncJob != nil {
 			d.userSyncJob.Stop()
 		}
@@ -75,6 +79,11 @@ func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), 
 		}
 	}
 	return d, cleanup, nil
+}
+
+// NewIdGenerator 从配置创建 ID 生成器
+func NewIdGenerator(c *conf.Idgen) idgen.Generator {
+	return idgen.NewGenerator(c.WorkerId)
 }
 
 func NewDB(c *conf.Data, logger log.Logger) *gorm.DB {

@@ -359,3 +359,20 @@ func (r *favoriteRepo) WithTransaction(ctx context.Context, fn func(ctx context.
 		return fn(newCtx)
 	})
 }
+
+// GetFavoriteIncludeDeleted 获取包括软删除的记录
+func (r *favoriteRepo) GetFavoriteIncludeDeleted(ctx context.Context, userId, targetId int64, targetType int32) (*biz.Favorite, error) {
+	var m model.Favorite
+	err := r.db(ctx).
+		Where("user_id = ?", userId).
+		Where("target_id = ?", targetId).
+		Where("target_type = ?", targetType).
+		First(&m).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return r.toBizFavorite(&m), nil
+}

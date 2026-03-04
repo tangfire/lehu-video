@@ -119,14 +119,14 @@ func (s *HotPoolService) refreshHotPool(ctx context.Context) {
 	luaScript := `
 		redis.call('DEL', KEYS[1])
 		if #ARGV > 0 then
-			for i = 1, #ARGV, 3 do
+			for i = 1, #ARGV, 2 do
 				redis.call('ZADD', KEYS[1], ARGV[i+1], ARGV[i])
 			end
 		end
 		redis.call('EXPIRE', KEYS[1], 86400)
 		return 1
 	`
-	args := make([]interface{}, 0, len(scoredMembers)*3)
+	args := make([]interface{}, 0, len(scoredMembers)*2) // 每个成员占2个参数（member 和 score）
 	for _, zm := range scoredMembers {
 		args = append(args, zm.Member.(string), zm.Score)
 	}

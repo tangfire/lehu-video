@@ -40,4 +40,7 @@ type VideoCounterRepo interface {
 	ClearDirtyFlag(ctx context.Context, videoId int64) error
 
 	SetVideoCounters(ctx context.Context, videoId int64, counters map[string]int64) error
+
+	// BatchIncrVideoCounters 批量增加多个视频的计数（field固定为view_count）
+	BatchIncrVideoCounters(ctx context.Context, counts map[int64]int64) error
 }
