@@ -205,13 +205,14 @@ func NewFavoriteUsecase(
 	logger log.Logger,
 ) *FavoriteUsecase {
 	return &FavoriteUsecase{
-		repo:             repo,
-		videoRepo:        videoRepo,
-		userCounter:      userCounter,
-		videoCounter:     videoCounter,
-		cache:            cache,
-		idGen:            idGen,
-		log:              log.NewHelper(logger),
+		repo:         repo,
+		videoRepo:    videoRepo,
+		userCounter:  userCounter,
+		videoCounter: videoCounter,
+		cache:        cache,
+		idGen:        idGen,
+		log:          log.NewHelper(logger),
+		// todo 百万并发指的是每秒百万嘛？现在看起来这里有个限流器，应该就是每秒才2w请求吧好像 qps = 20k???
 		limiter:          rate.NewLimiter(rate.Limit(20000), 5000),
 		keyGen:           &defaultCacheKeyGenerator{},
 		maxBatchSize:     1000,
@@ -446,7 +447,7 @@ func (uc *FavoriteUsecase) ListFavorite(ctx context.Context, query *ListFavorite
 	}, nil
 }
 
-// CountFavorite 保持不变
+// CountFavorite 批量统计点赞/点踩数量（优先从Redis读取视频计数）
 func (uc *FavoriteUsecase) CountFavorite(ctx context.Context, query *CountFavoriteQuery) (*CountFavoriteResult, error) {
 	if len(query.Ids) == 0 {
 		return &CountFavoriteResult{Items: []CountFavoriteResultItem{}}, nil
@@ -455,31 +456,85 @@ func (uc *FavoriteUsecase) CountFavorite(ctx context.Context, query *CountFavori
 		return nil, fmt.Errorf("ID列表过长，最多支持%d个ID", uc.maxBatchSize)
 	}
 
-	var resultMap map[int64]FavoriteCount
+	var items []CountFavoriteResultItem
 	var err error
+
 	switch query.AggregateType {
 	case 0: // BY_VIDEO
-		resultMap, err = uc.repo.CountFavoritesByTargetIds(ctx, query.Ids, 0)
-	case 1: // BY_COMMENT
-		resultMap, err = uc.repo.CountFavoritesByTargetIds(ctx, query.Ids, 1)
-	case 2: // BY_USER
-		resultMap, err = uc.repo.CountFavoritesByUserIds(ctx, query.Ids, 0)
+		// 从 Redis 获取视频计数
+		var countersMap map[int64]map[string]int64
+		countersMap, err = uc.videoCounter.BatchGetVideoCounters(ctx, query.Ids, "like_count", "dislike_count")
+		if err != nil {
+			uc.log.Warnf("批量获取视频计数器失败: %v，回退到数据库", err)
+			// 降级：查数据库
+			var dbMap map[int64]FavoriteCount
+			dbMap, err = uc.repo.CountFavoritesByTargetIds(ctx, query.Ids, 0)
+			if err != nil {
+				return nil, fmt.Errorf("统计视频点赞数量失败: %w", err)
+			}
+			for _, id := range query.Ids {
+				counts := dbMap[id]
+				items = append(items, CountFavoriteResultItem{
+					BizId:        id,
+					LikeCount:    counts.LikeCount,
+					DislikeCount: counts.DislikeCount,
+					TotalCount:   counts.TotalCount,
+				})
+			}
+		} else {
+			for _, id := range query.Ids {
+				counters, ok := countersMap[id]
+				if !ok || counters == nil {
+					items = append(items, CountFavoriteResultItem{
+						BizId:        id,
+						LikeCount:    0,
+						DislikeCount: 0,
+						TotalCount:   0,
+					})
+				} else {
+					like := counters["like_count"]
+					dislike := counters["dislike_count"]
+					items = append(items, CountFavoriteResultItem{
+						BizId:        id,
+						LikeCount:    like,
+						DislikeCount: dislike,
+						TotalCount:   like + dislike,
+					})
+				}
+			}
+		}
+	case 1: // BY_COMMENT（评论，目前未在Redis维护，直接查数据库）
+		var dbMap map[int64]FavoriteCount
+		dbMap, err = uc.repo.CountFavoritesByTargetIds(ctx, query.Ids, 1)
+		if err != nil {
+			return nil, fmt.Errorf("统计评论点赞数量失败: %w", err)
+		}
+		for _, id := range query.Ids {
+			counts := dbMap[id]
+			items = append(items, CountFavoriteResultItem{
+				BizId:        id,
+				LikeCount:    counts.LikeCount,
+				DislikeCount: counts.DislikeCount,
+				TotalCount:   counts.TotalCount,
+			})
+		}
+	case 2: // BY_USER（统计用户点赞的视频数，查数据库）
+		var dbMap map[int64]FavoriteCount
+		dbMap, err = uc.repo.CountFavoritesByUserIds(ctx, query.Ids, 0) // targetType 0 表示视频
+		if err != nil {
+			return nil, fmt.Errorf("统计用户点赞数量失败: %w", err)
+		}
+		for _, id := range query.Ids {
+			counts := dbMap[id]
+			items = append(items, CountFavoriteResultItem{
+				BizId:        id,
+				LikeCount:    counts.LikeCount,
+				DislikeCount: counts.DislikeCount,
+				TotalCount:   counts.TotalCount,
+			})
+		}
 	default:
 		return nil, fmt.Errorf("聚合类型无效: %d", query.AggregateType)
-	}
-	if err != nil {
-		uc.log.Errorf("统计点赞数量失败: aggregateType=%d, ids=%v, err=%v", query.AggregateType, query.Ids, err)
-		return nil, fmt.Errorf("统计点赞数量失败: %w", err)
-	}
-
-	items := make([]CountFavoriteResultItem, 0, len(resultMap))
-	for id, counts := range resultMap {
-		items = append(items, CountFavoriteResultItem{
-			BizId:        id,
-			LikeCount:    counts.LikeCount,
-			DislikeCount: counts.DislikeCount,
-			TotalCount:   counts.TotalCount,
-		})
 	}
 	return &CountFavoriteResult{Items: items}, nil
 }
