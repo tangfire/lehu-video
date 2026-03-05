@@ -34,7 +34,6 @@ type Data struct {
 	rdb             *redis.Client
 	userSyncJob     *UserCounterSyncJob
 	videoSyncJob    *VideoCounterSyncJob
-	reconcileJob    *FavoriteReconcileJob
 	reconcileStopCh chan struct{} // 用于停止对账任务
 }
 
@@ -59,13 +58,16 @@ func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), 
 	videoSyncJob.Start()
 	d.videoSyncJob = videoSyncJob
 
-	// 创建并启动视频点赞数对账任务（每日凌晨3点执行）
-	reconcileJob := NewFavoriteReconcileJob(db, logger)
-	reconcileJob.StartCron(d.reconcileStopCh) // 传入停止通道
-	d.reconcileJob = reconcileJob
+	// 创建并启动视频统计对账任务（每日凌晨3点执行）
+	videoStatsReconcileJob := NewVideoStatsReconcileJob(db, logger)
+	videoStatsReconcileJob.StartCron(d.reconcileStopCh)
+
+	// 创建并启动用户获赞数对账任务（每日凌晨4点执行）
+	userBeLikedReconcileJob := NewUserBeLikedReconcileJob(db, logger)
+	userBeLikedReconcileJob.StartCron(d.reconcileStopCh)
 
 	cleanup := func() {
-		// 停止对账任务（关闭通道即可）
+		// 停止对账任务（关闭通道）
 		close(d.reconcileStopCh)
 
 		if d.userSyncJob != nil {

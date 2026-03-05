@@ -13,7 +13,7 @@ import (
 // VideoCounterSyncJob 视频计数器同步任务
 type VideoCounterSyncJob struct {
 	db        *gorm.DB
-	videoRepo biz.VideoCounterRepo // 注意这里是 VideoCounterRepo，用于获取Redis中的计数
+	videoRepo biz.VideoCounterRepo
 	log       *log.Helper
 	interval  time.Duration
 	stopCh    chan struct{}
@@ -63,8 +63,8 @@ func (j *VideoCounterSyncJob) sync() {
 	}
 	j.log.Infof("开始同步视频计数器，视频数量: %d", len(videoIDs))
 
-	// 批量从Redis获取所有计数
-	fields := []string{"like_count", "comment_count", "collection_count"}
+	// 批量从Redis获取所有计数（增加 view_count）
+	fields := []string{"like_count", "comment_count", "collection_count", "view_count"}
 	countersMap, err := j.videoRepo.BatchGetVideoCounters(ctx, videoIDs, fields...)
 	if err != nil {
 		j.log.Errorf("批量获取视频计数器失败: %v", err)
@@ -104,8 +104,7 @@ func (j *VideoCounterSyncJob) batchUpdateMySQL(ctx context.Context, countersMap 
 	for vid, counters := range countersMap {
 		updates := make(map[string]interface{})
 		for field, val := range counters {
-			// 字段名直接对应数据库列名
-			updates[field] = val
+			updates[field] = val // 字段名与数据库列名一致
 		}
 		if len(updates) == 0 {
 			continue

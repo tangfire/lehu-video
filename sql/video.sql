@@ -45,6 +45,10 @@ CREATE TABLE `user` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
+ALTER TABLE video ADD INDEX idx_updated_at (updated_at);
+ALTER TABLE user ADD INDEX idx_updated_at (updated_at);
+
+
 
 
 CREATE TABLE IF NOT EXISTS account (
