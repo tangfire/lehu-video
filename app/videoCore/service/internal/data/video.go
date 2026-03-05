@@ -372,3 +372,27 @@ func (r *videoRepo) convertDBVideosToBiz(ctx context.Context, dbVideos []*model.
 	}
 	return bizVideos, nil
 }
+
+// BatchGetVideoAuthors 批量获取视频的作者ID
+func (r *videoRepo) BatchGetVideoAuthors(ctx context.Context, videoIDs []int64) (map[int64]int64, error) {
+	if len(videoIDs) == 0 {
+		return make(map[int64]int64), nil
+	}
+	type result struct {
+		ID     int64
+		UserID int64
+	}
+	var rows []result
+	err := r.db(ctx).Table("video").
+		Select("id, user_id").
+		Where("id IN (?)", videoIDs).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	authorMap := make(map[int64]int64, len(rows))
+	for _, row := range rows {
+		authorMap[row.ID] = row.UserID
+	}
+	return authorMap, nil
+}

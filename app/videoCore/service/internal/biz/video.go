@@ -105,6 +105,8 @@ type VideoRepo interface {
 	GetVideoListByTime(ctx context.Context, latestTime time.Time, limit int) ([]*Video, error)
 	GetVideoStats(ctx context.Context, videoID string) (*VideoStats, error)
 	GetAllVideoIDs(ctx context.Context, offset int64, limit int) ([]string, error)
+	// BatchGetVideoAuthors 批量获取视频的作者ID
+	BatchGetVideoAuthors(ctx context.Context, videoIDs []int64) (map[int64]int64, error)
 }
 
 // viewCountCmd 播放量增加命令

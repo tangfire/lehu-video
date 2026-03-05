@@ -60,7 +60,7 @@ func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry
 	httpServer := server.NewHTTPServer(confServer, videoServiceService, logger)
 	kafkaConsumer := biz.NewVideoConsumer(confData, feedUsecase, logger)
 	videoKafkaConsumerServer := server.NewVideoKafkaConsumerServer(kafkaConsumer, logger)
-	favoriteConsumer := biz.NewFavoriteConsumer(confData, favoriteRepo, logger)
+	favoriteConsumer := biz.NewFavoriteConsumer(confData, favoriteRepo, userCounterRepo, videoRepo, logger)
 	favoriteKafkaConsumerServer := server.NewFavoriteKafkaConsumerServer(favoriteConsumer, logger)
 	registrar := server.NewRegistrar(registry)
 	app := newApp(logger, grpcServer, httpServer, videoKafkaConsumerServer, favoriteKafkaConsumerServer, registrar)

@@ -17,6 +17,8 @@ type UserCounterRepo interface {
 	GetDirtyUserIDs(ctx context.Context) ([]int64, error)
 	// ClearDirtyFlag 清除脏标记（同步后调用）
 	ClearDirtyFlag(ctx context.Context, userId int64) error
+	// BatchIncrUserCounters 批量增加多个用户的指定计数字段（用于消费者批量更新）
+	BatchIncrUserCounters(ctx context.Context, counts map[int64]map[string]int64) error
 }
 
 // VideoCounterRepo 视频计数器仓储接口

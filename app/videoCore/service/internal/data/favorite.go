@@ -23,7 +23,6 @@ func NewFavoriteRepo(data *Data, logger log.Logger) biz.FavoriteRepo {
 	}
 }
 
-// db 优先返回事务中的数据库连接
 func (r *favoriteRepo) db(ctx context.Context) *gorm.DB {
 	if tx, ok := ctx.Value("db").(*gorm.DB); ok {
 		return tx
@@ -31,7 +30,6 @@ func (r *favoriteRepo) db(ctx context.Context) *gorm.DB {
 	return r.data.db.WithContext(ctx)
 }
 
-// toBizFavorite 将 model 转换为 biz
 func (r *favoriteRepo) toBizFavorite(m *model.Favorite) *biz.Favorite {
 	return &biz.Favorite{
 		Id:           m.Id,
@@ -45,7 +43,6 @@ func (r *favoriteRepo) toBizFavorite(m *model.Favorite) *biz.Favorite {
 	}
 }
 
-// toDBFavorite 将 biz 转换为 model
 func (r *favoriteRepo) toDBFavorite(b *biz.Favorite) *model.Favorite {
 	return &model.Favorite{
 		Id:           b.Id,
@@ -59,8 +56,14 @@ func (r *favoriteRepo) toDBFavorite(b *biz.Favorite) *model.Favorite {
 	}
 }
 
+// CreateFavorite 创建点赞记录（如果 ID 为 0，则忽略，让数据库自增）
 func (r *favoriteRepo) CreateFavorite(ctx context.Context, favorite *biz.Favorite) error {
-	return r.db(ctx).Create(r.toDBFavorite(favorite)).Error
+	dbModel := r.toDBFavorite(favorite)
+	// 如果 ID 为 0，说明是新记录，应该让数据库自动生成主键
+	if dbModel.Id == 0 {
+		return r.db(ctx).Omit("id").Create(dbModel).Error
+	}
+	return r.db(ctx).Create(dbModel).Error
 }
 
 func (r *favoriteRepo) UpdateFavorite(ctx context.Context, favorite *biz.Favorite) error {
@@ -70,6 +73,25 @@ func (r *favoriteRepo) UpdateFavorite(ctx context.Context, favorite *biz.Favorit
 			"delete_at":     favorite.DeleteAt,
 			"updated_at":    favorite.UpdatedAt,
 		}).Error
+}
+
+// UpdateFavoriteIfNewer 只有当数据库中记录的 updated_at 小于传入的 updated_at 时才更新
+func (r *favoriteRepo) UpdateFavoriteIfNewer(ctx context.Context, favorite *biz.Favorite) error {
+	result := r.db(ctx).Model(&model.Favorite{}).
+		Where("id = ? AND updated_at < ?", favorite.Id, favorite.UpdatedAt).
+		Updates(map[string]interface{}{
+			"favorite_type": favorite.FavoriteType,
+			"delete_at":     favorite.DeleteAt,
+			"updated_at":    favorite.UpdatedAt,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		r.log.Infof("记录未更新，因为已有更新的数据: id=%d, updatedAt=%v", favorite.Id, favorite.UpdatedAt)
+		// 不是错误，只是跳过
+	}
+	return nil
 }
 
 func (r *favoriteRepo) GetFavorite(ctx context.Context, userId, targetId int64, targetType, favoriteType int32) (*biz.Favorite, error) {
@@ -97,6 +119,22 @@ func (r *favoriteRepo) GetFavoriteByUserTarget(ctx context.Context, userId, targ
 		Where("target_id = ?", targetId).
 		Where("target_type = ?", targetType).
 		Where("delete_at = ?", 0).
+		First(&m).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return r.toBizFavorite(&m), nil
+}
+
+func (r *favoriteRepo) GetFavoriteIncludeDeleted(ctx context.Context, userId, targetId int64, targetType int32) (*biz.Favorite, error) {
+	var m model.Favorite
+	err := r.db(ctx).
+		Where("user_id = ?", userId).
+		Where("target_id = ?", targetId).
+		Where("target_type = ?", targetType).
 		First(&m).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
@@ -358,21 +396,4 @@ func (r *favoriteRepo) WithTransaction(ctx context.Context, fn func(ctx context.
 		newCtx := context.WithValue(ctx, "db", tx)
 		return fn(newCtx)
 	})
-}
-
-// GetFavoriteIncludeDeleted 获取包括软删除的记录
-func (r *favoriteRepo) GetFavoriteIncludeDeleted(ctx context.Context, userId, targetId int64, targetType int32) (*biz.Favorite, error) {
-	var m model.Favorite
-	err := r.db(ctx).
-		Where("user_id = ?", userId).
-		Where("target_id = ?", targetId).
-		Where("target_type = ?", targetType).
-		First(&m).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return r.toBizFavorite(&m), nil
 }

@@ -130,3 +130,27 @@ func (r *userCounterRepo) GetDirtyUserIDs(ctx context.Context) ([]int64, error) 
 func (r *userCounterRepo) ClearDirtyFlag(ctx context.Context, userId int64) error {
 	return r.redis.SRem(ctx, dirtyUserSetKey, userId).Err()
 }
+
+// BatchIncrUserCounters 批量增加多个用户的指定计数字段
+func (r *userCounterRepo) BatchIncrUserCounters(ctx context.Context, counts map[int64]map[string]int64) error {
+	if len(counts) == 0 {
+		return nil
+	}
+	pipe := r.redis.Pipeline()
+	for uid, fields := range counts {
+		key := userCounterKey(uid)
+		for field, delta := range fields {
+			if delta == 0 {
+				continue
+			}
+			pipe.HIncrBy(ctx, key, field, delta)
+		}
+		pipe.SAdd(ctx, dirtyUserSetKey, uid)
+		pipe.Expire(ctx, key, 7*24*time.Hour)
+	}
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		r.log.Warnf("BatchIncrUserCounters failed: %v", err)
+	}
+	return err
+}
