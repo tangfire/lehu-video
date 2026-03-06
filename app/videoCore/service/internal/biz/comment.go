@@ -165,7 +165,7 @@ const (
 	cacheNullPlaceholder = "NULL"
 )
 
-// ---------- 创建评论 ----------
+// CreateComment ---------- 创建评论 ----------
 func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentCommand) (*CreateCommentResult, error) {
 	if cmd.VideoID <= 0 || cmd.UserID <= 0 || cmd.Content == "" {
 		return nil, ErrInvalidParams
@@ -185,13 +185,10 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 		IsDeleted:   false,
 	}
 
-	// 使用事务执行数据库操作
 	err := uc.repo.ExecTx(ctx, func(txCtx context.Context) error {
-		// 1. 插入评论
 		if _, err := uc.repo.Create(txCtx, comment); err != nil {
 			return err
 		}
-		// 2. 如果是子评论，更新父评论的 reply_count
 		if comment.ParentID > 0 {
 			if err := uc.repo.IncrReplyCount(txCtx, comment.ParentID, 1); err != nil {
 				return err
@@ -203,26 +200,25 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 		return nil, err
 	}
 
-	// 同步更新视频评论计数（不再异步，保证一致性）
+	// 同步更新视频评论计数
 	if err := uc.videoCounter.IncrVideoCounter(ctx, cmd.VideoID, "comment_count", 1); err != nil {
 		uc.log.Warnf("更新视频评论计数失败: videoId=%d, err=%v", cmd.VideoID, err)
-		// 失败不影响主流程，记录日志即可（可考虑异步补偿）
 	}
 
-	// 更新 Redis ZSet
+	// 更新 Redis ZSet 并清除相关缓存
 	pipe := uc.redis.Pipeline()
 	if comment.ParentID == 0 {
-		// 主评论，加入视频评论 ZSet
 		zsetKey := fmt.Sprintf(zsetVideoComments, comment.VideoID)
 		pipe.ZAdd(ctx, zsetKey, redis.Z{Score: float64(now.Unix()), Member: comment.ID})
 		pipe.Expire(ctx, zsetKey, 7*24*time.Hour)
 	} else {
-		// 子评论，加入父评论的子评论 ZSet
 		zsetKey := fmt.Sprintf(zsetChildComments, comment.ParentID)
 		pipe.ZAdd(ctx, zsetKey, redis.Z{Score: float64(now.Unix()), Member: comment.ID})
 		pipe.Expire(ctx, zsetKey, 7*24*time.Hour)
+		// 删除父评论的详情缓存（因为 replyCount 变了）
+		pipe.Del(ctx, fmt.Sprintf(cacheKeyComment, comment.ParentID))
 	}
-	pipe.Del(ctx, fmt.Sprintf(cacheKeyComment, comment.ID)) // 确保不存在旧缓存
+	pipe.Del(ctx, fmt.Sprintf(cacheKeyComment, comment.ID))
 	_, _ = pipe.Exec(ctx)
 
 	return &CreateCommentResult{Comment: comment}, nil
@@ -230,7 +226,6 @@ func (uc *CommentUsecase) CreateComment(ctx context.Context, cmd *CreateCommentC
 
 // ---------- 删除评论 ----------
 func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentCommand) (*RemoveCommentResult, error) {
-	// 查询评论（不加缓存，直接 DB）
 	comment, err := uc.repo.GetByID(ctx, cmd.CommentID)
 	if err != nil {
 		return nil, err
@@ -243,16 +238,12 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentC
 	}
 
 	var subIDs []int64
-	// 执行事务软删除（级联删除子评论）
 	err = uc.repo.ExecTx(ctx, func(txCtx context.Context) error {
-		// 1. 软删除当前评论
 		if err := uc.repo.SoftDelete(txCtx, cmd.CommentID, cmd.UserID); err != nil {
 			return err
 		}
 
-		// 2. 如果是主评论，批量软删除所有子评论
 		if comment.ParentID == 0 {
-			// 查询所有子评论ID（未删除的）
 			subs, err := uc.repo.FindByCondition(txCtx, map[string]interface{}{
 				"parent_id":  comment.ID,
 				"is_deleted": false,
@@ -269,7 +260,6 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentC
 				}
 			}
 		} else {
-			// 如果是子评论，减少父评论的 reply_count
 			if err := uc.repo.IncrReplyCount(txCtx, comment.ParentID, -1); err != nil {
 				return err
 			}
@@ -280,7 +270,7 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentC
 		return nil, err
 	}
 
-	// 异步更新视频计数（减去 1 + 子评论数）
+	// 异步更新视频计数
 	go func() {
 		bgCtx := context.Background()
 		delta := int64(-1)
@@ -296,17 +286,15 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentC
 	pipe := uc.redis.Pipeline()
 	pipe.Del(ctx, fmt.Sprintf(cacheKeyComment, comment.ID))
 	if comment.ParentID == 0 {
-		// 删除视频主评论 ZSet
 		pipe.Del(ctx, fmt.Sprintf(zsetVideoComments, comment.VideoID))
-		// 删除子评论 ZSet
 		pipe.Del(ctx, fmt.Sprintf(zsetChildComments, comment.ID))
-		// 批量删除子评论详情缓存
 		for _, subID := range subIDs {
 			pipe.Del(ctx, fmt.Sprintf(cacheKeyComment, subID))
 		}
 	} else {
-		// 删除子评论 ZSet
 		pipe.Del(ctx, fmt.Sprintf(zsetChildComments, comment.ParentID))
+		// 删除父评论的详情缓存（因为 replyCount 减少了）
+		pipe.Del(ctx, fmt.Sprintf(cacheKeyComment, comment.ParentID))
 	}
 	_, _ = pipe.Exec(ctx)
 
