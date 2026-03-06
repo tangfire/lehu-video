@@ -15,3 +15,5 @@ data:
     read_timeout: 20s
     write_timeout: 20s
     db: 0
+idgen:
+  worker_id: 2   # 每个服务实例唯一

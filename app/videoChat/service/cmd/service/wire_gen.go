@@ -12,7 +12,6 @@ import (
 	"lehu-video/app/videoChat/service/internal/biz"
 	"lehu-video/app/videoChat/service/internal/conf"
 	"lehu-video/app/videoChat/service/internal/data"
-	"lehu-video/app/videoChat/service/internal/pkg/idgen"
 	"lehu-video/app/videoChat/service/internal/server"
 	"lehu-video/app/videoChat/service/internal/service"
 )
@@ -24,7 +23,7 @@ import (
 // Injectors from wire.go:
 
 // wireApp init kratos application.
-func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Data, logger log.Logger) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry, confData *conf.Data, logger log.Logger) (*kratos.App, func(), error) {
 	db := data.NewDB(confData, logger)
 	discovery := data.NewDiscovery(registry)
 	userServiceClient := data.NewUserServiceClient(discovery)
@@ -39,12 +38,8 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	groupServiceService := service.NewGroupServiceService(groupUsecase, logger)
 	messageRepo := data.NewMessageRepo(dataData, logger)
 	friendRepo := data.NewFriendRepo(dataData, userServiceClient, client, logger)
-	idGenerator, err := idgen.NewIDGenerator()
-	if err != nil {
-		cleanup()
-		return nil, nil, err
-	}
-	messageUsecase := biz.NewMessageUsecase(messageRepo, friendRepo, groupRepo, conversationRepo, idGenerator, logger)
+	generator := data.NewIdGenerator(idgen)
+	messageUsecase := biz.NewMessageUsecase(messageRepo, friendRepo, groupRepo, conversationRepo, generator, logger)
 	messageServiceService := service.NewMessageServiceService(messageUsecase, logger)
 	friendUsecase := biz.NewFriendUsecase(friendRepo, logger)
 	friendServiceService := service.NewFriendServiceService(friendUsecase)

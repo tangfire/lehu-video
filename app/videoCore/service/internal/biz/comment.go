@@ -158,11 +158,7 @@ const (
 	// ZSet 键：child_comments:{parentId} 存储子评论ID，score为时间戳
 	zsetChildComments = "child_comments:%d"
 
-	cacheKeyComment      = "comment:%d"      // 单个评论详情
-	cacheKeyCommentList  = "comment_list:%s" // 批量评论列表（MD5(ids)）
-	cacheKeyVideoCount   = "video_comment_count:%d"
-	cacheKeyUserCount    = "user_comment_count:%d"
-	cacheNullPlaceholder = "NULL"
+	cacheKeyComment = "comment:%d" // 单个评论详情
 )
 
 // CreateComment ---------- 创建评论 ----------

@@ -3,16 +3,12 @@ package biz
 import (
 	"context"
 	"fmt"
+	"lehu-video/app/videoChat/service/internal/pkg/idgen"
 	"sort"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 )
-
-// IDGenerator ID生成器接口
-type IDGenerator interface {
-	Generate() int64
-}
 
 // MessageContent 消息内容结构体
 type MessageContent struct {
@@ -169,7 +165,7 @@ type MessageUsecase struct {
 	friendRepo       FriendRepo // 用于检查好友关系
 	groupRepo        GroupRepo  // 用于检查群成员关系
 	conversationRepo ConversationRepo
-	idGen            IDGenerator // ID生成器
+	idGen            idgen.Generator // ID生成器
 	log              *log.Helper
 }
 
@@ -177,7 +173,7 @@ func NewMessageUsecase(messageRepo MessageRepo,
 	friendRepo FriendRepo,
 	groupRepo GroupRepo,
 	conversationRepo ConversationRepo,
-	idGen IDGenerator,
+	idGen idgen.Generator,
 	logger log.Logger) *MessageUsecase {
 	return &MessageUsecase{
 		messageRepo:      messageRepo,
@@ -208,7 +204,7 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, cmd *SendMessageComma
 	}
 
 	// 4. 创建消息
-	messageID := uc.idGen.Generate()
+	messageID := uc.idGen.NextID()
 	now := time.Now()
 
 	message := &Message{
@@ -340,7 +336,7 @@ func (uc *MessageUsecase) getOrCreateSingleChatConversation(ctx context.Context,
 	}
 
 	// 创建新的单聊会话
-	newConversationID := uc.idGen.Generate()
+	newConversationID := uc.idGen.NextID()
 	now := time.Now()
 
 	conversation = &Conversation{
@@ -414,7 +410,7 @@ func (uc *MessageUsecase) getOrCreateGroupConversation(ctx context.Context, grou
 	}
 
 	now := time.Now()
-	conversationID := uc.idGen.Generate()
+	conversationID := uc.idGen.NextID()
 
 	// 创建新的群聊会话
 	conversation = &Conversation{

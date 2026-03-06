@@ -27,8 +27,7 @@ var ProviderSet = wire.NewSet(
 	NewFriendRepo,
 	NewUserServiceClient,
 	NewDiscovery,
-	idgen.NewSnowflakeIDGenerator,
-	idgen.NewIDGenerator,
+	NewIdGenerator,
 	NewConversationRepo,
 	NewRedisClient,
 )
@@ -48,6 +47,11 @@ func NewData(db *gorm.DB, user core.UserServiceClient, redis *redis.Client, logg
 		log.NewHelper(logger).Info("closing the data resources")
 	}
 	return &Data{db: db, user: user, redis: redis, log: log.NewHelper(logger)}, cleanup, nil
+}
+
+// NewIdGenerator 从配置创建 ID 生成器
+func NewIdGenerator(c *conf.Idgen) idgen.Generator {
+	return idgen.NewGenerator(c.WorkerId)
 }
 
 func NewUserServiceClient(r registry.Discovery) core.UserServiceClient {
