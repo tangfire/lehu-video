@@ -51,7 +51,7 @@ func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry
 	favoriteServiceService := service.NewFavoriteServiceService(favoriteUsecase)
 	commentRepo := data.NewCommentRepo(dataData, logger)
 	cache := data.NewFreeCache(confData)
-	commentUsecase := biz.NewCommentUsecase(commentRepo, cache, client, videoCounterRepo, logger)
+	commentUsecase := biz.NewCommentUsecase(commentRepo, cache, client, videoCounterRepo, generator, logger)
 	commentServiceService := service.NewCommentServiceService(commentUsecase)
 	collectionRepo := data.NewCollectionRepo(dataData, logger)
 	collectionUsecase := biz.NewCollectionUsecase(collectionRepo, videoRepo, userCounterRepo, videoCounterRepo, generator, logger)

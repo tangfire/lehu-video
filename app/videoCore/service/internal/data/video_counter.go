@@ -1,4 +1,3 @@
-// data/video_counter.go
 package data
 
 import (
@@ -59,6 +58,30 @@ func (r *videoCounterRepo) BatchIncrVideoCounters(ctx context.Context, counts ma
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		r.log.Warnf("BatchIncrVideoCounters failed: %v", err)
+	}
+	return err
+}
+
+// BatchIncrFields 批量增加多个视频的多个字段（原子操作）
+func (r *videoCounterRepo) BatchIncrFields(ctx context.Context, counts map[int64]map[string]int64) error {
+	if len(counts) == 0 {
+		return nil
+	}
+	pipe := r.redis.Pipeline()
+	for vid, fields := range counts {
+		key := videoCounterKey(vid)
+		for field, delta := range fields {
+			if delta == 0 {
+				continue
+			}
+			pipe.HIncrBy(ctx, key, field, delta)
+		}
+		pipe.Expire(ctx, key, 7*24*time.Hour)
+		pipe.SAdd(ctx, dirtyVideoSetKey, vid)
+	}
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		r.log.Warnf("BatchIncrFields failed: %v", err)
 	}
 	return err
 }

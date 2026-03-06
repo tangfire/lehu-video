@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"github.com/spf13/cast"
 	core "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoApi/service/internal/biz"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
@@ -22,7 +21,6 @@ func NewFavoriteServiceService(uc *biz.FavoriteUsecase) *FavoriteServiceService 
 }
 
 func (s *FavoriteServiceService) AddFavorite(ctx context.Context, req *pb.AddFavoriteReq) (*pb.AddFavoriteResp, error) {
-	// 类型转换
 	target := biz.FavoriteTarget(req.Target)
 	_type := biz.FavoriteType(req.Type)
 
@@ -127,14 +125,13 @@ func (s *FavoriteServiceService) CheckFavoriteStatus(ctx context.Context, req *p
 		return nil, err
 	}
 
-	// 将 int32 转换为 proto 枚举，处理 -1 的情况
+	// 转换枚举
 	var pbFavoriteType pb.FavoriteType
 	if result.FavoriteType == 0 {
 		pbFavoriteType = pb.FavoriteType_FAVORITE_TYPE_LIKE
 	} else if result.FavoriteType == 1 {
 		pbFavoriteType = pb.FavoriteType_FAVORITE_TYPE_DISLIKE
 	} else {
-		// 未点赞状态，默认设置为 LIKE（前端应优先判断 IsFavorite）
 		pbFavoriteType = pb.FavoriteType_FAVORITE_TYPE_LIKE
 	}
 
@@ -153,27 +150,22 @@ func (s *FavoriteServiceService) BatchCheckFavoriteStatus(ctx context.Context, r
 		userId = "0"
 	}
 
-	// 调用 core 的 BatchIsFavorite
-	targetIds := make([]string, 0, len(req.Ids))
-	for _, id := range req.Ids {
-		targetIds = append(targetIds, id)
-	}
-
 	coreReq := &core.BatchIsFavoriteReq{
 		UserId: userId,
-		BizIds: targetIds,
+		BizIds: req.Ids,
 		Target: core.FavoriteTarget(req.Target),
 	}
 
-	resp, err := s.uc.BatchIsFavorite(ctx, coreReq)
+	// 调用 biz 层批量查询（包含状态和计数）
+	result, err := s.uc.BatchIsFavorite(ctx, coreReq)
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]*pb.BatchCheckFavoriteStatusItem, 0, len(resp.Items))
-	for _, item := range resp.Items {
+	items := make([]*pb.BatchCheckFavoriteStatusItem, 0, len(result.Items))
+	for _, item := range result.Items {
 		items = append(items, &pb.BatchCheckFavoriteStatusItem{
-			Id:           cast.ToString(item.BizId),
+			Id:           item.BizId,
 			IsLiked:      item.IsLiked,
 			IsDisliked:   item.IsDisliked,
 			LikeCount:    item.LikeCount,

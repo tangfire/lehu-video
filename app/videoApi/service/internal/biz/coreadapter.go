@@ -37,11 +37,11 @@ type CoreAdapter interface {
 	AddFavorite(ctx context.Context, id, userId string, target *FavoriteTarget, _type *FavoriteType) error
 	RemoveFavorite(ctx context.Context, id, userId string, target *FavoriteTarget, _type *FavoriteType) error
 	ListUserFavoriteVideo(ctx context.Context, userId string, pageStats *PageStats) (int64, []string, error)
-	CheckFavoriteStatus(ctx context.Context, userId, targetId string, target *FavoriteTarget, _type *FavoriteType) (*CheckFavoriteResult, error)
 	GetFavoriteStats(ctx context.Context, targetId string, target *FavoriteTarget) (*FavoriteStats, error)
 	CountBeFavoriteNumber4User(ctx context.Context, userId string) (int64, error)
 	// BatchIsFavorite 批量查询点赞/点踩状态
 	BatchIsFavorite(ctx context.Context, userId string, targetIds []string, target FavoriteTarget) (*core.BatchIsFavoriteResp, error)
+	IsFavorite(ctx context.Context, userId, targetId string, target *FavoriteTarget) (*IsFavoriteResult, error)
 
 	AddFollow(ctx context.Context, userId, targetUserId string) error
 	RemoveFollow(ctx context.Context, userId, targetUserId string) error
@@ -55,35 +55,6 @@ type CoreAdapter interface {
 	RemoveVideo4Collection(ctx context.Context, userId string, collectionId string, videoId string) error
 	UpdateCollection(ctx context.Context, collection *Collection) error
 	CountFollow4User(ctx context.Context, userId string) ([]int64, error)
-}
-
-// 新增类型定义
-type FavoriteCount struct {
-	LikeCount    int64
-	DislikeCount int64
-	TotalCount   int64
-}
-
-type CheckFavoriteResult struct {
-	IsFavorite    bool
-	FavoriteType  int32
-	TotalLikes    int64
-	TotalDislikes int64
-	TotalCount    int64
-}
-
-type FavoriteStatus struct {
-	IsLiked      bool
-	IsDisliked   bool
-	LikeCount    int64
-	DislikeCount int64
-}
-
-type FavoriteStats struct {
-	LikeCount    int64
-	DislikeCount int64
-	TotalCount   int64
-	HotScore     float64
 }
 
 // 枚举类型

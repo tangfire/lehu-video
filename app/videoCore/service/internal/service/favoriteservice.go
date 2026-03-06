@@ -136,10 +136,9 @@ func (s *FavoriteServiceService) CountFavorite(ctx context.Context, req *pb.Coun
 
 func (s *FavoriteServiceService) IsFavorite(ctx context.Context, req *pb.IsFavoriteReq) (*pb.IsFavoriteResp, error) {
 	query := &biz.IsFavoriteQuery{
-		UserId:       cast.ToInt64(req.UserId),
-		TargetId:     cast.ToInt64(req.BizId),
-		TargetType:   int32(req.Target),
-		FavoriteType: int32(req.Type),
+		UserId:     cast.ToInt64(req.UserId),
+		TargetId:   cast.ToInt64(req.BizId),
+		TargetType: int32(req.Target),
 	}
 
 	result, err := s.uc.IsFavorite(ctx, query)
@@ -149,34 +148,36 @@ func (s *FavoriteServiceService) IsFavorite(ctx context.Context, req *pb.IsFavor
 		}, nil
 	}
 
+	// 转换枚举
 	var favoriteType pb.FavoriteType
-	if result.FavoriteType == 0 {
-		favoriteType = pb.FavoriteType_FAVORITE_TYPE_LIKE
-	} else if result.FavoriteType == 1 {
-		favoriteType = pb.FavoriteType_FAVORITE_TYPE_DISLIKE
+	if result.IsFavorite {
+		if result.FavoriteType == 0 {
+			favoriteType = pb.FavoriteType_FAVORITE_TYPE_LIKE
+		} else if result.FavoriteType == 1 {
+			favoriteType = pb.FavoriteType_FAVORITE_TYPE_DISLIKE
+		} else {
+			favoriteType = pb.FavoriteType_FAVORITE_TYPE_LIKE
+		}
 	} else {
-		favoriteType = pb.FavoriteType_FAVORITE_TYPE_LIKE
+		favoriteType = pb.FavoriteType_FAVORITE_TYPE_LIKE // 未点赞时随意
 	}
 
 	return &pb.IsFavoriteResp{
-		Meta:          utils.GetSuccessMeta(),
-		IsFavorite:    result.IsFavorite,
-		FavoriteType:  favoriteType,
-		TotalLikes:    result.TotalLikes,
-		TotalDislikes: result.TotalDislikes,
+		Meta:         utils.GetSuccessMeta(),
+		IsFavorite:   result.IsFavorite,
+		FavoriteType: favoriteType,
 	}, nil
 }
 
 func (s *FavoriteServiceService) BatchIsFavorite(ctx context.Context, req *pb.BatchIsFavoriteReq) (*pb.BatchIsFavoriteResp, error) {
+	userId := cast.ToInt64(req.UserId)
 	targetIds := make([]int64, 0, len(req.BizIds))
 	for _, id := range req.BizIds {
 		targetIds = append(targetIds, cast.ToInt64(id))
 	}
 
-	userIds := []int64{cast.ToInt64(req.UserId)}
-
 	query := &biz.BatchIsFavoriteQuery{
-		UserIds:    userIds,
+		UserIds:    []int64{userId},
 		TargetIds:  targetIds,
 		TargetType: int32(req.Target),
 	}
@@ -190,15 +191,14 @@ func (s *FavoriteServiceService) BatchIsFavorite(ctx context.Context, req *pb.Ba
 
 	var pbItems []*pb.BatchIsFavoriteItem
 	for _, item := range result.Items {
-		if item.UserId == cast.ToInt64(req.UserId) {
-			pbItems = append(pbItems, &pb.BatchIsFavoriteItem{
-				BizId:        cast.ToString(item.TargetId),
-				IsLiked:      item.IsLiked,
-				IsDisliked:   item.IsDisliked,
-				LikeCount:    item.LikeCount,
-				DislikeCount: item.DislikeCount,
-			})
+		if item.UserId != userId {
+			continue
 		}
+		pbItems = append(pbItems, &pb.BatchIsFavoriteItem{
+			BizId:      cast.ToString(item.TargetId),
+			IsLiked:    item.IsLiked,
+			IsDisliked: item.IsDisliked,
+		})
 	}
 
 	return &pb.BatchIsFavoriteResp{

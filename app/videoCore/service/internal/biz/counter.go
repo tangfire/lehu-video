@@ -45,4 +45,7 @@ type VideoCounterRepo interface {
 
 	// BatchIncrVideoCounters 批量增加多个视频的计数（field固定为view_count）
 	BatchIncrVideoCounters(ctx context.Context, counts map[int64]int64) error
+
+	// 新增：批量增加多个视频的多个字段
+	BatchIncrFields(ctx context.Context, counts map[int64]map[string]int64) error
 }

@@ -87,19 +87,18 @@ message CountFavoriteResp {
 	repeated CountFavoriteRespItem items = 2;
 }
 
+// IsFavoriteReq 查询单个用户对目标的点赞状态
 message IsFavoriteReq {
 	string biz_id = 1;
 	string user_id = 2;
 	FavoriteTarget target = 3;
-	FavoriteType type = 4;
 }
 
+// IsFavoriteResp 只返回用户的点赞状态
 message IsFavoriteResp {
 	Metadata meta = 1;
-	bool is_favorite = 2;
-	FavoriteType favorite_type = 3;  // 当前点赞类型
-	int64 total_likes = 4;           // 总点赞数
-	int64 total_dislikes = 5;        // 总点踩数
+	bool is_favorite = 2;          // 是否有点赞/点踩记录（有效）
+	FavoriteType favorite_type = 3; // 如果 is_favorite=true，返回具体的点赞类型；否则可忽略
 }
 
 message BatchIsFavoriteReq {
@@ -108,12 +107,12 @@ message BatchIsFavoriteReq {
 	FavoriteTarget target = 3;
 }
 
+// BatchIsFavoriteItem 只返回用户的点赞状态
 message BatchIsFavoriteItem {
 	string biz_id = 1;
-	bool is_liked = 2;
-	bool is_disliked = 3;
-	int64 like_count = 4;
-	int64 dislike_count = 5;
+	bool is_liked = 2;      // 是否点赞
+	bool is_disliked = 3;   // 是否点踩
+	// 计数已移除，请使用 CountFavorite 接口获取
 }
 
 message BatchIsFavoriteResp {

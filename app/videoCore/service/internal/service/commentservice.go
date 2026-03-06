@@ -75,7 +75,6 @@ func (s *CommentServiceService) ListComment4Video(ctx context.Context, req *pb.L
 			Page:     req.PageStats.Page,
 			PageSize: req.PageStats.Size,
 		},
-		WithChildren: true, // 默认加载子评论
 	}
 
 	// 调用业务层
@@ -237,13 +236,6 @@ func (s *CommentServiceService) toPBComment(comment *biz.Comment) *pb.Comment {
 		ParentId:    cast.ToString(comment.ParentID),
 		ReplyUserId: cast.ToString(comment.ReplyUserID),
 		Comments:    []*pb.Comment{},
-	}
-
-	// 如果有子评论，转换子评论
-	if len(comment.ChildComments) > 0 {
-		for _, child := range comment.ChildComments {
-			pbComment.Comments = append(pbComment.Comments, s.toPBComment(child))
-		}
 	}
 
 	return pbComment

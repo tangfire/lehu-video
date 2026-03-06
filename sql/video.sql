@@ -119,6 +119,10 @@ CREATE TABLE IF NOT EXISTS `comment` (
 );
 
 
+ALTER TABLE `comment` ADD COLUMN `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数' AFTER `content`;
+ALTER TABLE `comment` ADD COLUMN `reply_count` INT NOT NULL DEFAULT 0 COMMENT '直接子评论数' AFTER `like_count`;
+
+
 CREATE TABLE IF NOT EXISTS `file` (
                                     id BIGINT PRIMARY KEY,
                                     domain_name VARCHAR(100) NOT NULL,

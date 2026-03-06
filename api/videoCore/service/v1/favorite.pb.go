@@ -710,12 +710,12 @@ func (x *CountFavoriteResp) GetItems() []*CountFavoriteRespItem {
 	return nil
 }
 
+// IsFavoriteReq 查询单个用户对目标的点赞状态
 type IsFavoriteReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BizId         string                 `protobuf:"bytes,1,opt,name=biz_id,json=bizId,proto3" json:"biz_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Target        FavoriteTarget         `protobuf:"varint,3,opt,name=target,proto3,enum=api.videoCore.service.v1.FavoriteTarget" json:"target,omitempty"`
-	Type          FavoriteType           `protobuf:"varint,4,opt,name=type,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"type,omitempty"`
+	Target        FavoriteTarget         `protobuf:"varint,3,opt,name=target,proto3,enum=api.videoCore.service.v1.FavoriteTarget" json:"target,omitempty"` // FavoriteType 不再需要，因为查询的是用户对该目标的所有状态
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -771,20 +771,12 @@ func (x *IsFavoriteReq) GetTarget() FavoriteTarget {
 	return FavoriteTarget_FAVORITE_TARGET_VIDEO
 }
 
-func (x *IsFavoriteReq) GetType() FavoriteType {
-	if x != nil {
-		return x.Type
-	}
-	return FavoriteType_FAVORITE_TYPE_LIKE
-}
-
+// IsFavoriteResp 只返回用户的点赞状态
 type IsFavoriteResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	IsFavorite    bool                   `protobuf:"varint,2,opt,name=is_favorite,json=isFavorite,proto3" json:"is_favorite,omitempty"`
-	FavoriteType  FavoriteType           `protobuf:"varint,3,opt,name=favorite_type,json=favoriteType,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"favorite_type,omitempty"` // 当前点赞类型
-	TotalLikes    int64                  `protobuf:"varint,4,opt,name=total_likes,json=totalLikes,proto3" json:"total_likes,omitempty"`                                                  // 总点赞数
-	TotalDislikes int64                  `protobuf:"varint,5,opt,name=total_dislikes,json=totalDislikes,proto3" json:"total_dislikes,omitempty"`                                         // 总点踩数
+	IsFavorite    bool                   `protobuf:"varint,2,opt,name=is_favorite,json=isFavorite,proto3" json:"is_favorite,omitempty"`                                                  // 是否有点赞/点踩记录（有效）
+	FavoriteType  FavoriteType           `protobuf:"varint,3,opt,name=favorite_type,json=favoriteType,proto3,enum=api.videoCore.service.v1.FavoriteType" json:"favorite_type,omitempty"` // 如果 is_favorite=true，返回具体的点赞类型；否则可忽略
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -838,20 +830,6 @@ func (x *IsFavoriteResp) GetFavoriteType() FavoriteType {
 		return x.FavoriteType
 	}
 	return FavoriteType_FAVORITE_TYPE_LIKE
-}
-
-func (x *IsFavoriteResp) GetTotalLikes() int64 {
-	if x != nil {
-		return x.TotalLikes
-	}
-	return 0
-}
-
-func (x *IsFavoriteResp) GetTotalDislikes() int64 {
-	if x != nil {
-		return x.TotalDislikes
-	}
-	return 0
 }
 
 type BatchIsFavoriteReq struct {
@@ -914,13 +892,12 @@ func (x *BatchIsFavoriteReq) GetTarget() FavoriteTarget {
 	return FavoriteTarget_FAVORITE_TARGET_VIDEO
 }
 
+// BatchIsFavoriteItem 只返回用户的点赞状态
 type BatchIsFavoriteItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BizId         string                 `protobuf:"bytes,1,opt,name=biz_id,json=bizId,proto3" json:"biz_id,omitempty"`
-	IsLiked       bool                   `protobuf:"varint,2,opt,name=is_liked,json=isLiked,proto3" json:"is_liked,omitempty"`
-	IsDisliked    bool                   `protobuf:"varint,3,opt,name=is_disliked,json=isDisliked,proto3" json:"is_disliked,omitempty"`
-	LikeCount     int64                  `protobuf:"varint,4,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`
-	DislikeCount  int64                  `protobuf:"varint,5,opt,name=dislike_count,json=dislikeCount,proto3" json:"dislike_count,omitempty"`
+	IsLiked       bool                   `protobuf:"varint,2,opt,name=is_liked,json=isLiked,proto3" json:"is_liked,omitempty"`          // 是否点赞
+	IsDisliked    bool                   `protobuf:"varint,3,opt,name=is_disliked,json=isDisliked,proto3" json:"is_disliked,omitempty"` // 是否点踩
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -974,20 +951,6 @@ func (x *BatchIsFavoriteItem) GetIsDisliked() bool {
 		return x.IsDisliked
 	}
 	return false
-}
-
-func (x *BatchIsFavoriteItem) GetLikeCount() int64 {
-	if x != nil {
-		return x.LikeCount
-	}
-	return 0
-}
-
-func (x *BatchIsFavoriteItem) GetDislikeCount() int64 {
-	if x != nil {
-		return x.DislikeCount
-	}
-	return 0
 }
 
 type BatchIsFavoriteResp struct {
@@ -1088,32 +1051,25 @@ const file_api_videoCore_service_v1_favorite_proto_rawDesc = "" +
 	"totalCount\"\x92\x01\n" +
 	"\x11CountFavoriteResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12E\n" +
-	"\x05items\x18\x02 \x03(\v2/.api.videoCore.service.v1.CountFavoriteRespItemR\x05items\"\xbd\x01\n" +
+	"\x05items\x18\x02 \x03(\v2/.api.videoCore.service.v1.CountFavoriteRespItemR\x05items\"\x81\x01\n" +
 	"\rIsFavoriteReq\x12\x15\n" +
 	"\x06biz_id\x18\x01 \x01(\tR\x05bizId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12@\n" +
-	"\x06target\x18\x03 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\x12:\n" +
-	"\x04type\x18\x04 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\x04type\"\xfe\x01\n" +
+	"\x06target\x18\x03 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\"\xb6\x01\n" +
 	"\x0eIsFavoriteResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12\x1f\n" +
 	"\vis_favorite\x18\x02 \x01(\bR\n" +
 	"isFavorite\x12K\n" +
-	"\rfavorite_type\x18\x03 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\ffavoriteType\x12\x1f\n" +
-	"\vtotal_likes\x18\x04 \x01(\x03R\n" +
-	"totalLikes\x12%\n" +
-	"\x0etotal_dislikes\x18\x05 \x01(\x03R\rtotalDislikes\"\x88\x01\n" +
+	"\rfavorite_type\x18\x03 \x01(\x0e2&.api.videoCore.service.v1.FavoriteTypeR\ffavoriteType\"\x88\x01\n" +
 	"\x12BatchIsFavoriteReq\x12\x17\n" +
 	"\abiz_ids\x18\x01 \x03(\tR\x06bizIds\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12@\n" +
-	"\x06target\x18\x03 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\"\xac\x01\n" +
+	"\x06target\x18\x03 \x01(\x0e2(.api.videoCore.service.v1.FavoriteTargetR\x06target\"h\n" +
 	"\x13BatchIsFavoriteItem\x12\x15\n" +
 	"\x06biz_id\x18\x01 \x01(\tR\x05bizId\x12\x19\n" +
 	"\bis_liked\x18\x02 \x01(\bR\aisLiked\x12\x1f\n" +
 	"\vis_disliked\x18\x03 \x01(\bR\n" +
-	"isDisliked\x12\x1d\n" +
-	"\n" +
-	"like_count\x18\x04 \x01(\x03R\tlikeCount\x12#\n" +
-	"\rdislike_count\x18\x05 \x01(\x03R\fdislikeCount\"\x92\x01\n" +
+	"isDisliked\"\x92\x01\n" +
 	"\x13BatchIsFavoriteResp\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\x12C\n" +
 	"\x05items\x18\x02 \x03(\v2-.api.videoCore.service.v1.BatchIsFavoriteItemR\x05items*H\n" +
@@ -1190,29 +1146,28 @@ var file_api_videoCore_service_v1_favorite_proto_depIdxs = []int32{
 	17, // 13: api.videoCore.service.v1.CountFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
 	10, // 14: api.videoCore.service.v1.CountFavoriteResp.items:type_name -> api.videoCore.service.v1.CountFavoriteRespItem
 	0,  // 15: api.videoCore.service.v1.IsFavoriteReq.target:type_name -> api.videoCore.service.v1.FavoriteTarget
-	1,  // 16: api.videoCore.service.v1.IsFavoriteReq.type:type_name -> api.videoCore.service.v1.FavoriteType
-	17, // 17: api.videoCore.service.v1.IsFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	1,  // 18: api.videoCore.service.v1.IsFavoriteResp.favorite_type:type_name -> api.videoCore.service.v1.FavoriteType
-	0,  // 19: api.videoCore.service.v1.BatchIsFavoriteReq.target:type_name -> api.videoCore.service.v1.FavoriteTarget
-	17, // 20: api.videoCore.service.v1.BatchIsFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
-	15, // 21: api.videoCore.service.v1.BatchIsFavoriteResp.items:type_name -> api.videoCore.service.v1.BatchIsFavoriteItem
-	3,  // 22: api.videoCore.service.v1.FavoriteService.AddFavorite:input_type -> api.videoCore.service.v1.AddFavoriteReq
-	5,  // 23: api.videoCore.service.v1.FavoriteService.RemoveFavorite:input_type -> api.videoCore.service.v1.RemoveFavoriteReq
-	7,  // 24: api.videoCore.service.v1.FavoriteService.ListFavorite:input_type -> api.videoCore.service.v1.ListFavoriteReq
-	9,  // 25: api.videoCore.service.v1.FavoriteService.CountFavorite:input_type -> api.videoCore.service.v1.CountFavoriteReq
-	12, // 26: api.videoCore.service.v1.FavoriteService.IsFavorite:input_type -> api.videoCore.service.v1.IsFavoriteReq
-	14, // 27: api.videoCore.service.v1.FavoriteService.BatchIsFavorite:input_type -> api.videoCore.service.v1.BatchIsFavoriteReq
-	4,  // 28: api.videoCore.service.v1.FavoriteService.AddFavorite:output_type -> api.videoCore.service.v1.AddFavoriteResp
-	6,  // 29: api.videoCore.service.v1.FavoriteService.RemoveFavorite:output_type -> api.videoCore.service.v1.RemoveFavoriteResp
-	8,  // 30: api.videoCore.service.v1.FavoriteService.ListFavorite:output_type -> api.videoCore.service.v1.ListFavoriteResp
-	11, // 31: api.videoCore.service.v1.FavoriteService.CountFavorite:output_type -> api.videoCore.service.v1.CountFavoriteResp
-	13, // 32: api.videoCore.service.v1.FavoriteService.IsFavorite:output_type -> api.videoCore.service.v1.IsFavoriteResp
-	16, // 33: api.videoCore.service.v1.FavoriteService.BatchIsFavorite:output_type -> api.videoCore.service.v1.BatchIsFavoriteResp
-	28, // [28:34] is the sub-list for method output_type
-	22, // [22:28] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	17, // 16: api.videoCore.service.v1.IsFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	1,  // 17: api.videoCore.service.v1.IsFavoriteResp.favorite_type:type_name -> api.videoCore.service.v1.FavoriteType
+	0,  // 18: api.videoCore.service.v1.BatchIsFavoriteReq.target:type_name -> api.videoCore.service.v1.FavoriteTarget
+	17, // 19: api.videoCore.service.v1.BatchIsFavoriteResp.meta:type_name -> api.videoCore.service.v1.Metadata
+	15, // 20: api.videoCore.service.v1.BatchIsFavoriteResp.items:type_name -> api.videoCore.service.v1.BatchIsFavoriteItem
+	3,  // 21: api.videoCore.service.v1.FavoriteService.AddFavorite:input_type -> api.videoCore.service.v1.AddFavoriteReq
+	5,  // 22: api.videoCore.service.v1.FavoriteService.RemoveFavorite:input_type -> api.videoCore.service.v1.RemoveFavoriteReq
+	7,  // 23: api.videoCore.service.v1.FavoriteService.ListFavorite:input_type -> api.videoCore.service.v1.ListFavoriteReq
+	9,  // 24: api.videoCore.service.v1.FavoriteService.CountFavorite:input_type -> api.videoCore.service.v1.CountFavoriteReq
+	12, // 25: api.videoCore.service.v1.FavoriteService.IsFavorite:input_type -> api.videoCore.service.v1.IsFavoriteReq
+	14, // 26: api.videoCore.service.v1.FavoriteService.BatchIsFavorite:input_type -> api.videoCore.service.v1.BatchIsFavoriteReq
+	4,  // 27: api.videoCore.service.v1.FavoriteService.AddFavorite:output_type -> api.videoCore.service.v1.AddFavoriteResp
+	6,  // 28: api.videoCore.service.v1.FavoriteService.RemoveFavorite:output_type -> api.videoCore.service.v1.RemoveFavoriteResp
+	8,  // 29: api.videoCore.service.v1.FavoriteService.ListFavorite:output_type -> api.videoCore.service.v1.ListFavoriteResp
+	11, // 30: api.videoCore.service.v1.FavoriteService.CountFavorite:output_type -> api.videoCore.service.v1.CountFavoriteResp
+	13, // 31: api.videoCore.service.v1.FavoriteService.IsFavorite:output_type -> api.videoCore.service.v1.IsFavoriteResp
+	16, // 32: api.videoCore.service.v1.FavoriteService.BatchIsFavorite:output_type -> api.videoCore.service.v1.BatchIsFavoriteResp
+	27, // [27:33] is the sub-list for method output_type
+	21, // [21:27] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_api_videoCore_service_v1_favorite_proto_init() }
