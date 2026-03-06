@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"fmt"
+	"lehu-video/app/videoChat/service/internal/pkg/idgen"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -183,13 +184,15 @@ type GroupRepo interface {
 type GroupUsecase struct {
 	repo             GroupRepo
 	conversationRepo ConversationRepo // 新增
+	idGen            idgen.Generator
 	log              *log.Helper
 }
 
-func NewGroupUsecase(repo GroupRepo, conversationRepo ConversationRepo, logger log.Logger) *GroupUsecase {
+func NewGroupUsecase(repo GroupRepo, conversationRepo ConversationRepo, idGen idgen.Generator, logger log.Logger) *GroupUsecase {
 	return &GroupUsecase{
 		repo:             repo,
 		conversationRepo: conversationRepo,
+		idGen:            idGen,
 		log:              log.NewHelper(logger),
 	}
 }
@@ -210,6 +213,7 @@ func (uc *GroupUsecase) CreateGroup(ctx context.Context, cmd *CreateGroupCommand
 
 	// 创建群聊
 	group := &Group{
+		ID:        uc.idGen.NextID(),
 		Name:      cmd.Name,
 		Notice:    cmd.Notice,
 		MemberCnt: 1, // 只有群主一人
@@ -220,7 +224,6 @@ func (uc *GroupUsecase) CreateGroup(ctx context.Context, cmd *CreateGroupCommand
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	group.ID = int64(uuid.New().ID())
 
 	// 创建群聊记录
 	err := uc.repo.CreateGroup(ctx, group)

@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"errors"
+	"lehu-video/app/videoChat/service/internal/pkg/idgen"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -223,14 +224,16 @@ type FriendRepo interface {
 
 // Usecase
 type FriendUsecase struct {
-	repo FriendRepo
-	log  *log.Helper
+	repo  FriendRepo
+	idGen idgen.Generator
+	log   *log.Helper
 }
 
-func NewFriendUsecase(repo FriendRepo, logger log.Logger) *FriendUsecase {
+func NewFriendUsecase(repo FriendRepo, idGen idgen.Generator, logger log.Logger) *FriendUsecase {
 	return &FriendUsecase{
-		repo: repo,
-		log:  log.NewHelper(logger),
+		repo:  repo,
+		idGen: idGen,
+		log:   log.NewHelper(logger),
 	}
 }
 
@@ -265,6 +268,7 @@ func (uc *FriendUsecase) SendFriendApply(ctx context.Context, cmd *SendFriendApp
 	// 创建申请
 	now := time.Now()
 	apply := &FriendApply{
+		ID:          uc.idGen.NextID(),
 		ApplicantID: cmd.ApplicantID,
 		ReceiverID:  cmd.ReceiverID,
 		ApplyReason: cmd.ApplyReason,
@@ -272,8 +276,6 @@ func (uc *FriendUsecase) SendFriendApply(ctx context.Context, cmd *SendFriendApp
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	// 生成ID（可使用雪花算法，这里简化）
-	apply.GenerateId()
 
 	if err := uc.repo.CreateFriendApply(ctx, apply); err != nil {
 		return nil, err
@@ -304,6 +306,7 @@ func (uc *FriendUsecase) HandleFriendApply(ctx context.Context, cmd *HandleFrien
 		apply.Status = 1
 		// 创建双向好友关系
 		relation1 := &FriendRelation{
+			ID:          uc.idGen.NextID(),
 			UserID:      apply.ApplicantID,
 			FriendID:    apply.ReceiverID,
 			Status:      1,
@@ -313,6 +316,7 @@ func (uc *FriendUsecase) HandleFriendApply(ctx context.Context, cmd *HandleFrien
 			UpdatedAt:   now,
 		}
 		relation2 := &FriendRelation{
+			ID:          uc.idGen.NextID(),
 			UserID:      apply.ReceiverID,
 			FriendID:    apply.ApplicantID,
 			Status:      1,
@@ -321,8 +325,6 @@ func (uc *FriendUsecase) HandleFriendApply(ctx context.Context, cmd *HandleFrien
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		}
-		relation1.GenerateId()
-		relation2.GenerateId()
 
 		if err := uc.repo.CreateFriendRelation(ctx, relation1); err != nil {
 			return nil, err
@@ -429,6 +431,7 @@ func (uc *FriendUsecase) UpdateFriendRemark(ctx context.Context, cmd *UpdateFrie
 	return &UpdateFriendRemarkResult{}, nil
 }
 
+// todo 这个应该是没有实现的吧？看代码就只是改了一下分组名
 // SetFriendGroup 设置好友分组
 func (uc *FriendUsecase) SetFriendGroup(ctx context.Context, cmd *SetFriendGroupCommand) (*SetFriendGroupResult, error) {
 	if cmd.GroupName == "" {
@@ -452,6 +455,7 @@ func (uc *FriendUsecase) SetFriendGroup(ctx context.Context, cmd *SetFriendGroup
 	return &SetFriendGroupResult{}, nil
 }
 
+// todo 感觉写的有点问题
 // CheckFriendRelation 检查好友关系
 func (uc *FriendUsecase) CheckFriendRelation(ctx context.Context, query *CheckFriendRelationQuery) (*CheckFriendRelationResult, error) {
 	isFriend, err := uc.repo.CheckFriendRelation(ctx, query.UserID, query.TargetID)
@@ -468,6 +472,7 @@ func (uc *FriendUsecase) CheckFriendRelation(ctx context.Context, query *CheckFr
 	return result, nil
 }
 
+// 缓存写biz层吧
 // GetUserOnlineStatus 获取单个用户在线状态
 func (uc *FriendUsecase) GetUserOnlineStatus(ctx context.Context, query *GetUserOnlineStatusQuery) (*GetUserOnlineStatusResult, error) {
 	status, err := uc.repo.GetUserOnlineStatus(ctx, query.UserID)
@@ -480,6 +485,7 @@ func (uc *FriendUsecase) GetUserOnlineStatus(ctx context.Context, query *GetUser
 	return &GetUserOnlineStatusResult{Status: status.OnlineStatus, LastOnlineTime: status.LastOnlineTime}, nil
 }
 
+// todo 感觉这里也可以查一下缓存吧？
 // BatchGetUserOnlineStatus 批量获取用户在线状态
 func (uc *FriendUsecase) BatchGetUserOnlineStatus(ctx context.Context, query *BatchGetUserOnlineStatusQuery) (*BatchGetUserOnlineStatusResult, error) {
 	if len(query.UserIDs) == 0 {
