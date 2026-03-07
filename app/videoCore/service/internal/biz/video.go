@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"lehu-video/app/videoCore/service/internal/pkg/idgen"
 	"strconv"
 	"time"
 
@@ -119,6 +120,7 @@ type VideoUsecase struct {
 	repo            VideoRepo
 	userCounterRepo UserCounterRepo
 	videoCounter    VideoCounterRepo
+	idGen           idgen.Generator
 	feedUsecase     *FeedUsecase
 	recentViewed    *RecentViewedManager
 	redisClient     *redis.Client
@@ -131,6 +133,7 @@ func NewVideoUsecase(
 	repo VideoRepo,
 	userCounterRepo UserCounterRepo,
 	videoCounter VideoCounterRepo,
+	idGen idgen.Generator,
 	feedUsecase *FeedUsecase,
 	recentViewed *RecentViewedManager,
 	redisClient *redis.Client,
@@ -140,6 +143,7 @@ func NewVideoUsecase(
 		repo:            repo,
 		userCounterRepo: userCounterRepo,
 		videoCounter:    videoCounter,
+		idGen:           idGen,
 		feedUsecase:     feedUsecase,
 		recentViewed:    recentViewed,
 		redisClient:     redisClient,
@@ -182,6 +186,7 @@ func (uc *VideoUsecase) batchProcessViewCount(cmds []*viewCountCmd) error {
 // PublishVideo 发布视频
 func (uc *VideoUsecase) PublishVideo(ctx context.Context, cmd *PublishVideoCommand) (*PublishVideoResult, error) {
 	video := &Video{
+		Id:          uc.idGen.NextID(),
 		Title:       cmd.Title,
 		Description: cmd.Description,
 		VideoUrl:    cmd.PlayUrl,

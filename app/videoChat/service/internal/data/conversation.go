@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"lehu-video/app/videoChat/service/internal/pkg/idgen"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -15,14 +16,16 @@ import (
 )
 
 type conversationRepo struct {
-	data *Data
-	log  *log.Helper
+	data  *Data
+	idGen idgen.Generator
+	log   *log.Helper
 }
 
-func NewConversationRepo(data *Data, logger log.Logger) biz.ConversationRepo {
+func NewConversationRepo(data *Data, idGen idgen.Generator, logger log.Logger) biz.ConversationRepo {
 	return &conversationRepo{
-		data: data,
-		log:  log.NewHelper(logger),
+		data:  data,
+		idGen: idGen,
+		log:   log.NewHelper(logger),
 	}
 }
 
@@ -89,10 +92,9 @@ func (r *conversationRepo) GetOrCreateSingleChatConversation(ctx context.Context
 		return conv, nil
 	}
 	// 创建新会话
-	newID := int64(uuid.New().ID())
 	now := time.Now()
 	conv = &biz.Conversation{
-		ID:          newID,
+		ID:          r.idGen.NextID(),
 		Type:        biz.ConvTypeSingle,
 		MemberCount: 2,
 		CreatedAt:   now,
@@ -103,8 +105,8 @@ func (r *conversationRepo) GetOrCreateSingleChatConversation(ctx context.Context
 	}
 	// 添加成员
 	members := []*biz.ConversationMember{
-		{ConversationID: newID, UserID: userID1, Type: 0, JoinTime: now, CreatedAt: now, UpdatedAt: now},
-		{ConversationID: newID, UserID: userID2, Type: 0, JoinTime: now, CreatedAt: now, UpdatedAt: now},
+		{ConversationID: conv.ID, UserID: userID1, Type: 0, JoinTime: now, CreatedAt: now, UpdatedAt: now},
+		{ConversationID: conv.ID, UserID: userID2, Type: 0, JoinTime: now, CreatedAt: now, UpdatedAt: now},
 	}
 	for _, m := range members {
 		if err := r.AddConversationMember(ctx, m); err != nil {

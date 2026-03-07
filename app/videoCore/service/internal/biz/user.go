@@ -3,11 +3,11 @@ package biz
 import (
 	"context"
 	"errors"
+	"lehu-video/app/videoCore/service/internal/pkg/idgen"
 	"strings"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/google/uuid"
 )
 
 type User struct {
@@ -33,11 +33,6 @@ type User struct {
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
-}
-
-func (u *User) GenerateId() {
-	// 使用雪花ID或UUID
-	u.Id = int64(uuid.New().ID())
 }
 
 // Command 和 Query 结构体
@@ -117,15 +112,17 @@ type UserRepo interface {
 type UserUsecase struct {
 	repo        UserRepo
 	counterRepo UserCounterRepo
+	idGen       idgen.Generator
 	log         *log.Helper
 }
 
-func NewUserUsecase(repo UserRepo, counterRepo UserCounterRepo, logger log.Logger) *UserUsecase {
-	return &UserUsecase{repo: repo, counterRepo: counterRepo, log: log.NewHelper(logger)}
+func NewUserUsecase(repo UserRepo, counterRepo UserCounterRepo, idGen idgen.Generator, logger log.Logger) *UserUsecase {
+	return &UserUsecase{repo: repo, counterRepo: counterRepo, idGen: idGen, log: log.NewHelper(logger)}
 }
 
 func (uc *UserUsecase) CreateUser(ctx context.Context, cmd *CreateUserCommand) (*CreateUserResult, error) {
 	user := &User{
+		Id:              uc.idGen.NextID(),
 		AccountId:       cmd.AccountId,
 		Mobile:          cmd.Mobile,
 		Email:           cmd.Email,
@@ -143,7 +140,6 @@ func (uc *UserUsecase) CreateUser(ctx context.Context, cmd *CreateUserCommand) (
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
-	user.GenerateId()
 
 	err := uc.repo.CreateUser(ctx, user)
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/redis/go-redis/v9"
-	segkafka "github.com/segmentio/kafka-go" // 给 segmentio/kafka-go 起别名
+	segkafka "github.com/segmentio/kafka-go"
 
 	"lehu-video/app/videoApi/service/internal/biz"
 	"lehu-video/app/videoApi/service/internal/pkg/kafka"
@@ -65,7 +65,7 @@ func (s *KafkaConsumerService) processMessage(ctx context.Context, msg segkafka.
 	var data map[string]interface{}
 	if err := json.Unmarshal(msg.Value, &data); err != nil {
 		s.log.Errorf("解析消息失败: %v", err)
-		s.consumer.CommitMessages(ctx, msg)
+		_ = s.consumer.CommitMessages(ctx, msg)
 		return
 	}
 
@@ -80,7 +80,7 @@ func (s *KafkaConsumerService) processMessage(ctx context.Context, msg segkafka.
 		}
 		if !ok {
 			s.log.Infof("重复消息，已忽略: client_msg_id=%s", clientMsgID)
-			s.consumer.CommitMessages(ctx, msg)
+			_ = s.consumer.CommitMessages(ctx, msg)
 			return
 		}
 	}
@@ -118,27 +118,36 @@ func (s *KafkaConsumerService) processMessage(ctx context.Context, msg segkafka.
 		ClientMsgID:    clientMsgID,
 	}
 
+	// 调用业务层发送消息
 	output, err := s.messageUC.SendMessage(ctx, input)
 	if err != nil {
 		s.log.Errorf("发送消息失败: %v", err)
-		if clientMsgID != "" {
-			s.redisClient.Del(ctx, "idempotent:"+clientMsgID)
+		// 永久错误提交offset
+		if isPermanentError(err) {
+			_ = s.consumer.CommitMessages(ctx, msg)
 		}
 		return
 	}
 
+	// 提交offset
 	if err := s.consumer.CommitMessages(ctx, msg); err != nil {
 		s.log.Errorf("提交偏移量失败: %v", err)
 	}
 
-	s.pushStatusToSender(ctx, output, data)
+	// 推送状态给发送者
+	s.pushStatusToSender(ctx, output, clientMsgID)
+	// 推送给接收者（或存储离线）
 	s.pushToReceiver(ctx, output, data)
 }
 
-func (s *KafkaConsumerService) pushStatusToSender(ctx context.Context, output *biz.SendMessageOutput, data map[string]interface{}) {
-	senderID, _ := data["sender_id"].(string)
-	clientMsgID, _ := data["client_msg_id"].(string)
-	if senderID == "" {
+// 判断是否为永久性错误
+func isPermanentError(err error) bool {
+	return false // 暂不实现
+}
+
+// pushStatusToSender 向发送者推送最终消息状态
+func (s *KafkaConsumerService) pushStatusToSender(ctx context.Context, output *biz.SendMessageOutput, clientMsgID string) {
+	if clientMsgID == "" {
 		return
 	}
 	statusMsg := websocket.WSMessageResponse{
@@ -152,49 +161,91 @@ func (s *KafkaConsumerService) pushStatusToSender(ctx context.Context, output *b
 		},
 	}
 	respBytes, _ := json.Marshal(statusMsg)
-	s.wsManager.BroadcastToUser(senderID, respBytes)
+	s.wsManager.BroadcastToUser(output.SenderID, respBytes)
 }
 
+// pushToReceiver 向接收者推送消息或存储离线
 func (s *KafkaConsumerService) pushToReceiver(ctx context.Context, output *biz.SendMessageOutput, data map[string]interface{}) {
 	receiverID, _ := data["receiver_id"].(string)
 	convTypeFloat, _ := data["conv_type"].(float64)
 	convType := int32(convTypeFloat)
 	senderID, _ := data["sender_id"].(string)
 
+	s.log.Infof("推送消息给接收者: receiver=%s, messageID=%s", receiverID, output.MessageID)
+
+	// 构建推送消息（使用最终的消息ID）
 	pushMsg := s.buildPushMessage(output.MessageID, output.ConversationId, data)
 
-	if convType == 0 {
-		s.wsManager.BroadcastToUser(receiverID, pushMsg)
-	} else if convType == 1 {
+	if convType == 0 { // 单聊
+		online := s.wsManager.IsUserOnline(receiverID)
+		s.log.Infof("接收者在线状态: user=%s, online=%v", receiverID, online)
+		if online {
+			s.log.Infof("用户在线，直接推送: %s", receiverID)
+			s.wsManager.BroadcastToUser(receiverID, pushMsg)
+			s.updateMessageStatus(output.MessageID, 2)
+		} else {
+			s.log.Infof("用户离线，存储离线: %s", receiverID)
+			s.storeOfflineMessage(receiverID, output.MessageID, data)
+		}
+	} else if convType == 1 { // 群聊
 		groupID := receiverID
 		members, err := s.chat.GetGroupMembers(ctx, groupID)
 		if err != nil {
 			s.log.Errorf("获取群成员失败: %v", err)
 			return
 		}
+		s.log.Infof("群成员数量: %d", len(members))
 		for _, memberID := range members {
 			if memberID == senderID {
 				continue
 			}
-			if s.wsManager.IsUserOnline(memberID) {
+			online := s.wsManager.IsUserOnline(memberID)
+			s.log.Infof("群成员在线状态: user=%s, online=%v", memberID, online)
+			if online {
+				s.log.Infof("群成员在线，推送: %s", memberID)
 				s.wsManager.BroadcastToUser(memberID, pushMsg)
 			} else {
+				s.log.Infof("群成员离线，存储离线: %s", memberID)
 				s.storeOfflineMessage(memberID, output.MessageID, data)
 			}
 		}
 	}
 }
 
+// updateMessageStatus 更新消息状态
+func (s *KafkaConsumerService) updateMessageStatus(messageID string, status int32) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := s.messageUC.UpdateMessageStatus(ctx, messageID, status)
+	if err != nil {
+		s.log.Errorf("更新消息状态失败: %v", err)
+	}
+}
+
+// storeOfflineMessage 存储离线消息到Redis
 func (s *KafkaConsumerService) storeOfflineMessage(userID, messageID string, data map[string]interface{}) {
 	offlineKey := "offline:" + userID
-	msgData, _ := json.Marshal(data)
+	// 构造要存储的离线消息（使用 time.Time 类型）
+	offlineData := map[string]interface{}{
+		"message_id":      messageID,
+		"sender_id":       data["sender_id"],
+		"receiver_id":     data["receiver_id"],
+		"conversation_id": data["conversation_id"],
+		"conv_type":       data["conv_type"],
+		"msg_type":        data["msg_type"],
+		"content":         data["content"],
+		"created_at":      time.Now(), // 改为 time.Time 类型，Marshal 后为 RFC3339
+	}
+	msgData, _ := json.Marshal(offlineData)
 	err := s.redisClient.RPush(context.Background(), offlineKey, msgData).Err()
 	if err != nil {
 		s.log.Errorf("存储离线消息失败: user=%s, err=%v", userID, err)
+	} else {
+		s.redisClient.Expire(context.Background(), offlineKey, 7*24*time.Hour)
 	}
-	s.redisClient.Expire(context.Background(), offlineKey, 7*24*time.Hour)
 }
 
+// buildPushMessage 构建推送给接收者的消息
 func (s *KafkaConsumerService) buildPushMessage(messageID, conversationID string, data map[string]interface{}) []byte {
 	response := websocket.WSMessageResponse{
 		Action:    "receive_message",
@@ -236,7 +287,7 @@ func getInt64(m map[string]interface{}, key string) int64 {
 	}
 }
 
-// Close 关闭消费者，释放资源
+// Close 关闭消费者
 func (s *KafkaConsumerService) Close() error {
 	return s.consumer.Close()
 }

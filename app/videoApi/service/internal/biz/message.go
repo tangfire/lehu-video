@@ -91,6 +91,7 @@ type SendMessageInput struct {
 type SendMessageOutput struct {
 	MessageID      string
 	ConversationId string
+	SenderID       string // 新增：发送者ID，用于推送状态
 }
 
 type ListMessagesInput struct {
@@ -211,9 +212,11 @@ func (uc *MessageUsecase) SendMessage(ctx context.Context, input *SendMessageInp
 		return nil, err
 	}
 
+	// 返回结果，包含发送者ID用于后续推送
 	return &SendMessageOutput{
 		MessageID:      messageID,
 		ConversationId: conversationId,
+		SenderID:       userID, // 新增：填充发送者ID
 	}, nil
 }
 

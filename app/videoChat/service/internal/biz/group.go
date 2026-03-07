@@ -225,6 +225,7 @@ func (uc *GroupUsecase) CreateGroup(ctx context.Context, cmd *CreateGroupCommand
 		UpdatedAt: now,
 	}
 
+	// todo 感觉要加入事务的，这里还没有加好像
 	// 创建群聊记录
 	err := uc.repo.CreateGroup(ctx, group)
 	if err != nil {
@@ -234,12 +235,12 @@ func (uc *GroupUsecase) CreateGroup(ctx context.Context, cmd *CreateGroupCommand
 
 	// 创建群主成员记录
 	ownerMember := &GroupMember{
+		ID:       uc.idGen.NextID(),
 		UserID:   cmd.OwnerID,
 		GroupID:  group.ID,
 		Role:     2, // 群主
 		JoinTime: now,
 	}
-	ownerMember.ID = int64(uuid.New().ID())
 
 	err = uc.repo.CreateGroupMember(ctx, ownerMember)
 	if err != nil {
@@ -375,12 +376,12 @@ func (uc *GroupUsecase) EnterGroupDirectly(ctx context.Context, cmd *EnterGroupD
 
 	// 创建成员记录
 	member := &GroupMember{
+		ID:       uc.idGen.NextID(),
 		UserID:   cmd.UserID,
 		GroupID:  cmd.GroupID,
 		Role:     0, // 普通成员
 		JoinTime: now,
 	}
-	member.ID = int64(uuid.New().ID())
 
 	err = uc.repo.CreateGroupMember(ctx, member)
 	if err != nil {
@@ -467,6 +468,7 @@ func (uc *GroupUsecase) ApplyJoinGroup(ctx context.Context, cmd *ApplyJoinGroupC
 
 	// 创建申请记录
 	apply := &GroupApply{
+		ID:          uc.idGen.NextID(),
 		UserID:      cmd.UserID,
 		GroupID:     cmd.GroupID,
 		ApplyReason: cmd.ApplyReason,
@@ -474,7 +476,6 @@ func (uc *GroupUsecase) ApplyJoinGroup(ctx context.Context, cmd *ApplyJoinGroupC
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	apply.ID = int64(uuid.New().ID())
 
 	if err := uc.repo.CreateGroupApply(ctx, apply); err != nil {
 		uc.log.Errorf("创建加群申请失败: %v", err)

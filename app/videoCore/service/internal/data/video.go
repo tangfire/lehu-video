@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"lehu-video/app/videoCore/service/internal/biz"
 	"lehu-video/app/videoCore/service/internal/data/model"
@@ -34,12 +33,8 @@ func (r *videoRepo) db(ctx context.Context) *gorm.DB {
 }
 
 func (r *videoRepo) PublishVideo(ctx context.Context, video *biz.Video) (int64, error) {
-	uid, err := uuid.NewUUID()
-	if err != nil {
-		return 0, err
-	}
 	dbVideo := model.Video{
-		Id:          int64(uid.ID()),
+		Id:          video.Id,
 		UserId:      video.Author.Id,
 		Title:       video.Title,
 		Description: video.Description,
@@ -47,7 +42,7 @@ func (r *videoRepo) PublishVideo(ctx context.Context, video *biz.Video) (int64, 
 		CoverUrl:    video.CoverUrl,
 		CreatedAt:   video.UploadTime,
 	}
-	err = r.db(ctx).Table(model.Video{}.TableName()).Create(&dbVideo).Error
+	err := r.db(ctx).Table(model.Video{}.TableName()).Create(&dbVideo).Error
 	if err != nil {
 		return 0, err
 	}

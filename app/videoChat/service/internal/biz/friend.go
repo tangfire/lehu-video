@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/google/uuid"
 )
 
 type UserInfo struct {
@@ -34,10 +33,6 @@ type FriendRelation struct {
 	UpdatedAt   time.Time
 }
 
-func (f *FriendRelation) GenerateId() {
-	f.ID = int64(uuid.New().ID())
-}
-
 type FriendApply struct {
 	ID          int64
 	ApplicantID int64
@@ -47,10 +42,6 @@ type FriendApply struct {
 	HandledAt   *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-}
-
-func (f *FriendApply) GenerateId() {
-	f.ID = int64(uuid.New().ID())
 }
 
 // 用户在线状态领域对象
@@ -184,7 +175,7 @@ type BatchGetUserOnlineStatusQuery struct {
 }
 
 type BatchGetUserOnlineStatusResult struct {
-	Statuses map[int64]int32 // user_id -> status
+	Statuses map[int64]int32 `json:"statuses"` // user_id -> status
 }
 
 type UpdateUserOnlineStatusCommand struct {
