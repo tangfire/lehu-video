@@ -3,10 +3,10 @@ package websocket
 import (
 	"context"
 	"encoding/json"
-	"github.com/redis/go-redis/v9"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/redis/go-redis/v9"
 )
 
 // OfflineMessage 离线消息结构

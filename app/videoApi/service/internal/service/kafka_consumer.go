@@ -177,11 +177,10 @@ func (s *KafkaConsumerService) pushToReceiver(ctx context.Context, output *biz.S
 	pushMsg := s.buildPushMessage(output.MessageID, output.ConversationId, data)
 
 	if convType == 0 { // 单聊
-		online := s.wsManager.IsUserOnline(receiverID)
-		s.log.Infof("接收者在线状态: user=%s, online=%v", receiverID, online)
-		if online {
-			s.log.Infof("用户在线，直接推送: %s", receiverID)
-			s.wsManager.BroadcastToUser(receiverID, pushMsg)
+		// 使用全局在线状态判断
+		if s.wsManager.IsUserOnlineGlobal(ctx, receiverID) {
+			s.log.Infof("用户在线，推送: %s", receiverID)
+			s.wsManager.PushToUser(receiverID, pushMsg)
 			s.updateMessageStatus(output.MessageID, 2)
 		} else {
 			s.log.Infof("用户离线，存储离线: %s", receiverID)
@@ -199,11 +198,10 @@ func (s *KafkaConsumerService) pushToReceiver(ctx context.Context, output *biz.S
 			if memberID == senderID {
 				continue
 			}
-			online := s.wsManager.IsUserOnline(memberID)
-			s.log.Infof("群成员在线状态: user=%s, online=%v", memberID, online)
-			if online {
+			// 使用全局在线状态判断
+			if s.wsManager.IsUserOnlineGlobal(ctx, memberID) {
 				s.log.Infof("群成员在线，推送: %s", memberID)
-				s.wsManager.BroadcastToUser(memberID, pushMsg)
+				s.wsManager.PushToUser(memberID, pushMsg)
 			} else {
 				s.log.Infof("群成员离线，存储离线: %s", memberID)
 				s.storeOfflineMessage(memberID, output.MessageID, data)

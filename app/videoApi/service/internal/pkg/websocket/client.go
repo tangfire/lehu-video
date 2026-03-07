@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-kratos/kratos/v2/log"
-	"github.com/gorilla/websocket"
-	"lehu-video/app/videoApi/service/internal/biz"
 	"math/rand"
 	"time"
+
+	"github.com/go-kratos/kratos/v2/log"
+	"github.com/gorilla/websocket"
+
+	"lehu-video/app/videoApi/service/internal/biz"
 )
 
 // WSMessageRequest WebSocket消息请求
@@ -38,7 +40,7 @@ type SendMessageReq struct {
 	ClientMsgID    string                 `json:"client_msg_id"`
 }
 
-// NewClient 创建新的客户端连接
+// NewClient 创建新的客户端连接（生成唯一连接ID）
 func NewClient(
 	ctx context.Context,
 	userID string,
@@ -48,9 +50,12 @@ func NewClient(
 	chat biz.ChatAdapter,
 	logger log.Logger,
 ) *Client {
+	// 生成连接ID：用户ID + 时间戳 + 随机数，保证唯一性
+	connID := fmt.Sprintf("%s-%d-%d", userID, time.Now().UnixNano(), rand.Intn(10000))
 	return &Client{
 		ID:        time.Now().UnixNano(),
 		UserID:    userID,
+		ConnID:    connID,
 		Ctx:       ctx,
 		Conn:      conn,
 		SendChan:  make(chan []byte, 256),
@@ -73,9 +78,14 @@ func (c *Client) ReadPump() {
 		if isCurrent {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			err := c.chat.UpdateUserOnlineStatus(ctx, c.UserID, 0, "")
-			if err != nil {
-				c.logger.Log(log.LevelError, "msg", "更新在线状态失败", "err", err)
+			// 调用chat适配器更新持久化在线状态（数据库）
+			if chat, ok := c.chat.(interface {
+				UpdateUserOnlineStatus(ctx context.Context, userID string, status int, deviceType string) error
+			}); ok {
+				err := chat.UpdateUserOnlineStatus(ctx, c.UserID, 0, "")
+				if err != nil {
+					c.logger.Log(log.LevelError, "msg", "更新持久化在线状态失败", "err", err)
+				}
 			}
 		}
 		c.Manager.unregister <- c
@@ -83,8 +93,16 @@ func (c *Client) ReadPump() {
 	}()
 
 	c.Conn.SetReadLimit(5120)
+	// 设置初始读超时
+	c.Conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 	c.Conn.SetPongHandler(func(string) error {
-		c.Manager.onlineMgr.UpdateLastActive(c.UserID)
+		// 收到 Pong 时刷新读超时
+		c.Conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		// 刷新Redis在线状态过期时间
+		ctx := context.Background()
+		if err := c.Manager.refreshUserOnline(ctx, c.UserID); err != nil {
+			c.logger.Log(log.LevelError, "msg", "刷新Redis在线状态失败", "err", err)
+		}
 		return nil
 	})
 
@@ -102,7 +120,7 @@ func (c *Client) ReadPump() {
 
 // WritePump 向客户端发送消息
 func (c *Client) WritePump() {
-	ticker := time.NewTicker(54 * time.Second)
+	ticker := time.NewTicker(25 * time.Second)
 	defer func() {
 		ticker.Stop()
 		c.Manager.unregister <- c // 确保清理
@@ -177,7 +195,7 @@ func (c *Client) handleAuth(data json.RawMessage) {
 	}, "")
 }
 
-// handleSendMessage 处理发送消息请求（简化版：只写入Kafka）
+// handleSendMessage 处理发送消息请求（只写入Kafka）
 func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string) {
 	var msg SendMessageReq
 	if err := json.Unmarshal(data, &msg); err != nil {
@@ -190,7 +208,6 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 	if effectiveClientMsgID == "" {
 		effectiveClientMsgID = outerClientMsgID
 	}
-	// 如果仍然为空，生成一个随机ID（实际应由客户端生成，这里做兜底）
 	if effectiveClientMsgID == "" {
 		effectiveClientMsgID = fmt.Sprintf("%d%d", time.Now().UnixNano(), rand.Intn(1000))
 	}
@@ -212,7 +229,7 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 		Extra:         getString(msg.Content, "extra"),
 	}
 
-	// 构造要写入Kafka的消息（不包含临时ID，仅用client_msg_id关联）
+	// 构造要写入Kafka的消息
 	messageData := map[string]interface{}{
 		"client_msg_id":   effectiveClientMsgID,
 		"sender_id":       c.UserID,
@@ -235,15 +252,14 @@ func (c *Client) handleSendMessage(data json.RawMessage, outerClientMsgID string
 		return
 	}
 
-	// 立即给发送者返回 message_sent（仅含client_msg_id，不含最终消息ID）
+	// 立即给发送者返回 message_sent
 	c.sendResponse("message_sent", map[string]interface{}{
 		"client_msg_id":   effectiveClientMsgID,
 		"conversation_id": msg.ConversationID,
 		"status":          0,
 	}, effectiveClientMsgID)
 
-	c.logger.Log(log.LevelInfo, "msg", "消息已写入Kafka",
-		"client_msg_id", effectiveClientMsgID)
+	c.logger.Log(log.LevelInfo, "msg", "消息已写入Kafka", "client_msg_id", effectiveClientMsgID)
 }
 
 // 辅助函数
@@ -265,7 +281,7 @@ func getInt64(m map[string]interface{}, key string) int64 {
 	}
 }
 
-// 以下为其他处理函数（撤回、已读、输入状态等），保持不变
+// handleRecallMessage 处理撤回消息
 func (c *Client) handleRecallMessage(data json.RawMessage) {
 	var msg struct {
 		MessageID string `json:"message_id"`
@@ -311,7 +327,7 @@ func (c *Client) notifyRecall(messageID string) {
 		}
 		respBytes, _ := json.Marshal(recallMsg)
 		if message.ConvType == 0 {
-			c.Manager.BroadcastToUser(message.ReceiverID, respBytes)
+			c.Manager.PushToUser(message.ReceiverID, respBytes)
 		} else if message.ConvType == 1 {
 			gmGetter, ok := c.chat.(interface {
 				GetGroupMembers(ctx context.Context, groupID string) ([]string, error)
@@ -321,7 +337,7 @@ func (c *Client) notifyRecall(messageID string) {
 				if err == nil {
 					for _, memberID := range members {
 						if memberID != c.UserID {
-							c.Manager.BroadcastToUser(memberID, respBytes)
+							c.Manager.PushToUser(memberID, respBytes)
 						}
 					}
 				}
@@ -330,6 +346,7 @@ func (c *Client) notifyRecall(messageID string) {
 	}
 }
 
+// handleReadMessage 处理已读消息
 func (c *Client) handleReadMessage(data json.RawMessage) {
 	var msg struct {
 		ConversationID string `json:"conversation_id"`
@@ -379,11 +396,12 @@ func (c *Client) notifyMessageRead(messageID, conversationID string) {
 				},
 			}
 			respBytes, _ := json.Marshal(readMsg)
-			c.Manager.BroadcastToUser(message.SenderID, respBytes)
+			c.Manager.PushToUser(message.SenderID, respBytes)
 		}
 	}
 }
 
+// handleTyping 处理输入状态
 func (c *Client) handleTyping(data json.RawMessage) {
 	var msg struct {
 		ReceiverID string `json:"receiver_id"`
@@ -409,10 +427,11 @@ func (c *Client) handleTyping(data json.RawMessage) {
 	}
 	respBytes, _ := json.Marshal(response)
 	if msg.ConvType == 0 {
-		c.Manager.BroadcastToUser(msg.ReceiverID, respBytes)
+		c.Manager.PushToUser(msg.ReceiverID, respBytes)
 	}
 }
 
+// sendPong 响应心跳
 func (c *Client) sendPong() {
 	response := WSMessageResponse{
 		Action:    "pong",
@@ -422,6 +441,7 @@ func (c *Client) sendPong() {
 	c.SendChan <- respBytes
 }
 
+// sendResponse 发送响应
 func (c *Client) sendResponse(action string, data interface{}, clientMsgID string) {
 	response := WSMessageResponse{
 		Action:      action,
@@ -433,6 +453,7 @@ func (c *Client) sendResponse(action string, data interface{}, clientMsgID strin
 	c.SendChan <- respBytes
 }
 
+// sendError 发送错误
 func (c *Client) sendError(action, errorMsg, clientMsgID string) {
 	response := WSMessageResponse{
 		Action:      action,

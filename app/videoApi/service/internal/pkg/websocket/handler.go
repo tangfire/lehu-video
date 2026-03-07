@@ -3,15 +3,17 @@ package websocket
 import (
 	"context"
 	"errors"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/go-kratos/kratos/v2/log"
 	kjwt "github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
+
 	"lehu-video/app/videoApi/service/internal/biz"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
-	"net/http"
-	"strings"
-	"time"
 )
 
 var (
@@ -85,12 +87,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	client := NewClient(ctx, claim.UserId, conn, h.manager, h.messageUC, h.chat, h.logger)
 
+	// 更新持久化在线状态（数据库）
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		err := h.chat.UpdateUserOnlineStatus(ctx, claim.UserId, 1, "web")
 		if err != nil {
-			h.logger.Log(log.LevelError, "msg", "更新在线状态失败", "err", err)
+			h.logger.Log(log.LevelError, "msg", "更新持久化在线状态失败", "err", err)
 		}
 	}()
 
