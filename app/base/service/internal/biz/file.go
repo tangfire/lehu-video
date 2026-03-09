@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"gorm.io/gorm"
+	"lehu-video/app/base/service/internal/pkg/idgen"
 	"math"
 	"strconv"
 	"strings"
@@ -26,10 +26,6 @@ type File struct {
 	ExpireSeconds int64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
-}
-
-func (f *File) SetId() {
-	f.Id = int64(uuid.New().ID())
 }
 
 func (f *File) GetObjectName() string {
@@ -86,11 +82,6 @@ func NewSlicingFile(f *File) *SlicingFile {
 	return &SlicingFile{
 		File: f,
 	}
-}
-
-func (f *SlicingFile) SetUploadId(uploadId string) *SlicingFile {
-	f.UploadId = uploadId
-	return f
 }
 
 func (f *SlicingFile) SetTotalParts() *SlicingFile {
@@ -188,12 +179,13 @@ type FileRepo interface {
 type FileUsecase struct {
 	repo  FileRepo
 	minio MinioRepo
+	idGen idgen.Generator
 	frh   FileRepoHelper
 	log   *log.Helper
 }
 
-func NewFileUsecase(repo FileRepo, logger log.Logger, frh FileRepoHelper, minio MinioRepo) *FileUsecase {
-	return &FileUsecase{repo: repo, frh: frh, minio: minio, log: log.NewHelper(logger)}
+func NewFileUsecase(repo FileRepo, logger log.Logger, frh FileRepoHelper, minio MinioRepo, idGen idgen.Generator) *FileUsecase {
+	return &FileUsecase{repo: repo, frh: frh, minio: minio, log: log.NewHelper(logger), idGen: idGen}
 }
 
 func (uc *FileUsecase) CheckFileExistedAndGetFile(ctx context.Context, query *CheckFileQuery) (*CheckFileResult, error) {
@@ -234,7 +226,7 @@ func (uc *FileUsecase) PreSignPut(ctx context.Context, cmd *PreSignPutCommand) (
 		return &PreSignPutResult{Url: "", FileId: checkResult.FileId}, nil
 	}
 
-	cmd.File.SetId()
+	cmd.File.Id = uc.idGen.NextID()
 	err = uc.frh.AddFile(ctx, cmd.File)
 	if err != nil {
 		return nil, err
@@ -296,7 +288,7 @@ func (uc *FileUsecase) PreSignSlicingPut(ctx context.Context, cmd *PreSignSlicin
 		}, nil
 	}
 
-	cmd.File.SetId()
+	cmd.File.Id = uc.idGen.NextID()
 	err = uc.frh.AddFile(ctx, cmd.File)
 	if err != nil {
 		return nil, err

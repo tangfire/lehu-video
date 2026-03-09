@@ -21,6 +21,8 @@ data:
     console_port: "9001"
     access_key: minioadmin
     secret_key: minioadmin
+idgen:
+  worker_id: 3   # 每个服务实例唯一
 
 data_setting:
   db_sharding_config:

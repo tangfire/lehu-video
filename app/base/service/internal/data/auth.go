@@ -4,19 +4,24 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/google/uuid"
 	"lehu-video/app/base/service/internal/biz"
+	"lehu-video/app/base/service/internal/pkg/idgen"
 	"lehu-video/app/base/service/internal/pkg/utils"
 	"time"
 )
 
 type authRepo struct {
-	data *Data
-	log  *log.Helper
+	data  *Data
+	log   *log.Helper
+	idGen idgen.Generator
 }
 
-func NewAuthRepo(data *Data, logger log.Logger) biz.AuthRepo {
-	return &authRepo{data: data, log: log.NewHelper(logger)}
+func NewAuthRepo(data *Data, idGen idgen.Generator, logger log.Logger) biz.AuthRepo {
+	return &authRepo{
+		data:  data,
+		log:   log.NewHelper(logger),
+		idGen: idGen,
+	}
 }
 
 func (r *authRepo) GetVerificationKey(id int64) string {
@@ -25,7 +30,7 @@ func (r *authRepo) GetVerificationKey(id int64) string {
 
 func (r *authRepo) CreateVerificationCode(ctx context.Context, bits, expireTime int64) (*biz.VerificationCode, error) {
 	code := utils.UuCode(bits)
-	id := int64(uuid.New().ID())
+	id := r.idGen.NextID()
 	err := r.data.rds.Set(ctx, r.GetVerificationKey(id), code, time.Duration(expireTime)*time.Second).Err()
 	if err != nil {
 		return nil, err

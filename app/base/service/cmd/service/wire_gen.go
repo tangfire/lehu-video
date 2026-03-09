@@ -23,7 +23,7 @@ import (
 // Injectors from wire.go:
 
 // wireApp init kratos application.
-func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Data, dataSetting *conf.DataSetting, logger log.Logger) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry, confData *conf.Data, dataSetting *conf.DataSetting, logger log.Logger) (*kratos.App, func(), error) {
 	db := data.NewDB(confData, logger)
 	client := data.NewRedis(confData)
 	dataData, cleanup, err := data.NewData(db, client, logger)
@@ -31,9 +31,10 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 		return nil, nil, err
 	}
 	accountRepo := data.NewAccountRepo(dataData, logger)
-	accountUsecase := biz.NewAccountUsecase(accountRepo, logger)
+	generator := data.NewIdGenerator(idgen)
+	accountUsecase := biz.NewAccountUsecase(accountRepo, generator, logger)
 	accountServiceService := service.NewAccountServiceService(accountUsecase)
-	authRepo := data.NewAuthRepo(dataData, logger)
+	authRepo := data.NewAuthRepo(dataData, generator, logger)
 	authUsecase := biz.NewAuthUsecase(authRepo, logger)
 	authServiceService := service.NewAuthServiceService(authUsecase)
 	fileRepo := data.NewBizFileRepo(dataData, logger)
@@ -42,7 +43,7 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	fileRepoHelper := data.NewFileRepoHelper(fileShardingConfig, dataFileRepo)
 	core := data.NewMinioCore(confData)
 	minioRepo := data.NewMinioRepo(confData, core)
-	fileUsecase := biz.NewFileUsecase(fileRepo, logger, fileRepoHelper, minioRepo)
+	fileUsecase := biz.NewFileUsecase(fileRepo, logger, fileRepoHelper, minioRepo, generator)
 	fileServiceService := service.NewFileServiceService(fileUsecase)
 	grpcServer := server.NewGRPCServer(confServer, accountServiceService, authServiceService, fileServiceService, logger)
 	httpServer := server.NewHTTPServer(confServer, accountServiceService, authServiceService, logger)

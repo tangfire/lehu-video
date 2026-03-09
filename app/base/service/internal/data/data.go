@@ -5,6 +5,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"lehu-video/app/base/service/internal/conf"
+	"lehu-video/app/base/service/internal/pkg/idgen"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
@@ -23,6 +24,7 @@ var ProviderSet = wire.NewSet(
 	NewFileShardingConfig,
 	NewFileRepoHelper,
 	NewFileRepo,
+	NewIdGenerator,
 )
 
 // Data .
@@ -35,6 +37,11 @@ type Data struct {
 
 func (d *Data) Begin() *gorm.DB {
 	return d.db.Begin()
+}
+
+// NewIdGenerator 从配置创建 ID 生成器
+func NewIdGenerator(c *conf.Idgen) idgen.Generator {
+	return idgen.NewGenerator(c.WorkerId)
 }
 
 // NewData .

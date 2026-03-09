@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/google/uuid"
+	"lehu-video/app/base/service/internal/pkg/idgen"
 	"lehu-video/app/base/service/internal/pkg/utils"
 )
 
@@ -118,10 +118,6 @@ func (a *Account) CheckPassword(password string) error {
 	return nil
 }
 
-func (a *Account) GenerateId() {
-	a.Id = int64(uuid.New().ID())
-}
-
 type AccountRepo interface {
 	CreateAccount(ctx context.Context, account *Account) error
 	GetAccountById(ctx context.Context, id int64) (bool, *Account, error)
@@ -132,12 +128,13 @@ type AccountRepo interface {
 }
 
 type AccountUsecase struct {
-	repo AccountRepo
-	log  *log.Helper
+	repo  AccountRepo
+	idGen idgen.Generator
+	log   *log.Helper
 }
 
-func NewAccountUsecase(repo AccountRepo, logger log.Logger) *AccountUsecase {
-	return &AccountUsecase{repo: repo, log: log.NewHelper(logger)}
+func NewAccountUsecase(repo AccountRepo, idGen idgen.Generator, logger log.Logger) *AccountUsecase {
+	return &AccountUsecase{repo: repo, idGen: idGen, log: log.NewHelper(logger)}
 }
 
 // ✅ 方法签名改为使用Command/Result
@@ -163,7 +160,7 @@ func (uc *AccountUsecase) Register(ctx context.Context, cmd *RegisterCommand) (*
 		return nil, err
 	}
 
-	account.GenerateId()
+	account.Id = uc.idGen.NextID()
 	err = uc.repo.CreateAccount(ctx, account)
 	if err != nil {
 		return nil, err

@@ -9,6 +9,12 @@ message Bootstrap {
   Server server = 1;
   Data data = 2;
   DataSetting data_setting = 3;
+  Idgen idgen = 4;
+}
+
+
+message Idgen {
+  int64 worker_id = 1;  // 工作节点 ID
 }
 
 message Server {
