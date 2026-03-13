@@ -78,6 +78,7 @@ func (s *HotPoolService) AddVideo(ctx context.Context, videoID, authorID string,
 	key := "feed:hot:pool"
 	member := s.buildMember(videoID, authorID, timestamp)
 	z := redis.Z{
+		// todo 这里我感觉初始分数是时间戳，感觉不是很好？？
 		Score:  float64(timestamp), // 初始用时间戳，后续刷新会重新计算
 		Member: member,
 	}

@@ -73,3 +73,122 @@ func (m *RecentViewedManager) BatchExists(ctx context.Context, userID string, vi
 	}
 	return result, nil
 }
+
+// GetRecentVideoIDs 获取用户最近观看的视频ID 列表（按时间倒序）
+// limit: 返回的数量限制，如果 <=0 则返回全部
+func (m *RecentViewedManager) GetRecentVideoIDs(ctx context.Context, userID string, limit int) ([]string, error) {
+	key := fmt.Sprintf("recent_viewed:%s", userID)
+	var start, stop int64
+	if limit <= 0 {
+		start = 0
+		stop = -1 // 返回所有
+	} else {
+		start = 0
+		stop = int64(limit) - 1
+	}
+
+	// ZRevRange：按 Score 降序（最新的在前）
+	return m.redis.ZRevRange(ctx, key, start, stop).Result()
+}
+
+// GetRecentVideoIDsWithTime 获取用户最近观看的视频ID 及观看时间
+// 返回：[]VideoWatchTime，按观看时间倒序
+func (m *RecentViewedManager) GetRecentVideoIDsWithTime(ctx context.Context, userID string, limit int) ([]VideoWatchTime, error) {
+	key := fmt.Sprintf("recent_viewed:%s", userID)
+	var start, stop int64
+	if limit <= 0 {
+		start = 0
+		stop = -1
+	} else {
+		start = 0
+		stop = int64(limit) - 1
+	}
+
+	// ZRevRangeWithScores：获取成员和分数（时间戳）
+	zResults, err := m.redis.ZRevRangeWithScores(ctx, key, start, stop).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]VideoWatchTime, len(zResults))
+	for i, z := range zResults {
+		result[i] = VideoWatchTime{
+			VideoID:   z.Member.(string),
+			WatchTime: time.Unix(int64(z.Score), 0),
+		}
+	}
+	return result, nil
+}
+
+// GetPagination 分页获取用户最近观看记录
+// page: 页码（从 1 开始），pageSize: 每页数量
+// 返回：视频ID 列表、总数、错误
+func (m *RecentViewedManager) GetPagination(ctx context.Context, userID string, page, pageSize int32) ([]string, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+
+	key := fmt.Sprintf("recent_viewed:%s", userID)
+
+	// 获取总数
+	total, err := m.redis.ZCard(ctx, key).Result()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if total == 0 {
+		return []string{}, 0, nil
+	}
+
+	// 计算偏移量
+	offset := (page - 1) * pageSize
+	stop := offset + pageSize - 1
+
+	// 获取指定范围的记录（倒序，最新的在前）
+	videoIDs, err := m.redis.ZRevRange(ctx, key, int64(offset), int64(stop)).Result()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return videoIDs, total, nil
+}
+
+// Remove 移除指定的观看记录
+func (m *RecentViewedManager) Remove(ctx context.Context, userID, videoID string) error {
+	key := fmt.Sprintf("recent_viewed:%s", userID)
+	return m.redis.ZRem(ctx, key, videoID).Err()
+}
+
+// BatchRemove 批量移除多个观看记录
+func (m *RecentViewedManager) BatchRemove(ctx context.Context, userID string, videoIDs []string) error {
+	if len(videoIDs) == 0 {
+		return nil
+	}
+	key := fmt.Sprintf("recent_viewed:%s", userID)
+	args := make([]interface{}, len(videoIDs))
+	for i, vid := range videoIDs {
+		args[i] = vid
+	}
+	return m.redis.ZRem(ctx, key, args...).Err()
+}
+
+// Clear 清空用户的观看记录
+func (m *RecentViewedManager) Clear(ctx context.Context, userID string) error {
+	key := fmt.Sprintf("recent_viewed:%s", userID)
+	return m.redis.Del(ctx, key).Err()
+}
+
+// Count 获取用户观看记录总数
+func (m *RecentViewedManager) Count(ctx context.Context, userID string) (int64, error) {
+	key := fmt.Sprintf("recent_viewed:%s", userID)
+	return m.redis.ZCard(ctx, key).Result()
+}
+
+// VideoWatchTime 视频观看时间结构
+type VideoWatchTime struct {
+	VideoID   string
+	WatchTime time.Time
+}

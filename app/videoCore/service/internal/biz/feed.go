@@ -496,13 +496,18 @@ func (uc *FeedUsecase) pushTimelineToUsersBatch(ctx context.Context, userIDs []s
 			end = len(userIDs)
 		}
 		batch := userIDs[i:end]
+		// 使用 Redis Pipeline 批量操作
 		pipe := uc.redis.Pipeline()
 		member := fmt.Sprintf("%s:%s:%d", item.VideoID, item.AuthorID, item.Timestamp)
 		score := float64(item.Timestamp)
+		// 为每个粉丝的 timeline 添加视频
 		for _, uid := range batch {
 			key := fmt.Sprintf("timeline:%s", uid)
+			// ZAdd: 添加到有序集合，score 是时间戳（用于排序）
 			pipe.ZAdd(ctx, key, redis.Z{Score: score, Member: member})
+			// 保持 timeline 大小不超过限制
 			pipe.ZRemRangeByRank(ctx, key, 0, -int64(uc.strategy.TimelineMaxSize)-1)
+			// 设置过期时间
 			pipe.Expire(ctx, key, uc.strategy.TimelineTTL)
 		}
 		if _, err := pipe.Exec(ctx); err != nil {
