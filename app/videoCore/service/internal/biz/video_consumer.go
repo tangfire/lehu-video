@@ -72,6 +72,19 @@ func (c *KafkaConsumer) processMessage(ctx context.Context, msg kafka.Message) {
 // pushToAllFollowers 分页获取大V的所有粉丝并推送
 // biz/video_consumer.go
 func (c *KafkaConsumer) pushToAllFollowers(ctx context.Context, event VideoPublishEvent) {
+	isBigV, err := c.feedUsecase.isBigV(ctx, event.AuthorID)
+	if err != nil {
+		c.log.Errorf("检查大V状态失败: %v", err)
+		return
+	}
+
+	// 大V使用拉模式，不进行写扩散，仅记录事件
+	if isBigV {
+		c.log.Infof("跳过向大V粉丝写扩散，author_id=%s, video_id=%s", event.AuthorID, event.VideoID)
+		return
+	}
+
+	// 普通用户使用推模式，进行写扩散
 	item := &TimelineItem{
 		VideoID:   event.VideoID,
 		AuthorID:  event.AuthorID,

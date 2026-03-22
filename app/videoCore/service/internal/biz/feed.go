@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -74,12 +75,19 @@ func NewFeedUsecase(
 	strategy := &FeedStrategy{
 		PushThreshold:     10000,
 		BigVCacheKey:      "big_v_users",
-		BigVCacheTTL:      10 * time.Minute, // 缩短缓存时间
+		BigVCacheTTL:      10 * time.Minute,
 		TimelineMaxSize:   1000,
 		TimelineTTL:       7 * 24 * time.Hour,
 		MaxFollowing:      1000,
 		MaxPullSize:       100,
 		FollowerBatchSize: 500,
+	}
+
+	// 允许通过环境变量或配置文件覆盖默认值
+	if thresholdStr := os.Getenv("FEED_PUSH_THRESHOLD"); thresholdStr != "" {
+		if threshold, err := strconv.Atoi(thresholdStr); err == nil {
+			strategy.PushThreshold = int64(threshold)
+		}
 	}
 	usecase := &FeedUsecase{
 		videoRepo:     videoRepo,
