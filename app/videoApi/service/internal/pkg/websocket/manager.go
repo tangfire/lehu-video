@@ -308,3 +308,8 @@ func (m *Manager) Stop() {
 		_ = m.pubSub.Close()
 	}
 }
+
+// GetOfflineManager 获取离线消息管理器
+func (m *Manager) GetOfflineManager() *OfflineManager {
+	return m.offlineMgr
+}

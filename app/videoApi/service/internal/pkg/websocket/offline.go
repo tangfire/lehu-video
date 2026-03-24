@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -58,7 +59,7 @@ func (om *OfflineManager) DeliverOfflineMessages(ctx context.Context, userID str
 	for {
 		// 每次取一条，避免一次性取出太多内存压力
 		result, err := om.redisClient.LPop(ctx, key).Bytes()
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			break // 队列为空
 		}
 		if err != nil {

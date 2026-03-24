@@ -220,27 +220,28 @@ func (s *KafkaConsumerService) updateMessageStatus(messageID string, status int3
 	}
 }
 
-// storeOfflineMessage 存储离线消息到Redis
+// storeOfflineMessage 存储离线消息（调用 OfflineManager）
 func (s *KafkaConsumerService) storeOfflineMessage(userID, messageID string, data map[string]interface{}) {
-	offlineKey := "offline:" + userID
-	// 构造要存储的离线消息（使用 time.Time 类型）
-	offlineData := map[string]interface{}{
-		"message_id":      messageID,
-		"sender_id":       data["sender_id"],
-		"receiver_id":     data["receiver_id"],
-		"conversation_id": data["conversation_id"],
-		"conv_type":       data["conv_type"],
-		"msg_type":        data["msg_type"],
-		"content":         data["content"],
-		"created_at":      time.Now(), // 改为 time.Time 类型，Marshal 后为 RFC3339
-	}
-	msgData, _ := json.Marshal(offlineData)
-	err := s.redisClient.RPush(context.Background(), offlineKey, msgData).Err()
+	// 构建离线消息对象
+	contentJSON, err := json.Marshal(data["content"])
 	if err != nil {
-		s.log.Errorf("存储离线消息失败: user=%s, err=%v", userID, err)
-	} else {
-		s.redisClient.Expire(context.Background(), offlineKey, 7*24*time.Hour)
+		s.log.Errorf("序列化消息内容失败：%v", err)
+		return
 	}
+
+	offlineMsg := &websocket.OfflineMessage{
+		MessageID:      messageID,
+		SenderID:       data["sender_id"].(string),
+		ReceiverID:     userID,
+		ConversationID: data["conversation_id"].(string),
+		ConvType:       int32(data["conv_type"].(float64)),
+		MsgType:        int32(data["msg_type"].(float64)),
+		Content:        contentJSON,
+		CreatedAt:      time.Now(),
+	}
+
+	// 从 Manager 获取 OfflineManager 并调用
+	s.wsManager.GetOfflineManager().StoreOfflineMessage(userID, offlineMsg)
 }
 
 // buildPushMessage 构建推送给接收者的消息
