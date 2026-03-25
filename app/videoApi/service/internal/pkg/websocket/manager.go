@@ -264,16 +264,22 @@ func (m *Manager) setUserOfflineIfMatch(ctx context.Context, userID, connID stri
 // PushToUser 推送消息给指定用户（支持跨实例）
 func (m *Manager) PushToUser(userID string, message []byte) {
 	// 1. 先尝试本地推送
-	if client, ok := m.clients[userID]; ok {
+	m.RLock()
+	client, ok := m.clients[userID]
+	m.RUnlock()
+
+	if ok {
+		// 用户在本地，直接推送
 		select {
 		case client.SendChan <- message:
-			return
+			return // 推送成功，结束
 		default:
-			m.logger.Log(log.LevelWarn, "本地推送失败，通道已满，尝试跨实例推送", "user_id", userID)
+			// 通道已满，降级为 Redis 推送
+			m.logger.Log(log.LevelWarn, "本地推送失败，通道已满，使用 Redis 跨实例推送", "user_id", userID)
 		}
 	}
 
-	// 2. 本地不在线或推送失败，通过Redis发布给其他实例
+	// 2. 用户不在本地或推送失败，才通过 Redis 跨实例推送
 	go func() {
 		payload := struct {
 			UserID  string `json:"user_id"`
@@ -286,7 +292,7 @@ func (m *Manager) PushToUser(userID string, message []byte) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		if err := m.redisClient.Publish(ctx, redisPushChannel, data).Err(); err != nil {
-			m.logger.Log(log.LevelError, "msg", "Redis发布推送消息失败", "err", err)
+			m.logger.Log(log.LevelError, "msg", "Redis 发布推送消息失败", "err", err)
 		}
 	}()
 }
