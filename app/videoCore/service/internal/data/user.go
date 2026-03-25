@@ -176,6 +176,16 @@ func (r *userRepo) SearchUsers(ctx context.Context, keyword string, offset, limi
 	return result, total, nil
 }
 
+func (r *userRepo) UpdateUserLastOnlineTime(ctx context.Context, userId int64, lastOnlineTime time.Time) error {
+	err := r.data.db.Table(model.User{}.TableName()).
+		Where("id = ?", userId).
+		Update("last_online_time", lastOnlineTime).Error
+	if err != nil {
+		return fmt.Errorf("更新用户最后上线时间失败：%w", err)
+	}
+	return nil
+}
+
 // 转换函数
 func convertToBizUser(user *model.User) *biz.User {
 	if user == nil {
@@ -198,6 +208,7 @@ func convertToBizUser(user *model.User) *biz.User {
 		BeLikedCount:    user.BeLikedCount, // 原 TotalFavorited
 		WorkCount:       user.WorkCount,
 		CollectionCount: user.CollectionCount, // 原 FavoriteCount
+		LastOnlineTime:  user.LastOnlineTime,
 		CreatedAt:       user.CreatedAt,
 		UpdatedAt:       user.UpdatedAt,
 	}

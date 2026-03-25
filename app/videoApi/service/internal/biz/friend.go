@@ -232,15 +232,19 @@ func (uc *FriendUsecase) ListFriendApplies(ctx context.Context, input *ListFrien
 	// 构建 userInfo 映射
 	userInfoMap := make(map[string]*UserInfo)
 	for _, base := range baseInfos {
-		userInfoMap[base.ID] = &UserInfo{
-			ID:             base.ID,
-			Name:           base.Name,
-			Nickname:       base.Nickname,
-			Avatar:         base.Avatar,
-			Signature:      base.Signature,
-			Gender:         base.Gender,
-			OnlineStatus:   onlineStatusMap[base.ID],
-			LastOnlineTime: time.Now(), // 如果有最后在线时间可以填充
+		user, ok := userInfoMap[base.ID]
+		if !ok {
+			user = &UserInfo{
+				ID:             base.ID,
+				Name:           base.Name,
+				Nickname:       base.Nickname,
+				Avatar:         base.Avatar,
+				Signature:      base.Signature,
+				Gender:         base.Gender,
+				OnlineStatus:   onlineStatusMap[base.ID],
+				LastOnlineTime: time.Time{}, // 从数据库中获取
+			}
+			userInfoMap[base.ID] = user
 		}
 	}
 

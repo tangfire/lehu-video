@@ -49,6 +49,9 @@ service UserService {
 
 	// 更新用户统计信息
 	rpc UpdateUserStats(UpdateUserStatsReq) returns (UpdateUserStatsResp);
+
+	// 更新用户最后上线时间
+	rpc UpdateUserLastOnlineTime(UpdateUserLastOnlineTimeReq) returns (UpdateUserLastOnlineTimeResp);
 }
 
 message CreateUserReq{
@@ -118,5 +121,14 @@ message UpdateUserStatsReq {
 }
 
 message UpdateUserStatsResp {
+	Metadata meta = 1;
+}
+
+message UpdateUserLastOnlineTimeReq {
+	string user_id = 1;
+	string last_online_time = 2; // 格式：2006-01-02 15:04:05
+}
+
+message UpdateUserLastOnlineTimeResp {
 	Metadata meta = 1;
 }

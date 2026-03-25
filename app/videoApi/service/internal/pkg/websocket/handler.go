@@ -87,13 +87,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	client := NewClient(ctx, claim.UserId, conn, h.manager, h.messageUC, h.chat, h.logger)
 
-	// 更新持久化在线状态（数据库）
+	// 异步更新最后上线时间
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		updateCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		err := h.chat.UpdateUserOnlineStatus(ctx, claim.UserId, 1, "web")
-		if err != nil {
-			h.logger.Log(log.LevelError, "msg", "更新持久化在线状态失败", "err", err)
+		if err := h.manager.updateUserLastOnlineTime(updateCtx, claim.UserId); err != nil {
+			h.logger.Log(log.LevelWarn, "msg", "更新最后上线时间失败", "err", err)
 		}
 	}()
 

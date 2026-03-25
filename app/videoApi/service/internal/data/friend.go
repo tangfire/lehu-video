@@ -298,17 +298,3 @@ func (r *chatAdapterImpl) BatchGetUserOnlineStatus(ctx context.Context, userIDs 
 	}
 	return resp.OnlineStatus, nil
 }
-
-// UpdateUserOnlineStatus 更新在线状态
-func (r *chatAdapterImpl) UpdateUserOnlineStatus(ctx context.Context, userID string, status int32, deviceType string) error {
-	req := &chat.UpdateUserOnlineStatusReq{
-		UserId:       userID,
-		OnlineStatus: status,
-		DeviceType:   deviceType,
-	}
-	resp, err := r.friend.UpdateUserOnlineStatus(ctx, req)
-	if err != nil {
-		return err
-	}
-	return respcheck.ValidateResponseMeta(resp.Meta)
-}

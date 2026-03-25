@@ -225,3 +225,21 @@ func (s *UserServiceService) UpdateUserStats(ctx context.Context, req *pb.Update
 		Meta: utils.GetSuccessMeta(),
 	}, nil
 }
+
+func (s *UserServiceService) UpdateUserLastOnlineTime(ctx context.Context, req *pb.UpdateUserLastOnlineTimeReq) (*pb.UpdateUserLastOnlineTimeResp, error) {
+	cmd := &biz.UpdateUserLastOnlineTimeCommand{
+		UserId:         cast.ToInt64(req.UserId),
+		LastOnlineTime: req.LastOnlineTime,
+	}
+
+	_, err := s.uc.UpdateUserLastOnlineTime(ctx, cmd)
+	if err != nil {
+		return &pb.UpdateUserLastOnlineTimeResp{
+			Meta: utils.GetMetaWithError(err),
+		}, nil
+	}
+
+	return &pb.UpdateUserLastOnlineTimeResp{
+		Meta: utils.GetSuccessMeta(),
+	}, nil
+}

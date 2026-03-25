@@ -17,7 +17,8 @@ type User struct {
 	FollowerCount   int64     `json:"follower_count" gorm:"column:follower_count;default:0"`
 	BeLikedCount    int64     `json:"be_liked_count" gorm:"column:be_liked_count;default:0"` // 原 total_favorited
 	WorkCount       int64     `json:"work_count" gorm:"column:work_count;default:0"`
-	CollectionCount int64     `json:"collection_count" gorm:"column:collection_count;default:0"` // 原 favorite_count
+	CollectionCount int64     `json:"collection_count" gorm:"column:collection_count;default:0"`    // 原 favorite_count
+	LastOnlineTime  time.Time `json:"last_online_time" gorm:"column:last_online_time;default:NULL"` // 最后上线时间
 	CreatedAt       time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt       time.Time `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 }

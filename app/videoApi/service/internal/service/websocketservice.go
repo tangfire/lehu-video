@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/redis/go-redis/v9"
+	core "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoApi/service/internal/biz"
 	"lehu-video/app/videoApi/service/internal/pkg/kafka"
 	"lehu-video/app/videoApi/service/internal/pkg/websocket"
@@ -22,15 +23,16 @@ func NewWebSocketService(
 	chat biz.ChatAdapter,
 	kafkaProducer *kafka.Producer,
 	redisClient *redis.Client,
+	userClient core.UserServiceClient,
 	logger log.Logger,
 ) *WebSocketService {
 	// 创建 WebSocket 管理器，传入必要的依赖
-	wsManager := websocket.NewManager(logger, kafkaProducer, redisClient, chat)
+	wsManager := websocket.NewManager(logger, kafkaProducer, redisClient, chat, userClient)
 
-	// 创建WebSocket处理器
+	// 创建 WebSocket 处理器
 	wsHandler := websocket.NewHandler(wsManager, messageUC, chat, logger, "fireshine")
 
-	// 启动WebSocket管理器
+	// 启动 WebSocket 管理器
 	go wsManager.Start()
 
 	return &WebSocketService{

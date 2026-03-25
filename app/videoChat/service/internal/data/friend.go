@@ -292,10 +292,11 @@ func (r *friendRepo) CheckPendingApply(ctx context.Context, applicantID, receive
 	return count > 0, nil
 }
 
-// ==================== 在线状态（修复后）====================
+// ==================== 在线状态（Redis + 数据库）====================
 
-// GetUserOnlineStatus 只检查 Redis，不写数据库和缓存
+// GetUserOnlineStatus 检查 Redis 获取在线状态，从数据库获取最后在线时间
 func (r *friendRepo) GetUserOnlineStatus(ctx context.Context, userID int64) (*biz.UserOnlineStatus, error) {
+	// 1. 检查 Redis 获取实时在线状态
 	key := fmt.Sprintf("online:%d", userID)
 	exists, err := r.redis.Exists(ctx, key).Result()
 	if err != nil {
@@ -305,10 +306,22 @@ func (r *friendRepo) GetUserOnlineStatus(ctx context.Context, userID int64) (*bi
 	if exists > 0 {
 		status = 1
 	}
-	// 只返回用户ID和状态，最后在线时间留空（或从数据库补充，但实时状态不需要）
+
+	// 2. 从数据库获取最后在线时间（直接查询 user 表）
+	var lastOnlineTime time.Time
+	err2 := r.data.db.WithContext(ctx).Table("user").Where("id = ?", userID).Pluck("last_online_time", &lastOnlineTime).Error
+	if err2 != nil {
+		// 查询失败，不返回错误，只返回在线状态
+		return &biz.UserOnlineStatus{
+			UserID:       userID,
+			OnlineStatus: status,
+		}, nil
+	}
+
 	return &biz.UserOnlineStatus{
-		UserID:       userID,
-		OnlineStatus: status,
+		UserID:         userID,
+		OnlineStatus:   status,
+		LastOnlineTime: lastOnlineTime,
 	}, nil
 }
 
@@ -340,20 +353,6 @@ func (r *friendRepo) BatchGetUserOnlineStatus(ctx context.Context, userIDs []int
 		}
 	}
 	return result, nil
-}
-
-// UpdateUserOnlineStatus 只更新数据库，不写 Redis 缓存
-func (r *friendRepo) UpdateUserOnlineStatus(ctx context.Context, userID int64, status int32, deviceType string) error {
-	now := time.Now()
-	return r.data.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Assign(&model.UserOnlineStatus{
-			OnlineStatus:   status,
-			DeviceType:     deviceType,
-			LastOnlineTime: now,
-			UpdatedAt:      now,
-		}).
-		FirstOrCreate(&model.UserOnlineStatus{}).Error
 }
 
 // ==================== 辅助函数 ====================

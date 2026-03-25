@@ -204,20 +204,6 @@ func (s *FriendServiceService) BatchGetUserOnlineStatus(ctx context.Context, req
 	}, nil
 }
 
-// UpdateUserOnlineStatus 新增
-func (s *FriendServiceService) UpdateUserOnlineStatus(ctx context.Context, req *pb.UpdateUserOnlineStatusReq) (*pb.UpdateUserOnlineStatusResp, error) {
-	cmd := &biz.UpdateUserOnlineStatusCommand{
-		UserID:     cast.ToInt64(req.UserId),
-		Status:     req.OnlineStatus,
-		DeviceType: req.DeviceType,
-	}
-	_, err := s.uc.UpdateUserOnlineStatus(ctx, cmd)
-	if err != nil {
-		return &pb.UpdateUserOnlineStatusResp{Meta: utils.GetMetaWithError(err)}, nil
-	}
-	return &pb.UpdateUserOnlineStatusResp{Meta: utils.GetSuccessMeta()}, nil
-}
-
 // 辅助函数
 func formatTime(t time.Time) string {
 	if t.IsZero() {

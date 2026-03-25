@@ -892,7 +892,6 @@ func (x *UpdateUserStatsResp) GetMeta() *Metadata {
 	return nil
 }
 
-// 更新用户最后上线时间请求
 type UpdateUserLastOnlineTimeReq struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -945,7 +944,6 @@ func (x *UpdateUserLastOnlineTimeReq) GetLastOnlineTime() string {
 	return ""
 }
 
-// 更新用户最后上线时间响应
 type UpdateUserLastOnlineTimeResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *Metadata              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
@@ -1069,7 +1067,12 @@ const file_api_videoCore_service_v1_user_proto_rawDesc = "" +
 	"\v_work_countB\x13\n" +
 	"\x11_collection_count\"M\n" +
 	"\x13UpdateUserStatsResp\x126\n" +
-	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta2\xa0\x05\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta\"`\n" +
+	"\x1bUpdateUserLastOnlineTimeReq\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12(\n" +
+	"\x10last_online_time\x18\x02 \x01(\tR\x0elastOnlineTime\"V\n" +
+	"\x1cUpdateUserLastOnlineTimeResp\x126\n" +
+	"\x04meta\x18\x01 \x01(\v2\".api.videoCore.service.v1.MetadataR\x04meta2\xac\x06\n" +
 	"\vUserService\x12a\n" +
 	"\n" +
 	"CreateUser\x12'.api.videoCore.service.v1.CreateUserReq\x1a(.api.videoCore.service.v1.CreateUserResp\"\x00\x12n\n" +
@@ -1077,7 +1080,8 @@ const file_api_videoCore_service_v1_user_proto_rawDesc = "" +
 	"\x0eUpdateUserInfo\x12+.api.videoCore.service.v1.UpdateUserInfoReq\x1a,.api.videoCore.service.v1.UpdateUserInfoResp\x12}\n" +
 	"\x14BatchGetUserBaseInfo\x121.api.videoCore.service.v1.BatchGetUserBaseInfoReq\x1a2.api.videoCore.service.v1.BatchGetUserBaseInfoResp\x12b\n" +
 	"\vSearchUsers\x12(.api.videoCore.service.v1.SearchUsersReq\x1a).api.videoCore.service.v1.SearchUsersResp\x12n\n" +
-	"\x0fUpdateUserStats\x12,.api.videoCore.service.v1.UpdateUserStatsReq\x1a-.api.videoCore.service.v1.UpdateUserStatsRespBD\n" +
+	"\x0fUpdateUserStats\x12,.api.videoCore.service.v1.UpdateUserStatsReq\x1a-.api.videoCore.service.v1.UpdateUserStatsResp\x12\x89\x01\n" +
+	"\x18UpdateUserLastOnlineTime\x125.api.videoCore.service.v1.UpdateUserLastOnlineTimeReq\x1a6.api.videoCore.service.v1.UpdateUserLastOnlineTimeRespBD\n" +
 	"\x18api.videoCore.service.v1P\x01Z&lehu-video/api/videoCore/service/v1;v1b\x06proto3"
 
 var (
@@ -1136,8 +1140,8 @@ var file_api_videoCore_service_v1_user_proto_depIdxs = []int32{
 	10, // 21: api.videoCore.service.v1.UserService.SearchUsers:output_type -> api.videoCore.service.v1.SearchUsersResp
 	12, // 22: api.videoCore.service.v1.UserService.UpdateUserStats:output_type -> api.videoCore.service.v1.UpdateUserStatsResp
 	14, // 23: api.videoCore.service.v1.UserService.UpdateUserLastOnlineTime:output_type -> api.videoCore.service.v1.UpdateUserLastOnlineTimeResp
-	23, // [23:24] is the sub-list for method output_type
-	10, // [10:23] is the sub-list for method input_type
+	17, // [17:24] is the sub-list for method output_type
+	10, // [10:17] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name

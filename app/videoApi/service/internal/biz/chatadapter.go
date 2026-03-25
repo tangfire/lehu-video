@@ -26,10 +26,9 @@ type ChatAdapter interface {
 	SetFriendGroup(ctx context.Context, userID, friendID, groupName string) error
 	CheckFriendRelation(ctx context.Context, userID, targetID string) (bool, int32, error)
 
-	// 在线状态相关（新增）
+	// 在线状态相关
 	GetUserOnlineStatus(ctx context.Context, userID string) (*UserSocialInfo, error)
 	BatchGetUserOnlineStatus(ctx context.Context, userIDs []string) (map[string]int32, error) // 简化返回
-	UpdateUserOnlineStatus(ctx context.Context, userID string, status int32, deviceType string) error
 
 	// 群聊相关
 	CreateGroup(ctx context.Context, ownerID, name, notice string, addMode int32, avatar string) (string, error)

@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
 
+	core "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoApi/service/internal/pkg/kafka"
 )
 
@@ -47,7 +48,8 @@ type Manager struct {
 	offlineMgr    *OfflineManager
 	kafkaProducer *kafka.Producer
 	redisClient   *redis.Client
-	chat          biz.ChatAdapter // 添加 chat adapter 用于获取群成员列表
+	chat          biz.ChatAdapter        // 添加 chat adapter 用于获取群成员列表
+	userClient    core.UserServiceClient // 添加 user client 用于更新最后上线时间
 
 	// Redis Pub/Sub 相关
 	pubSub       *redis.PubSub
@@ -68,6 +70,7 @@ func NewManager(
 	kafkaProducer *kafka.Producer,
 	redisClient *redis.Client,
 	chat biz.ChatAdapter,
+	userClient core.UserServiceClient,
 ) *Manager {
 	m := &Manager{
 		clients:       make(map[string]*Client),
@@ -79,6 +82,7 @@ func NewManager(
 		kafkaProducer: kafkaProducer,
 		redisClient:   redisClient,
 		chat:          chat,
+		userClient:    userClient,
 	}
 
 	// 启动 Redis 订阅，接收跨实例推送
@@ -190,7 +194,7 @@ func (m *Manager) Start() {
 				// map中没有该用户，说明是最后一个连接，直接删除Redis key（无条件）
 				ctx := context.Background()
 				key := redisOnlinePrefix + client.UserID
-				if err := m.redisClient.Del(ctx, key).Err(); err != nil && err != redis.Nil {
+				if err := m.redisClient.Del(ctx, key).Err(); err != nil && !errors.Is(err, redis.Nil) {
 					m.logger.Log(log.LevelError, "msg", "删除Redis在线状态失败", "err", err)
 				}
 			}
@@ -215,7 +219,7 @@ func (m *Manager) Start() {
 	}
 }
 
-// setUserOnline 设置用户在线，过期时间35秒
+// setUserOnline 设置用户在线，过期时间 35 秒
 func (m *Manager) setUserOnline(ctx context.Context, userID, connID string) error {
 	key := redisOnlinePrefix + userID
 	return m.redisClient.Set(ctx, key, connID, 35*time.Second).Err()
@@ -225,6 +229,19 @@ func (m *Manager) setUserOnline(ctx context.Context, userID, connID string) erro
 func (m *Manager) refreshUserOnline(ctx context.Context, userID string) error {
 	key := redisOnlinePrefix + userID
 	return m.redisClient.Expire(ctx, key, 35*time.Second).Err()
+}
+
+// updateUserLastOnlineTime 更新用户最后上线时间（数据库）
+func (m *Manager) updateUserLastOnlineTime(ctx context.Context, userID string) error {
+	if m.userClient == nil {
+		return errors.New("user client not available")
+	}
+	// 调用 videoCore 服务的 UpdateUserLastOnlineTime 接口
+	_, err := m.userClient.UpdateUserLastOnlineTime(ctx, &core.UpdateUserLastOnlineTimeReq{
+		UserId:         userID,
+		LastOnlineTime: time.Now().Format("2006-01-02 15:04:05"),
+	})
+	return err
 }
 
 // setUserOfflineIfMatch 如果Redis中存储的连接ID与当前一致，则删除

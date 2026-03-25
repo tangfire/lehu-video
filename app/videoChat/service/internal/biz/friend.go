@@ -178,14 +178,6 @@ type BatchGetUserOnlineStatusResult struct {
 	Statuses map[int64]int32 `json:"statuses"` // user_id -> status
 }
 
-type UpdateUserOnlineStatusCommand struct {
-	UserID     int64
-	Status     int32
-	DeviceType string
-}
-
-type UpdateUserOnlineStatusResult struct{}
-
 // 仓储接口
 type FriendRepo interface {
 	// 用户搜索和获取
@@ -208,7 +200,6 @@ type FriendRepo interface {
 	CheckPendingApply(ctx context.Context, applicantID int64, receiverID int64) (bool, error)
 
 	// 在线状态
-	UpdateUserOnlineStatus(ctx context.Context, userID int64, status int32, deviceType string) error
 	BatchGetUserOnlineStatus(ctx context.Context, userIDs []int64) (map[int64]*UserOnlineStatus, error)
 	GetUserOnlineStatus(ctx context.Context, userID int64) (*UserOnlineStatus, error)
 }
@@ -494,13 +485,4 @@ func (uc *FriendUsecase) BatchGetUserOnlineStatus(ctx context.Context, query *Ba
 		result[uid] = s.OnlineStatus
 	}
 	return &BatchGetUserOnlineStatusResult{Statuses: result}, nil
-}
-
-// UpdateUserOnlineStatus 更新用户在线状态
-func (uc *FriendUsecase) UpdateUserOnlineStatus(ctx context.Context, cmd *UpdateUserOnlineStatusCommand) (*UpdateUserOnlineStatusResult, error) {
-	err := uc.repo.UpdateUserOnlineStatus(ctx, cmd.UserID, cmd.Status, cmd.DeviceType)
-	if err != nil {
-		return nil, err
-	}
-	return &UpdateUserOnlineStatusResult{}, nil
 }

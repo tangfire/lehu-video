@@ -4,22 +4,6 @@ import (
 	"time"
 )
 
-// UserOnlineStatus 用户在线状态表
-type UserOnlineStatus struct {
-	ID             int64     `gorm:"column:id;primaryKey;autoIncrement" json:"id"`                 // 主键ID
-	UserID         int64     `gorm:"column:user_id;not null;uniqueIndex" json:"user_id"`           // 用户ID
-	OnlineStatus   int32     `gorm:"column:online_status;not null;default:0" json:"online_status"` // 在线状态：0=离线，1=在线，2=忙碌，3=离开
-	DeviceType     string    `gorm:"column:device_type;size:20" json:"device_type"`                // 设备类型：web/ios/android
-	LastOnlineTime time.Time `gorm:"column:last_online_time;not null" json:"last_online_time"`     // 最后在线时间
-	CreatedAt      time.Time `gorm:"column:created_at;not null;autoCreateTime" json:"created_at"`  // 创建时间
-	UpdatedAt      time.Time `gorm:"column:updated_at;not null;autoUpdateTime" json:"updated_at"`  // 更新时间
-}
-
-// TableName 指定表名
-func (UserOnlineStatus) TableName() string {
-	return "user_online_status"
-}
-
 // FriendRelation 好友关系表
 type FriendRelation struct {
 	ID          int64     `gorm:"column:id;primaryKey" json:"id"`                              // 主键ID

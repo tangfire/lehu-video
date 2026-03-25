@@ -98,6 +98,14 @@ type UpdateUserStatsCommand struct {
 
 type UpdateUserStatsResult struct{}
 
+// 新增更新最后上线时间的 Command 和 Result
+type UpdateUserLastOnlineTimeCommand struct {
+	UserId         int64
+	LastOnlineTime string // 格式：2006-01-02 15:04:05
+}
+
+type UpdateUserLastOnlineTimeResult struct{}
+
 // 仓库接口
 type UserRepo interface {
 	CreateUser(ctx context.Context, user *User) error
@@ -107,6 +115,7 @@ type UserRepo interface {
 	GetUserByIdList(ctx context.Context, idList []int64) ([]*User, error)
 	SearchUsers(ctx context.Context, keyword string, offset, limit int) ([]*User, int64, error)
 	UpdateUserStats(ctx context.Context, userId int64, updates map[string]interface{}) error
+	UpdateUserLastOnlineTime(ctx context.Context, userId int64, lastOnlineTime time.Time) error
 }
 
 type UserUsecase struct {
@@ -327,4 +336,19 @@ func (uc *UserUsecase) UpdateUserStats(ctx context.Context, cmd *UpdateUserStats
 	}
 	// 不再同步更新 DB，DB 由定时任务同步
 	return &UpdateUserStatsResult{}, nil
+}
+
+// UpdateUserLastOnlineTime 更新用户最后上线时间
+func (uc *UserUsecase) UpdateUserLastOnlineTime(ctx context.Context, cmd *UpdateUserLastOnlineTimeCommand) (*UpdateUserLastOnlineTimeResult, error) {
+	lastOnlineTime, err := time.Parse("2006-01-02 15:04:05", cmd.LastOnlineTime)
+	if err != nil {
+		return nil, err
+	}
+
+	err = uc.repo.UpdateUserLastOnlineTime(ctx, cmd.UserId, lastOnlineTime)
+	if err != nil {
+		return nil, err
+	}
+
+	return &UpdateUserLastOnlineTimeResult{}, nil
 }
