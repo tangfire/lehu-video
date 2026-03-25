@@ -24,8 +24,8 @@ func NewWebSocketService(
 	redisClient *redis.Client,
 	logger log.Logger,
 ) *WebSocketService {
-	// 创建WebSocket管理器，传入必要的依赖
-	wsManager := websocket.NewManager(logger, kafkaProducer, redisClient)
+	// 创建 WebSocket 管理器，传入必要的依赖
+	wsManager := websocket.NewManager(logger, kafkaProducer, redisClient, chat)
 
 	// 创建WebSocket处理器
 	wsHandler := websocket.NewHandler(wsManager, messageUC, chat, logger, "fireshine")

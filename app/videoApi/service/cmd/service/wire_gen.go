@@ -70,7 +70,7 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	webSocketService := service.NewWebSocketService(messageUsecase, chatAdapter, producer, client, logger)
 	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, groupServiceService, messageServiceService, friendServiceService, webSocketService, logger)
 	consumer := kafka.NewKafkaConsumer(confData)
-	manager := websocket.NewManager(logger, producer, client)
+	manager := websocket.NewManager(logger, producer, client, chatAdapter)
 	kafkaConsumerService := service.NewKafkaConsumerService(consumer, messageUsecase, manager, client, chatAdapter, logger)
 	kafkaConsumerServer := server.NewKafkaConsumerServer(kafkaConsumerService, logger)
 	app := newApp(logger, registrar, httpServer, kafkaConsumerServer)

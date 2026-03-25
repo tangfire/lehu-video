@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	redisOnlinePrefix = "online:"     // 在线状态Key前缀
-	redisPushChannel  = "push:global" // 全局推送频道（所有实例订阅）
+	redisOnlinePrefix  = "online:"        // 在线状态 Key 前缀
+	redisPushChannel   = "push:global"    // 全局推送频道（所有实例订阅）
+	redisGroupCacheKey = "group:members:" // 群成员缓存 Key 前缀
+	redisGroupCacheTTL = 5 * time.Minute  // 群成员缓存过期时间
 )
 
 // Client 表示一个WebSocket客户端连接
@@ -34,7 +36,7 @@ type Client struct {
 	chat      biz.ChatAdapter     // biz.ChatAdapter
 }
 
-// Manager 管理所有WebSocket连接
+// Manager 管理所有 WebSocket 连接
 type Manager struct {
 	sync.RWMutex
 	clients       map[string]*Client // userID -> Client（单设备登录）
@@ -45,6 +47,7 @@ type Manager struct {
 	offlineMgr    *OfflineManager
 	kafkaProducer *kafka.Producer
 	redisClient   *redis.Client
+	chat          biz.ChatAdapter // 添加 chat adapter 用于获取群成员列表
 
 	// Redis Pub/Sub 相关
 	pubSub       *redis.PubSub
@@ -64,6 +67,7 @@ func NewManager(
 	logger log.Logger,
 	kafkaProducer *kafka.Producer,
 	redisClient *redis.Client,
+	chat biz.ChatAdapter,
 ) *Manager {
 	m := &Manager{
 		clients:       make(map[string]*Client),
@@ -74,6 +78,7 @@ func NewManager(
 		offlineMgr:    NewOfflineManager(redisClient, logger),
 		kafkaProducer: kafkaProducer,
 		redisClient:   redisClient,
+		chat:          chat,
 	}
 
 	// 启动 Redis 订阅，接收跨实例推送
@@ -309,7 +314,41 @@ func (m *Manager) Stop() {
 	}
 }
 
-// GetOfflineManager 获取离线消息管理器
-func (m *Manager) GetOfflineManager() *OfflineManager {
-	return m.offlineMgr
+// GetGroupMembersCached 获取群成员列表（带缓存）
+func (m *Manager) GetGroupMembersCached(ctx context.Context, groupID string) ([]string, error) {
+	cacheKey := redisGroupCacheKey + groupID
+
+	// 1. 先查缓存
+	members, err := m.redisClient.SMembers(ctx, cacheKey).Result()
+	if err == nil && len(members) > 0 {
+		return members, nil
+	}
+
+	// 2. 缓存未命中，从数据库查询
+	if m.chat != nil {
+		dbMembers, err := m.chat.GetGroupMembers(ctx, groupID)
+		if err != nil {
+			return nil, err
+		}
+
+		// 3. 写入缓存
+		if len(dbMembers) > 0 {
+			pipe := m.redisClient.Pipeline()
+			for _, mid := range dbMembers {
+				pipe.SAdd(ctx, cacheKey, mid)
+			}
+			pipe.Expire(ctx, cacheKey, redisGroupCacheTTL)
+			_, _ = pipe.Exec(ctx)
+		}
+
+		return dbMembers, nil
+	}
+
+	return nil, errors.New("chat adapter not available")
+}
+
+// InvalidateGroupCache 使群成员缓存失效（当成员变更时调用）
+func (m *Manager) InvalidateGroupCache(ctx context.Context, groupID string) error {
+	cacheKey := redisGroupCacheKey + groupID
+	return m.redisClient.Del(ctx, cacheKey).Err()
 }

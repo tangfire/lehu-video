@@ -43,7 +43,7 @@ func NewKafkaConsumerService(
 
 // Run 启动消费者循环
 func (s *KafkaConsumerService) Run(ctx context.Context) error {
-	s.log.Info("Kafka消费者启动")
+	s.log.Info("Kafka 消费者启动")
 	for {
 		select {
 		case <-ctx.Done():
@@ -51,7 +51,7 @@ func (s *KafkaConsumerService) Run(ctx context.Context) error {
 		default:
 			msg, err := s.consumer.ReadMessage(ctx)
 			if err != nil {
-				s.log.Errorf("读取Kafka消息失败: %v", err)
+				s.log.Errorf("读取 Kafka 消息失败：%v", err)
 				time.Sleep(time.Second)
 				continue
 			}
@@ -64,7 +64,7 @@ func (s *KafkaConsumerService) Run(ctx context.Context) error {
 func (s *KafkaConsumerService) processMessage(ctx context.Context, msg segkafka.Message) {
 	var data map[string]interface{}
 	if err := json.Unmarshal(msg.Value, &data); err != nil {
-		s.log.Errorf("解析消息失败: %v", err)
+		s.log.Errorf("解析消息失败：%v", err)
 		_ = s.consumer.CommitMessages(ctx, msg)
 		return
 	}
@@ -75,11 +75,11 @@ func (s *KafkaConsumerService) processMessage(ctx context.Context, msg segkafka.
 	if clientMsgID != "" {
 		ok, err := s.redisClient.SetNX(ctx, "idempotent:"+clientMsgID, "1", 24*time.Hour).Result()
 		if err != nil {
-			s.log.Errorf("幂等校验失败: %v", err)
+			s.log.Errorf("幂等校验失败：%v", err)
 			return
 		}
 		if !ok {
-			s.log.Infof("重复消息，已忽略: client_msg_id=%s", clientMsgID)
+			s.log.Infof("重复消息，已忽略：client_msg_id=%s", clientMsgID)
 			_ = s.consumer.CommitMessages(ctx, msg)
 			return
 		}
@@ -121,17 +121,17 @@ func (s *KafkaConsumerService) processMessage(ctx context.Context, msg segkafka.
 	// 调用业务层发送消息
 	output, err := s.messageUC.SendMessage(ctx, input)
 	if err != nil {
-		s.log.Errorf("发送消息失败: %v", err)
-		// 永久错误提交offset
+		s.log.Errorf("发送消息失败：%v", err)
+		// 永久错误提交 offset
 		if isPermanentError(err) {
 			_ = s.consumer.CommitMessages(ctx, msg)
 		}
 		return
 	}
 
-	// 提交offset
+	// 提交 offset
 	if err := s.consumer.CommitMessages(ctx, msg); err != nil {
-		s.log.Errorf("提交偏移量失败: %v", err)
+		s.log.Errorf("提交偏移量失败：%v", err)
 	}
 
 	// 推送状态给发送者
@@ -171,41 +171,53 @@ func (s *KafkaConsumerService) pushToReceiver(ctx context.Context, output *biz.S
 	convType := int32(convTypeFloat)
 	senderID, _ := data["sender_id"].(string)
 
-	s.log.Infof("推送消息给接收者: receiver=%s, messageID=%s", receiverID, output.MessageID)
+	s.log.Infof("推送消息给接收者：receiver=%s, messageID=%s", receiverID, output.MessageID)
 
-	// 构建推送消息（使用最终的消息ID）
+	// 构建推送消息（使用最终的消息 ID）
 	pushMsg := s.buildPushMessage(output.MessageID, output.ConversationId, data)
 
 	if convType == 0 { // 单聊
 		// 使用全局在线状态判断
 		if s.wsManager.IsUserOnlineGlobal(ctx, receiverID) {
-			s.log.Infof("用户在线，推送: %s", receiverID)
+			s.log.Infof("用户在线，推送：%s", receiverID)
 			s.wsManager.PushToUser(receiverID, pushMsg)
 			s.updateMessageStatus(output.MessageID, 2)
 		} else {
-			s.log.Infof("用户离线，存储离线: %s", receiverID)
+			s.log.Infof("用户离线，存储离线：%s", receiverID)
 			s.storeOfflineMessage(receiverID, output.MessageID, data)
 		}
 	} else if convType == 1 { // 群聊
 		groupID := receiverID
-		members, err := s.chat.GetGroupMembers(ctx, groupID)
+
+		// 使用缓存获取群成员列表
+		members, err := s.wsManager.GetGroupMembersCached(ctx, groupID)
 		if err != nil {
-			s.log.Errorf("获取群成员失败: %v", err)
+			s.log.Errorf("获取群成员列表失败：%v", err)
 			return
 		}
-		s.log.Infof("群成员数量: %d", len(members))
+		s.log.Infof("群成员数量：%d", len(members))
+
+		// 批量检查在线状态并分组
+		onlineMap := s.batchCheckOnlineStatus(ctx, members)
+
+		var onlineMembers, offlineMembers []string
 		for _, memberID := range members {
 			if memberID == senderID {
 				continue
 			}
-			// 使用全局在线状态判断
-			if s.wsManager.IsUserOnlineGlobal(ctx, memberID) {
-				s.log.Infof("群成员在线，推送: %s", memberID)
-				s.wsManager.PushToUser(memberID, pushMsg)
+			if onlineMap[memberID] {
+				onlineMembers = append(onlineMembers, memberID)
 			} else {
-				s.log.Infof("群成员离线，存储离线: %s", memberID)
-				s.storeOfflineMessage(memberID, output.MessageID, data)
+				offlineMembers = append(offlineMembers, memberID)
 			}
+		}
+
+		// 并发推送在线成员
+		s.batchPushToOnlineMembers(ctx, onlineMembers, pushMsg)
+
+		// 批量存储离线成员
+		if len(offlineMembers) > 0 {
+			s.batchStoreOfflineMessages(ctx, offlineMembers, output.MessageID, data)
 		}
 	}
 }
@@ -216,11 +228,11 @@ func (s *KafkaConsumerService) updateMessageStatus(messageID string, status int3
 	defer cancel()
 	err := s.messageUC.UpdateMessageStatus(ctx, messageID, status)
 	if err != nil {
-		s.log.Errorf("更新消息状态失败: %v", err)
+		s.log.Errorf("更新消息状态失败：%v", err)
 	}
 }
 
-// storeOfflineMessage 存储离线消息（调用 OfflineManager）
+// storeOfflineMessage 存储离线消息（直接存储到 Redis）
 func (s *KafkaConsumerService) storeOfflineMessage(userID, messageID string, data map[string]interface{}) {
 	// 构建离线消息对象
 	contentJSON, err := json.Marshal(data["content"])
@@ -240,8 +252,58 @@ func (s *KafkaConsumerService) storeOfflineMessage(userID, messageID string, dat
 		CreatedAt:      time.Now(),
 	}
 
-	// 从 Manager 获取 OfflineManager 并调用
-	s.wsManager.GetOfflineManager().StoreOfflineMessage(userID, offlineMsg)
+	// 直接通过 Redis 存储（简化处理）
+	key := "offline:" + userID
+	dataBytes, _ := json.Marshal(offlineMsg)
+	s.redisClient.RPush(context.Background(), key, dataBytes)
+	s.redisClient.Expire(context.Background(), key, 7*24*time.Hour)
+	s.log.Infof("存储离线消息：user_id=%s, message_id=%s", userID, messageID)
+}
+
+// batchCheckOnlineStatus 批量检查在线状态（使用 Pipeline 优化）
+func (s *KafkaConsumerService) batchCheckOnlineStatus(ctx context.Context, userIDs []string) map[string]bool {
+	onlineMap := make(map[string]bool)
+
+	// 使用 Pipeline 批量查询 Redis
+	pipe := s.redisClient.Pipeline()
+	cmds := make([]*redis.StringCmd, len(userIDs))
+
+	for i, uid := range userIDs {
+		key := "online:" + uid
+		cmds[i] = pipe.Get(ctx, key)
+	}
+
+	_, _ = pipe.Exec(ctx)
+
+	// 收集结果
+	for i, cmd := range cmds {
+		if val, err := cmd.Result(); err == nil && val != "" {
+			onlineMap[userIDs[i]] = true
+		}
+	}
+
+	return onlineMap
+}
+
+// batchPushToOnlineMembers 并发推送给在线成员（带限流）
+func (s *KafkaConsumerService) batchPushToOnlineMembers(ctx context.Context, memberIDs []string, pushMsg []byte) {
+	// 限制最大并发数（避免瞬间创建太多 goroutine）
+	sem := make(chan struct{}, 50)
+
+	for _, mid := range memberIDs {
+		sem <- struct{}{}
+		go func(uid string) {
+			defer func() { <-sem }()
+			s.wsManager.PushToUser(uid, pushMsg)
+		}(mid)
+	}
+}
+
+// batchStoreOfflineMessages 批量存储离线消息
+func (s *KafkaConsumerService) batchStoreOfflineMessages(ctx context.Context, memberIDs []string, messageID string, data map[string]interface{}) {
+	for _, mid := range memberIDs {
+		s.storeOfflineMessage(mid, messageID, data)
+	}
 }
 
 // buildPushMessage 构建推送给接收者的消息
