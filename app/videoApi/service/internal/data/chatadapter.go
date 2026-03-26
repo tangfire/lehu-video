@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"github.com/go-kratos/kratos/v2/middleware/circuitbreaker"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/registry"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
@@ -34,6 +35,7 @@ func NewGroupServiceClient(r registry.Discovery) chat.GroupServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -49,6 +51,7 @@ func NewMessageServiceClient(r registry.Discovery) chat.MessageServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -64,6 +67,7 @@ func NewFriendServiceClient(r registry.Discovery) chat.FriendServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {

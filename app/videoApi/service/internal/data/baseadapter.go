@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"github.com/go-kratos/kratos/v2/middleware/circuitbreaker"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/registry"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
@@ -36,6 +37,7 @@ func NewAccountServiceClient(r registry.Discovery) base.AccountServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -51,6 +53,7 @@ func NewAuthServiceClient(r registry.Discovery) base.AuthServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -66,6 +69,7 @@ func NewFileServiceClient(r registry.Discovery) base.FileServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {

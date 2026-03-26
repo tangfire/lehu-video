@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/middleware/circuitbreaker"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/registry"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
@@ -49,6 +50,7 @@ func NewUserServiceClient(r registry.Discovery) core.UserServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -64,6 +66,7 @@ func NewFeedServiceClient(r registry.Discovery) core.FeedServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -79,6 +82,7 @@ func NewVideoServiceClient(r registry.Discovery) core.VideoServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -94,6 +98,7 @@ func NewCollectionServiceClient(r registry.Discovery) core.CollectionServiceClie
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -109,6 +114,7 @@ func NewCommentServiceClient(r registry.Discovery) core.CommentServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -124,6 +130,7 @@ func NewFavoriteServiceClient(r registry.Discovery) core.FavoriteServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
@@ -139,6 +146,7 @@ func NewFollowServiceClient(r registry.Discovery) core.FollowServiceClient {
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
 	if err != nil {
