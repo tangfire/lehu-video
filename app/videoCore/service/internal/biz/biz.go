@@ -8,7 +8,7 @@ import (
 var ProviderSet = wire.NewSet(
 	NewVideoUsecase,
 	NewUserUsecase,
-	NewFavoriteUsecase,
+	NewFavoriteUsecase, // 已更新，包含 commentCounter
 	NewCommentUsecase,
 	NewFollowUsecase,
 	NewCollectionUsecase,
@@ -16,7 +16,7 @@ var ProviderSet = wire.NewSet(
 	NewVideoConsumer,
 	NewVideoProducer,
 	NewRecentViewedManager,
-	NewFavoriteConsumer,
+	NewFavoriteConsumer, // 已更新，包含 commentCounter
 )
 
 type PageStats struct {

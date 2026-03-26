@@ -73,17 +73,20 @@ func (s *HotPoolService) GetHotFeedItems(ctx context.Context, limit int) ([]*Fee
 	return items, nil
 }
 
-// AddVideo 新发布视频加入热门池（初始分 = 当前时间戳）
+// AddVideo 新发布视频加入热门池（初始分 = 基础分 1000）
 func (s *HotPoolService) AddVideo(ctx context.Context, videoID, authorID string, timestamp int64) {
 	key := "feed:hot:pool"
 	member := s.buildMember(videoID, authorID, timestamp)
+
+	// 计算初始分数：所有新视频起点相同，避免时间戳带来的不公平
+	initialScore := s.calculateInitialScore(authorID)
+
 	z := redis.Z{
-		// todo 这里我感觉初始分数是时间戳，感觉不是很好？？
-		Score:  float64(timestamp), // 初始用时间戳，后续刷新会重新计算
+		Score:  initialScore,
 		Member: member,
 	}
 	if err := s.redis.ZAdd(ctx, key, z).Err(); err != nil {
-		s.log.Warnf("添加视频到热门池失败: %v", err)
+		s.log.Warnf("添加视频到热门池失败：%v", err)
 	}
 }
 
@@ -141,6 +144,19 @@ func (s *HotPoolService) refreshHotPool(ctx context.Context) {
 		return
 	}
 	s.log.Infof("热门池刷新完成，视频数量: %d", len(scoredMembers))
+}
+
+// calculateInitialScore 计算新视频初始分数（固定基础分 + 作者权重）
+func (s *HotPoolService) calculateInitialScore(authorID string) float64 {
+	const baseScore = 1000.0 // 基础分，所有新视频起点相同
+
+	// TODO: 未来可以扩展作者权重逻辑
+	// 例如：认证作者 +10% 加成，粉丝数多的作者 +5% 加成等
+	// if s.isVerifiedAuthor(authorID) {
+	//     return baseScore + 100  // 认证作者额外加 100 分
+	// }
+
+	return baseScore
 }
 
 // calculateHotScore 热度算法：威尔逊区间 + 时间衰减，加入播放量权重

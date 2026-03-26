@@ -12,13 +12,14 @@ import (
 
 // FavoriteConsumer 处理点赞事件，持久化到数据库并更新作者获赞数
 type FavoriteConsumer struct {
-	reader       *kafka.Reader
-	favoriteRepo FavoriteRepo
-	userCounter  UserCounterRepo
-	videoRepo    VideoRepo
-	log          *log.Helper
-	batchProc    *BatchProcessor[*FavoriteEvent]
-	stopCh       chan struct{}
+	reader         *kafka.Reader
+	favoriteRepo   FavoriteRepo
+	userCounter    UserCounterRepo
+	videoRepo      VideoRepo
+	commentCounter CommentCounterRepo // 新增：评论计数器
+	log            *log.Helper
+	batchProc      *BatchProcessor[*FavoriteEvent]
+	stopCh         chan struct{}
 }
 
 func NewFavoriteConsumer(
@@ -26,6 +27,7 @@ func NewFavoriteConsumer(
 	favoriteRepo FavoriteRepo,
 	userCounter UserCounterRepo,
 	videoRepo VideoRepo,
+	commentCounter CommentCounterRepo, // 新增参数
 	logger log.Logger,
 ) *FavoriteConsumer {
 	reader := kafka.NewReader(kafka.ReaderConfig{
@@ -36,12 +38,13 @@ func NewFavoriteConsumer(
 		MaxBytes: 10e6,
 	})
 	c := &FavoriteConsumer{
-		reader:       reader,
-		favoriteRepo: favoriteRepo,
-		userCounter:  userCounter,
-		videoRepo:    videoRepo,
-		log:          log.NewHelper(logger),
-		stopCh:       make(chan struct{}),
+		reader:         reader,
+		favoriteRepo:   favoriteRepo,
+		userCounter:    userCounter,
+		videoRepo:      videoRepo,
+		commentCounter: commentCounter, // 新增赋值
+		log:            log.NewHelper(logger),
+		stopCh:         make(chan struct{}),
 	}
 	c.batchProc = NewBatchProcessor[*FavoriteEvent](
 		500,
@@ -156,59 +159,94 @@ func (c *FavoriteConsumer) batchInsert(events []*FavoriteEvent) error {
 		return nil
 	})
 	if err != nil {
-		c.log.Errorf("批量插入失败: %v", err)
+		c.log.Errorf("批量插入失败：%v", err)
 		return err
 	}
 
-	// 第二步：批量更新作者获赞数（仅针对视频点赞/取消点赞）
+	// 第二步：批量更新计数（视频和评论）
+	// 2.1 更新视频作者获赞数
 	videoIDSet := make(map[int64]struct{})
 	for _, e := range events {
 		if e.TargetType == 0 && e.FavoriteType == 0 {
 			videoIDSet[e.TargetId] = struct{}{}
 		}
 	}
-	if len(videoIDSet) == 0 {
-		return nil
-	}
-	videoIDs := make([]int64, 0, len(videoIDSet))
-	for vid := range videoIDSet {
-		videoIDs = append(videoIDs, vid)
+	if len(videoIDSet) > 0 {
+		videoIDs := make([]int64, 0, len(videoIDSet))
+		for vid := range videoIDSet {
+			videoIDs = append(videoIDs, vid)
+		}
+
+		authorMap, err := c.videoRepo.BatchGetVideoAuthors(ctx, videoIDs)
+		if err != nil {
+			c.log.Errorf("批量获取视频作者失败：%v", err)
+			return err
+		}
+
+		authorCounts := make(map[int64]map[string]int64)
+		for _, e := range events {
+			if e.TargetType == 0 && e.FavoriteType == 0 {
+				authorID, ok := authorMap[e.TargetId]
+				if !ok {
+					c.log.Warnf("视频 %d 找不到作者，跳过更新获赞数", e.TargetId)
+					continue
+				}
+				delta := int64(0)
+				if e.Action == 1 {
+					delta = 1
+				} else if e.Action == -1 {
+					delta = -1
+				}
+				if delta == 0 {
+					continue
+				}
+				if _, ok := authorCounts[authorID]; !ok {
+					authorCounts[authorID] = make(map[string]int64)
+				}
+				authorCounts[authorID]["be_liked_count"] += delta
+			}
+		}
+
+		if len(authorCounts) > 0 {
+			if err := c.userCounter.BatchIncrUserCounters(ctx, authorCounts); err != nil {
+				c.log.Errorf("批量更新作者获赞数失败：%v", err)
+			}
+		}
 	}
 
-	authorMap, err := c.videoRepo.BatchGetVideoAuthors(ctx, videoIDs)
-	if err != nil {
-		c.log.Errorf("批量获取视频作者失败: %v", err)
-		return err
-	}
-
-	authorCounts := make(map[int64]map[string]int64)
+	// 2.2 更新评论点赞数（仅针对评论点赞/取消点赞）
+	commentIDSet := make(map[int64]struct{})
 	for _, e := range events {
-		if e.TargetType == 0 && e.FavoriteType == 0 {
-			authorID, ok := authorMap[e.TargetId]
-			if !ok {
-				c.log.Warnf("视频 %d 找不到作者，跳过更新获赞数", e.TargetId)
-				continue
+		if e.TargetType == 1 && e.FavoriteType == 0 {
+			commentIDSet[e.TargetId] = struct{}{}
+		}
+	}
+	if len(commentIDSet) > 0 {
+		commentCounts := make(map[int64]map[string]int64)
+		for _, e := range events {
+			if e.TargetType == 1 && e.FavoriteType == 0 {
+				delta := int64(0)
+				if e.Action == 1 {
+					delta = 1
+				} else if e.Action == -1 {
+					delta = -1
+				}
+				if delta == 0 {
+					continue
+				}
+				if _, ok := commentCounts[e.TargetId]; !ok {
+					commentCounts[e.TargetId] = make(map[string]int64)
+				}
+				commentCounts[e.TargetId]["like_count"] += delta
 			}
-			delta := int64(0)
-			if e.Action == 1 {
-				delta = 1
-			} else if e.Action == -1 {
-				delta = -1
+		}
+
+		if len(commentCounts) > 0 {
+			if err := c.commentCounter.BatchIncrFields(ctx, commentCounts); err != nil {
+				c.log.Errorf("批量更新评论点赞数失败：%v", err)
 			}
-			if delta == 0 {
-				continue
-			}
-			if _, ok := authorCounts[authorID]; !ok {
-				authorCounts[authorID] = make(map[string]int64)
-			}
-			authorCounts[authorID]["be_liked_count"] += delta
 		}
 	}
 
-	if len(authorCounts) > 0 {
-		if err := c.userCounter.BatchIncrUserCounters(ctx, authorCounts); err != nil {
-			c.log.Errorf("批量更新作者获赞数失败: %v", err)
-		}
-	}
 	return nil
 }

@@ -183,6 +183,7 @@ type FavoriteUsecase struct {
 	videoRepo        VideoRepo
 	userCounter      UserCounterRepo
 	videoCounter     VideoCounterRepo
+	commentCounter   CommentCounterRepo // 新增：评论计数器
 	cache            *redis.Client
 	log              *log.Helper
 	limiter          *rate.Limiter
@@ -200,24 +201,26 @@ func NewFavoriteUsecase(
 	videoRepo VideoRepo,
 	userCounter UserCounterRepo,
 	videoCounter VideoCounterRepo,
+	commentCounter CommentCounterRepo, // 新增参数
 	cache *redis.Client,
 	idGen idgen.Generator,
 	kafkaProducer KafkaProducer,
 	logger log.Logger,
 ) *FavoriteUsecase {
 	return &FavoriteUsecase{
-		repo:          repo,
-		videoRepo:     videoRepo,
-		userCounter:   userCounter,
-		videoCounter:  videoCounter,
-		cache:         cache,
-		idGen:         idGen,
-		log:           log.NewHelper(logger),
-		limiter:       rate.NewLimiter(rate.Limit(20000), 5000),
-		keyGen:        &defaultCacheKeyGenerator{},
-		maxBatchSize:  1000,
-		kafkaProducer: kafkaProducer,
-		favoriteTopic: "favorite_topic",
+		repo:           repo,
+		videoRepo:      videoRepo,
+		userCounter:    userCounter,
+		videoCounter:   videoCounter,
+		commentCounter: commentCounter, // 新增赋值
+		cache:          cache,
+		idGen:          idGen,
+		log:            log.NewHelper(logger),
+		limiter:        rate.NewLimiter(rate.Limit(20000), 5000),
+		keyGen:         &defaultCacheKeyGenerator{},
+		maxBatchSize:   1000,
+		kafkaProducer:  kafkaProducer,
+		favoriteTopic:  "favorite_topic",
 	}
 }
 
@@ -294,8 +297,8 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 		return nil // 幂等处理
 	}
 
-	// 2. 构建计数变更（只处理视频类型）
-	deltas := make(map[int64]map[string]int64) // videoId -> field -> delta
+	// 2. 构建计数变更（支持视频和评论）
+	deltas := make(map[int64]map[string]int64) // targetId -> field -> delta
 	if cmd.TargetType == 0 {                   // 视频
 		if current.IsFavorite {
 			// 需要减少原类型的计数
@@ -311,13 +314,35 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 			deltas[cmd.TargetId] = make(map[string]int64)
 		}
 		deltas[cmd.TargetId][newField] += 1
-	} // 其他类型可扩展
+	} else if cmd.TargetType == 1 { // 评论
+		if current.IsFavorite {
+			oldField := uc.getCountField(current.FavoriteType)
+			if deltas[cmd.TargetId] == nil {
+				deltas[cmd.TargetId] = make(map[string]int64)
+			}
+			deltas[cmd.TargetId][oldField] -= 1
+		}
+		newField := uc.getCountField(cmd.FavoriteType)
+		if deltas[cmd.TargetId] == nil {
+			deltas[cmd.TargetId] = make(map[string]int64)
+		}
+		deltas[cmd.TargetId][newField] += 1
+	}
 
-	// 3. 原子更新 Redis 计数
+	// 3. 原子更新 Redis 计数（根据目标类型选择不同的计数器）
 	if len(deltas) > 0 {
-		if err := uc.videoCounter.BatchIncrFields(ctx, deltas); err != nil {
-			uc.log.Errorf("批量更新视频计数失败: %v", err)
-			return err
+		if cmd.TargetType == 0 {
+			// 视频计数
+			if err := uc.videoCounter.BatchIncrFields(ctx, deltas); err != nil {
+				uc.log.Errorf("批量更新视频计数失败：%v", err)
+				return err
+			}
+		} else if cmd.TargetType == 1 {
+			// 评论计数
+			if err := uc.commentCounter.BatchIncrFields(ctx, deltas); err != nil {
+				uc.log.Errorf("批量更新评论计数失败：%v", err)
+				return err
+			}
 		}
 	}
 

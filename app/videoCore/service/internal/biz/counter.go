@@ -49,3 +49,33 @@ type VideoCounterRepo interface {
 	// 新增：批量增加多个视频的多个字段
 	BatchIncrFields(ctx context.Context, counts map[int64]map[string]int64) error
 }
+
+// CommentCounterRepo 评论计数器仓储接口
+type CommentCounterRepo interface {
+	// IncrCommentCounter 增加评论某个字段的计数
+	IncrCommentCounter(ctx context.Context, commentId int64, field string, delta int64) error
+
+	// GetCommentCounters 获取评论的多个计数字段
+	GetCommentCounters(ctx context.Context, commentId int64, fields ...string) (map[string]int64, error)
+
+	// BatchGetCommentCounters 批量获取评论计数
+	BatchGetCommentCounters(ctx context.Context, commentIds []int64, fields ...string) (map[int64]map[string]int64, error)
+
+	// MarkCommentDirty 标记评论为脏（需要同步到 MySQL）
+	MarkCommentDirty(ctx context.Context, commentId int64) error
+
+	// GetDirtyCommentIDs 获取所有脏评论 ID
+	GetDirtyCommentIDs(ctx context.Context) ([]int64, error)
+
+	// ClearDirtyFlag 清除脏标记
+	ClearDirtyFlag(ctx context.Context, commentId int64) error
+
+	// SetCommentCounters 设置评论计数（覆盖）
+	SetCommentCounters(ctx context.Context, commentId int64, counters map[string]int64) error
+
+	// BatchIncrCommentCounters 批量增加多个评论的计数
+	BatchIncrCommentCounters(ctx context.Context, counts map[int64]int64) error
+
+	// BatchIncrFields 批量增加多个评论的多个字段
+	BatchIncrFields(ctx context.Context, counts map[int64]map[string]int64) error
+}

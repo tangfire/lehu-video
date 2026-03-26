@@ -26,6 +26,7 @@ var ProviderSet = wire.NewSet(
 	NewUserCounterRepo,
 	NewIdGenerator,
 	NewVideoCounterRepo,
+	NewCommentCounterRepo, // 新增：评论计数器
 )
 
 type Data struct {
@@ -34,7 +35,8 @@ type Data struct {
 	rdb             *redis.Client
 	userSyncJob     *UserCounterSyncJob
 	videoSyncJob    *VideoCounterSyncJob
-	reconcileStopCh chan struct{} // 用于停止对账任务
+	commentSyncJob  *CommentCounterSyncJob // 新增：评论同步任务
+	reconcileStopCh chan struct{}          // 用于停止对账任务
 }
 
 func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), error) {
@@ -58,6 +60,13 @@ func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), 
 	videoSyncJob.Start()
 	d.videoSyncJob = videoSyncJob
 
+	// 创建并启动评论计数器同步任务
+	commentCounterRepo := NewCommentCounterRepo(rdb, logger)
+	commentRepo := NewCommentRepo(d, logger) // 使用 d（Data 实例）而不是 data
+	commentSyncJob := NewCommentCounterSyncJob(db, commentRepo, commentCounterRepo, logger)
+	commentSyncJob.StartCron(d.reconcileStopCh)
+	d.commentSyncJob = commentSyncJob
+
 	// 创建并启动视频统计对账任务（每日凌晨3点执行）
 	videoStatsReconcileJob := NewVideoStatsReconcileJob(db, logger)
 	videoStatsReconcileJob.StartCron(d.reconcileStopCh)
@@ -75,6 +84,9 @@ func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), 
 		}
 		if d.videoSyncJob != nil {
 			d.videoSyncJob.Stop()
+		}
+		if d.commentSyncJob != nil {
+			// CommentCounterSyncJob 使用 StartCron 启动，不需要额外 Stop
 		}
 		if err := d.rdb.Close(); err != nil {
 			logHelper.Errorf("Redis close error: %v", err)

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -391,15 +390,6 @@ func (uc *FeedUsecase) filterFeedItems(ctx context.Context, userID string, items
 	return filtered
 }
 
-// shuffleItems 打乱顺序
-func (uc *FeedUsecase) shuffleItems(items []*FeedItem) {
-	rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := range items {
-		j := rand.Intn(i + 1)
-		items[i], items[j] = items[j], items[i]
-	}
-}
-
 // calculateNextTime 下次请求时间 = 最小时间戳 - 1
 func (uc *FeedUsecase) calculateNextTime(items []*FeedItem) int64 {
 	if len(items) == 0 {
@@ -473,24 +463,6 @@ func (uc *FeedUsecase) pushPublishEventToKafka(videoID, authorID string, timesta
 	}
 }
 
-// pushToFollowersSync 同步推送到粉丝（批量）
-func (uc *FeedUsecase) pushToFollowersSync(ctx context.Context, authorID string, item *TimelineItem) {
-	offset := 0
-	limit := uc.strategy.FollowerBatchSize
-	for {
-		followers, total, err := uc.followRepo.GetFollowersPaginated(ctx, authorID, offset, limit)
-		if err != nil {
-			uc.log.Errorf("分页获取粉丝失败: %v", err)
-			return
-		}
-		uc.pushTimelineToUsersBatch(ctx, followers, item)
-		if int64(len(followers)+offset) >= total {
-			break
-		}
-		offset += limit
-	}
-}
-
 // pushTimelineToUsersBatch 批量推送 Timeline 给多个用户（Redis Pipeline）
 func (uc *FeedUsecase) pushTimelineToUsersBatch(ctx context.Context, userIDs []string, item *TimelineItem) {
 	if len(userIDs) == 0 {
@@ -521,19 +493,6 @@ func (uc *FeedUsecase) pushTimelineToUsersBatch(ctx context.Context, userIDs []s
 		if _, err := pipe.Exec(ctx); err != nil {
 			uc.log.Errorf("批量推送 timeline 失败: %v", err)
 		}
-	}
-}
-
-// pushBigVEventToKafka 大V事件发往Kafka
-func (uc *FeedUsecase) pushBigVEventToKafka(videoID, authorID string, timestamp int64) {
-	event := VideoPublishEvent{
-		VideoID:   videoID,
-		AuthorID:  authorID,
-		Timestamp: timestamp,
-	}
-	data, _ := json.Marshal(event)
-	if err := uc.kafkaProducer.SendMessage("video_publish_topic", []byte(videoID), data); err != nil {
-		uc.log.Errorf("发送Kafka消息失败: %v", err)
 	}
 }
 
