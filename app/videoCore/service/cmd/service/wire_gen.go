@@ -35,7 +35,7 @@ func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry
 	videoCounterRepo := data.NewVideoCounterRepo(client, logger)
 	generator := data.NewIdGenerator(idgen)
 	followRepo := data.NewFollowRepo(dataData, logger)
-	kafkaProducer := biz.NewVideoProducer()
+	kafkaProducer := biz.NewVideoProducer(confData)
 	recentViewedManager := biz.NewRecentViewedManager(client)
 	feedUsecase := biz.NewFeedUsecase(videoRepo, followRepo, client, kafkaProducer, recentViewedManager, logger)
 	videoUsecase := biz.NewVideoUsecase(videoRepo, userCounterRepo, videoCounterRepo, generator, feedUsecase, recentViewedManager, client, logger)

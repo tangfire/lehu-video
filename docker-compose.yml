@@ -1,0 +1,214 @@
+name: lehu-video-backend
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: lehu-mysql
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: "8888.216"
+      TZ: Asia/Shanghai
+    ports:
+      - "13307:3306"
+    volumes:
+      - lehu_mysql_data:/var/lib/mysql
+      - ./sql/video.sql:/docker-entrypoint-initdb.d/01-video.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: lehu-redis
+    command: ["redis-server", "--requirepass", "8888.216", "--appendonly", "yes"]
+    ports:
+      - "16379:6379"
+    volumes:
+      - lehu_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "8888.216", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  consul:
+    image: hashicorp/consul:1.20
+    container_name: lehu-consul
+    command: ["agent", "-dev", "-client=0.0.0.0"]
+    ports:
+      - "18500:8500"
+
+  kafka:
+    image: apache/kafka:4.0.2
+    container_name: lehu-kafka
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: CONTROLLER://localhost:9091,DOCKER://0.0.0.0:9092,HOST://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: DOCKER://kafka:9092,HOST://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    ports:
+      - "19092:19092"
+    volumes:
+      - lehu_kafka_data:/tmp/kraft-combined-logs
+
+  kafka-init:
+    image: apache/kafka:4.0.2
+    container_name: lehu-kafka-init
+    depends_on:
+      - kafka
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null 2>&1; do
+          sleep 2
+        done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic video_publish_topic --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic favorite_topic --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic lehu-video.chat.message --partitions 1 --replication-factor 1
+
+  minio:
+    image: minio/minio:latest
+    container_name: lehu-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - lehu_minio_data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: lehu-minio-init
+    depends_on:
+      - minio
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        until mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null 2>&1; do
+          sleep 2
+        done
+        mc mb -p local/shortvideo || true
+        mc anonymous set download local/shortvideo || true
+
+  base:
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+      args:
+        SERVICE_PATH: ./app/base/service/cmd/service
+    container_name: lehu-base
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    command: ["-conf", "/data/conf"]
+    volumes:
+      - ./deploy/config/base:/data/conf:ro
+    ports:
+      - "18020:8020"
+      - "19020:9020"
+
+  core:
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+      args:
+        SERVICE_PATH: ./app/videoCore/service/cmd/service
+    container_name: lehu-core
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+    command: ["-conf", "/data/conf"]
+    volumes:
+      - ./deploy/config/videoCore:/data/conf:ro
+    ports:
+      - "18030:8030"
+      - "19030:9030"
+
+  chat:
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+      args:
+        SERVICE_PATH: ./app/videoChat/service/cmd/service
+    container_name: lehu-chat
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_started
+      core:
+        condition: service_started
+    command: ["-conf", "/data/conf"]
+    volumes:
+      - ./deploy/config/videoChat:/data/conf:ro
+    ports:
+      - "18040:8040"
+      - "19040:9040"
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+      args:
+        SERVICE_PATH: ./app/videoApi/service/cmd/service
+    container_name: lehu-api
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+      base:
+        condition: service_started
+      core:
+        condition: service_started
+      chat:
+        condition: service_started
+    command: ["-conf", "/data/conf"]
+    volumes:
+      - ./deploy/config/videoApi:/data/conf:ro
+    ports:
+      - "18080:8080"
+
+volumes:
+  lehu_mysql_data:
+  lehu_redis_data:
+  lehu_kafka_data:
+  lehu_minio_data:
