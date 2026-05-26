@@ -177,9 +177,21 @@ func (r *userRepo) SearchUsers(ctx context.Context, keyword string, offset, limi
 }
 
 func (r *userRepo) UpdateUserLastOnlineTime(ctx context.Context, userId int64, lastOnlineTime time.Time) error {
-	err := r.data.db.Table(model.User{}.TableName()).
-		Where("id = ?", userId).
-		Update("last_online_time", lastOnlineTime).Error
+	err := r.data.db.WithContext(ctx).Table("user_online_status").Exec(`
+		INSERT INTO user_online_status (
+			user_id,
+			online_status,
+			device_type,
+			last_online_time,
+			created_at,
+			updated_at
+		) VALUES (?, 1, 'web', ?, NOW(), NOW())
+		ON DUPLICATE KEY UPDATE
+			online_status = VALUES(online_status),
+			device_type = VALUES(device_type),
+			last_online_time = VALUES(last_online_time),
+			updated_at = NOW()
+	`, userId, lastOnlineTime).Error
 	if err != nil {
 		return fmt.Errorf("更新用户最后上线时间失败：%w", err)
 	}

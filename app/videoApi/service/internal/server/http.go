@@ -23,6 +23,10 @@ func NewWhiteListMatcher() selector.MatchFunc {
 	whiteList["/api.videoApi.service.v1.UserService/Login"] = struct{}{}
 	whiteList["/api.videoApi.service.v1.UserService/Register"] = struct{}{}
 	whiteList["/api.videoApi.service.v1.UserService/GetVerificationCode"] = struct{}{}
+	whiteList["/api.videoApi.service.v1.VideoService/FeedShortVideo"] = struct{}{}
+	whiteList["/api.videoApi.service.v1.VideoService/GetVideoById"] = struct{}{}
+	whiteList["/api.videoApi.service.v1.CommentService/ListComment4Video"] = struct{}{}
+	whiteList["/api.videoApi.service.v1.CommentService/ListChildComment"] = struct{}{}
 	whiteList["/ws"] = struct{}{} // 添加WebSocket路径到白名单
 	return func(ctx context.Context, operation string) bool {
 		if _, ok := whiteList[operation]; ok {

@@ -3,6 +3,7 @@ package resp
 import (
 	"encoding/json"
 	"google.golang.org/protobuf/encoding/protojson"
+	videoapi "lehu-video/api/videoApi/service/v1"
 	"net/http"
 	"time"
 
@@ -78,6 +79,10 @@ func ResponseEncoder(w http.ResponseWriter, r *http.Request, v interface{}) erro
 
 // 将 protobuf 消息转换为 map，保持数字类型
 func convertProtoToMap(pm proto.Message) interface{} {
+	if data, ok := convertVideoProtoToMap(pm); ok {
+		return data
+	}
+
 	marshalOptions := protojson.MarshalOptions{
 		EmitUnpopulated: true,
 		UseProtoNames:   true,
@@ -98,6 +103,77 @@ func convertProtoToMap(pm proto.Message) interface{} {
 
 	// 递归处理数字类型
 	return fixNumberTypes(result)
+}
+
+func convertVideoProtoToMap(pm proto.Message) (interface{}, bool) {
+	switch msg := pm.(type) {
+	case *videoapi.FeedShortVideoResp:
+		videos := make([]interface{}, 0, len(msg.Videos))
+		for _, video := range msg.Videos {
+			videos = append(videos, convertVideoToMap(video))
+		}
+		return map[string]interface{}{
+			"videos":    videos,
+			"next_time": msg.NextTime,
+		}, true
+	case *videoapi.GetVideoByIdResp:
+		return map[string]interface{}{
+			"video": convertVideoToMap(msg.Video),
+		}, true
+	case *videoapi.ListPublishedVideoResp:
+		videos := make([]interface{}, 0, len(msg.VideoList))
+		for _, video := range msg.VideoList {
+			videos = append(videos, convertVideoToMap(video))
+		}
+		return map[string]interface{}{
+			"video_list": videos,
+			"page_stats": convertPageStatsToMap(msg.PageStats),
+		}, true
+	default:
+		return nil, false
+	}
+}
+
+func convertVideoToMap(video *videoapi.Video) map[string]interface{} {
+	if video == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":             video.Id,
+		"author":         convertVideoAuthorToMap(video.Author),
+		"play_url":       video.PlayUrl,
+		"cover_url":      video.CoverUrl,
+		"favoriteCount":  video.FavoriteCount,
+		"commentCount":   video.CommentCount,
+		"view_count":     video.ViewCount,
+		"isFavorite":     video.IsFavorite,
+		"title":          video.Title,
+		"description":    video.Description,
+		"upload_time":    video.UploadTime,
+		"isCollected":    video.IsCollected,
+		"collectedCount": video.CollectedCount,
+	}
+}
+
+func convertVideoAuthorToMap(author *videoapi.VideoAuthor) map[string]interface{} {
+	if author == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":          author.Id,
+		"name":        author.Name,
+		"avatar":      author.Avatar,
+		"isFollowing": author.IsFollowing,
+	}
+}
+
+func convertPageStatsToMap(stats *videoapi.PageStatsResp) map[string]interface{} {
+	if stats == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"total": stats.Total,
+	}
 }
 
 // 递归修复数字类型

@@ -62,7 +62,7 @@ func (j *UserBeLikedReconcileJob) RunOnce(ctx context.Context) error {
 
 	// 获取视频表中有更新的用户 ID 范围
 	var minID, maxID int64
-	sqlCount := `SELECT MIN(v.user_id), MAX(v.user_id) 
+	sqlCount := `SELECT COALESCE(MIN(v.user_id), 0), COALESCE(MAX(v.user_id), 0) 
 	             FROM video v 
 	             WHERE v.updated_at >= ?`
 	if err := j.db.WithContext(ctx).Raw(sqlCount, sinceTime).Row().Scan(&minID, &maxID); err != nil {

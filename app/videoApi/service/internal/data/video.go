@@ -55,6 +55,8 @@ func (r *CoreAdapterImpl) GetVideoById(ctx context.Context, userId, videoId stri
 		CommentCount:  video.CommentCount,
 		IsFavorite:    video.IsFavorite != 0,
 		Title:         video.Title,
+		Description:   video.Description,
+		UploadTime:    video.UploadTime,
 	}
 	return retVideo, nil
 }
@@ -86,10 +88,12 @@ func (r *CoreAdapterImpl) ListPublishedVideo(ctx context.Context, userId string,
 			},
 			PlayURL:       video.PlayUrl,
 			CoverURL:      video.CoverUrl,
-			FavoriteCount: video.IsFavorite,
+			FavoriteCount: video.FavoriteCount,
 			CommentCount:  video.CommentCount,
 			IsFavorite:    video.IsFavorite != 0,
 			Title:         video.Title,
+			Description:   video.Description,
+			UploadTime:    video.UploadTime,
 		})
 	}
 	return int64(resp.PageStats.Total), retVideos, nil
@@ -127,6 +131,8 @@ func (r *CoreAdapterImpl) Feed(ctx context.Context, userId string, num int64, la
 			CommentCount:  video.CommentCount,
 			IsFavorite:    video.IsFavorite != 0,
 			Title:         video.Title,
+			Description:   video.Description,
+			UploadTime:    video.UploadTime,
 		})
 	}
 	return videos, nil
@@ -160,6 +166,8 @@ func (r *CoreAdapterImpl) GetVideoByIdList(ctx context.Context, videoIdList []st
 			CommentCount:  video.CommentCount,
 			IsFavorite:    video.IsFavorite != 0,
 			Title:         video.Title,
+			Description:   video.Description,
+			UploadTime:    video.UploadTime,
 		})
 	}
 	return retVideos, nil

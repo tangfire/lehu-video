@@ -2,11 +2,13 @@ package data
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"lehu-video/app/base/service/internal/biz"
 	"lehu-video/app/base/service/internal/conf"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,14 +19,65 @@ import (
 
 type minioRepo struct {
 	core           *minio.Core
-	publicEndpoint string // 新增：公共访问地址
+	publicCore     *minio.Core
+	publicEndpoint string
 }
 
 func NewMinioRepo(conf *conf.Data, core *minio.Core) biz.MinioRepo {
+	internalEndpoint := fmt.Sprintf("%s:%s", conf.Minio.Host, conf.Minio.Port)
+	publicEndpoint := normalizeMinioEndpoint(os.Getenv("LEHU_PUBLIC_MINIO_ENDPOINT"))
+	if publicEndpoint == "" {
+		publicEndpoint = internalEndpoint
+	}
+
+	publicCore := core
+	if publicEndpoint != internalEndpoint {
+		var err error
+		publicCore, err = minio.NewCore(publicEndpoint, &minio.Options{
+			Creds:     credentials.NewStaticV4(conf.Minio.AccessKey, conf.Minio.SecretKey, ""),
+			Secure:    false,
+			Transport: newMinioHostRewriteTransport(publicEndpoint, internalEndpoint),
+		})
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+
 	return &minioRepo{
 		core:           core,
-		publicEndpoint: fmt.Sprintf("%s:%s", conf.Minio.Host, conf.Minio.Port),
+		publicCore:     publicCore,
+		publicEndpoint: publicEndpoint,
 	}
+}
+
+func newMinioHostRewriteTransport(publicEndpoint, internalEndpoint string) http.RoundTripper {
+	baseTransport := http.DefaultTransport.(*http.Transport).Clone()
+	baseTransport.DialContext = (&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}).DialContext
+	baseTransport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+
+	if publicEndpoint == "" || internalEndpoint == "" || publicEndpoint == internalEndpoint {
+		return baseTransport
+	}
+
+	baseDial := baseTransport.DialContext
+	baseTransport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if address == publicEndpoint {
+			address = internalEndpoint
+		}
+		return baseDial(ctx, network, address)
+	}
+	return baseTransport
+}
+
+func normalizeMinioEndpoint(endpoint string) string {
+	endpoint = strings.TrimSpace(endpoint)
+	endpoint = strings.TrimPrefix(endpoint, "http://")
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+	return strings.TrimRight(endpoint, "/")
 }
 
 /*
@@ -120,7 +173,7 @@ func (r *minioRepo) PreSignGetUrl(
 		}
 	}
 
-	u, err := r.core.PresignedGetObject(
+	u, err := r.publicCore.PresignedGetObject(
 		ctx,
 		bucketName,
 		objectName,
@@ -211,7 +264,7 @@ func (r *minioRepo) PreSignPutUrl(
 	expireSeconds int64,
 ) (string, error) {
 
-	u, err := r.core.PresignedPutObject(
+	u, err := r.publicCore.PresignedPutObject(
 		ctx,
 		bucketName,
 		objectName,
@@ -285,7 +338,7 @@ func (r *minioRepo) PreSignSlicingPutUrl(
 		"partNumber": {strconv.FormatInt(partNumber, 10)},
 	}
 
-	u, err := r.core.Presign(
+	u, err := r.publicCore.Presign(
 		ctx,
 		http.MethodPut,
 		bucketName,

@@ -61,8 +61,17 @@ func (s *UserServiceService) Login(ctx context.Context, req *pb.LoginReq) (*pb.L
 	retUser := &pb.User{
 		Id:              user.ID,
 		Name:            user.Name,
+		Nickname:        user.Nickname,
 		Avatar:          user.Avatar,
 		BackgroundImage: user.BackgroundImage,
+		Signature:       user.Signature,
+		Gender:          user.Gender,
+		FollowCount:     user.FollowCount,
+		FollowerCount:   user.FollowerCount,
+		TotalFavorited:  user.TotalFavorited,
+		WorkCount:       user.WorkCount,
+		FavoriteCount:   user.FavoriteCount,
+		CreatedAt:       user.CreatedAt,
 		Mobile:          user.Mobile,
 		Email:           user.Email,
 	}

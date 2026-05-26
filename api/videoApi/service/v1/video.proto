@@ -24,6 +24,10 @@ message Video {
 	bool isCollected = 9; // 是否已收藏
 	// @gotags: json:"collectedCount,omitempty,string"
 	int64 collectedCount = 10; // 收藏数
+	// @gotags: json:"view_count,omitempty,string"
+	int64 view_count = 11; // 播放量
+	string description = 12; // 视频描述
+	string upload_time = 13; // 视频上传时间
 }
 
 message VideoAuthor {
@@ -169,6 +173,7 @@ message FeedShortVideoReq{
 	string user_id = 2 ;
 	// @gotags: json:"feed_num,omitempty,string"
 	int64 feed_num = 3 ; // 返回视频的数量
+	int32 feed_type = 4; // 0:关注 1:推荐 2:热门 3:混合
 }
 
 message FeedShortVideoResp{
@@ -195,5 +200,4 @@ message ListPublishedVideoResp{
 	repeated Video video_list = 1;
 	PageStatsResp page_stats = 2;
 }
-
 

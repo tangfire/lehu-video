@@ -62,7 +62,7 @@ func (j *VideoStatsReconcileJob) RunOnce(ctx context.Context) error {
 
 	// 获取符合条件的视频最小/最大ID
 	var minID, maxID int64
-	sqlCount := `SELECT MIN(id), MAX(id) FROM video WHERE updated_at >= ?`
+	sqlCount := `SELECT COALESCE(MIN(id), 0), COALESCE(MAX(id), 0) FROM video WHERE updated_at >= ?`
 	if err := j.db.WithContext(ctx).Raw(sqlCount, sinceTime).Row().Scan(&minID, &maxID); err != nil {
 		j.log.Errorf("获取视频ID范围失败: %v", err)
 		return err

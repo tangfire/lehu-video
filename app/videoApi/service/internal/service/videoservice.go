@@ -1,10 +1,15 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	pb "lehu-video/api/videoApi/service/v1"
 	"lehu-video/app/videoApi/service/internal/biz"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
+
+	khttp "github.com/go-kratos/kratos/v2/transport/http"
 )
 
 // VideoServiceService 视频服务实现
@@ -120,11 +125,17 @@ func (s *VideoServiceService) FeedShortVideo(ctx context.Context, req *pb.FeedSh
 		userID = "0"
 	}
 
+	feedType := req.FeedType
+	if feedType == 0 {
+		feedType = getFeedTypeFromHTTPRequest(ctx, 1)
+	}
+
 	// 构建输入
 	input := &biz.FeedVideoInput{
 		LatestTime: req.LatestTime,
 		UserID:     userID,
 		FeedNum:    req.FeedNum,
+		FeedType:   feedType,
 	}
 
 	// 调用业务层
@@ -139,10 +150,7 @@ func (s *VideoServiceService) FeedShortVideo(ctx context.Context, req *pb.FeedSh
 		pbVideos = append(pbVideos, s.convertToPBVideo(video))
 	}
 
-	return &pb.FeedShortVideoResp{
-		Videos:   pbVideos,
-		NextTime: output.NextTime,
-	}, nil
+	return &pb.FeedShortVideoResp{Videos: pbVideos, NextTime: output.NextTime}, nil
 }
 
 // GetVideoById 获取视频详情
@@ -165,9 +173,7 @@ func (s *VideoServiceService) GetVideoById(ctx context.Context, req *pb.GetVideo
 		return nil, err
 	}
 
-	return &pb.GetVideoByIdResp{
-		Video: s.convertToPBVideo(output.Video),
-	}, nil
+	return &pb.GetVideoByIdResp{Video: s.convertToPBVideo(output.Video)}, nil
 }
 
 // ListPublishedVideo 获取已发布视频列表
@@ -197,12 +203,8 @@ func (s *VideoServiceService) ListPublishedVideo(ctx context.Context, req *pb.Li
 		pbVideos = append(pbVideos, s.convertToPBVideo(video))
 	}
 
-	return &pb.ListPublishedVideoResp{
-		VideoList: pbVideos,
-		PageStats: &pb.PageStatsResp{
-			Total: int32(output.Total),
-		},
-	}, nil
+	pageStats := &pb.PageStatsResp{Total: int32(output.Total)}
+	return &pb.ListPublishedVideoResp{VideoList: pbVideos, PageStats: pageStats}, nil
 }
 
 // convertToPBVideo 将业务层Video转换为proto Video
@@ -217,8 +219,11 @@ func (s *VideoServiceService) convertToPBVideo(video *biz.Video) *pb.Video {
 		CoverUrl:       video.CoverURL,
 		FavoriteCount:  video.FavoriteCount,
 		CommentCount:   video.CommentCount,
+		ViewCount:      video.ViewCount,
 		IsFavorite:     video.IsFavorite,
 		Title:          video.Title,
+		Description:    video.Description,
+		UploadTime:     video.UploadTime,
 		IsCollected:    video.IsCollected,
 		CollectedCount: video.CollectedCount,
 	}
@@ -233,4 +238,37 @@ func (s *VideoServiceService) convertToPBVideo(video *biz.Video) *pb.Video {
 	}
 
 	return pbVideo
+}
+
+func getFeedTypeFromHTTPRequest(ctx context.Context, fallback int32) int32 {
+	req, ok := khttp.RequestFromServerContext(ctx)
+	if !ok || req.Body == nil {
+		return fallback
+	}
+
+	data, err := io.ReadAll(req.Body)
+	if err != nil {
+		return fallback
+	}
+	req.Body = io.NopCloser(bytes.NewBuffer(data))
+
+	body := struct {
+		FeedType      *int32 `json:"feed_type"`
+		FeedTypeCamel *int32 `json:"feedType"`
+	}{}
+	if err := json.Unmarshal(data, &body); err != nil {
+		return fallback
+	}
+
+	feedType := fallback
+	if body.FeedType != nil {
+		feedType = *body.FeedType
+	} else if body.FeedTypeCamel != nil {
+		feedType = *body.FeedTypeCamel
+	}
+
+	if feedType < 0 || feedType > 3 {
+		return fallback
+	}
+	return feedType
 }

@@ -307,9 +307,12 @@ func (r *friendRepo) GetUserOnlineStatus(ctx context.Context, userID int64) (*bi
 		status = 1
 	}
 
-	// 2. 从数据库获取最后在线时间（直接查询 user 表）
+	// 2. 从数据库获取最后在线时间
 	var lastOnlineTime time.Time
-	err2 := r.data.db.WithContext(ctx).Table("user").Where("id = ?", userID).Pluck("last_online_time", &lastOnlineTime).Error
+	err2 := r.data.db.WithContext(ctx).
+		Table("user_online_status").
+		Where("user_id = ?", userID).
+		Pluck("last_online_time", &lastOnlineTime).Error
 	if err2 != nil {
 		// 查询失败，不返回错误，只返回在线状态
 		return &biz.UserOnlineStatus{

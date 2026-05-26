@@ -16,8 +16,11 @@ type Video struct {
 	CoverURL       string
 	FavoriteCount  int64
 	CommentCount   int64
+	ViewCount      int64
 	IsFavorite     bool
 	Title          string
+	Description    string
+	UploadTime     string
 	IsCollected    bool
 	CollectedCount int64
 }
@@ -93,6 +96,7 @@ type FeedVideoInput struct {
 	LatestTime int64
 	UserID     string
 	FeedNum    int64
+	FeedType   int32
 }
 
 // FeedVideoOutput 视频流输出
@@ -177,7 +181,7 @@ func (uc *VideoUsecase) ReportFinishUpload(ctx context.Context, input *ReportFin
 // ReportVideoFinishUpload 报告视频上传完成
 func (uc *VideoUsecase) ReportVideoFinishUpload(ctx context.Context, input *ReportVideoFinishUploadInput) (*ReportVideoFinishUploadOutput, error) {
 	// 参数验证
-	if input.FileID == "" || cast.ToInt64(input.FileID) <= 0 || input.Title == "" || input.VideoURL == "" || input.CoverURL == "" {
+	if input.FileID == "" || cast.ToInt64(input.FileID) <= 0 || input.Title == "" || input.VideoURL == "" {
 		return nil, ErrInvalidParams
 	}
 	if input.UserID == "" || cast.ToInt64(input.UserID) <= 0 {
@@ -209,7 +213,10 @@ func (uc *VideoUsecase) GetVideo(ctx context.Context, input *GetVideoInput) (*Ge
 
 	userId, err := claims.GetUserId(ctx)
 	if err != nil {
-		return nil, ErrUnauthorized
+		userId = input.UserID
+	}
+	if userId == "" {
+		userId = "0"
 	}
 	// 获取视频基本信息
 	video, err := uc.core.GetVideoById(ctx, userId, input.VideoID)
@@ -221,9 +228,11 @@ func (uc *VideoUsecase) GetVideo(ctx context.Context, input *GetVideoInput) (*Ge
 	}
 
 	// 组装完整的视频信息
-	video, err = uc.assembler.AssembleVideo(ctx, video, input.UserID)
-	if err != nil {
-		return nil, err
+	if userId != "0" {
+		video, err = uc.assembler.AssembleVideo(ctx, video, userId)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &GetVideoOutput{
@@ -234,8 +243,15 @@ func (uc *VideoUsecase) GetVideo(ctx context.Context, input *GetVideoInput) (*Ge
 // FeedVideo 视频流
 // api/videoApi/service/internal/biz/video.go
 func (uc *VideoUsecase) FeedVideo(ctx context.Context, input *FeedVideoInput) (*FeedVideoOutput, error) {
+	feedType := input.FeedType
+	if feedType < 0 || feedType > 3 {
+		feedType = 1
+	}
+	if input.FeedNum <= 0 {
+		input.FeedNum = 10
+	}
 	// 1. 调用 core 获取 FeedItem 列表
-	feedItems, nextTime, err := uc.core.GetFeed(ctx, input.UserID, input.LatestTime, int32(input.FeedNum), 1 /* 默认推荐流，可按需调整 */)
+	feedItems, nextTime, err := uc.core.GetFeed(ctx, input.UserID, input.LatestTime, int32(input.FeedNum), feedType)
 	if err != nil {
 		return nil, err
 	}

@@ -16,8 +16,8 @@ data:
     password: "8888.216"
     db: 0
   minio:
-    host: host.docker.internal
-    port: "19000"
+    host: minio
+    port: "9000"
     console_port: "19001"
     access_key: minioadmin
     secret_key: minioadmin
