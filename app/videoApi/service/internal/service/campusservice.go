@@ -36,6 +36,8 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/auth/wechat-login", s.wrap(s.handleWechatLogin))
 	r.GET("/v1/campus/profile", s.wrap(s.authRequired(s.handleGetProfile)))
 	r.PUT("/v1/campus/profile", s.wrap(s.authRequired(s.handleUpdateProfile)))
+	r.GET("/v1/campus/timetable", s.wrap(s.authRequired(s.handleListTimetable)))
+	r.POST("/v1/campus/timetable/import", s.wrap(s.authRequired(s.handleImportTimetable)))
 	r.POST("/v1/campus/upload/image", s.wrap(s.authRequired(s.handleUploadImage)))
 	r.POST("/v1/campus/upload/video", s.wrap(s.authRequired(s.handleUploadVideo)))
 	r.GET("/v1/campus/forum/categories", s.wrap(s.handleListCategories))
@@ -104,6 +106,12 @@ type profileRequest struct {
 	Mobile       string `json:"mobile"`
 }
 
+type importTimetableRequest struct {
+	StudentNo string `json:"student_no"`
+	Password  string `json:"password"`
+	Term      string `json:"term"`
+}
+
 func (s *CampusService) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	userID, _ := s.userIDFromRequest(r)
 	profile, err := s.uc.GetProfile(r.Context(), userID)
@@ -135,6 +143,53 @@ func (s *CampusService) handleUpdateProfile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"profile": profileToMap(profile)})
+}
+
+func (s *CampusService) handleListTimetable(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.ListTimetable(r.Context(), &biz.ListCampusTimetableInput{
+		UserID: userID,
+		Term:   r.URL.Query().Get("term"),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	courses := make([]map[string]interface{}, 0, len(out.Courses))
+	for _, course := range out.Courses {
+		courses = append(courses, timetableCourseToMap(course))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"term":    out.Term,
+		"courses": courses,
+	})
+}
+
+func (s *CampusService) handleImportTimetable(w http.ResponseWriter, r *http.Request) {
+	var req importTimetableRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.ImportTimetable(r.Context(), &biz.ImportCampusTimetableInput{
+		UserID:    userID,
+		StudentNo: req.StudentNo,
+		Password:  req.Password,
+		Term:      req.Term,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	courses := make([]map[string]interface{}, 0, len(out.Courses))
+	for _, course := range out.Courses {
+		courses = append(courses, timetableCourseToMap(course))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"term":    out.Term,
+		"count":   out.Count,
+		"courses": courses,
+	})
 }
 
 func (s *CampusService) handleUploadImage(w http.ResponseWriter, r *http.Request) {
@@ -895,6 +950,29 @@ func userToMap(user *biz.UserBaseInfo) map[string]interface{} {
 		"avatar":   user.Avatar,
 		"mobile":   user.Mobile,
 		"email":    user.Email,
+	}
+}
+
+func timetableCourseToMap(course *biz.CampusTimetableCourse) map[string]interface{} {
+	if course == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":               strconv.FormatInt(course.ID, 10),
+		"term":             course.Term,
+		"course_name":      course.CourseName,
+		"teacher":          course.Teacher,
+		"classroom":        course.Classroom,
+		"weekday":          course.Weekday,
+		"start_section":    course.StartSection,
+		"end_section":      course.EndSection,
+		"start_week":       course.StartWeek,
+		"end_week":         course.EndWeek,
+		"week_parity":      course.WeekParity,
+		"source":           course.Source,
+		"source_course_id": course.SourceCourseID,
+		"created_at":       formatTime(course.CreatedAt),
+		"updated_at":       formatTime(course.UpdatedAt),
 	}
 }
 

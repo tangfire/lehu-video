@@ -57,6 +57,27 @@ type campusProfileModel struct {
 
 func (campusProfileModel) TableName() string { return "campus_profile" }
 
+type campusTimetableCourseModel struct {
+	ID             int64     `gorm:"column:id"`
+	UserID         int64     `gorm:"column:user_id"`
+	Term           string    `gorm:"column:term"`
+	CourseName     string    `gorm:"column:course_name"`
+	Teacher        string    `gorm:"column:teacher"`
+	Classroom      string    `gorm:"column:classroom"`
+	Weekday        int32     `gorm:"column:weekday"`
+	StartSection   int32     `gorm:"column:start_section"`
+	EndSection     int32     `gorm:"column:end_section"`
+	StartWeek      int32     `gorm:"column:start_week"`
+	EndWeek        int32     `gorm:"column:end_week"`
+	WeekParity     int32     `gorm:"column:week_parity"`
+	Source         string    `gorm:"column:source"`
+	SourceCourseID string    `gorm:"column:source_course_id"`
+	CreatedAt      time.Time `gorm:"column:created_at"`
+	UpdatedAt      time.Time `gorm:"column:updated_at"`
+}
+
+func (campusTimetableCourseModel) TableName() string { return "campus_timetable_course" }
+
 type campusForumCategoryModel struct {
 	ID          int64     `gorm:"column:id"`
 	Code        string    `gorm:"column:code"`
@@ -246,6 +267,60 @@ func (r *campusRepo) UpdateProfile(ctx context.Context, profile *biz.CampusProfi
 			"auth_status":   profile.AuthStatus,
 			"updated_at":    time.Now(),
 		}).Error
+}
+
+func (r *campusRepo) ReplaceTimetableCourses(ctx context.Context, userID, term, source string, courses []*biz.CampusTimetableCourse) error {
+	parsedUserID := parseID(userID)
+	rows := make([]campusTimetableCourseModel, 0, len(courses))
+	now := time.Now()
+	for _, course := range courses {
+		if course == nil {
+			continue
+		}
+		rows = append(rows, campusTimetableCourseModel{
+			ID:             course.ID,
+			UserID:         parsedUserID,
+			Term:           term,
+			CourseName:     course.CourseName,
+			Teacher:        course.Teacher,
+			Classroom:      course.Classroom,
+			Weekday:        course.Weekday,
+			StartSection:   course.StartSection,
+			EndSection:     course.EndSection,
+			StartWeek:      course.StartWeek,
+			EndWeek:        course.EndWeek,
+			WeekParity:     course.WeekParity,
+			Source:         source,
+			SourceCourseID: course.SourceCourseID,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		})
+	}
+	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND term = ?", parsedUserID, term).
+			Delete(&campusTimetableCourseModel{}).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		return tx.Create(&rows).Error
+	})
+}
+
+func (r *campusRepo) ListTimetableCourses(ctx context.Context, userID, term string) ([]*biz.CampusTimetableCourse, error) {
+	var rows []campusTimetableCourseModel
+	if err := r.data.db.WithContext(ctx).
+		Where("user_id = ? AND term = ?", parseID(userID), term).
+		Order("weekday ASC, start_section ASC, id ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]*biz.CampusTimetableCourse, 0, len(rows))
+	for i := range rows {
+		out = append(out, toBizTimetableCourse(&rows[i]))
+	}
+	return out, nil
 }
 
 func (r *campusRepo) ListCategories(ctx context.Context) ([]*biz.CampusForumCategory, error) {
@@ -768,6 +843,27 @@ func toBizCategory(row *campusForumCategoryModel) *biz.CampusForumCategory {
 		Name:        row.Name,
 		Description: row.Description,
 		SortOrder:   row.SortOrder,
+	}
+}
+
+func toBizTimetableCourse(row *campusTimetableCourseModel) *biz.CampusTimetableCourse {
+	return &biz.CampusTimetableCourse{
+		ID:             row.ID,
+		UserID:         fmt.Sprintf("%d", row.UserID),
+		Term:           row.Term,
+		CourseName:     row.CourseName,
+		Teacher:        row.Teacher,
+		Classroom:      row.Classroom,
+		Weekday:        row.Weekday,
+		StartSection:   row.StartSection,
+		EndSection:     row.EndSection,
+		StartWeek:      row.StartWeek,
+		EndWeek:        row.EndWeek,
+		WeekParity:     row.WeekParity,
+		Source:         row.Source,
+		SourceCourseID: row.SourceCourseID,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
 	}
 }
 

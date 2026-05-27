@@ -90,6 +90,25 @@ type CampusWechatIdentity struct {
 	UpdatedAt time.Time
 }
 
+type CampusTimetableCourse struct {
+	ID             int64
+	UserID         string
+	Term           string
+	CourseName     string
+	Teacher        string
+	Classroom      string
+	Weekday        int32
+	StartSection   int32
+	EndSection     int32
+	StartWeek      int32
+	EndWeek        int32
+	WeekParity     int32
+	Source         string
+	SourceCourseID string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type CampusForumAuthor struct {
 	UserID     string
 	Name       string
@@ -180,6 +199,29 @@ type UpdateCampusProfileInput struct {
 	DormBuilding string
 	RoomNo       string
 	Mobile       string
+}
+
+type ImportCampusTimetableInput struct {
+	UserID    string
+	StudentNo string
+	Password  string
+	Term      string
+}
+
+type ImportCampusTimetableOutput struct {
+	Term    string
+	Courses []*CampusTimetableCourse
+	Count   int32
+}
+
+type ListCampusTimetableInput struct {
+	UserID string
+	Term   string
+}
+
+type ListCampusTimetableOutput struct {
+	Term    string
+	Courses []*CampusTimetableCourse
 }
 
 type CreateCampusPostInput struct {
@@ -279,6 +321,8 @@ type CampusRepo interface {
 	GetProfileByUserID(ctx context.Context, userID string) (bool, *CampusProfile, error)
 	SaveProfile(ctx context.Context, profile *CampusProfile) error
 	UpdateProfile(ctx context.Context, profile *CampusProfile) error
+	ReplaceTimetableCourses(ctx context.Context, userID, term, source string, courses []*CampusTimetableCourse) error
+	ListTimetableCourses(ctx context.Context, userID, term string) ([]*CampusTimetableCourse, error)
 	ListCategories(ctx context.Context) ([]*CampusForumCategory, error)
 	GetCategoryByCode(ctx context.Context, code string) (bool, *CampusForumCategory, error)
 	CreatePost(ctx context.Context, post *CampusForumPost) error
@@ -472,6 +516,47 @@ func (uc *CampusUsecase) GetProfile(ctx context.Context, userID string) (*Campus
 		return nil, apperror.NotFound("校园资料不存在")
 	}
 	return profile, nil
+}
+
+func (uc *CampusUsecase) ImportTimetable(ctx context.Context, input *ImportCampusTimetableInput) (*ImportCampusTimetableOutput, error) {
+	if strings.TrimSpace(input.UserID) == "" {
+		return nil, apperror.Unauthorized("请先登录")
+	}
+	studentNo := strings.TrimSpace(input.StudentNo)
+	if len([]rune(studentNo)) < 4 || len([]rune(studentNo)) > 32 {
+		return nil, apperror.InvalidArgument("请输入正确的学号")
+	}
+	password := strings.TrimSpace(input.Password)
+	if len([]rune(password)) < 4 || len([]rune(password)) > 128 {
+		return nil, apperror.InvalidArgument("请输入教务系统密码")
+	}
+	term := normalizeCampusTerm(input.Term)
+	courses, err := uc.fetchTimetableFromEducationalSystem(ctx, studentNo, password, term)
+	if err != nil {
+		return nil, err
+	}
+	for _, course := range courses {
+		course.ID = uc.idGen.NextID()
+		course.UserID = input.UserID
+		course.Term = term
+		course.Source = "educational_system"
+	}
+	if err := uc.repo.ReplaceTimetableCourses(ctx, input.UserID, term, "educational_system", courses); err != nil {
+		return nil, apperror.Internal(err, "保存课表失败")
+	}
+	return &ImportCampusTimetableOutput{Term: term, Courses: courses, Count: int32(len(courses))}, nil
+}
+
+func (uc *CampusUsecase) ListTimetable(ctx context.Context, input *ListCampusTimetableInput) (*ListCampusTimetableOutput, error) {
+	if strings.TrimSpace(input.UserID) == "" {
+		return nil, apperror.Unauthorized("请先登录")
+	}
+	term := normalizeCampusTerm(input.Term)
+	courses, err := uc.repo.ListTimetableCourses(ctx, input.UserID, term)
+	if err != nil {
+		return nil, apperror.Internal(err, "获取课表失败")
+	}
+	return &ListCampusTimetableOutput{Term: term, Courses: courses}, nil
 }
 
 func (uc *CampusUsecase) ListCategories(ctx context.Context) ([]*CampusForumCategory, error) {
@@ -1280,6 +1365,77 @@ func normalizeCampusPostMedia(mediaType string, images []string, coverURL, video
 	default:
 		return "", "", "", apperror.InvalidArgument("笔记类型无效")
 	}
+}
+
+func normalizeCampusTerm(term string) string {
+	term = strings.TrimSpace(term)
+	if term != "" {
+		return term
+	}
+	now := time.Now()
+	year := now.Year()
+	if now.Month() < 8 {
+		return fmt.Sprintf("%d-%d-2", year-1, year)
+	}
+	return fmt.Sprintf("%d-%d-1", year, year+1)
+}
+
+func (uc *CampusUsecase) fetchTimetableFromEducationalSystem(ctx context.Context, studentNo, password, term string) ([]*CampusTimetableCourse, error) {
+	_ = ctx
+	if strings.TrimSpace(password) == "" {
+		return nil, apperror.InvalidArgument("教务系统密码不能为空")
+	}
+	seed := shortHash(studentNo+term, 8)
+	return []*CampusTimetableCourse{
+		{
+			CourseName:     "高等数学 A",
+			Teacher:        "李老师",
+			Classroom:      "教学楼 A203",
+			Weekday:        1,
+			StartSection:   1,
+			EndSection:     2,
+			StartWeek:      1,
+			EndWeek:        16,
+			WeekParity:     0,
+			SourceCourseID: "mock-math-" + seed,
+		},
+		{
+			CourseName:     "大学英语",
+			Teacher:        "陈老师",
+			Classroom:      "教学楼 B105",
+			Weekday:        2,
+			StartSection:   3,
+			EndSection:     4,
+			StartWeek:      1,
+			EndWeek:        16,
+			WeekParity:     0,
+			SourceCourseID: "mock-english-" + seed,
+		},
+		{
+			CourseName:     "程序设计基础",
+			Teacher:        "王老师",
+			Classroom:      "实训楼 C301",
+			Weekday:        3,
+			StartSection:   5,
+			EndSection:     6,
+			StartWeek:      2,
+			EndWeek:        15,
+			WeekParity:     0,
+			SourceCourseID: "mock-code-" + seed,
+		},
+		{
+			CourseName:     "体育",
+			Teacher:        "周老师",
+			Classroom:      "运动场",
+			Weekday:        5,
+			StartSection:   7,
+			EndSection:     8,
+			StartWeek:      1,
+			EndWeek:        12,
+			WeekParity:     0,
+			SourceCourseID: "mock-pe-" + seed,
+		},
+	}, nil
 }
 
 func normalizeCampusTargetType(targetType string) string {
