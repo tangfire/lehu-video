@@ -99,6 +99,8 @@ type campusForumPostModel struct {
 	Content        string          `gorm:"column:content"`
 	Images         json.RawMessage `gorm:"column:images"`
 	MediaType      string          `gorm:"column:media_type"`
+	PostType       string          `gorm:"column:post_type"`
+	Extra          json.RawMessage `gorm:"column:extra"`
 	CoverURL       string          `gorm:"column:cover_url"`
 	VideoURL       string          `gorm:"column:video_url"`
 	Status         int32           `gorm:"column:status"`
@@ -354,6 +356,7 @@ func (r *campusRepo) GetCategoryByCode(ctx context.Context, code string) (bool, 
 
 func (r *campusRepo) CreatePost(ctx context.Context, post *biz.CampusForumPost) error {
 	images, _ := json.Marshal(post.Images)
+	extra, _ := json.Marshal(post.Extra)
 	row := campusForumPostModel{
 		ID:           post.ID,
 		CategoryCode: post.CategoryCode,
@@ -362,6 +365,8 @@ func (r *campusRepo) CreatePost(ctx context.Context, post *biz.CampusForumPost) 
 		Content:      post.Content,
 		Images:       images,
 		MediaType:    post.MediaType,
+		PostType:     post.PostType,
+		Extra:        extra,
 		CoverURL:     post.CoverURL,
 		VideoURL:     post.VideoURL,
 		Status:       post.Status,
@@ -870,6 +875,12 @@ func toBizTimetableCourse(row *campusTimetableCourseModel) *biz.CampusTimetableC
 func toBizPost(row *campusForumPostModel) *biz.CampusForumPost {
 	images := make([]string, 0)
 	_ = json.Unmarshal(row.Images, &images)
+	extra := make(map[string]string)
+	_ = json.Unmarshal(row.Extra, &extra)
+	postType := row.PostType
+	if postType == "" {
+		postType = biz.CampusPostTypeNote
+	}
 	return &biz.CampusForumPost{
 		ID:             row.ID,
 		CategoryCode:   row.CategoryCode,
@@ -878,6 +889,8 @@ func toBizPost(row *campusForumPostModel) *biz.CampusForumPost {
 		Content:        row.Content,
 		Images:         images,
 		MediaType:      row.MediaType,
+		PostType:       postType,
+		Extra:          extra,
 		CoverURL:       row.CoverURL,
 		VideoURL:       row.VideoURL,
 		Status:         row.Status,

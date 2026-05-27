@@ -417,13 +417,15 @@ func (s *CampusService) handleListMyCollections(w http.ResponseWriter, r *http.R
 }
 
 type postRequest struct {
-	CategoryCode string   `json:"category_code"`
-	Title        string   `json:"title"`
-	Content      string   `json:"content"`
-	Images       []string `json:"images"`
-	MediaType    string   `json:"media_type"`
-	CoverURL     string   `json:"cover_url"`
-	VideoURL     string   `json:"video_url"`
+	CategoryCode string            `json:"category_code"`
+	Title        string            `json:"title"`
+	Content      string            `json:"content"`
+	Images       []string          `json:"images"`
+	MediaType    string            `json:"media_type"`
+	PostType     string            `json:"post_type"`
+	Extra        map[string]string `json:"extra"`
+	CoverURL     string            `json:"cover_url"`
+	VideoURL     string            `json:"video_url"`
 }
 
 func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request) {
@@ -439,6 +441,8 @@ func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request)
 		Content:      req.Content,
 		Images:       req.Images,
 		MediaType:    req.MediaType,
+		PostType:     req.PostType,
+		Extra:        req.Extra,
 		CoverURL:     req.CoverURL,
 		VideoURL:     req.VideoURL,
 	})
@@ -989,6 +993,8 @@ func postToMap(post *biz.CampusForumPost) map[string]interface{} {
 		"content":         post.Content,
 		"images":          post.Images,
 		"media_type":      post.MediaType,
+		"post_type":       post.PostType,
+		"extra":           post.Extra,
 		"cover_url":       post.CoverURL,
 		"video_url":       post.VideoURL,
 		"status":          post.Status,

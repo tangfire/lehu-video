@@ -57,7 +57,10 @@ INSERT INTO `campus_forum_category` (`id`, `code`, `name`, `description`, `sort_
 VALUES
   (1001, 'study', '学习交流', '课程讨论、资料分享、学习互助', 10),
   (1002, 'life', '生活求助', '失物招领、校园攻略、生活问题', 20),
-  (1003, 'club', '社团活动', '招新、活动发布、组队约伴', 30)
+  (1003, 'club', '社团活动', '招新、活动发布、组队约伴', 30),
+  (1004, 'lost', '失物招领', '丢失、捡到、认领信息', 40),
+  (1005, 'qa', '问答互助', '新生提问、同学答疑、校园经验', 50),
+  (1006, 'guide', '校园攻略', '报到、宿舍、交通、生活指南', 60)
 ON DUPLICATE KEY UPDATE
   `name` = VALUES(`name`),
   `description` = VALUES(`description`),
@@ -72,17 +75,25 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   `title` VARCHAR(120) NOT NULL,
   `content` TEXT NOT NULL,
   `images` JSON DEFAULT NULL,
+  `media_type` VARCHAR(16) NOT NULL DEFAULT 'text' COMMENT 'text/image/video',
+  `post_type` VARCHAR(24) NOT NULL DEFAULT 'note' COMMENT 'note/lost/question/guide/club',
+  `extra` JSON DEFAULT NULL,
+  `cover_url` VARCHAR(1024) NOT NULL DEFAULT '',
+  `video_url` VARCHAR(1024) NOT NULL DEFAULT '',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '0=待审核 1=可见 2=拒绝 3=删除',
   `audit_reason` VARCHAR(255) NOT NULL DEFAULT '',
   `like_count` BIGINT NOT NULL DEFAULT 0,
   `comment_count` BIGINT NOT NULL DEFAULT 0,
+  `collected_count` BIGINT NOT NULL DEFAULT 0,
   `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   INDEX `idx_campus_post_category_created` (`category_code`, `status`, `is_deleted`, `created_at`, `id`),
   INDEX `idx_campus_post_author` (`author_id`, `is_deleted`, `created_at`),
-  INDEX `idx_campus_post_hot` (`status`, `is_deleted`, `like_count`, `comment_count`, `created_at`)
+  INDEX `idx_campus_post_hot` (`status`, `is_deleted`, `like_count`, `comment_count`, `created_at`),
+  INDEX `idx_campus_post_media` (`media_type`, `status`, `is_deleted`, `created_at`),
+  INDEX `idx_campus_post_type` (`post_type`, `status`, `is_deleted`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园论坛帖子';
 
 CREATE TABLE IF NOT EXISTS `campus_forum_comment` (

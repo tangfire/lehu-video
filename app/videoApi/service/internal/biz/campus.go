@@ -31,6 +31,12 @@ const (
 	CampusPostMediaText  = "text"
 	CampusPostMediaImage = "image"
 	CampusPostMediaVideo = "video"
+
+	CampusPostTypeNote     = "note"
+	CampusPostTypeLost     = "lost"
+	CampusPostTypeQuestion = "question"
+	CampusPostTypeGuide    = "guide"
+	CampusPostTypeClub     = "club"
 )
 
 type CampusIDGenerator interface {
@@ -109,6 +115,74 @@ type CampusTimetableCourse struct {
 	UpdatedAt      time.Time
 }
 
+type CampusTimetableProvider interface {
+	Fetch(ctx context.Context, studentNo, password, term string) ([]*CampusTimetableCourse, error)
+}
+
+type MockCampusTimetableProvider struct{}
+
+func NewMockCampusTimetableProvider() CampusTimetableProvider {
+	return &MockCampusTimetableProvider{}
+}
+
+func (p *MockCampusTimetableProvider) Fetch(ctx context.Context, studentNo, password, term string) ([]*CampusTimetableCourse, error) {
+	_ = ctx
+	if strings.TrimSpace(password) == "" {
+		return nil, apperror.InvalidArgument("教务系统密码不能为空")
+	}
+	seed := shortHash(studentNo+term, 8)
+	return []*CampusTimetableCourse{
+		{
+			CourseName:     "高等数学 A",
+			Teacher:        "李老师",
+			Classroom:      "教学楼 A203",
+			Weekday:        1,
+			StartSection:   1,
+			EndSection:     2,
+			StartWeek:      1,
+			EndWeek:        16,
+			WeekParity:     0,
+			SourceCourseID: "mock-math-" + seed,
+		},
+		{
+			CourseName:     "大学英语",
+			Teacher:        "陈老师",
+			Classroom:      "教学楼 B105",
+			Weekday:        2,
+			StartSection:   3,
+			EndSection:     4,
+			StartWeek:      1,
+			EndWeek:        16,
+			WeekParity:     0,
+			SourceCourseID: "mock-english-" + seed,
+		},
+		{
+			CourseName:     "程序设计基础",
+			Teacher:        "王老师",
+			Classroom:      "实训楼 C301",
+			Weekday:        3,
+			StartSection:   5,
+			EndSection:     6,
+			StartWeek:      2,
+			EndWeek:        15,
+			WeekParity:     0,
+			SourceCourseID: "mock-code-" + seed,
+		},
+		{
+			CourseName:     "体育",
+			Teacher:        "周老师",
+			Classroom:      "运动场",
+			Weekday:        5,
+			StartSection:   7,
+			EndSection:     8,
+			StartWeek:      1,
+			EndWeek:        12,
+			WeekParity:     0,
+			SourceCourseID: "mock-pe-" + seed,
+		},
+	}, nil
+}
+
 type CampusForumAuthor struct {
 	UserID     string
 	Name       string
@@ -128,6 +202,8 @@ type CampusForumPost struct {
 	Content        string
 	Images         []string
 	MediaType      string
+	PostType       string
+	Extra          map[string]string
 	CoverURL       string
 	VideoURL       string
 	Status         int32
@@ -231,6 +307,8 @@ type CreateCampusPostInput struct {
 	Content      string
 	Images       []string
 	MediaType    string
+	PostType     string
+	Extra        map[string]string
 	CoverURL     string
 	VideoURL     string
 }
@@ -347,22 +425,24 @@ type CampusRepo interface {
 }
 
 type CampusUsecase struct {
-	repo       CampusRepo
-	base       BaseAdapter
-	core       CoreAdapter
-	idGen      CampusIDGenerator
-	authSecret string
-	log        *log.Helper
+	repo              CampusRepo
+	base              BaseAdapter
+	core              CoreAdapter
+	timetableProvider CampusTimetableProvider
+	idGen             CampusIDGenerator
+	authSecret        string
+	log               *log.Helper
 }
 
-func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, idGen CampusIDGenerator, authSecret string, logger log.Logger) *CampusUsecase {
+func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timetableProvider CampusTimetableProvider, idGen CampusIDGenerator, authSecret string, logger log.Logger) *CampusUsecase {
 	return &CampusUsecase{
-		repo:       repo,
-		base:       base,
-		core:       core,
-		idGen:      idGen,
-		authSecret: authSecret,
-		log:        log.NewHelper(logger),
+		repo:              repo,
+		base:              base,
+		core:              core,
+		timetableProvider: timetableProvider,
+		idGen:             idGen,
+		authSecret:        authSecret,
+		log:               log.NewHelper(logger),
 	}
 }
 
@@ -531,7 +611,7 @@ func (uc *CampusUsecase) ImportTimetable(ctx context.Context, input *ImportCampu
 		return nil, apperror.InvalidArgument("请输入教务系统密码")
 	}
 	term := normalizeCampusTerm(input.Term)
-	courses, err := uc.fetchTimetableFromEducationalSystem(ctx, studentNo, password, term)
+	courses, err := uc.timetableProvider.Fetch(ctx, studentNo, password, term)
 	if err != nil {
 		return nil, err
 	}
@@ -662,6 +742,8 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 	if mediaType != CampusPostMediaImage {
 		images = []string{}
 	}
+	postType := normalizeCampusPostType(input.PostType)
+	extra := sanitizeCampusPostExtra(input.Extra)
 	audit := auditText(ctx, "post", title+"\n"+content)
 	if audit.Blocked {
 		return nil, apperror.InvalidArgument(audit.Reason)
@@ -679,6 +761,8 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		Content:      content,
 		Images:       images,
 		MediaType:    mediaType,
+		PostType:     postType,
+		Extra:        extra,
 		CoverURL:     coverURL,
 		VideoURL:     videoURL,
 		Status:       status,
@@ -1367,6 +1451,48 @@ func normalizeCampusPostMedia(mediaType string, images []string, coverURL, video
 	}
 }
 
+func normalizeCampusPostType(postType string) string {
+	switch strings.TrimSpace(strings.ToLower(postType)) {
+	case "", CampusPostTypeNote:
+		return CampusPostTypeNote
+	case CampusPostTypeLost:
+		return CampusPostTypeLost
+	case CampusPostTypeQuestion:
+		return CampusPostTypeQuestion
+	case CampusPostTypeGuide:
+		return CampusPostTypeGuide
+	case CampusPostTypeClub:
+		return CampusPostTypeClub
+	default:
+		return CampusPostTypeNote
+	}
+}
+
+func sanitizeCampusPostExtra(extra map[string]string) map[string]string {
+	allowed := map[string]int{
+		"lost_kind":      16,
+		"location":       80,
+		"event_time":     80,
+		"contact":        80,
+		"club_name":      60,
+		"activity_time":  80,
+		"activity_place": 80,
+	}
+	out := make(map[string]string)
+	for key, limit := range allowed {
+		value := strings.TrimSpace(extra[key])
+		if value == "" {
+			continue
+		}
+		runes := []rune(value)
+		if len(runes) > limit {
+			value = string(runes[:limit])
+		}
+		out[key] = value
+	}
+	return out
+}
+
 func normalizeCampusTerm(term string) string {
 	term = strings.TrimSpace(term)
 	if term != "" {
@@ -1378,64 +1504,6 @@ func normalizeCampusTerm(term string) string {
 		return fmt.Sprintf("%d-%d-2", year-1, year)
 	}
 	return fmt.Sprintf("%d-%d-1", year, year+1)
-}
-
-func (uc *CampusUsecase) fetchTimetableFromEducationalSystem(ctx context.Context, studentNo, password, term string) ([]*CampusTimetableCourse, error) {
-	_ = ctx
-	if strings.TrimSpace(password) == "" {
-		return nil, apperror.InvalidArgument("教务系统密码不能为空")
-	}
-	seed := shortHash(studentNo+term, 8)
-	return []*CampusTimetableCourse{
-		{
-			CourseName:     "高等数学 A",
-			Teacher:        "李老师",
-			Classroom:      "教学楼 A203",
-			Weekday:        1,
-			StartSection:   1,
-			EndSection:     2,
-			StartWeek:      1,
-			EndWeek:        16,
-			WeekParity:     0,
-			SourceCourseID: "mock-math-" + seed,
-		},
-		{
-			CourseName:     "大学英语",
-			Teacher:        "陈老师",
-			Classroom:      "教学楼 B105",
-			Weekday:        2,
-			StartSection:   3,
-			EndSection:     4,
-			StartWeek:      1,
-			EndWeek:        16,
-			WeekParity:     0,
-			SourceCourseID: "mock-english-" + seed,
-		},
-		{
-			CourseName:     "程序设计基础",
-			Teacher:        "王老师",
-			Classroom:      "实训楼 C301",
-			Weekday:        3,
-			StartSection:   5,
-			EndSection:     6,
-			StartWeek:      2,
-			EndWeek:        15,
-			WeekParity:     0,
-			SourceCourseID: "mock-code-" + seed,
-		},
-		{
-			CourseName:     "体育",
-			Teacher:        "周老师",
-			Classroom:      "运动场",
-			Weekday:        5,
-			StartSection:   7,
-			EndSection:     8,
-			StartWeek:      1,
-			EndWeek:        12,
-			WeekParity:     0,
-			SourceCourseID: "mock-pe-" + seed,
-		},
-	}, nil
 }
 
 func normalizeCampusTargetType(targetType string) string {
