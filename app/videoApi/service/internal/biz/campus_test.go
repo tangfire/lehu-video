@@ -147,6 +147,35 @@ func TestListPostsPassesPostTypeQuery(t *testing.T) {
 	}
 }
 
+func TestListPostsDefaultsToRecommendSort(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	if _, err := uc.ListPosts(context.Background(), &ListCampusPostsInput{Sort: "unknown", Page: 1, Size: 20}); err != nil {
+		t.Fatalf("ListPosts() error = %v", err)
+	}
+	if repo.lastListQuery.Sort != CampusPostSortRecommend {
+		t.Fatalf("Sort = %q, want %q", repo.lastListQuery.Sort, CampusPostSortRecommend)
+	}
+}
+
+func TestAdminListPostsDefaultsToNewSort(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{"10": "operator"}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	if _, err := uc.AdminListPosts(context.Background(), &ListCampusAdminPostsInput{
+		UserID: "10",
+		Sort:   "unknown",
+		Page:   1,
+		Size:   20,
+	}); err != nil {
+		t.Fatalf("AdminListPosts() error = %v", err)
+	}
+	if repo.lastListQuery.Sort != CampusPostSortNew {
+		t.Fatalf("Sort = %q, want %q", repo.lastListQuery.Sort, CampusPostSortNew)
+	}
+}
+
 func TestAdminListPostsPassesOpsFilters(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{"10": "operator"}}
 	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))

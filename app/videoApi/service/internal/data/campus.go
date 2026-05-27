@@ -25,6 +25,26 @@ func NewCampusRepo(data *Data, logger log.Logger) biz.CampusRepo {
 	return &campusRepo{data: data, log: log.NewHelper(logger)}
 }
 
+func campusPostOrder(sort string, collectedByUser bool) string {
+	if collectedByUser {
+		return "c.updated_at DESC, c.id DESC"
+	}
+	ageHours := "GREATEST(TIMESTAMPDIFF(HOUR, campus_forum_post.created_at, NOW()), 0)"
+	interactionScore := "(campus_forum_post.like_count * 2 + campus_forum_post.comment_count * 4 + campus_forum_post.collected_count * 5)"
+	decayedInteractionScore := "(" + interactionScore + " / POW(" + ageHours + " + 2, 1.2))"
+	switch sort {
+	case biz.CampusPostSortRecommend:
+		recommendScore := "(campus_forum_post.sort_weight * 10 + IF(campus_forum_post.is_featured, 80, 0) + IF(campus_forum_post.is_official, 30, 0) + " + decayedInteractionScore + " + (24 / (" + ageHours + " + 2)))"
+		return "campus_forum_post.is_pinned DESC, " + recommendScore + " DESC, campus_forum_post.created_at DESC, campus_forum_post.id DESC"
+	case biz.CampusPostSortHot:
+		hotScore := "(" + interactionScore + " / POW(" + ageHours + " + 2, 1.15))"
+		return "campus_forum_post.is_pinned DESC, campus_forum_post.is_featured DESC, campus_forum_post.sort_weight DESC, " + hotScore + " DESC, campus_forum_post.created_at DESC, campus_forum_post.id DESC"
+	case biz.CampusPostSortNew:
+		return "campus_forum_post.created_at DESC, campus_forum_post.id DESC"
+	}
+	return "campus_forum_post.created_at DESC, campus_forum_post.id DESC"
+}
+
 type campusWechatIdentityModel struct {
 	ID        int64     `gorm:"column:id"`
 	Provider  string    `gorm:"column:provider"`
@@ -487,13 +507,7 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	order := "campus_forum_post.is_pinned DESC, campus_forum_post.is_featured DESC, campus_forum_post.sort_weight DESC, campus_forum_post.created_at DESC, campus_forum_post.id DESC"
-	if query.CollectedByUserID != "" {
-		order = "c.updated_at DESC, c.id DESC"
-	}
-	if query.Sort == "hot" {
-		order = "campus_forum_post.is_pinned DESC, campus_forum_post.is_featured DESC, campus_forum_post.sort_weight DESC, (campus_forum_post.like_count * 3 + campus_forum_post.comment_count * 5 + campus_forum_post.collected_count * 4) DESC, campus_forum_post.created_at DESC"
-	}
+	order := campusPostOrder(query.Sort, query.CollectedByUserID != "")
 	var rows []campusForumPostModel
 	if err := db.Order(order).Offset(query.Offset).Limit(query.Limit).Find(&rows).Error; err != nil {
 		return nil, 0, err

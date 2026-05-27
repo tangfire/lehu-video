@@ -37,6 +37,10 @@ const (
 	CampusPostTypeQuestion = "question"
 	CampusPostTypeGuide    = "guide"
 	CampusPostTypeClub     = "club"
+
+	CampusPostSortRecommend = "recommend"
+	CampusPostSortHot       = "hot"
+	CampusPostSortNew       = "new"
 )
 
 type CampusIDGenerator interface {
@@ -1001,7 +1005,7 @@ func (uc *CampusUsecase) ListPosts(ctx context.Context, input *ListCampusPostsIn
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode: strings.TrimSpace(input.CategoryCode),
 		PostType:     strings.TrimSpace(input.PostType),
-		Sort:         strings.TrimSpace(input.Sort),
+		Sort:         normalizeCampusPostSort(input.Sort, CampusPostSortRecommend),
 		Keyword:      strings.TrimSpace(input.Keyword),
 		Statuses:     []int32{CampusAuditStatusVisible},
 		Offset:       int((page - 1) * size),
@@ -1024,7 +1028,7 @@ func (uc *CampusUsecase) ListMyPosts(ctx context.Context, input *ListCampusPosts
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode:   strings.TrimSpace(input.CategoryCode),
 		PostType:       strings.TrimSpace(input.PostType),
-		Sort:           strings.TrimSpace(input.Sort),
+		Sort:           normalizeCampusPostSort(input.Sort, CampusPostSortNew),
 		Keyword:        strings.TrimSpace(input.Keyword),
 		AuthorID:       input.CurrentUserID,
 		IncludeDeleted: false,
@@ -1048,7 +1052,7 @@ func (uc *CampusUsecase) ListMyCollections(ctx context.Context, input *ListCampu
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode:      strings.TrimSpace(input.CategoryCode),
 		PostType:          strings.TrimSpace(input.PostType),
-		Sort:              strings.TrimSpace(input.Sort),
+		Sort:              normalizeCampusPostSort(input.Sort, CampusPostSortNew),
 		Keyword:           strings.TrimSpace(input.Keyword),
 		CollectedByUserID: input.CurrentUserID,
 		Statuses:          []int32{CampusAuditStatusVisible},
@@ -1468,7 +1472,7 @@ func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAd
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode:   strings.TrimSpace(input.CategoryCode),
 		PostType:       strings.TrimSpace(input.PostType),
-		Sort:           strings.TrimSpace(input.Sort),
+		Sort:           normalizeCampusPostSort(input.Sort, CampusPostSortNew),
 		Keyword:        strings.TrimSpace(input.Keyword),
 		Statuses:       statuses,
 		IncludeDeleted: true,
@@ -2052,6 +2056,21 @@ func normalizeCampusPostType(postType string) string {
 	default:
 		return CampusPostTypeNote
 	}
+}
+
+func normalizeCampusPostSort(sort string, fallback string) string {
+	switch strings.TrimSpace(strings.ToLower(sort)) {
+	case CampusPostSortRecommend:
+		return CampusPostSortRecommend
+	case CampusPostSortHot:
+		return CampusPostSortHot
+	case CampusPostSortNew:
+		return CampusPostSortNew
+	}
+	if fallback == CampusPostSortHot || fallback == CampusPostSortNew {
+		return fallback
+	}
+	return CampusPostSortRecommend
 }
 
 func sanitizeCampusPostExtra(extra map[string]string) map[string]string {
