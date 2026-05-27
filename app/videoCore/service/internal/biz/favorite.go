@@ -262,7 +262,7 @@ func (uc *FavoriteUsecase) validateCommand(cmd *AddFavoriteCommand) error {
 	return nil
 }
 
-// getCountField 根据点赞类型返回 Redis 计数字段名（目前仅支持视频）
+// getCountField 根据点赞类型返回 Redis 计数字段名。
 func (uc *FavoriteUsecase) getCountField(favType int32) string {
 	switch favType {
 	case 0:
@@ -367,17 +367,21 @@ func (uc *FavoriteUsecase) AddFavorite(ctx context.Context, cmd *AddFavoriteComm
 			bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			rollbackDeltas := make(map[int64]map[string]int64)
-			if cmd.TargetType == 0 {
-				// 反向：增加原类型（如果有），减少新类型
-				rollback := make(map[string]int64)
-				if current.IsFavorite {
-					rollback[uc.getCountField(current.FavoriteType)] = 1
-				}
-				rollback[uc.getCountField(cmd.FavoriteType)] = -1
-				rollbackDeltas[cmd.TargetId] = rollback
+			rollback := make(map[string]int64)
+			if current.IsFavorite {
+				rollback[uc.getCountField(current.FavoriteType)] = 1
 			}
-			if err := uc.videoCounter.BatchIncrFields(bgCtx, rollbackDeltas); err != nil {
-				uc.log.Errorf("回滚计数失败: %v", err)
+			rollback[uc.getCountField(cmd.FavoriteType)] = -1
+			rollbackDeltas[cmd.TargetId] = rollback
+
+			var rollbackErr error
+			if cmd.TargetType == 0 {
+				rollbackErr = uc.videoCounter.BatchIncrFields(bgCtx, rollbackDeltas)
+			} else {
+				rollbackErr = uc.commentCounter.BatchIncrFields(bgCtx, rollbackDeltas)
+			}
+			if rollbackErr != nil {
+				uc.log.Errorf("回滚计数失败: %v", rollbackErr)
 			} else {
 				uc.log.Infof("计数回滚完成: targetId=%d", cmd.TargetId)
 			}
@@ -426,18 +430,23 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 		return fmt.Errorf("未找到对应的点赞/点踩记录")
 	}
 
-	// 2. 构建计数变更（只处理视频）
+	// 2. 构建计数变更
 	deltas := make(map[int64]map[string]int64)
-	if cmd.TargetType == 0 {
-		field := uc.getCountField(cmd.FavoriteType)
-		deltas[cmd.TargetId] = map[string]int64{field: -1}
-	}
+	field := uc.getCountField(cmd.FavoriteType)
+	deltas[cmd.TargetId] = map[string]int64{field: -1}
 
 	// 3. 原子更新计数
 	if len(deltas) > 0 {
-		if err := uc.videoCounter.BatchIncrFields(ctx, deltas); err != nil {
-			uc.log.Errorf("批量更新视频计数失败: %v", err)
-			return err
+		if cmd.TargetType == 0 {
+			if err := uc.videoCounter.BatchIncrFields(ctx, deltas); err != nil {
+				uc.log.Errorf("批量更新视频计数失败: %v", err)
+				return err
+			}
+		} else {
+			if err := uc.commentCounter.BatchIncrFields(ctx, deltas); err != nil {
+				uc.log.Errorf("批量更新评论计数失败: %v", err)
+				return err
+			}
 		}
 	}
 
@@ -463,8 +472,14 @@ func (uc *FavoriteUsecase) RemoveFavorite(ctx context.Context, cmd *RemoveFavori
 			rollback := map[int64]map[string]int64{
 				cmd.TargetId: {uc.getCountField(cmd.FavoriteType): 1},
 			}
-			if err := uc.videoCounter.BatchIncrFields(bgCtx, rollback); err != nil {
-				uc.log.Errorf("回滚计数失败: %v", err)
+			var rollbackErr error
+			if cmd.TargetType == 0 {
+				rollbackErr = uc.videoCounter.BatchIncrFields(bgCtx, rollback)
+			} else {
+				rollbackErr = uc.commentCounter.BatchIncrFields(bgCtx, rollback)
+			}
+			if rollbackErr != nil {
+				uc.log.Errorf("回滚计数失败: %v", rollbackErr)
 			} else {
 				uc.log.Infof("计数回滚完成: targetId=%d", cmd.TargetId)
 			}

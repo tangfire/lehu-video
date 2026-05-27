@@ -67,23 +67,26 @@ func (r *favoriteRepo) CreateFavorite(ctx context.Context, favorite *biz.Favorit
 }
 
 func (r *favoriteRepo) UpdateFavorite(ctx context.Context, favorite *biz.Favorite) error {
-	return r.db(ctx).Model(&model.Favorite{}).Where("id = ?", favorite.Id).
-		Updates(map[string]interface{}{
-			"favorite_type": favorite.FavoriteType,
-			"delete_at":     favorite.DeleteAt,
-			"updated_at":    favorite.UpdatedAt,
-		}).Error
+	updates := &model.Favorite{
+		FavoriteType: int64(favorite.FavoriteType),
+		DeleteAt:     favorite.DeleteAt,
+		UpdatedAt:    favorite.UpdatedAt,
+	}
+	return r.db(ctx).Model(&model.Favorite{}).
+		Where("id = ?", favorite.Id).
+		Updates(updates).Error
 }
 
 // UpdateFavoriteIfNewer 只有当数据库中记录的 updated_at 小于传入的 updated_at 时才更新
 func (r *favoriteRepo) UpdateFavoriteIfNewer(ctx context.Context, favorite *biz.Favorite) error {
+	updates := &model.Favorite{
+		FavoriteType: int64(favorite.FavoriteType),
+		DeleteAt:     favorite.DeleteAt,
+		UpdatedAt:    favorite.UpdatedAt,
+	}
 	result := r.db(ctx).Model(&model.Favorite{}).
 		Where("id = ? AND updated_at < ?", favorite.Id, favorite.UpdatedAt).
-		Updates(map[string]interface{}{
-			"favorite_type": favorite.FavoriteType,
-			"delete_at":     favorite.DeleteAt,
-			"updated_at":    favorite.UpdatedAt,
-		})
+		Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}

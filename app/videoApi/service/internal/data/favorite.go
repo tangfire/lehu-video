@@ -183,13 +183,21 @@ func (r *CoreAdapterImpl) GetFavoriteStats(ctx context.Context, targetId string,
 }
 
 func (r *CoreAdapterImpl) CountFavorite4Video(ctx context.Context, videoIdList []string) (map[string]biz.FavoriteCount, error) {
-	if len(videoIdList) == 0 {
+	return r.countFavoriteByTarget(ctx, videoIdList, core.FavoriteAggregateType_FAVORITE_AGGREGATE_BY_VIDEO)
+}
+
+func (r *CoreAdapterImpl) CountFavorite4Comment(ctx context.Context, commentIdList []string) (map[string]biz.FavoriteCount, error) {
+	return r.countFavoriteByTarget(ctx, commentIdList, core.FavoriteAggregateType_FAVORITE_AGGREGATE_BY_COMMENT)
+}
+
+func (r *CoreAdapterImpl) countFavoriteByTarget(ctx context.Context, ids []string, aggregateType core.FavoriteAggregateType) (map[string]biz.FavoriteCount, error) {
+	if len(ids) == 0 {
 		return map[string]biz.FavoriteCount{}, nil
 	}
 
 	likeResp, err := r.favorite.CountFavorite(ctx, &core.CountFavoriteReq{
-		AggregateType: core.FavoriteAggregateType_FAVORITE_AGGREGATE_BY_VIDEO,
-		Ids:           videoIdList,
+		AggregateType: aggregateType,
+		Ids:           ids,
 		FavoriteType:  core.FavoriteType_FAVORITE_TYPE_LIKE,
 	})
 	if err != nil {
@@ -200,8 +208,8 @@ func (r *CoreAdapterImpl) CountFavorite4Video(ctx context.Context, videoIdList [
 	}
 
 	dislikeResp, err := r.favorite.CountFavorite(ctx, &core.CountFavoriteReq{
-		AggregateType: core.FavoriteAggregateType_FAVORITE_AGGREGATE_BY_VIDEO,
-		Ids:           videoIdList,
+		AggregateType: aggregateType,
+		Ids:           ids,
 		FavoriteType:  core.FavoriteType_FAVORITE_TYPE_DISLIKE,
 	})
 	if err != nil {
@@ -212,8 +220,8 @@ func (r *CoreAdapterImpl) CountFavorite4Video(ctx context.Context, videoIdList [
 	}
 
 	result := make(map[string]biz.FavoriteCount)
-	for _, videoId := range videoIdList {
-		result[videoId] = biz.FavoriteCount{
+	for _, id := range ids {
+		result[id] = biz.FavoriteCount{
 			LikeCount:    0,
 			DislikeCount: 0,
 			TotalCount:   0,

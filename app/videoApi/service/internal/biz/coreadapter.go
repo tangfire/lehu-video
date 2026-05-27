@@ -22,6 +22,7 @@ type CoreAdapter interface {
 	IsCollected(ctx context.Context, userId string, videoIdList []string) (map[string]bool, error)
 	CountComments4Video(ctx context.Context, videoIdList []string) (map[string]int64, error)
 	CountFavorite4Video(ctx context.Context, videoIdList []string) (map[string]FavoriteCount, error)
+	CountFavorite4Comment(ctx context.Context, commentIdList []string) (map[string]FavoriteCount, error)
 	CountCollected4Video(ctx context.Context, videoIdList []string) (map[string]int64, error)
 	// GetFeed 获取 Feed 流（新版）
 	GetFeed(ctx context.Context, userID string, latestTime int64, pageSize int32, feedType int32) ([]*FeedItem, int64, error)

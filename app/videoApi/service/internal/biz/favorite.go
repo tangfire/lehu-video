@@ -271,9 +271,7 @@ func (uc *FavoriteUsecase) BatchIsFavorite(ctx context.Context, req *core.BatchI
 	if req.Target == core.FavoriteTarget_FAVORITE_TARGET_VIDEO {
 		countMap, err = uc.core.CountFavorite4Video(ctx, req.BizIds)
 	} else {
-		// 如果是评论，需要类似方法，这里假设 CountFavorite4Comment 存在，如果不存在需要扩展
-		// 暂时用 CountFavorite4Video 占位，实际应根据业务实现
-		countMap, err = uc.core.CountFavorite4Video(ctx, req.BizIds) // 需要根据评论调整
+		countMap, err = uc.core.CountFavorite4Comment(ctx, req.BizIds)
 	}
 	if err != nil {
 		uc.log.Warnf("批量获取计数失败: %v", err)

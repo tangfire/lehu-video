@@ -139,14 +139,15 @@ func (r *collectionRepo) ListCollectionsByUserId(ctx context.Context, userId int
 }
 
 func (r *collectionRepo) UpdateCollection(ctx context.Context, collection *biz.Collection) error {
+	updates := &model.Collection{
+		Title:       collection.Title,
+		Description: collection.Description,
+		UpdatedAt:   time.Now(),
+	}
 	return r.db(ctx).
 		Model(&model.Collection{}).
 		Where("id = ?", collection.Id).
-		Updates(map[string]interface{}{
-			"title":       collection.Title,
-			"description": collection.Description,
-			"updated_at":  time.Now(),
-		}).Error
+		Updates(updates).Error
 }
 
 func (r *collectionRepo) CreateCollectionVideo(ctx context.Context, relation *biz.CollectionVideoRelation) error {

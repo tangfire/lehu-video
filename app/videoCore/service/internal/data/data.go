@@ -80,6 +80,10 @@ func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), 
 	userBeLikedReconcileJob := NewUserBeLikedReconcileJob(db, logger)
 	userBeLikedReconcileJob.StartCron(d.reconcileStopCh)
 
+	// 创建并启动评论统计对账任务（每日凌晨5点执行）
+	commentStatsReconcileJob := NewCommentStatsReconcileJob(db, logger)
+	commentStatsReconcileJob.StartCron(d.reconcileStopCh)
+
 	cleanup := func() {
 		d.stopOnce.Do(func() {
 			close(d.reconcileStopCh)

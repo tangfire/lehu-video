@@ -16,7 +16,7 @@ type FavoriteConsumer struct {
 	favoriteRepo   FavoriteRepo
 	userCounter    UserCounterRepo
 	videoRepo      VideoRepo
-	commentCounter CommentCounterRepo // 新增：评论计数器
+	commentCounter CommentCounterRepo
 	log            *log.Helper
 	batchProc      *BatchProcessor[*FavoriteEvent]
 	stopCh         chan struct{}
@@ -27,7 +27,7 @@ func NewFavoriteConsumer(
 	favoriteRepo FavoriteRepo,
 	userCounter UserCounterRepo,
 	videoRepo VideoRepo,
-	commentCounter CommentCounterRepo, // 新增参数
+	commentCounter CommentCounterRepo,
 	logger log.Logger,
 ) *FavoriteConsumer {
 	reader := kafka.NewReader(kafka.ReaderConfig{
@@ -42,7 +42,7 @@ func NewFavoriteConsumer(
 		favoriteRepo:   favoriteRepo,
 		userCounter:    userCounter,
 		videoRepo:      videoRepo,
-		commentCounter: commentCounter, // 新增赋值
+		commentCounter: commentCounter,
 		log:            log.NewHelper(logger),
 		stopCh:         make(chan struct{}),
 	}
@@ -163,8 +163,7 @@ func (c *FavoriteConsumer) batchInsert(events []*FavoriteEvent) error {
 		return err
 	}
 
-	// 第二步：批量更新计数（视频和评论）
-	// 2.1 更新视频作者获赞数
+	// 第二步：批量更新作者获赞数。目标对象点赞数已在同步请求链路写入 Redis counter。
 	videoIDSet := make(map[int64]struct{})
 	for _, e := range events {
 		if e.TargetType == 0 && e.FavoriteType == 0 {
@@ -210,40 +209,6 @@ func (c *FavoriteConsumer) batchInsert(events []*FavoriteEvent) error {
 		if len(authorCounts) > 0 {
 			if err := c.userCounter.BatchIncrUserCounters(ctx, authorCounts); err != nil {
 				c.log.Errorf("批量更新作者获赞数失败：%v", err)
-			}
-		}
-	}
-
-	// 2.2 更新评论点赞数（仅针对评论点赞/取消点赞）
-	commentIDSet := make(map[int64]struct{})
-	for _, e := range events {
-		if e.TargetType == 1 && e.FavoriteType == 0 {
-			commentIDSet[e.TargetId] = struct{}{}
-		}
-	}
-	if len(commentIDSet) > 0 {
-		commentCounts := make(map[int64]map[string]int64)
-		for _, e := range events {
-			if e.TargetType == 1 && e.FavoriteType == 0 {
-				delta := int64(0)
-				if e.Action == 1 {
-					delta = 1
-				} else if e.Action == -1 {
-					delta = -1
-				}
-				if delta == 0 {
-					continue
-				}
-				if _, ok := commentCounts[e.TargetId]; !ok {
-					commentCounts[e.TargetId] = make(map[string]int64)
-				}
-				commentCounts[e.TargetId]["like_count"] += delta
-			}
-		}
-
-		if len(commentCounts) > 0 {
-			if err := c.commentCounter.BatchIncrFields(ctx, commentCounts); err != nil {
-				c.log.Errorf("批量更新评论点赞数失败：%v", err)
 			}
 		}
 	}

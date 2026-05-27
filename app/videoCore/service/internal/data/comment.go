@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"errors"
+
 	"github.com/go-kratos/kratos/v2/log"
 	"gorm.io/gorm"
 	"lehu-video/app/videoCore/service/internal/biz"
@@ -94,34 +95,76 @@ func (r *commentRepo) FindByIDs(ctx context.Context, ids []int64) ([]*biz.Commen
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*biz.Comment, 0, len(dbComments))
-	for _, dbc := range dbComments {
-		result = append(result, r.toBizComment(dbc))
-	}
-	return result, nil
+	return r.toBizComments(dbComments), nil
 }
 
-func (r *commentRepo) FindByCondition(ctx context.Context, condition map[string]interface{}) ([]*biz.Comment, error) {
-	db := r.db(ctx).Model(&model.Comment{})
-	db = r.applyConditions(db, condition)
+func (r *commentRepo) ListTopLevelByVideo(ctx context.Context, videoID int64, pageStats biz.PageStats) ([]*biz.Comment, int64, error) {
+	db := r.db(ctx).Model(&model.Comment{}).
+		Where("video_id = ? AND parent_id = ? AND is_deleted = ?", videoID, 0, false)
+
+	return r.listAndCount(ctx, db, pageStats, "created_at DESC")
+}
+
+func (r *commentRepo) ListReplies(ctx context.Context, parentID int64, pageStats biz.PageStats) ([]*biz.Comment, int64, error) {
+	db := r.db(ctx).Model(&model.Comment{}).
+		Where("parent_id = ? AND is_deleted = ?", parentID, false)
+
+	return r.listAndCount(ctx, db, pageStats, "created_at ASC")
+}
+
+func (r *commentRepo) ListActiveByVideo(ctx context.Context, videoID int64) ([]*biz.Comment, error) {
 	var dbComments []*model.Comment
-	err := db.Find(&dbComments).Error
+	err := r.db(ctx).Model(&model.Comment{}).
+		Where("video_id = ? AND is_deleted = ?", videoID, false).
+		Order("created_at ASC").
+		Find(&dbComments).Error
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*biz.Comment, 0, len(dbComments))
-	for _, dbc := range dbComments {
-		result = append(result, r.toBizComment(dbc))
-	}
-	return result, nil
+	return r.toBizComments(dbComments), nil
 }
 
-func (r *commentRepo) CountByCondition(ctx context.Context, condition map[string]interface{}) (int64, error) {
-	db := r.db(ctx).Model(&model.Comment{})
-	db = r.applyConditions(db, condition)
+func (r *commentRepo) ListActiveByParent(ctx context.Context, parentID int64) ([]*biz.Comment, error) {
+	var dbComments []*model.Comment
+	err := r.db(ctx).Model(&model.Comment{}).
+		Where("parent_id = ? AND is_deleted = ?", parentID, false).
+		Order("created_at ASC").
+		Find(&dbComments).Error
+	if err != nil {
+		return nil, err
+	}
+	return r.toBizComments(dbComments), nil
+}
+
+func (r *commentRepo) listAndCount(_ context.Context, db *gorm.DB, pageStats biz.PageStats, orderBy string) ([]*biz.Comment, int64, error) {
 	var count int64
-	err := db.Count(&count).Error
-	return count, err
+	if err := db.Session(&gorm.Session{}).Count(&count).Error; err != nil {
+		return nil, 0, err
+	}
+
+	page := pageStats.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := pageStats.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	var dbComments []*model.Comment
+	err := db.Session(&gorm.Session{}).
+		Order(orderBy).
+		Offset(int((page - 1) * pageSize)).
+		Limit(int(pageSize)).
+		Find(&dbComments).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return r.toBizComments(dbComments), count, nil
 }
 
 func (r *commentRepo) CountByVideoIDs(ctx context.Context, videoIDs []int64) (map[int64]int64, error) {
@@ -198,50 +241,6 @@ func (r *commentRepo) GetReplyCount(ctx context.Context, commentID int64) (int64
 	return c.ReplyCount, nil
 }
 
-// applyConditions 条件构建（与之前相同，略作调整）
-func (r *commentRepo) applyConditions(db *gorm.DB, condition map[string]interface{}) *gorm.DB {
-	for key, value := range condition {
-		switch key {
-		case "video_id":
-			db = db.Where("video_id = ?", value)
-		case "user_id":
-			db = db.Where("user_id = ?", value)
-		case "parent_id":
-			if ids, ok := value.([]int64); ok {
-				if len(ids) == 0 {
-					db = db.Where("1 = 0")
-				} else {
-					db = db.Where("parent_id IN (?)", ids)
-				}
-			} else {
-				db = db.Where("parent_id = ?", value)
-			}
-		case "is_deleted":
-			db = db.Where("is_deleted = ?", value)
-		case "limit":
-			if l, ok := value.(int64); ok {
-				db = db.Limit(int(l))
-			} else if l, ok := value.(int); ok {
-				db = db.Limit(l)
-			}
-		case "offset":
-			if o, ok := value.(int64); ok {
-				db = db.Offset(int(o))
-			} else if o, ok := value.(int); ok {
-				db = db.Offset(o)
-			}
-		case "order_by":
-			db = db.Order(value.(string))
-		default:
-			r.log.Warnf("Unknown condition key: %s", key)
-		}
-	}
-	if _, has := condition["is_deleted"]; !has {
-		db = db.Where("is_deleted = ?", false)
-	}
-	return db
-}
-
 func (r *commentRepo) BatchSoftDelete(ctx context.Context, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
@@ -249,6 +248,14 @@ func (r *commentRepo) BatchSoftDelete(ctx context.Context, ids []int64) error {
 	return r.db(ctx).Model(&model.Comment{}).
 		Where("id IN (?)", ids).
 		Update("is_deleted", true).Error
+}
+
+func (r *commentRepo) toBizComments(dbComments []*model.Comment) []*biz.Comment {
+	result := make([]*biz.Comment, 0, len(dbComments))
+	for _, dbc := range dbComments {
+		result = append(result, r.toBizComment(dbc))
+	}
+	return result
 }
 
 func (r *commentRepo) toBizComment(dbComment *model.Comment) *biz.Comment {

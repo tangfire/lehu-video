@@ -112,6 +112,18 @@ func (uc *FeedUsecase) Close() {
 
 // GetFeed 核心Feed流接口
 func (uc *FeedUsecase) GetFeed(ctx context.Context, query *FeedQuery) (*FeedResult, error) {
+	if query == nil {
+		query = &FeedQuery{}
+	}
+	if query.PageSize <= 0 {
+		query.PageSize = 20
+	}
+	if query.PageSize > 100 {
+		query.PageSize = 100
+	}
+	if query.LatestTime <= 0 {
+		query.LatestTime = time.Now().Unix()
+	}
 	var items []*FeedItem
 	var err error
 
@@ -141,6 +153,9 @@ func (uc *FeedUsecase) GetFeed(ctx context.Context, query *FeedQuery) (*FeedResu
 // todo 那是不是要有代码，我们发布视频的时候，要推给粉丝呢
 // getFollowingFeed 关注流（推拉结合）
 func (uc *FeedUsecase) getFollowingFeed(ctx context.Context, query *FeedQuery) ([]*FeedItem, error) {
+	if query.UserID == "" || query.UserID == "0" {
+		return uc.getRecommendFeed(ctx, query)
+	}
 	var allItems []*FeedItem
 
 	// 1. 从Redis Timeline获取（推模式）
@@ -353,12 +368,18 @@ func (uc *FeedUsecase) mergeAndDeduplicate(first, second []*FeedItem) []*FeedIte
 	seen := make(map[string]bool)
 	result := make([]*FeedItem, 0, len(first)+len(second))
 	for _, item := range first {
+		if item == nil || item.VideoID == "" {
+			continue
+		}
 		if !seen[item.VideoID] {
 			seen[item.VideoID] = true
 			result = append(result, item)
 		}
 	}
 	for _, item := range second {
+		if item == nil || item.VideoID == "" {
+			continue
+		}
 		if !seen[item.VideoID] {
 			seen[item.VideoID] = true
 			result = append(result, item)
@@ -374,6 +395,9 @@ func (uc *FeedUsecase) filterFeedItems(ctx context.Context, userID string, items
 	}
 	videoIDs := make([]string, 0, len(items))
 	for _, item := range items {
+		if item == nil || item.VideoID == "" {
+			continue
+		}
 		videoIDs = append(videoIDs, item.VideoID)
 	}
 	existsMap, err := uc.recentViewed.BatchExists(ctx, userID, videoIDs)
@@ -383,6 +407,9 @@ func (uc *FeedUsecase) filterFeedItems(ctx context.Context, userID string, items
 	}
 	filtered := make([]*FeedItem, 0, len(items))
 	for _, item := range items {
+		if item == nil || item.VideoID == "" {
+			continue
+		}
 		if !existsMap[item.VideoID] {
 			filtered = append(filtered, item)
 		}
@@ -395,11 +422,17 @@ func (uc *FeedUsecase) calculateNextTime(items []*FeedItem) int64 {
 	if len(items) == 0 {
 		return time.Now().Unix()
 	}
-	minTime := items[0].Timestamp
+	minTime := int64(0)
 	for _, item := range items {
-		if item.Timestamp < minTime {
+		if item == nil {
+			continue
+		}
+		if minTime == 0 || item.Timestamp < minTime {
 			minTime = item.Timestamp
 		}
+	}
+	if minTime == 0 {
+		return time.Now().Unix()
 	}
 	return minTime - 1
 }

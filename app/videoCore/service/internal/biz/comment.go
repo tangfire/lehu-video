@@ -102,8 +102,10 @@ type CommentRepo interface {
 	BatchSoftDelete(ctx context.Context, ids []int64) error
 
 	FindByIDs(ctx context.Context, ids []int64) ([]*Comment, error)
-	FindByCondition(ctx context.Context, condition map[string]interface{}) ([]*Comment, error)
-	CountByCondition(ctx context.Context, condition map[string]interface{}) (int64, error)
+	ListTopLevelByVideo(ctx context.Context, videoID int64, pageStats PageStats) ([]*Comment, int64, error)
+	ListReplies(ctx context.Context, parentID int64, pageStats PageStats) ([]*Comment, int64, error)
+	ListActiveByVideo(ctx context.Context, videoID int64) ([]*Comment, error)
+	ListActiveByParent(ctx context.Context, parentID int64) ([]*Comment, error)
 
 	CountByVideoIDs(ctx context.Context, videoIDs []int64) (map[int64]int64, error)
 	CountByUserIDs(ctx context.Context, userIDs []int64) (map[int64]int64, error)
@@ -221,10 +223,7 @@ func (uc *CommentUsecase) RemoveComment(ctx context.Context, cmd *RemoveCommentC
 		}
 
 		if comment.ParentID == 0 { // 主评论，需要级联删除子评论
-			subs, err := uc.repo.FindByCondition(txCtx, map[string]interface{}{
-				"parent_id":  comment.ID,
-				"is_deleted": false,
-			})
+			subs, err := uc.repo.ListActiveByParent(txCtx, comment.ID)
 			if err != nil {
 				return err
 			}
@@ -308,6 +307,7 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 	if query.VideoID <= 0 {
 		return nil, ErrInvalidParams
 	}
+	query.PageStats = normalizeCommentPageStats(query.PageStats)
 	offset := (query.PageStats.Page - 1) * query.PageStats.PageSize
 	limit := query.PageStats.PageSize
 
@@ -348,23 +348,7 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 
 	// 缓存未命中，查询数据库
 	uc.log.Infof("[Cache Miss] 视频 %d 的评论列表查询数据库", query.VideoID)
-	condition := map[string]interface{}{
-		"video_id":   query.VideoID,
-		"parent_id":  0,
-		"is_deleted": false,
-		"order_by":   "created_at DESC",
-		"offset":     offset,
-		"limit":      limit,
-	}
-	comments, err := uc.repo.FindByCondition(ctx, condition)
-	if err != nil {
-		return nil, err
-	}
-	total, err := uc.repo.CountByCondition(ctx, map[string]interface{}{
-		"video_id":   query.VideoID,
-		"parent_id":  0,
-		"is_deleted": false,
-	})
+	comments, total, err := uc.repo.ListTopLevelByVideo(ctx, query.VideoID, query.PageStats)
 	if err != nil {
 		return nil, err
 	}
@@ -373,11 +357,7 @@ func (uc *CommentUsecase) ListVideoComments(ctx context.Context, query *ListVide
 	go func() {
 		ctxBg := context.Background()
 		// 获取该视频的所有评论（包括子评论）
-		allCondition := map[string]interface{}{
-			"video_id":   query.VideoID,
-			"is_deleted": false,
-		}
-		allComments, _ := uc.repo.FindByCondition(ctxBg, allCondition)
+		allComments, _ := uc.repo.ListActiveByVideo(ctxBg, query.VideoID)
 		if err := uc.cacheVideoCommentsToHash(ctxBg, cacheKey, allComments); err != nil {
 			uc.log.Warnf("缓存视频 %d 的评论到 Hash 失败：%v", query.VideoID, err)
 		}
@@ -391,27 +371,27 @@ func (uc *CommentUsecase) ListChildComments(ctx context.Context, query *ListChil
 	if query.ParentID <= 0 {
 		return nil, ErrInvalidParams
 	}
+	query.PageStats = normalizeCommentPageStats(query.PageStats)
 
 	// 简化方案：直接查数据库（子评论数量通常不多）
-	offset := (query.PageStats.Page - 1) * query.PageStats.PageSize
-	condition := map[string]interface{}{
-		"parent_id":  query.ParentID,
-		"is_deleted": false,
-		"order_by":   "created_at ASC",
-		"offset":     offset,
-		"limit":      query.PageStats.PageSize,
-	}
-	comments, err := uc.repo.FindByCondition(ctx, condition)
-	if err != nil {
-		return nil, err
-	}
-	total, err := uc.repo.CountByCondition(ctx, map[string]interface{}{
-		"parent_id": query.ParentID,
-	})
+	comments, total, err := uc.repo.ListReplies(ctx, query.ParentID, query.PageStats)
 	if err != nil {
 		return nil, err
 	}
 	return &ListChildCommentsResult{Comments: comments, Total: total}, nil
+}
+
+func normalizeCommentPageStats(pageStats PageStats) PageStats {
+	if pageStats.Page < 1 {
+		pageStats.Page = 1
+	}
+	if pageStats.PageSize <= 0 {
+		pageStats.PageSize = 20
+	}
+	if pageStats.PageSize > 100 {
+		pageStats.PageSize = 100
+	}
+	return pageStats
 }
 
 // CountVideoComments 统计视频评论数（优先从计数器获取）
