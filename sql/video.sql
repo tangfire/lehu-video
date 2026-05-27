@@ -15,7 +15,10 @@ CREATE TABLE `video` (
                          `view_count` bigint(20) NOT NULL DEFAULT '0' COMMENT '播放量',
                          `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
                          `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                         PRIMARY KEY (`id`)
+                         PRIMARY KEY (`id`),
+                         INDEX `idx_video_author_created` (`user_id`, `created_at`, `id`),
+                         INDEX `idx_video_created` (`created_at`, `id`),
+                         INDEX `idx_video_hot` (`created_at`, `like_count`, `comment_count`, `view_count`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 用户表（已包含重命名后的字段：be_liked_count 替代 total_favorited，collection_count 替代 favorite_count）
@@ -58,11 +61,14 @@ CREATE TABLE IF NOT EXISTS account (
                                        `password` VARCHAR(255) NOT NULL,
                                        `salt` VARCHAR(128) NOT NULL DEFAULT '',
                                        `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
+                                       `active_mobile` VARCHAR(20) GENERATED ALWAYS AS (IF(`is_deleted` = 0, `mobile`, NULL)) STORED,
+                                       `active_email` VARCHAR(100) GENERATED ALWAYS AS (IF(`is_deleted` = 0, `email`, NULL)) STORED,
                                        `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                        `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                        PRIMARY KEY (`id`),
-                                       INDEX `account_mobile_idx` (`mobile`),
-                                       INDEX `account_email_idx` (`email`)
+                                       UNIQUE KEY `uk_account_mobile_active` (`active_mobile`),
+                                       UNIQUE KEY `uk_account_email_active` (`active_email`),
+                                       INDEX `idx_account_updated_at` (`updated_at`)
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -76,6 +82,7 @@ CREATE TABLE IF NOT EXISTS `follow` (
                                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                         INDEX `user_id_idx` (`user_id`, `target_user_id`, `is_deleted`),
+                                        UNIQUE KEY `uk_follow_user_target_active` (`user_id`, `target_user_id`, `is_deleted`),
                                         PRIMARY KEY(`id`)
 );
 
@@ -190,7 +197,8 @@ CREATE TABLE IF NOT EXISTS `collection_video` (
                                                   is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
                                                   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                                   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                                                  INDEX `collection_id_idx` (`collection_id`, `is_deleted`)
+                                                  INDEX `collection_id_idx` (`collection_id`, `is_deleted`),
+                                                  UNIQUE KEY `uk_collection_video_active` (`collection_id`, `video_id`, `is_deleted`)
 )COMMENT='用户收藏表';
 
 

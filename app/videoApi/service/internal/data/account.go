@@ -37,3 +37,13 @@ func (r *baseAdapterImpl) CheckAccount(ctx context.Context, mobile, email, passw
 	}
 	return resp.AccountId, nil
 }
+
+func (r *baseAdapterImpl) DeleteAccount(ctx context.Context, accountId string) error {
+	resp, err := r.account.DeleteAccount(ctx, &base.DeleteAccountReq{
+		AccountId: accountId,
+	})
+	if err != nil {
+		return err
+	}
+	return respcheck.ValidateResponseMeta(resp.Meta)
+}

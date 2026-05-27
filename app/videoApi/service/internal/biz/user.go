@@ -220,6 +220,9 @@ func (uc *UserUsecase) Register(ctx context.Context, input *RegisterInput) (*Reg
 	// 3. 创建用户信息
 	userID, err := uc.core.CreateUser(ctx, input.Mobile, input.Email, accountID)
 	if err != nil {
+		if compensateErr := uc.base.DeleteAccount(ctx, accountID); compensateErr != nil {
+			uc.log.WithContext(ctx).Warnf("compensate account registration failed: account_id=%s err=%v", accountID, compensateErr)
+		}
 		return nil, fmt.Errorf("创建用户信息失败: %w", err)
 	}
 

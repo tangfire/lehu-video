@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"lehu-video/app/videoCore/service/internal/biz"
+	"sync"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -15,6 +16,7 @@ type UserCounterSyncJob struct {
 	log         *log.Helper
 	interval    time.Duration
 	stopCh      chan struct{}
+	stopOnce    sync.Once
 }
 
 func NewUserCounterSyncJob(db *gorm.DB, counterRepo biz.UserCounterRepo, logger log.Logger) *UserCounterSyncJob {
@@ -32,7 +34,9 @@ func (j *UserCounterSyncJob) Start() {
 }
 
 func (j *UserCounterSyncJob) Stop() {
-	close(j.stopCh)
+	j.stopOnce.Do(func() {
+		close(j.stopCh)
+	})
 }
 
 func (j *UserCounterSyncJob) run() {

@@ -70,9 +70,9 @@ func (a *accountRepo) CheckAccountUnique(ctx context.Context, in *biz.Account) e
 	}
 
 	whereClause := strings.Join(conditions, " OR ")
-	err := query.Where(whereClause, args...).First(&account).Error
+	err := query.Where("is_deleted = ?", false).Where(whereClause, args...).Limit(1).Find(&account).Error
 
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if err == nil && account.Id == 0 {
 		return nil
 	}
 
@@ -94,7 +94,9 @@ func (a *accountRepo) CheckAccountUnique(ctx context.Context, in *biz.Account) e
 
 func (a *accountRepo) GetAccountById(ctx context.Context, id int64) (bool, *biz.Account, error) {
 	account := model.Account{}
-	err := a.data.db.Table(model.Account{}.TableName()).Where("id = ?", id).First(&account).Error
+	err := a.data.db.Table(model.Account{}.TableName()).
+		Where("id = ? AND is_deleted = ?", id, false).
+		First(&account).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil, nil
 	}
@@ -112,7 +114,9 @@ func (a *accountRepo) GetAccountById(ctx context.Context, id int64) (bool, *biz.
 
 func (a *accountRepo) GetAccountByMobile(ctx context.Context, mobile string) (bool, *biz.Account, error) {
 	account := model.Account{}
-	err := a.data.db.Table(model.Account{}.TableName()).Where("mobile = ?", mobile).First(&account).Error
+	err := a.data.db.Table(model.Account{}.TableName()).
+		Where("mobile = ? AND is_deleted = ?", mobile, false).
+		First(&account).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil, nil
 	}
@@ -130,7 +134,9 @@ func (a *accountRepo) GetAccountByMobile(ctx context.Context, mobile string) (bo
 
 func (a *accountRepo) GetAccountByEmail(ctx context.Context, email string) (bool, *biz.Account, error) {
 	account := model.Account{}
-	err := a.data.db.Table(model.Account{}.TableName()).Where("email = ?", email).First(&account).Error
+	err := a.data.db.Table(model.Account{}.TableName()).
+		Where("email = ? AND is_deleted = ?", email, false).
+		First(&account).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil, nil
 	}
@@ -163,6 +169,20 @@ func (a *accountRepo) UpdateAccount(ctx context.Context, in *biz.Account) error 
 	}).Error
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (a *accountRepo) DeleteAccount(ctx context.Context, accountId int64) error {
+	result := a.data.db.WithContext(ctx).
+		Table(model.Account{}.TableName()).
+		Where("id = ? AND is_deleted = ?", accountId, false).
+		Updates(map[string]interface{}{
+			"is_deleted": true,
+			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
 	}
 	return nil
 }

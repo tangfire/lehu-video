@@ -10,6 +10,7 @@ import "api/base/service/v1/base.proto";
 service AccountService {
 	rpc Register(RegisterReq) returns (RegisterResp);
 	rpc CheckAccount(CheckAccountReq) returns (CheckAccountResp);
+	rpc DeleteAccount(DeleteAccountReq) returns (DeleteAccountResp);
 	rpc Bind(BindReq) returns (BindResp);
 	rpc Unbind(UnbindReq) returns (UnbindResp);
 }
@@ -38,6 +39,14 @@ message CheckAccountReq {
 message CheckAccountResp {
 	Metadata meta = 1;
 	string account_id = 2; // 账户id，通过此id绑定跨平台账号
+}
+
+message DeleteAccountReq {
+	string account_id = 1;
+}
+
+message DeleteAccountResp {
+	Metadata meta = 1;
 }
 
 enum VoucherType {

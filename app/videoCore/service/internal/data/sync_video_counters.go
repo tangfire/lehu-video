@@ -3,6 +3,7 @@ package data
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -17,6 +18,7 @@ type VideoCounterSyncJob struct {
 	log       *log.Helper
 	interval  time.Duration
 	stopCh    chan struct{}
+	stopOnce  sync.Once
 }
 
 func NewVideoCounterSyncJob(db *gorm.DB, videoCounterRepo biz.VideoCounterRepo, logger log.Logger) *VideoCounterSyncJob {
@@ -34,7 +36,9 @@ func (j *VideoCounterSyncJob) Start() {
 }
 
 func (j *VideoCounterSyncJob) Stop() {
-	close(j.stopCh)
+	j.stopOnce.Do(func() {
+		close(j.stopCh)
+	})
 }
 
 func (j *VideoCounterSyncJob) run() {

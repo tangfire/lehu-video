@@ -59,6 +59,10 @@ type FollowRepo interface {
 	// 简单的查询
 	GetFollowsByCondition(ctx context.Context, condition map[string]interface{}) ([]FollowData, error)
 	CountFollowsByCondition(ctx context.Context, condition map[string]interface{}) (int64, error)
+	CountFollowing(ctx context.Context, userId int64) (int64, error)
+	CountFollower(ctx context.Context, userId int64) (int64, error)
+	BatchGetFollowing(ctx context.Context, userId int64, targetUserIds []int64) ([]FollowData, error)
+	ListRelations(ctx context.Context, query FollowListQuery) ([]FollowData, int64, error)
 
 	ListFollowing(ctx context.Context, userID string, followType int32, pageStats *PageStats) ([]string, error)
 	GetFollowers(ctx context.Context, userID string) ([]string, error)
@@ -72,6 +76,13 @@ type FollowData struct {
 	UserId       int64
 	TargetUserId int64
 	IsDeleted    bool
+}
+
+type FollowListQuery struct {
+	UserId     int64
+	FollowType int32
+	Page       int32
+	PageSize   int32
 }
 
 type FollowUsecase struct {
@@ -133,22 +144,12 @@ func (uc *FollowUsecase) RemoveFollow(ctx context.Context, cmd *RemoveFollowComm
 }
 
 func (uc *FollowUsecase) CountFollow(ctx context.Context, query *CountFollowQuery) (*CountFollowResult, error) {
-	// 1. 查询关注数量（用户关注的人）
-	followingCondition := map[string]interface{}{
-		"user_id":    query.UserId,
-		"is_deleted": false,
-	}
-	followingCount, err := uc.repo.CountFollowsByCondition(ctx, followingCondition)
+	followingCount, err := uc.repo.CountFollowing(ctx, query.UserId)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 查询粉丝数量（关注用户的人）
-	followerCondition := map[string]interface{}{
-		"target_user_id": query.UserId,
-		"is_deleted":     false,
-	}
-	followerCount, err := uc.repo.CountFollowsByCondition(ctx, followerCondition)
+	followerCount, err := uc.repo.CountFollower(ctx, query.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -164,15 +165,7 @@ func (uc *FollowUsecase) IsFollowing(ctx context.Context, query *IsFollowingQuer
 		return &IsFollowingResult{FollowingList: []int64{}}, nil
 	}
 
-	// 构建查询条件
-	condition := map[string]interface{}{
-		"user_id":        query.UserId,
-		"target_user_id": query.TargetUserIdList,
-		"is_deleted":     false,
-	}
-
-	// 查询关注列表
-	follows, err := uc.repo.GetFollowsByCondition(ctx, condition)
+	follows, err := uc.repo.BatchGetFollowing(ctx, query.UserId, query.TargetUserIdList)
 	if err != nil {
 		return nil, err
 	}
@@ -189,55 +182,22 @@ func (uc *FollowUsecase) IsFollowing(ctx context.Context, query *IsFollowingQuer
 }
 
 func (uc *FollowUsecase) ListFollowing(ctx context.Context, query *ListFollowingQuery) (*ListFollowingResult, error) {
-	// 1. 根据followType构建查询条件
-	condition := uc.buildListCondition(query.UserId, query.FollowType)
-
-	// 2. 查询总数
-	total, err := uc.repo.CountFollowsByCondition(ctx, condition)
+	follows, total, err := uc.repo.ListRelations(ctx, FollowListQuery{
+		UserId:     query.UserId,
+		FollowType: query.FollowType,
+		Page:       query.PageStats.Page,
+		PageSize:   query.PageStats.PageSize,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// 3. 添加分页条件
-	condition["limit"] = query.PageStats.PageSize
-	condition["offset"] = (query.PageStats.Page - 1) * query.PageStats.PageSize
-
-	// 4. 查询分页数据
-	follows, err := uc.repo.GetFollowsByCondition(ctx, condition)
-	if err != nil {
-		return nil, err
-	}
-
-	// 5. 提取用户ID列表
 	userIdList := uc.extractUserIds(follows, query.FollowType)
 
 	return &ListFollowingResult{
 		UserIdList: userIdList,
 		Total:      total,
 	}, nil
-}
-
-// buildListCondition 构建查询条件 - 业务逻辑
-func (uc *FollowUsecase) buildListCondition(userId int64, followType int32) map[string]interface{} {
-	condition := map[string]interface{}{
-		"is_deleted": false,
-	}
-
-	switch followType {
-	case 0: // 关注的人
-		condition["user_id"] = userId
-	case 1: // 粉丝
-		condition["target_user_id"] = userId
-	case 2: // 互相关注
-		// 这个复杂逻辑应该放在biz层，但为了性能，这里简化处理
-		// 实际业务中可能需要更复杂的处理
-		condition["mutual_follow"] = userId
-	default:
-		// 默认查关注的人
-		condition["user_id"] = userId
-	}
-
-	return condition
 }
 
 // extractUserIds 提取用户ID - 业务逻辑

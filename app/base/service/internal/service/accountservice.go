@@ -61,6 +61,21 @@ func (s *AccountServiceService) CheckAccount(ctx context.Context, req *pb.CheckA
 	}, nil
 }
 
+func (s *AccountServiceService) DeleteAccount(ctx context.Context, req *pb.DeleteAccountReq) (*pb.DeleteAccountResp, error) {
+	_, err := s.uc.DeleteAccount(ctx, &biz.DeleteAccountCommand{
+		AccountId: cast.ToInt64(req.AccountId),
+	})
+	if err != nil {
+		return &pb.DeleteAccountResp{
+			Meta: utils.GetMetaWithError(err),
+		}, nil
+	}
+
+	return &pb.DeleteAccountResp{
+		Meta: utils.GetSuccessMeta(),
+	}, nil
+}
+
 func (s *AccountServiceService) Bind(ctx context.Context, req *pb.BindReq) (*pb.BindResp, error) {
 	var voucherType biz.VoucherType
 	switch req.VoucherType {

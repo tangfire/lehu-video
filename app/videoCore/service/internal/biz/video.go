@@ -69,6 +69,8 @@ type ListPublishedVideoResult struct {
 
 type FeedShortVideoQuery struct {
 	LatestTime int64
+	UserId     int64
+	FeedType   int32
 	PageStats  PageStats
 }
 
@@ -331,18 +333,66 @@ func (uc *VideoUsecase) ListPublishedVideo(ctx context.Context, query *ListPubli
 
 // FeedShortVideo 视频流
 func (uc *VideoUsecase) FeedShortVideo(ctx context.Context, query *FeedShortVideoQuery) (*FeedShortVideoResult, error) {
-	latestTime := time.Now()
-	if query.LatestTime > 0 {
-		latestTime = time.Unix(query.LatestTime, 0)
+	if uc.feedUsecase == nil {
+		latestTime := time.Now()
+		if query.LatestTime > 0 {
+			latestTime = time.Unix(query.LatestTime, 0)
+		}
+		videos, err := uc.repo.GetFeedVideos(ctx, latestTime, query.PageStats)
+		if err != nil {
+			return nil, err
+		}
+		if err := uc.batchFillVideoCounters(ctx, videos); err != nil {
+			uc.log.Warnf("批量填充视频计数失败: %v", err)
+		}
+		return &FeedShortVideoResult{Videos: videos}, nil
 	}
-	videos, err := uc.repo.GetFeedVideos(ctx, latestTime, query.PageStats)
+
+	feedType := query.FeedType
+	if feedType < 0 || feedType > 3 {
+		feedType = 1
+	}
+	if feedType == 0 && query.UserId <= 0 {
+		feedType = 1
+	}
+	feedResult, err := uc.feedUsecase.GetFeed(ctx, &FeedQuery{
+		UserID:     strconv.FormatInt(query.UserId, 10),
+		LatestTime: query.LatestTime,
+		PageSize:   query.PageStats.PageSize,
+		FeedType:   feedType,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(feedResult.Items) == 0 {
+		return &FeedShortVideoResult{Videos: []*Video{}}, nil
+	}
+	videoIds := make([]int64, 0, len(feedResult.Items))
+	for _, item := range feedResult.Items {
+		if id, err := strconv.ParseInt(item.VideoID, 10, 64); err == nil && id > 0 {
+			videoIds = append(videoIds, id)
+		}
+	}
+	videos, err := uc.repo.GetVideoByIdList(ctx, videoIds)
 	if err != nil {
 		return nil, err
 	}
 	if err := uc.batchFillVideoCounters(ctx, videos); err != nil {
 		uc.log.Warnf("批量填充视频计数失败: %v", err)
 	}
-	return &FeedShortVideoResult{Videos: videos}, nil
+	videoMap := make(map[int64]*Video, len(videos))
+	for _, video := range videos {
+		videoMap[video.Id] = video
+	}
+	orderedVideos := make([]*Video, 0, len(feedResult.Items))
+	for _, item := range feedResult.Items {
+		if id, err := strconv.ParseInt(item.VideoID, 10, 64); err == nil {
+			if video, ok := videoMap[id]; ok {
+				orderedVideos = append(orderedVideos, video)
+			}
+		}
+	}
+	return &FeedShortVideoResult{Videos: orderedVideos}, nil
 }
 
 // GetVideoByIdList 根据ID列表获取视频

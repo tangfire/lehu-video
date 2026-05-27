@@ -45,6 +45,12 @@ type CheckAccountResult struct {
 	AccountId int64
 }
 
+type DeleteAccountCommand struct {
+	AccountId int64
+}
+
+type DeleteAccountResult struct{}
+
 // ✅ 绑定是命令操作
 type BindCommand struct {
 	AccountId   int64
@@ -135,6 +141,7 @@ type AccountRepo interface {
 	GetAccountByEmail(ctx context.Context, email string) (bool, *Account, error)
 	CheckAccountUnique(ctx context.Context, account *Account) error
 	UpdateAccount(ctx context.Context, account *Account) error
+	DeleteAccount(ctx context.Context, accountId int64) error
 }
 
 type AccountUsecase struct {
@@ -238,6 +245,16 @@ func (uc *AccountUsecase) CheckAccount(ctx context.Context, query *CheckAccountQ
 	return &CheckAccountResult{
 		AccountId: account.Id,
 	}, nil
+}
+
+func (uc *AccountUsecase) DeleteAccount(ctx context.Context, cmd *DeleteAccountCommand) (*DeleteAccountResult, error) {
+	if cmd.AccountId <= 0 {
+		return nil, apperror.InvalidArgument("账号ID无效")
+	}
+	if err := uc.repo.DeleteAccount(ctx, cmd.AccountId); err != nil {
+		return nil, err
+	}
+	return &DeleteAccountResult{}, nil
 }
 
 // ✅ 命令方法使用Command/Result

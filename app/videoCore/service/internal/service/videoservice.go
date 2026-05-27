@@ -29,6 +29,8 @@ func (s *VideoServiceService) FeedShortVideo(ctx context.Context, req *pb.FeedSh
 	// ✅ 改为Query
 	query := &biz.FeedShortVideoQuery{
 		LatestTime: req.LatestTime,
+		UserId:     cast.ToInt64(req.UserId),
+		FeedType:   1,
 		PageStats: biz.PageStats{
 			Page:     1, // 第一页
 			PageSize: pageSize,

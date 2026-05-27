@@ -99,45 +99,6 @@ func (r *CoreAdapterImpl) ListPublishedVideo(ctx context.Context, userId string,
 	return int64(resp.PageStats.Total), retVideos, nil
 }
 
-// Feed deprecated
-func (r *CoreAdapterImpl) Feed(ctx context.Context, userId string, num int64, latestTime int64) ([]*biz.Video, error) {
-	req := &core.FeedShortVideoReq{
-		LatestTime: latestTime,
-		UserId:     userId,
-		FeedNum:    num,
-	}
-
-	resp, err := r.video.FeedShortVideo(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	err = respcheck.ValidateResponseMeta(resp.Meta)
-	if err != nil {
-		return nil, err
-	}
-	var videos []*biz.Video
-	for _, video := range resp.Videos {
-		videos = append(videos, &biz.Video{
-			ID: video.Id,
-			Author: &biz.VideoAuthor{
-				ID:          video.Author.Id,
-				Name:        video.Author.Name,
-				Avatar:      video.Author.Avatar,
-				IsFollowing: video.Author.IsFollowing != 0,
-			},
-			PlayURL:       video.PlayUrl,
-			CoverURL:      video.CoverUrl,
-			FavoriteCount: video.FavoriteCount,
-			CommentCount:  video.CommentCount,
-			IsFavorite:    video.IsFavorite != 0,
-			Title:         video.Title,
-			Description:   video.Description,
-			UploadTime:    video.UploadTime,
-		})
-	}
-	return videos, nil
-}
-
 func (r *CoreAdapterImpl) GetVideoByIdList(ctx context.Context, videoIdList []string) ([]*biz.Video, error) {
 	resp, err := r.video.GetVideoByIdList(ctx, &core.GetVideoByIdListReq{
 		VideoIdList: videoIdList,

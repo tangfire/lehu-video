@@ -63,6 +63,11 @@ func (r *memoryAccountRepo) UpdateAccount(ctx context.Context, account *Account)
 	return nil
 }
 
+func (r *memoryAccountRepo) DeleteAccount(ctx context.Context, accountId int64) error {
+	delete(r.accounts, accountId)
+	return nil
+}
+
 func TestRegisterStoresModernPassword(t *testing.T) {
 	repo := newMemoryAccountRepo()
 	uc := NewAccountUsecase(repo, idgen.NewGenerator(1), log.DefaultLogger)

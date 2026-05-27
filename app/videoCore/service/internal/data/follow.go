@@ -63,18 +63,7 @@ func (r *followRepo) GetFollowsByCondition(ctx context.Context, condition map[st
 		return nil, err
 	}
 
-	// 转换为biz层结构
-	result := make([]biz.FollowData, 0, len(follows))
-	for _, f := range follows {
-		result = append(result, biz.FollowData{
-			ID:           f.Id,
-			UserId:       f.UserId,
-			TargetUserId: f.TargetUserId,
-			IsDeleted:    f.IsDeleted,
-		})
-	}
-
-	return result, nil
+	return toBizFollowData(follows), nil
 }
 
 func (r *followRepo) CountFollowsByCondition(ctx context.Context, condition map[string]interface{}) (int64, error) {
@@ -86,6 +75,77 @@ func (r *followRepo) CountFollowsByCondition(ctx context.Context, condition map[
 		return 0, err
 	}
 	return count, nil
+}
+
+func (r *followRepo) CountFollowing(ctx context.Context, userId int64) (int64, error) {
+	var count int64
+	err := r.data.db.WithContext(ctx).Table(model.Follow{}.TableName()).
+		Where("user_id = ? AND is_deleted = ?", userId, false).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *followRepo) CountFollower(ctx context.Context, userId int64) (int64, error) {
+	var count int64
+	err := r.data.db.WithContext(ctx).Table(model.Follow{}.TableName()).
+		Where("target_user_id = ? AND is_deleted = ?", userId, false).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *followRepo) BatchGetFollowing(ctx context.Context, userId int64, targetUserIds []int64) ([]biz.FollowData, error) {
+	if len(targetUserIds) == 0 {
+		return []biz.FollowData{}, nil
+	}
+	var follows []model.Follow
+	if err := r.data.db.WithContext(ctx).Table(model.Follow{}.TableName()).
+		Where("user_id = ? AND target_user_id IN (?) AND is_deleted = ?", userId, targetUserIds, false).
+		Find(&follows).Error; err != nil {
+		return nil, err
+	}
+	return toBizFollowData(follows), nil
+}
+
+func (r *followRepo) ListRelations(ctx context.Context, query biz.FollowListQuery) ([]biz.FollowData, int64, error) {
+	db := r.data.db.WithContext(ctx).Table(model.Follow{}.TableName()).
+		Where("is_deleted = ?", false)
+	switch query.FollowType {
+	case 0:
+		db = db.Where("user_id = ?", query.UserId)
+	case 1:
+		db = db.Where("target_user_id = ?", query.UserId)
+	case 2:
+		subquery := r.data.db.Session(&gorm.Session{}).
+			Table(model.Follow{}.TableName()).
+			Select("target_user_id").
+			Where("user_id = ? AND is_deleted = ?", query.UserId, false)
+		db = db.Where("user_id IN (?) AND target_user_id = ?", subquery, query.UserId)
+	default:
+		db = db.Where("user_id = ?", query.UserId)
+	}
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := query.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	var follows []model.Follow
+	if err := db.
+		Limit(int(pageSize)).
+		Offset(int((page - 1) * pageSize)).
+		Order("updated_at DESC").
+		Find(&follows).Error; err != nil {
+		return nil, 0, err
+	}
+	return toBizFollowData(follows), total, nil
 }
 
 // applyConditions 应用查询条件 - 只做简单的条件转换
@@ -142,6 +202,19 @@ func (r *followRepo) applyConditions(db *gorm.DB, condition map[string]interface
 	}
 
 	return db
+}
+
+func toBizFollowData(follows []model.Follow) []biz.FollowData {
+	result := make([]biz.FollowData, 0, len(follows))
+	for _, f := range follows {
+		result = append(result, biz.FollowData{
+			ID:           f.Id,
+			UserId:       f.UserId,
+			TargetUserId: f.TargetUserId,
+			IsDeleted:    f.IsDeleted,
+		})
+	}
+	return result
 }
 
 // 实现ListFollowing方法

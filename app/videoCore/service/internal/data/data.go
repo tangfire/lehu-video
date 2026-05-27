@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/coocood/freecache"
 	"github.com/go-kratos/kratos/v2/log"
@@ -40,6 +41,7 @@ type Data struct {
 	videoSyncJob    *VideoCounterSyncJob
 	commentSyncJob  *CommentCounterSyncJob // 新增：评论同步任务
 	reconcileStopCh chan struct{}          // 用于停止对账任务
+	stopOnce        sync.Once
 }
 
 func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), error) {
@@ -79,21 +81,18 @@ func NewData(db *gorm.DB, rdb *redis.Client, logger log.Logger) (*Data, func(), 
 	userBeLikedReconcileJob.StartCron(d.reconcileStopCh)
 
 	cleanup := func() {
-		// 停止对账任务（关闭通道）
-		close(d.reconcileStopCh)
-
-		if d.userSyncJob != nil {
-			d.userSyncJob.Stop()
-		}
-		if d.videoSyncJob != nil {
-			d.videoSyncJob.Stop()
-		}
-		if d.commentSyncJob != nil {
-			// CommentCounterSyncJob 使用 StartCron 启动，不需要额外 Stop
-		}
-		if err := d.rdb.Close(); err != nil {
-			logHelper.Errorf("Redis close error: %v", err)
-		}
+		d.stopOnce.Do(func() {
+			close(d.reconcileStopCh)
+			if d.userSyncJob != nil {
+				d.userSyncJob.Stop()
+			}
+			if d.videoSyncJob != nil {
+				d.videoSyncJob.Stop()
+			}
+			if err := d.rdb.Close(); err != nil {
+				logHelper.Errorf("Redis close error: %v", err)
+			}
+		})
 	}
 	return d, cleanup, nil
 }

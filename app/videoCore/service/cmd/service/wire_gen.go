@@ -71,6 +71,8 @@ func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry
 	registrar := server.NewRegistrar(registry)
 	app := newApp(logger, grpcServer, httpServer, videoKafkaConsumerServer, favoriteKafkaConsumerServer, registrar)
 	return app, func() {
+		videoUsecase.Stop()
+		feedUsecase.Close()
 		cleanup()
 	}, nil
 }

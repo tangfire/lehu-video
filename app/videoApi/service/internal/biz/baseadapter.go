@@ -10,6 +10,7 @@ type BaseAdapter interface {
 	ValidateVerificationCode(ctx context.Context, codeId int64, code string) error
 	Register(ctx context.Context, mobile, email, password string) (string, error)
 	CheckAccount(ctx context.Context, mobile, email, password string) (string, error)
+	DeleteAccount(ctx context.Context, accountId string) error
 
 	PreSign4PublicUpload(ctx context.Context, hash, fileType, fileName string, size, expireSeconds int64) (string, string, error)
 	PreSign4Upload(ctx context.Context, hash, fileType, fileName string, size, expireSeconds int64) (string, string, error)
