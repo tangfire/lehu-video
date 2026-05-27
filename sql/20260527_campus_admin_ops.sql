@@ -46,7 +46,35 @@ DEALLOCATE PREPARE stmt;
 
 SET @sql = (
   SELECT IF(COUNT(*) = 0,
-    'CREATE INDEX `idx_campus_post_ops_sort` ON `campus_forum_post` (`status`, `is_deleted`, `is_featured`, `sort_weight`, `created_at`)',
+    'ALTER TABLE `campus_forum_post` ADD COLUMN `is_pinned` BOOLEAN NOT NULL DEFAULT FALSE COMMENT ''首页置顶'' AFTER `is_featured`',
+    'SELECT 1'
+  )
+  FROM information_schema.columns
+  WHERE table_schema = @db_name
+    AND table_name = 'campus_forum_post'
+    AND column_name = 'is_pinned'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(COUNT(*) > 0,
+    'ALTER TABLE `campus_forum_post` DROP INDEX `idx_campus_post_ops_sort`',
+    'SELECT 1'
+  )
+  FROM information_schema.statistics
+  WHERE table_schema = @db_name
+    AND table_name = 'campus_forum_post'
+    AND index_name = 'idx_campus_post_ops_sort'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (
+  SELECT IF(COUNT(*) = 0,
+    'CREATE INDEX `idx_campus_post_ops_sort` ON `campus_forum_post` (`status`, `is_deleted`, `is_pinned`, `is_featured`, `sort_weight`, `created_at`)',
     'SELECT 1'
   )
   FROM information_schema.statistics

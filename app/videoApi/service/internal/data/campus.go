@@ -123,6 +123,7 @@ type campusForumPostModel struct {
 	VideoURL       string          `gorm:"column:video_url"`
 	IsOfficial     bool            `gorm:"column:is_official"`
 	IsFeatured     bool            `gorm:"column:is_featured"`
+	IsPinned       bool            `gorm:"column:is_pinned"`
 	SortWeight     int32           `gorm:"column:sort_weight"`
 	Status         int32           `gorm:"column:status"`
 	AuditReason    string          `gorm:"column:audit_reason"`
@@ -442,6 +443,9 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 	if query.CategoryCode != "" {
 		db = db.Where("campus_forum_post.category_code = ?", query.CategoryCode)
 	}
+	if query.PostType != "" {
+		db = db.Where("campus_forum_post.post_type = ?", query.PostType)
+	}
 	if query.AuthorID != "" {
 		db = db.Where("campus_forum_post.author_id = ?", parseID(query.AuthorID))
 	}
@@ -458,16 +462,19 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 	if query.OnlyFeatured != nil {
 		db = db.Where("campus_forum_post.is_featured = ?", *query.OnlyFeatured)
 	}
+	if query.OnlyPinned != nil {
+		db = db.Where("campus_forum_post.is_pinned = ?", *query.OnlyPinned)
+	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	order := "campus_forum_post.is_featured DESC, campus_forum_post.sort_weight DESC, campus_forum_post.created_at DESC, campus_forum_post.id DESC"
+	order := "campus_forum_post.is_pinned DESC, campus_forum_post.is_featured DESC, campus_forum_post.sort_weight DESC, campus_forum_post.created_at DESC, campus_forum_post.id DESC"
 	if query.CollectedByUserID != "" {
 		order = "c.updated_at DESC, c.id DESC"
 	}
 	if query.Sort == "hot" {
-		order = "campus_forum_post.is_featured DESC, campus_forum_post.sort_weight DESC, (campus_forum_post.like_count * 3 + campus_forum_post.comment_count * 5 + campus_forum_post.collected_count * 4) DESC, campus_forum_post.created_at DESC"
+		order = "campus_forum_post.is_pinned DESC, campus_forum_post.is_featured DESC, campus_forum_post.sort_weight DESC, (campus_forum_post.like_count * 3 + campus_forum_post.comment_count * 5 + campus_forum_post.collected_count * 4) DESC, campus_forum_post.created_at DESC"
 	}
 	var rows []campusForumPostModel
 	if err := db.Order(order).Offset(query.Offset).Limit(query.Limit).Find(&rows).Error; err != nil {
@@ -572,6 +579,7 @@ func (r *campusRepo) UpdatePostByAdmin(ctx context.Context, post *biz.CampusForu
 			"audit_reason":  post.AuditReason,
 			"is_official":   post.IsOfficial,
 			"is_featured":   post.IsFeatured,
+			"is_pinned":     post.IsPinned,
 			"sort_weight":   post.SortWeight,
 			"is_deleted":    post.Status == biz.CampusAuditStatusDeleted,
 			"updated_at":    time.Now(),
@@ -1310,6 +1318,7 @@ func toBizPost(row *campusForumPostModel) *biz.CampusForumPost {
 		VideoURL:       row.VideoURL,
 		IsOfficial:     row.IsOfficial,
 		IsFeatured:     row.IsFeatured,
+		IsPinned:       row.IsPinned,
 		SortWeight:     row.SortWeight,
 		Status:         row.Status,
 		AuditReason:    row.AuditReason,

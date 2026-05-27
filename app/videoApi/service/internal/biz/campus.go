@@ -208,6 +208,7 @@ type CampusForumPost struct {
 	VideoURL       string
 	IsOfficial     bool
 	IsFeatured     bool
+	IsPinned       bool
 	SortWeight     int32
 	Status         int32
 	AuditReason    string
@@ -320,12 +321,14 @@ type CreateCampusPostInput struct {
 	VideoURL     string
 	IsOfficial   bool
 	IsFeatured   bool
+	IsPinned     bool
 	SortWeight   int32
 }
 
 type ListCampusPostsInput struct {
 	CurrentUserID string
 	CategoryCode  string
+	PostType      string
 	Sort          string
 	Keyword       string
 	Page          int32
@@ -339,6 +342,7 @@ type ListCampusPostsOutput struct {
 
 type ListCampusPostQuery struct {
 	CategoryCode      string
+	PostType          string
 	Sort              string
 	Keyword           string
 	AuthorID          string
@@ -347,6 +351,7 @@ type ListCampusPostQuery struct {
 	IncludeDeleted    bool
 	OnlyOfficial      *bool
 	OnlyFeatured      *bool
+	OnlyPinned        *bool
 	Offset            int
 	Limit             int
 }
@@ -432,6 +437,7 @@ type CampusAdminTrend struct {
 type ListCampusAdminPostsInput struct {
 	UserID       string
 	CategoryCode string
+	PostType     string
 	Keyword      string
 	Status       int32
 	Sort         string
@@ -455,6 +461,7 @@ type UpdateCampusAdminPostInput struct {
 	AuditReason  string
 	IsOfficial   bool
 	IsFeatured   bool
+	IsPinned     bool
 	SortWeight   int32
 }
 
@@ -910,6 +917,7 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 	isOperator := uc.isCampusOperator(ctx, input.UserID)
 	isOfficial := input.IsOfficial && isOperator
 	isFeatured := input.IsFeatured && isOperator
+	isPinned := input.IsPinned && isOperator
 	sortWeight := int32(0)
 	if isOperator {
 		sortWeight = clampSortWeight(input.SortWeight)
@@ -929,6 +937,7 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		VideoURL:     videoURL,
 		IsOfficial:   isOfficial,
 		IsFeatured:   isFeatured,
+		IsPinned:     isPinned,
 		SortWeight:   sortWeight,
 		Status:       CampusAuditStatusVisible,
 	}
@@ -943,6 +952,7 @@ func (uc *CampusUsecase) ListPosts(ctx context.Context, input *ListCampusPostsIn
 	page, size := normalizePage(input.Page, input.Size)
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode: strings.TrimSpace(input.CategoryCode),
+		PostType:     strings.TrimSpace(input.PostType),
 		Sort:         strings.TrimSpace(input.Sort),
 		Keyword:      strings.TrimSpace(input.Keyword),
 		Statuses:     []int32{CampusAuditStatusVisible},
@@ -965,6 +975,7 @@ func (uc *CampusUsecase) ListMyPosts(ctx context.Context, input *ListCampusPosts
 	page, size := normalizePage(input.Page, input.Size)
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode:   strings.TrimSpace(input.CategoryCode),
+		PostType:       strings.TrimSpace(input.PostType),
 		Sort:           strings.TrimSpace(input.Sort),
 		Keyword:        strings.TrimSpace(input.Keyword),
 		AuthorID:       input.CurrentUserID,
@@ -988,6 +999,7 @@ func (uc *CampusUsecase) ListMyCollections(ctx context.Context, input *ListCampu
 	page, size := normalizePage(input.Page, input.Size)
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode:      strings.TrimSpace(input.CategoryCode),
+		PostType:          strings.TrimSpace(input.PostType),
 		Sort:              strings.TrimSpace(input.Sort),
 		Keyword:           strings.TrimSpace(input.Keyword),
 		CollectedByUserID: input.CurrentUserID,
@@ -1385,6 +1397,7 @@ func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAd
 	}
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode:   strings.TrimSpace(input.CategoryCode),
+		PostType:       strings.TrimSpace(input.PostType),
 		Sort:           strings.TrimSpace(input.Sort),
 		Keyword:        strings.TrimSpace(input.Keyword),
 		Statuses:       statuses,
@@ -1469,6 +1482,7 @@ func (uc *CampusUsecase) AdminUpdatePost(ctx context.Context, input *UpdateCampu
 		VideoURL:       videoURL,
 		IsOfficial:     input.IsOfficial,
 		IsFeatured:     input.IsFeatured,
+		IsPinned:       input.IsPinned,
 		SortWeight:     clampSortWeight(input.SortWeight),
 		Status:         status,
 		AuditReason:    strings.TrimSpace(input.AuditReason),

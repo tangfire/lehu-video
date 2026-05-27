@@ -1,6 +1,13 @@
 package biz
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	core "lehu-video/api/videoCore/service/v1"
+
+	"github.com/go-kratos/kratos/v2/log"
+)
 
 func TestNormalizeCampusPostMedia(t *testing.T) {
 	tests := []struct {
@@ -68,4 +75,310 @@ func TestNormalizeCampusPostMedia(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreatePostIgnoresOpsFlagsForNormalUser(t *testing.T) {
+	users := map[string]*UserBaseInfo{"10": {ID: "10", Nickname: "同学"}}
+	repo := &campusRepoStub{
+		category: &CampusForumCategory{Code: "guide", Name: "校园攻略"},
+		roles:    map[string]string{},
+	}
+	core := &campusCoreStub{users: users}
+	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	post, err := uc.CreatePost(context.Background(), &CreateCampusPostInput{
+		UserID:       "10",
+		CategoryCode: "guide",
+		Title:        "报到攻略",
+		Content:      "这里是报到攻略内容",
+		MediaType:    CampusPostMediaText,
+		PostType:     CampusPostTypeGuide,
+		IsOfficial:   true,
+		IsFeatured:   true,
+		IsPinned:     true,
+		SortWeight:   100,
+	})
+	if err != nil {
+		t.Fatalf("CreatePost() error = %v", err)
+	}
+	if post.IsOfficial || post.IsFeatured || post.IsPinned || post.SortWeight != 0 {
+		t.Fatalf("normal user ops flags leaked: official=%v featured=%v pinned=%v weight=%d", post.IsOfficial, post.IsFeatured, post.IsPinned, post.SortWeight)
+	}
+}
+
+func TestCreatePostAllowsOpsFlagsForOperator(t *testing.T) {
+	users := map[string]*UserBaseInfo{"10": {ID: "10", Nickname: "深汕e仔"}}
+	repo := &campusRepoStub{
+		category: &CampusForumCategory{Code: "guide", Name: "校园攻略"},
+		roles:    map[string]string{"10": "operator"},
+	}
+	core := &campusCoreStub{users: users}
+	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	post, err := uc.CreatePost(context.Background(), &CreateCampusPostInput{
+		UserID:       "10",
+		CategoryCode: "guide",
+		Title:        "报到攻略",
+		Content:      "这里是报到攻略内容",
+		MediaType:    CampusPostMediaText,
+		PostType:     CampusPostTypeGuide,
+		IsOfficial:   true,
+		IsFeatured:   true,
+		IsPinned:     true,
+		SortWeight:   100,
+	})
+	if err != nil {
+		t.Fatalf("CreatePost() error = %v", err)
+	}
+	if !post.IsOfficial || !post.IsFeatured || !post.IsPinned || post.SortWeight != 100 {
+		t.Fatalf("operator ops flags not applied: official=%v featured=%v pinned=%v weight=%d", post.IsOfficial, post.IsFeatured, post.IsPinned, post.SortWeight)
+	}
+}
+
+func TestListPostsPassesPostTypeQuery(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	if _, err := uc.ListPosts(context.Background(), &ListCampusPostsInput{PostType: CampusPostTypeQuestion, Page: 1, Size: 20}); err != nil {
+		t.Fatalf("ListPosts() error = %v", err)
+	}
+	if repo.lastListQuery.PostType != CampusPostTypeQuestion {
+		t.Fatalf("PostType query = %q, want %q", repo.lastListQuery.PostType, CampusPostTypeQuestion)
+	}
+}
+
+type fixedCampusIDGenerator int64
+
+func (g fixedCampusIDGenerator) NextID() int64 { return int64(g) }
+
+type ioDiscard struct{}
+
+func (ioDiscard) Write(p []byte) (int, error) { return len(p), nil }
+
+type campusRepoStub struct {
+	category      *CampusForumCategory
+	roles         map[string]string
+	lastPost      *CampusForumPost
+	lastListQuery ListCampusPostQuery
+}
+
+func (r *campusRepoStub) GetCategoryByCode(ctx context.Context, code string) (bool, *CampusForumCategory, error) {
+	if r.category == nil || r.category.Code != code {
+		return false, nil, nil
+	}
+	return true, r.category, nil
+}
+
+func (r *campusRepoStub) CreatePost(ctx context.Context, post *CampusForumPost) error {
+	r.lastPost = post
+	return nil
+}
+
+func (r *campusRepoStub) ListPosts(ctx context.Context, query ListCampusPostQuery) ([]*CampusForumPost, int64, error) {
+	r.lastListQuery = query
+	return []*CampusForumPost{}, 0, nil
+}
+
+func (r *campusRepoStub) GetCampusOperatorRole(ctx context.Context, userID string) (string, error) {
+	return r.roles[userID], nil
+}
+
+func (r *campusRepoStub) GetWechatIdentity(context.Context, string, string) (bool, *CampusWechatIdentity, error) {
+	return false, nil, nil
+}
+func (r *campusRepoStub) GetAccountIDByEmail(context.Context, string) (bool, string, error) {
+	return false, "", nil
+}
+func (r *campusRepoStub) SaveWechatIdentity(context.Context, *CampusWechatIdentity) error { return nil }
+func (r *campusRepoStub) GetProfileByUserID(context.Context, string) (bool, *CampusProfile, error) {
+	return false, nil, nil
+}
+func (r *campusRepoStub) SaveProfile(context.Context, *CampusProfile) error   { return nil }
+func (r *campusRepoStub) UpdateProfile(context.Context, *CampusProfile) error { return nil }
+func (r *campusRepoStub) ReplaceTimetableCourses(context.Context, string, string, string, []*CampusTimetableCourse) error {
+	return nil
+}
+func (r *campusRepoStub) ListTimetableCourses(context.Context, string, string) ([]*CampusTimetableCourse, error) {
+	return nil, nil
+}
+func (r *campusRepoStub) ListCategories(context.Context) ([]*CampusForumCategory, error) {
+	return nil, nil
+}
+func (r *campusRepoStub) GetPostByID(context.Context, int64) (bool, *CampusForumPost, error) {
+	return false, nil, nil
+}
+func (r *campusRepoStub) GetAnyPostByID(context.Context, int64) (bool, *CampusForumPost, error) {
+	return false, nil, nil
+}
+func (r *campusRepoStub) DeletePost(context.Context, int64) error { return nil }
+func (r *campusRepoStub) UpdatePostStatus(context.Context, int64, int32, string) error {
+	return nil
+}
+func (r *campusRepoStub) UpdatePostByAdmin(context.Context, *CampusForumPost) error {
+	return nil
+}
+func (r *campusRepoStub) CreateComment(context.Context, *CampusForumComment) error { return nil }
+func (r *campusRepoStub) ListComments(context.Context, ListCampusCommentQuery) ([]*CampusForumComment, int64, error) {
+	return nil, 0, nil
+}
+func (r *campusRepoStub) FillCommentPosts(context.Context, []*CampusForumComment) error {
+	return nil
+}
+func (r *campusRepoStub) GetCommentByID(context.Context, int64) (bool, *CampusForumComment, error) {
+	return false, nil, nil
+}
+func (r *campusRepoStub) DeleteComment(context.Context, int64) error { return nil }
+func (r *campusRepoStub) UpdateCommentStatus(context.Context, int64, int32, string) error {
+	return nil
+}
+func (r *campusRepoStub) GetPostLikeStatus(context.Context, string, []int64) (map[int64]bool, error) {
+	return nil, nil
+}
+func (r *campusRepoStub) AddPostLike(context.Context, int64, string, int64) error { return nil }
+func (r *campusRepoStub) RemovePostLike(context.Context, string, int64) error     { return nil }
+func (r *campusRepoStub) GetPostCollectionStatus(context.Context, string, []int64) (map[int64]bool, error) {
+	return nil, nil
+}
+func (r *campusRepoStub) AddPostCollection(context.Context, int64, string, int64) error {
+	return nil
+}
+func (r *campusRepoStub) RemovePostCollection(context.Context, string, int64) error {
+	return nil
+}
+func (r *campusRepoStub) CreateReport(context.Context, *CampusForumReport) error { return nil }
+func (r *campusRepoStub) ListReports(context.Context, int32, int, int) ([]*CampusForumReport, int64, error) {
+	return nil, 0, nil
+}
+func (r *campusRepoStub) UpdateReportStatus(context.Context, int64, int32) error { return nil }
+func (r *campusRepoStub) CreateAuditLog(context.Context, *CampusAuditLog) error  { return nil }
+func (r *campusRepoStub) GetAdminSummary(context.Context) (*CampusAdminSummary, error) {
+	return nil, nil
+}
+func (r *campusRepoStub) ListCampusUsers(context.Context, string, int, int) ([]*CampusAdminUser, int64, error) {
+	return nil, 0, nil
+}
+func (r *campusRepoStub) UpsertCampusOperator(context.Context, string, string) error { return nil }
+func (r *campusRepoStub) RemoveCampusOperator(context.Context, string) error         { return nil }
+
+type campusCoreStub struct {
+	users map[string]*UserBaseInfo
+}
+
+func (r *campusCoreStub) CreateUser(context.Context, string, string, string) (string, error) {
+	return "", nil
+}
+func (r *campusCoreStub) GetUserBaseInfo(context.Context, string, string) (*UserBaseInfo, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) BatchGetUserBaseInfo(ctx context.Context, userIDs []string) ([]*UserBaseInfo, error) {
+	users := make([]*UserBaseInfo, 0, len(userIDs))
+	for _, id := range userIDs {
+		if user := r.users[id]; user != nil {
+			users = append(users, user)
+		}
+	}
+	return users, nil
+}
+func (r *campusCoreStub) GetUserInfoByIdList(context.Context, []string) ([]*UserInfo, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) UpdateUserInfo(context.Context, string, string, string, string, string, string, int32) error {
+	return nil
+}
+func (r *campusCoreStub) SearchUsers(context.Context, string, int32, int32) (int64, []*UserBaseInfo, error) {
+	return 0, nil, nil
+}
+func (r *campusCoreStub) SaveVideoInfo(context.Context, string, string, string, string, string) (string, error) {
+	return "", nil
+}
+func (r *campusCoreStub) GetVideoById(context.Context, string, string) (*Video, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) GetVideoByIdList(context.Context, []string) ([]*Video, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) ListPublishedVideo(context.Context, string, *PageStats) (int64, []*Video, error) {
+	return 0, nil, nil
+}
+func (r *campusCoreStub) IsUserFavoriteVideo(context.Context, string, []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) IsFollowing(context.Context, string, []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) IsCollected(context.Context, string, []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) CountComments4Video(context.Context, []string) (map[string]int64, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) CountFavorite4Video(context.Context, []string) (map[string]FavoriteCount, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) CountFavorite4Comment(context.Context, []string) (map[string]FavoriteCount, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) CountCollected4Video(context.Context, []string) (map[string]int64, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) GetFeed(context.Context, string, int64, int32, int32) ([]*FeedItem, int64, error) {
+	return nil, 0, nil
+}
+func (r *campusCoreStub) CreateComment(context.Context, string, string, string, string, string) (*Comment, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) GetCommentById(context.Context, string) (*Comment, error) { return nil, nil }
+func (r *campusCoreStub) RemoveComment(context.Context, string, string) error      { return nil }
+func (r *campusCoreStub) ListChildComment(context.Context, string, *PageStats) (int64, []*Comment, error) {
+	return 0, nil, nil
+}
+func (r *campusCoreStub) ListComment4Video(context.Context, string, *PageStats) (int64, []*Comment, error) {
+	return 0, nil, nil
+}
+func (r *campusCoreStub) AddFavorite(context.Context, string, string, *FavoriteTarget, *FavoriteType) error {
+	return nil
+}
+func (r *campusCoreStub) RemoveFavorite(context.Context, string, string, *FavoriteTarget, *FavoriteType) error {
+	return nil
+}
+func (r *campusCoreStub) ListUserFavoriteVideo(context.Context, string, *PageStats) (int64, []string, error) {
+	return 0, nil, nil
+}
+func (r *campusCoreStub) GetFavoriteStats(context.Context, string, *FavoriteTarget) (*FavoriteStats, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) CountBeFavoriteNumber4User(context.Context, string) (int64, error) {
+	return 0, nil
+}
+func (r *campusCoreStub) BatchIsFavorite(context.Context, string, []string, FavoriteTarget) (*core.BatchIsFavoriteResp, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) IsFavorite(context.Context, string, string, *FavoriteTarget) (*IsFavoriteResult, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) AddFollow(context.Context, string, string) error    { return nil }
+func (r *campusCoreStub) RemoveFollow(context.Context, string, string) error { return nil }
+func (r *campusCoreStub) ListFollow(context.Context, string, *FollowType, *PageStats) (int64, []string, error) {
+	return 0, nil, nil
+}
+func (r *campusCoreStub) GetCollectionById(context.Context, string) (*Collection, error) {
+	return nil, nil
+}
+func (r *campusCoreStub) AddVideo2Collection(context.Context, string, string, string) error {
+	return nil
+}
+func (r *campusCoreStub) AddCollection(context.Context, *Collection) error { return nil }
+func (r *campusCoreStub) ListCollection(context.Context, string, *PageStats) (int64, []*Collection, error) {
+	return 0, nil, nil
+}
+func (r *campusCoreStub) ListVideo4Collection(context.Context, string, *PageStats) (int64, []string, error) {
+	return 0, nil, nil
+}
+func (r *campusCoreStub) RemoveCollection(context.Context, string, string) error { return nil }
+func (r *campusCoreStub) RemoveVideo4Collection(context.Context, string, string, string) error {
+	return nil
+}
+func (r *campusCoreStub) UpdateCollection(context.Context, *Collection) error { return nil }
+func (r *campusCoreStub) CountFollow4User(context.Context, string) ([]int64, error) {
+	return nil, nil
 }

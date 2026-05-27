@@ -437,6 +437,7 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   `video_url` VARCHAR(1024) NOT NULL DEFAULT '',
   `is_official` BOOLEAN NOT NULL DEFAULT FALSE COMMENT '官方/运营内容',
   `is_featured` BOOLEAN NOT NULL DEFAULT FALSE COMMENT '精选推荐',
+  `is_pinned` BOOLEAN NOT NULL DEFAULT FALSE COMMENT '首页置顶',
   `sort_weight` INT NOT NULL DEFAULT 0 COMMENT '运营排序权重',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '0=待审核 1=可见 2=拒绝 3=删除',
   `audit_reason` VARCHAR(255) NOT NULL DEFAULT '',
@@ -452,7 +453,7 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   INDEX `idx_campus_post_hot` (`status`, `is_deleted`, `like_count`, `comment_count`, `created_at`),
   INDEX `idx_campus_post_media` (`media_type`, `status`, `is_deleted`, `created_at`),
   INDEX `idx_campus_post_type` (`post_type`, `status`, `is_deleted`, `created_at`),
-  INDEX `idx_campus_post_ops_sort` (`status`, `is_deleted`, `is_featured`, `sort_weight`, `created_at`)
+  INDEX `idx_campus_post_ops_sort` (`status`, `is_deleted`, `is_pinned`, `is_featured`, `sort_weight`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园社区笔记';
 
 CREATE TABLE IF NOT EXISTS `campus_forum_comment` (

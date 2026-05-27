@@ -380,6 +380,7 @@ func (s *CampusService) handleListPosts(w http.ResponseWriter, r *http.Request) 
 	out, err := s.uc.ListPosts(r.Context(), &biz.ListCampusPostsInput{
 		CurrentUserID: currentUserID,
 		CategoryCode:  q.Get("category_code"),
+		PostType:      q.Get("post_type"),
 		Sort:          q.Get("sort"),
 		Keyword:       q.Get("keyword"),
 		Page:          int32(queryInt(q.Get("page"), 1)),
@@ -407,6 +408,7 @@ func (s *CampusService) handleListMyPosts(w http.ResponseWriter, r *http.Request
 	out, err := s.uc.ListMyPosts(r.Context(), &biz.ListCampusPostsInput{
 		CurrentUserID: userID,
 		CategoryCode:  q.Get("category_code"),
+		PostType:      q.Get("post_type"),
 		Sort:          q.Get("sort"),
 		Keyword:       q.Get("keyword"),
 		Page:          int32(queryInt(q.Get("page"), 1)),
@@ -434,6 +436,7 @@ func (s *CampusService) handleListMyCollections(w http.ResponseWriter, r *http.R
 	out, err := s.uc.ListMyCollections(r.Context(), &biz.ListCampusPostsInput{
 		CurrentUserID: userID,
 		CategoryCode:  q.Get("category_code"),
+		PostType:      q.Get("post_type"),
 		Sort:          q.Get("sort"),
 		Keyword:       q.Get("keyword"),
 		Page:          int32(queryInt(q.Get("page"), 1)),
@@ -467,6 +470,7 @@ type postRequest struct {
 	VideoURL     string            `json:"video_url"`
 	IsOfficial   bool              `json:"is_official"`
 	IsFeatured   bool              `json:"is_featured"`
+	IsPinned     bool              `json:"is_pinned"`
 	SortWeight   int32             `json:"sort_weight"`
 }
 
@@ -489,6 +493,7 @@ func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request)
 		VideoURL:     req.VideoURL,
 		IsOfficial:   req.IsOfficial,
 		IsFeatured:   req.IsFeatured,
+		IsPinned:     req.IsPinned,
 		SortWeight:   req.SortWeight,
 	})
 	if err != nil {
@@ -837,6 +842,7 @@ func (s *CampusService) handleAdminListPosts(w http.ResponseWriter, r *http.Requ
 	out, err := s.uc.AdminListPosts(r.Context(), &biz.ListCampusAdminPostsInput{
 		UserID:       userID,
 		CategoryCode: q.Get("category_code"),
+		PostType:     q.Get("post_type"),
 		Keyword:      q.Get("keyword"),
 		Status:       int32(queryInt(q.Get("status"), -1)),
 		Sort:         q.Get("sort"),
@@ -876,6 +882,7 @@ func (s *CampusService) handleAdminCreatePost(w http.ResponseWriter, r *http.Req
 		VideoURL:     req.VideoURL,
 		IsOfficial:   req.IsOfficial,
 		IsFeatured:   req.IsFeatured,
+		IsPinned:     req.IsPinned,
 		SortWeight:   req.SortWeight,
 	})
 	if err != nil {
@@ -915,6 +922,7 @@ func (s *CampusService) handleAdminUpdatePost(w http.ResponseWriter, r *http.Req
 		AuditReason:  req.AuditReason,
 		IsOfficial:   req.IsOfficial,
 		IsFeatured:   req.IsFeatured,
+		IsPinned:     req.IsPinned,
 		SortWeight:   req.SortWeight,
 	})
 	if err != nil {
@@ -1323,6 +1331,7 @@ func postToMap(post *biz.CampusForumPost) map[string]interface{} {
 		"video_url":       post.VideoURL,
 		"is_official":     post.IsOfficial,
 		"is_featured":     post.IsFeatured,
+		"is_pinned":       post.IsPinned,
 		"sort_weight":     post.SortWeight,
 		"status":          post.Status,
 		"audit_reason":    post.AuditReason,
