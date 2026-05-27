@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -211,6 +212,22 @@ type campusOperatorModel struct {
 }
 
 func (campusOperatorModel) TableName() string { return "campus_operator" }
+
+type campusEventModel struct {
+	ID         int64           `gorm:"column:id"`
+	UserID     int64           `gorm:"column:user_id"`
+	EventType  string          `gorm:"column:event_type"`
+	Page       string          `gorm:"column:page"`
+	TargetType string          `gorm:"column:target_type"`
+	TargetID   int64           `gorm:"column:target_id"`
+	Channel    string          `gorm:"column:channel"`
+	Extra      json.RawMessage `gorm:"column:extra"`
+	UserAgent  string          `gorm:"column:user_agent"`
+	IP         string          `gorm:"column:ip"`
+	CreatedAt  time.Time       `gorm:"column:created_at"`
+}
+
+func (campusEventModel) TableName() string { return "campus_event" }
 
 type campusUserRow struct {
 	UserID       int64     `gorm:"column:user_id"`
@@ -1091,6 +1108,27 @@ func (r *campusRepo) CreateAuditLog(ctx context.Context, in *biz.CampusAuditLog)
 	return r.data.db.WithContext(ctx).Create(&row).Error
 }
 
+func (r *campusRepo) TrackEvent(ctx context.Context, in *biz.TrackCampusEventInput) error {
+	if in == nil {
+		return nil
+	}
+	extra, _ := json.Marshal(in.Extra)
+	row := campusEventModel{
+		ID:         time.Now().UnixNano(),
+		UserID:     parseID(in.UserID),
+		EventType:  in.EventType,
+		Page:       in.Page,
+		TargetType: in.TargetType,
+		TargetID:   in.TargetID,
+		Channel:    in.Channel,
+		Extra:      extra,
+		UserAgent:  in.UserAgent,
+		IP:         in.IP,
+		CreatedAt:  time.Now(),
+	}
+	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
 func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSummary, error) {
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -1102,6 +1140,12 @@ func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSumma
 	}{
 		{"user", "1 = 1", &summary.TotalUsers},
 		{"user", "created_at >= ?", &summary.TodayUsers},
+		{"campus_event", "event_type = 'login'", &summary.TotalLogins},
+		{"campus_event", "event_type = 'login' AND created_at >= ?", &summary.TodayLogins},
+		{"campus_event", "event_type = 'visit'", &summary.TotalVisits},
+		{"campus_event", "event_type = 'visit' AND created_at >= ?", &summary.TodayVisits},
+		{"campus_event", "event_type = 'share'", &summary.TotalShares},
+		{"campus_event", "event_type = 'share' AND created_at >= ?", &summary.TodayShares},
 		{"campus_forum_post", "is_deleted = 0", &summary.TotalPosts},
 		{"campus_forum_post", "is_deleted = 0 AND created_at >= ?", &summary.TodayPosts},
 		{"campus_forum_comment", "is_deleted = 0", &summary.TotalComments},
@@ -1119,7 +1163,7 @@ func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSumma
 	}
 	for _, item := range counts {
 		db := r.data.db.WithContext(ctx).Table(item.table).Where(item.where)
-		if item.where == "created_at >= ?" || item.where == "is_deleted = 0 AND created_at >= ?" {
+		if strings.Contains(item.where, "created_at >= ?") {
 			db = r.data.db.WithContext(ctx).Table(item.table).Where(item.where, today)
 		}
 		if err := db.Count(item.dest).Error; err != nil {
@@ -1132,6 +1176,15 @@ func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSumma
 		next := day.AddDate(0, 0, 1)
 		trend := &biz.CampusAdminTrend{Date: day.Format("01-02")}
 		if err := r.data.db.WithContext(ctx).Table("user").Where("created_at >= ? AND created_at < ?", day, next).Count(&trend.Users).Error; err != nil {
+			return nil, err
+		}
+		if err := r.data.db.WithContext(ctx).Table("campus_event").Where("event_type = ? AND created_at >= ? AND created_at < ?", "login", day, next).Count(&trend.Logins).Error; err != nil {
+			return nil, err
+		}
+		if err := r.data.db.WithContext(ctx).Table("campus_event").Where("event_type = ? AND created_at >= ? AND created_at < ?", "visit", day, next).Count(&trend.Visits).Error; err != nil {
+			return nil, err
+		}
+		if err := r.data.db.WithContext(ctx).Table("campus_event").Where("event_type = ? AND created_at >= ? AND created_at < ?", "share", day, next).Count(&trend.Shares).Error; err != nil {
 			return nil, err
 		}
 		if err := r.data.db.WithContext(ctx).Table("campus_forum_post").Where("is_deleted = 0 AND created_at >= ? AND created_at < ?", day, next).Count(&trend.Posts).Error; err != nil {

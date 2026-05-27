@@ -407,6 +407,12 @@ type ListCampusModerationInput struct {
 type CampusAdminSummary struct {
 	TotalUsers       int64
 	TodayUsers       int64
+	TotalLogins      int64
+	TodayLogins      int64
+	TotalVisits      int64
+	TodayVisits      int64
+	TotalShares      int64
+	TodayShares      int64
 	TotalPosts       int64
 	TodayPosts       int64
 	TotalComments    int64
@@ -427,6 +433,9 @@ type CampusAdminSummary struct {
 type CampusAdminTrend struct {
 	Date        string
 	Users       int64
+	Logins      int64
+	Visits      int64
+	Shares      int64
 	Posts       int64
 	Comments    int64
 	Likes       int64
@@ -516,6 +525,18 @@ type UpdateCampusUserRoleInput struct {
 	Role         string
 }
 
+type TrackCampusEventInput struct {
+	UserID     string
+	EventType  string
+	Page       string
+	TargetType string
+	TargetID   int64
+	Channel    string
+	Extra      map[string]string
+	UserAgent  string
+	IP         string
+}
+
 type ReviewCampusContentInput struct {
 	UserID     string
 	TargetType string
@@ -558,6 +579,7 @@ type CampusRepo interface {
 	ListReports(ctx context.Context, status int32, offset, limit int) ([]*CampusForumReport, int64, error)
 	UpdateReportStatus(ctx context.Context, reportID int64, status int32) error
 	CreateAuditLog(ctx context.Context, log *CampusAuditLog) error
+	TrackEvent(ctx context.Context, event *TrackCampusEventInput) error
 	GetAdminSummary(ctx context.Context) (*CampusAdminSummary, error)
 	ListCampusUsers(ctx context.Context, keyword string, offset, limit int) ([]*CampusAdminUser, int64, error)
 	GetCampusOperatorRole(ctx context.Context, userID string) (string, error)
@@ -640,6 +662,13 @@ func (uc *CampusUsecase) WechatLogin(ctx context.Context, input *WechatLoginInpu
 	if err != nil {
 		return nil, apperror.Internal(err, "生成登录态失败")
 	}
+
+	uc.trackEvent(ctx, &TrackCampusEventInput{
+		UserID:    user.ID,
+		EventType: "login",
+		Page:      "mine",
+		Channel:   "wechat",
+	})
 
 	return &WechatLoginOutput{Token: token, Profile: profile, User: user}, nil
 }
@@ -944,6 +973,13 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 	if err := uc.repo.CreatePost(ctx, post); err != nil {
 		return nil, apperror.Internal(err, "发布帖子失败")
 	}
+	uc.trackEvent(ctx, &TrackCampusEventInput{
+		UserID:     input.UserID,
+		EventType:  "post_create",
+		Page:       "publish",
+		TargetType: "post",
+		TargetID:   post.ID,
+	})
 	_ = uc.hydratePosts(ctx, []*CampusForumPost{post}, input.UserID)
 	return post, nil
 }
@@ -1086,6 +1122,13 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 	if err := uc.repo.CreateComment(ctx, comment); err != nil {
 		return nil, apperror.Internal(err, "发表评论失败")
 	}
+	uc.trackEvent(ctx, &TrackCampusEventInput{
+		UserID:     input.UserID,
+		EventType:  "comment_create",
+		Page:       "post-detail",
+		TargetType: "post",
+		TargetID:   input.PostID,
+	})
 	_ = uc.hydrateComments(ctx, []*CampusForumComment{comment})
 	return comment, nil
 }
@@ -1173,6 +1216,13 @@ func (uc *CampusUsecase) LikePost(ctx context.Context, userID string, postID int
 	if err := uc.repo.AddPostLike(ctx, uc.idGen.NextID(), userID, postID); err != nil {
 		return apperror.Internal(err, "点赞失败")
 	}
+	uc.trackEvent(ctx, &TrackCampusEventInput{
+		UserID:     userID,
+		EventType:  "like",
+		Page:       "post-detail",
+		TargetType: "post",
+		TargetID:   postID,
+	})
 	return nil
 }
 
@@ -1206,6 +1256,13 @@ func (uc *CampusUsecase) CollectPost(ctx context.Context, userID string, postID 
 	if err := uc.repo.AddPostCollection(ctx, uc.idGen.NextID(), userID, postID); err != nil {
 		return apperror.Internal(err, "收藏失败")
 	}
+	uc.trackEvent(ctx, &TrackCampusEventInput{
+		UserID:     userID,
+		EventType:  "collect",
+		Page:       "post-detail",
+		TargetType: "post",
+		TargetID:   postID,
+	})
 	return nil
 }
 
@@ -2024,6 +2081,79 @@ func (uc *CampusUsecase) isEnvListed(envName, userID string) bool {
 		}
 	}
 	return false
+}
+
+func (uc *CampusUsecase) TrackEvent(ctx context.Context, input *TrackCampusEventInput) error {
+	if input == nil {
+		return apperror.InvalidArgument("埋点事件不能为空")
+	}
+	event := normalizeCampusEvent(input.EventType)
+	if event == "" {
+		return apperror.InvalidArgument("埋点事件类型无效")
+	}
+	tracked := &TrackCampusEventInput{
+		UserID:     strings.TrimSpace(input.UserID),
+		EventType:  event,
+		Page:       trimLimit(input.Page, 64),
+		TargetType: trimLimit(input.TargetType, 32),
+		TargetID:   input.TargetID,
+		Channel:    trimLimit(input.Channel, 64),
+		Extra:      sanitizeTrackExtra(input.Extra),
+		UserAgent:  trimLimit(input.UserAgent, 512),
+		IP:         trimLimit(input.IP, 64),
+	}
+	if err := uc.repo.TrackEvent(ctx, tracked); err != nil {
+		return apperror.Internal(err, "记录埋点失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) trackEvent(ctx context.Context, input *TrackCampusEventInput) {
+	if input == nil {
+		return
+	}
+	if err := uc.TrackEvent(ctx, input); err != nil {
+		uc.log.WithContext(ctx).Warnf("track campus event failed: event=%s err=%v", input.EventType, err)
+	}
+}
+
+func normalizeCampusEvent(event string) string {
+	switch strings.TrimSpace(strings.ToLower(event)) {
+	case "visit", "share", "login", "post_create", "comment_create", "like", "collect":
+		return strings.TrimSpace(strings.ToLower(event))
+	default:
+		return ""
+	}
+}
+
+func sanitizeTrackExtra(extra map[string]string) map[string]string {
+	if len(extra) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(extra))
+	for key, value := range extra {
+		key = trimLimit(key, 40)
+		if key == "" {
+			continue
+		}
+		out[key] = trimLimit(value, 200)
+		if len(out) >= 16 {
+			break
+		}
+	}
+	return out
+}
+
+func trimLimit(value string, max int) string {
+	value = strings.TrimSpace(value)
+	if max <= 0 {
+		return value
+	}
+	runes := []rune(value)
+	if len(runes) <= max {
+		return value
+	}
+	return string(runes[:max])
 }
 
 func shortHash(input string, n int) string {

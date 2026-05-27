@@ -45,6 +45,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.PUT("/v1/campus/me/avatar", s.wrap(s.authRequired(s.handleUpdateAvatar)))
 	r.GET("/v1/campus/timetable", s.wrap(s.authRequired(s.handleListTimetable)))
 	r.POST("/v1/campus/timetable/import", s.wrap(s.authRequired(s.handleImportTimetable)))
+	r.POST("/v1/campus/analytics/track", s.wrap(s.handleTrackEvent))
 	r.POST("/v1/campus/upload/image", s.wrap(s.authRequired(s.handleUploadImage)))
 	r.POST("/v1/campus/upload/video", s.wrap(s.authRequired(s.handleUploadVideo)))
 	r.GET("/v1/campus/forum/categories", s.wrap(s.handleListCategories))
@@ -129,6 +130,15 @@ type avatarRequest struct {
 	Avatar string `json:"avatar"`
 }
 
+type trackEventRequest struct {
+	EventType  string            `json:"event_type"`
+	Page       string            `json:"page"`
+	TargetType string            `json:"target_type"`
+	TargetID   int64             `json:"target_id"`
+	Channel    string            `json:"channel"`
+	Extra      map[string]string `json:"extra"`
+}
+
 type importTimetableRequest struct {
 	StudentNo string `json:"student_no"`
 	Password  string `json:"password"`
@@ -180,6 +190,29 @@ func (s *CampusService) handleUpdateAvatar(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"user": userToMap(user)})
+}
+
+func (s *CampusService) handleTrackEvent(w http.ResponseWriter, r *http.Request) {
+	var req trackEventRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := optionalUserIDFromRequest(r, s.authSecret)
+	if err := s.uc.TrackEvent(r.Context(), &biz.TrackCampusEventInput{
+		UserID:     userID,
+		EventType:  req.EventType,
+		Page:       req.Page,
+		TargetType: req.TargetType,
+		TargetID:   req.TargetID,
+		Channel:    req.Channel,
+		Extra:      req.Extra,
+		UserAgent:  r.UserAgent(),
+		IP:         clientIP(r),
+	}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
 }
 
 func (s *CampusService) handleListTimetable(w http.ResponseWriter, r *http.Request) {
@@ -1114,6 +1147,21 @@ func optionalUserIDFromRequest(r *http.Request, secret string) (string, error) {
 	return parsed.UserId, nil
 }
 
+func clientIP(r *http.Request) string {
+	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" {
+		parts := strings.Split(forwarded, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
+		return realIP
+	}
+	host := r.RemoteAddr
+	if idx := strings.LastIndex(host, ":"); idx > -1 {
+		return host[:idx]
+	}
+	return host
+}
+
 func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	raw := mux.Vars(r)["id"]
 	id, err := strconv.ParseInt(raw, 10, 64)
@@ -1373,6 +1421,9 @@ func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {
 		trends = append(trends, map[string]interface{}{
 			"date":        trend.Date,
 			"users":       trend.Users,
+			"logins":      trend.Logins,
+			"visits":      trend.Visits,
+			"shares":      trend.Shares,
 			"posts":       trend.Posts,
 			"comments":    trend.Comments,
 			"likes":       trend.Likes,
@@ -1383,6 +1434,12 @@ func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {
 	return map[string]interface{}{
 		"total_users":       summary.TotalUsers,
 		"today_users":       summary.TodayUsers,
+		"total_logins":      summary.TotalLogins,
+		"today_logins":      summary.TodayLogins,
+		"total_visits":      summary.TotalVisits,
+		"today_visits":      summary.TodayVisits,
+		"total_shares":      summary.TotalShares,
+		"today_shares":      summary.TodayShares,
 		"total_posts":       summary.TotalPosts,
 		"today_posts":       summary.TodayPosts,
 		"total_comments":    summary.TotalComments,

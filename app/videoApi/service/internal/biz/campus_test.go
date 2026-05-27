@@ -251,6 +251,9 @@ func (r *campusRepoStub) ListReports(context.Context, int32, int, int) ([]*Campu
 }
 func (r *campusRepoStub) UpdateReportStatus(context.Context, int64, int32) error { return nil }
 func (r *campusRepoStub) CreateAuditLog(context.Context, *CampusAuditLog) error  { return nil }
+func (r *campusRepoStub) TrackEvent(context.Context, *TrackCampusEventInput) error {
+	return nil
+}
 func (r *campusRepoStub) GetAdminSummary(context.Context) (*CampusAdminSummary, error) {
 	return nil, nil
 }
