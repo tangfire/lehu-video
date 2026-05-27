@@ -1345,10 +1345,10 @@ func (uc *CampusUsecase) DeleteComment(ctx context.Context, userID string, comme
 		return apperror.NotFound("评论不存在")
 	}
 	if comment.AuthorID != userID && !uc.isCampusAdmin(ctx, userID) {
-		return apperror.Forbidden("只能删除自己的评论")
+		return apperror.Forbidden("只能撤回自己的评论")
 	}
 	if err := uc.repo.DeleteComment(ctx, commentID); err != nil {
-		return apperror.Internal(err, "删除评论失败")
+		return apperror.Internal(err, "撤回评论失败")
 	}
 	return nil
 }
