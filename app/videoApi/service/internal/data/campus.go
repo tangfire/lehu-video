@@ -440,6 +440,7 @@ func (r *campusRepo) CreatePost(ctx context.Context, post *biz.CampusForumPost) 
 		VideoURL:     post.VideoURL,
 		IsOfficial:   post.IsOfficial,
 		IsFeatured:   post.IsFeatured,
+		IsPinned:     post.IsPinned,
 		SortWeight:   post.SortWeight,
 		Status:       post.Status,
 		AuditReason:  post.AuditReason,

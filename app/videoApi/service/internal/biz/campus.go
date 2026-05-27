@@ -447,6 +447,7 @@ type ListCampusAdminPostsInput struct {
 	UserID       string
 	CategoryCode string
 	PostType     string
+	OpsFilter    string
 	Keyword      string
 	Status       int32
 	Sort         string
@@ -472,6 +473,17 @@ type UpdateCampusAdminPostInput struct {
 	IsFeatured   bool
 	IsPinned     bool
 	SortWeight   int32
+}
+
+type BatchCampusAdminPostsInput struct {
+	UserID     string
+	PostIDs    []int64
+	Action     string
+	SortWeight int32
+}
+
+type BatchCampusAdminPostsOutput struct {
+	UpdatedCount int32
 }
 
 type ListCampusAdminCommentsInput struct {
@@ -1452,6 +1464,7 @@ func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAd
 	if input.Status >= CampusAuditStatusPending && input.Status <= CampusAuditStatusDeleted {
 		statuses = []int32{input.Status}
 	}
+	onlyOfficial, onlyFeatured, onlyPinned := parseOpsFilter(input.OpsFilter)
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode:   strings.TrimSpace(input.CategoryCode),
 		PostType:       strings.TrimSpace(input.PostType),
@@ -1459,6 +1472,9 @@ func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAd
 		Keyword:        strings.TrimSpace(input.Keyword),
 		Statuses:       statuses,
 		IncludeDeleted: true,
+		OnlyOfficial:   onlyOfficial,
+		OnlyFeatured:   onlyFeatured,
+		OnlyPinned:     onlyPinned,
 		Offset:         int((page - 1) * size),
 		Limit:          int(size),
 	})
@@ -1469,6 +1485,75 @@ func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAd
 		uc.log.WithContext(ctx).Warnf("hydrate admin posts failed: %v", err)
 	}
 	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminBatchPosts(ctx context.Context, input *BatchCampusAdminPostsInput) (*BatchCampusAdminPostsOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	action := strings.TrimSpace(strings.ToLower(input.Action))
+	if action == "" {
+		return nil, apperror.InvalidArgument("请选择批量操作")
+	}
+	seen := map[int64]struct{}{}
+	postIDs := make([]int64, 0, len(input.PostIDs))
+	for _, id := range input.PostIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		postIDs = append(postIDs, id)
+		if len(postIDs) >= 100 {
+			break
+		}
+	}
+	if len(postIDs) == 0 {
+		return nil, apperror.InvalidArgument("请选择要操作的内容")
+	}
+	var updated int32
+	for _, postID := range postIDs {
+		ok, existing, err := uc.repo.GetAnyPostByID(ctx, postID)
+		if err != nil {
+			return nil, apperror.Internal(err, "查询帖子失败")
+		}
+		if !ok {
+			continue
+		}
+		next := *existing
+		next.AuditReason = existing.AuditReason
+		switch action {
+		case "pin":
+			next.IsPinned = true
+		case "unpin":
+			next.IsPinned = false
+		case "feature":
+			next.IsFeatured = true
+		case "unfeature":
+			next.IsFeatured = false
+		case "official":
+			next.IsOfficial = true
+		case "unofficial":
+			next.IsOfficial = false
+		case "visible":
+			next.Status = CampusAuditStatusVisible
+			next.AuditReason = ""
+		case "delete":
+			next.Status = CampusAuditStatusDeleted
+			next.AuditReason = "运营下架"
+		case "set_weight":
+			next.SortWeight = clampSortWeight(input.SortWeight)
+		default:
+			return nil, apperror.InvalidArgument("批量操作无效")
+		}
+		if err := uc.repo.UpdatePostByAdmin(ctx, &next); err != nil {
+			return nil, apperror.Internal(err, "批量更新内容失败")
+		}
+		updated++
+	}
+	return &BatchCampusAdminPostsOutput{UpdatedCount: updated}, nil
 }
 
 func (uc *CampusUsecase) AdminCreatePost(ctx context.Context, input *CreateCampusPostInput) (*CampusForumPost, error) {
@@ -2032,6 +2117,20 @@ func normalizeCampusTargetType(targetType string) string {
 		return "comment"
 	default:
 		return ""
+	}
+}
+
+func parseOpsFilter(filter string) (*bool, *bool, *bool) {
+	value := true
+	switch strings.TrimSpace(strings.ToLower(filter)) {
+	case "official":
+		return &value, nil, nil
+	case "featured":
+		return nil, &value, nil
+	case "pinned":
+		return nil, nil, &value
+	default:
+		return nil, nil, nil
 	}
 }
 

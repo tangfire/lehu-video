@@ -147,6 +147,112 @@ func TestListPostsPassesPostTypeQuery(t *testing.T) {
 	}
 }
 
+func TestAdminListPostsPassesOpsFilters(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{"10": "operator"}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	if _, err := uc.AdminListPosts(context.Background(), &ListCampusAdminPostsInput{
+		UserID:       "10",
+		PostType:     CampusPostTypeGuide,
+		CategoryCode: "life",
+		OpsFilter:    "pinned",
+		Status:       CampusAuditStatusVisible,
+		Page:         1,
+		Size:         20,
+	}); err != nil {
+		t.Fatalf("AdminListPosts() error = %v", err)
+	}
+	if repo.lastListQuery.PostType != CampusPostTypeGuide || repo.lastListQuery.CategoryCode != "life" {
+		t.Fatalf("query mismatch: %+v", repo.lastListQuery)
+	}
+	if repo.lastListQuery.OnlyPinned == nil || !*repo.lastListQuery.OnlyPinned {
+		t.Fatalf("OnlyPinned query not set: %+v", repo.lastListQuery)
+	}
+	if len(repo.lastListQuery.Statuses) != 1 || repo.lastListQuery.Statuses[0] != CampusAuditStatusVisible {
+		t.Fatalf("Statuses = %+v, want visible", repo.lastListQuery.Statuses)
+	}
+}
+
+func TestAdminBatchPostsRequiresOperator(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	if _, err := uc.AdminBatchPosts(context.Background(), &BatchCampusAdminPostsInput{
+		UserID:  "10",
+		PostIDs: []int64{1},
+		Action:  "pin",
+	}); err == nil {
+		t.Fatalf("AdminBatchPosts() expected forbidden error")
+	}
+}
+
+func TestAdminBatchPostsUpdatesContentFlags(t *testing.T) {
+	repo := &campusRepoStub{
+		roles: map[string]string{"10": "operator"},
+		posts: map[int64]*CampusForumPost{
+			1: {
+				ID:           1,
+				CategoryCode: "guide",
+				AuthorID:     "10",
+				Title:        "报到攻略",
+				Content:      "内容",
+				MediaType:    CampusPostMediaText,
+				PostType:     CampusPostTypeGuide,
+				Status:       CampusAuditStatusPending,
+			},
+			2: {
+				ID:           2,
+				CategoryCode: "life",
+				AuthorID:     "10",
+				Title:        "宿舍 FAQ",
+				Content:      "内容",
+				MediaType:    CampusPostMediaText,
+				PostType:     CampusPostTypeGuide,
+				Status:       CampusAuditStatusPending,
+			},
+		},
+	}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	out, err := uc.AdminBatchPosts(context.Background(), &BatchCampusAdminPostsInput{
+		UserID:  "10",
+		PostIDs: []int64{1, 2, 2},
+		Action:  "pin",
+	})
+	if err != nil {
+		t.Fatalf("AdminBatchPosts(pin) error = %v", err)
+	}
+	if out.UpdatedCount != 2 {
+		t.Fatalf("updated count = %d, want 2", out.UpdatedCount)
+	}
+	if !repo.posts[1].IsPinned || !repo.posts[2].IsPinned {
+		t.Fatalf("posts not pinned: %+v %+v", repo.posts[1], repo.posts[2])
+	}
+
+	if _, err := uc.AdminBatchPosts(context.Background(), &BatchCampusAdminPostsInput{
+		UserID:     "10",
+		PostIDs:    []int64{1},
+		Action:     "set_weight",
+		SortWeight: 120,
+	}); err != nil {
+		t.Fatalf("AdminBatchPosts(set_weight) error = %v", err)
+	}
+	if repo.posts[1].SortWeight != 120 {
+		t.Fatalf("sort weight = %d, want 120", repo.posts[1].SortWeight)
+	}
+
+	if _, err := uc.AdminBatchPosts(context.Background(), &BatchCampusAdminPostsInput{
+		UserID:  "10",
+		PostIDs: []int64{1},
+		Action:  "visible",
+	}); err != nil {
+		t.Fatalf("AdminBatchPosts(visible) error = %v", err)
+	}
+	if repo.posts[1].Status != CampusAuditStatusVisible {
+		t.Fatalf("status = %d, want visible", repo.posts[1].Status)
+	}
+}
+
 type fixedCampusIDGenerator int64
 
 func (g fixedCampusIDGenerator) NextID() int64 { return int64(g) }
@@ -158,6 +264,7 @@ func (ioDiscard) Write(p []byte) (int, error) { return len(p), nil }
 type campusRepoStub struct {
 	category      *CampusForumCategory
 	roles         map[string]string
+	posts         map[int64]*CampusForumPost
 	lastPost      *CampusForumPost
 	lastListQuery ListCampusPostQuery
 }
@@ -207,14 +314,26 @@ func (r *campusRepoStub) ListCategories(context.Context) ([]*CampusForumCategory
 func (r *campusRepoStub) GetPostByID(context.Context, int64) (bool, *CampusForumPost, error) {
 	return false, nil, nil
 }
-func (r *campusRepoStub) GetAnyPostByID(context.Context, int64) (bool, *CampusForumPost, error) {
-	return false, nil, nil
+func (r *campusRepoStub) GetAnyPostByID(ctx context.Context, postID int64) (bool, *CampusForumPost, error) {
+	_ = ctx
+	post := r.posts[postID]
+	if post == nil {
+		return false, nil, nil
+	}
+	copyPost := *post
+	return true, &copyPost, nil
 }
 func (r *campusRepoStub) DeletePost(context.Context, int64) error { return nil }
 func (r *campusRepoStub) UpdatePostStatus(context.Context, int64, int32, string) error {
 	return nil
 }
-func (r *campusRepoStub) UpdatePostByAdmin(context.Context, *CampusForumPost) error {
+func (r *campusRepoStub) UpdatePostByAdmin(ctx context.Context, post *CampusForumPost) error {
+	_ = ctx
+	copyPost := *post
+	if r.posts == nil {
+		r.posts = map[int64]*CampusForumPost{}
+	}
+	r.posts[post.ID] = &copyPost
 	return nil
 }
 func (r *campusRepoStub) CreateComment(context.Context, *CampusForumComment) error { return nil }

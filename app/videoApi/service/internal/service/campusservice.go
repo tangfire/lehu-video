@@ -72,6 +72,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/summary", s.wrap(s.authRequired(s.handleAdminSummary)))
 	r.GET("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminListPosts)))
 	r.POST("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminCreatePost)))
+	r.POST("/v1/campus/admin/posts/batch", s.wrap(s.authRequired(s.handleAdminBatchPosts)))
 	r.PUT("/v1/campus/admin/posts/{id}", s.wrap(s.authRequired(s.handleAdminUpdatePost)))
 	r.DELETE("/v1/campus/admin/posts/{id}", s.wrap(s.authRequired(s.handleAdminDeletePost)))
 	r.GET("/v1/campus/admin/comments", s.wrap(s.authRequired(s.handleAdminListComments)))
@@ -507,6 +508,12 @@ type postRequest struct {
 	SortWeight   int32             `json:"sort_weight"`
 }
 
+type batchPostsRequest struct {
+	IDs        []int64 `json:"ids"`
+	Action     string  `json:"action"`
+	SortWeight int32   `json:"sort_weight"`
+}
+
 func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request) {
 	var req postRequest
 	if !decodeJSON(w, r, &req) {
@@ -876,6 +883,7 @@ func (s *CampusService) handleAdminListPosts(w http.ResponseWriter, r *http.Requ
 		UserID:       userID,
 		CategoryCode: q.Get("category_code"),
 		PostType:     q.Get("post_type"),
+		OpsFilter:    q.Get("ops_filter"),
 		Keyword:      q.Get("keyword"),
 		Status:       int32(queryInt(q.Get("status"), -1)),
 		Sort:         q.Get("sort"),
@@ -923,6 +931,25 @@ func (s *CampusService) handleAdminCreatePost(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"post": postToMap(post)})
+}
+
+func (s *CampusService) handleAdminBatchPosts(w http.ResponseWriter, r *http.Request) {
+	var req batchPostsRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminBatchPosts(r.Context(), &biz.BatchCampusAdminPostsInput{
+		UserID:     userID,
+		PostIDs:    req.IDs,
+		Action:     req.Action,
+		SortWeight: req.SortWeight,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"updated_count": out.UpdatedCount})
 }
 
 func (s *CampusService) handleAdminUpdatePost(w http.ResponseWriter, r *http.Request) {
