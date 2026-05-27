@@ -401,6 +401,7 @@ type ListCampusPostQuery struct {
 	OnlyOfficial      *bool
 	OnlyFeatured      *bool
 	OnlyPinned        *bool
+	OnlyReported      bool
 	Offset            int
 	Limit             int
 }
@@ -462,6 +463,11 @@ type CampusAdminSummary struct {
 	TodayVisits      int64
 	TotalShares      int64
 	TodayShares      int64
+	TodayPublishOpen int64
+	TodayPublishDone int64
+	TodayDetailViews int64
+	TodayFeedback    int64
+	TodayReports     int64
 	TotalPosts       int64
 	TodayPosts       int64
 	TotalComments    int64
@@ -1239,10 +1245,10 @@ func (uc *CampusUsecase) DeletePost(ctx context.Context, userID string, postID i
 		return apperror.NotFound("帖子不存在")
 	}
 	if post.AuthorID != userID && !uc.isCampusAdmin(ctx, userID) {
-		return apperror.Forbidden("只能删除自己的帖子")
+		return apperror.Forbidden("只能撤回自己的帖子")
 	}
 	if err := uc.repo.DeletePost(ctx, postID); err != nil {
-		return apperror.Internal(err, "删除帖子失败")
+		return apperror.Internal(err, "撤回帖子失败")
 	}
 	return nil
 }
@@ -1606,7 +1612,7 @@ func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAd
 	if input.Status >= CampusAuditStatusPending && input.Status <= CampusAuditStatusDeleted {
 		statuses = []int32{input.Status}
 	}
-	onlyOfficial, onlyFeatured, onlyPinned := parseOpsFilter(input.OpsFilter)
+	onlyOfficial, onlyFeatured, onlyPinned, onlyReported := parseOpsFilter(input.OpsFilter)
 	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
 		CategoryCode:   strings.TrimSpace(input.CategoryCode),
 		PostType:       strings.TrimSpace(input.PostType),
@@ -1617,6 +1623,7 @@ func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAd
 		OnlyOfficial:   onlyOfficial,
 		OnlyFeatured:   onlyFeatured,
 		OnlyPinned:     onlyPinned,
+		OnlyReported:   onlyReported,
 		Offset:         int((page - 1) * size),
 		Limit:          int(size),
 	})
@@ -2513,17 +2520,19 @@ func normalizeCampusTargetType(targetType string) string {
 	}
 }
 
-func parseOpsFilter(filter string) (*bool, *bool, *bool) {
+func parseOpsFilter(filter string) (*bool, *bool, *bool, bool) {
 	value := true
 	switch strings.TrimSpace(strings.ToLower(filter)) {
 	case "official":
-		return &value, nil, nil
+		return &value, nil, nil, false
 	case "featured":
-		return nil, &value, nil
+		return nil, &value, nil, false
 	case "pinned":
-		return nil, nil, &value
+		return nil, nil, &value, false
+	case "reported":
+		return nil, nil, nil, true
 	default:
-		return nil, nil, nil
+		return nil, nil, nil, false
 	}
 }
 
@@ -2611,7 +2620,7 @@ func (uc *CampusUsecase) trackEvent(ctx context.Context, input *TrackCampusEvent
 
 func normalizeCampusEvent(event string) string {
 	switch strings.TrimSpace(strings.ToLower(event)) {
-	case "visit", "share", "login", "post_create", "comment_create", "like", "collect":
+	case "visit", "share", "login", "post_create", "publish_open", "publish_success", "post_detail_visit", "comment_create", "like", "collect", "feedback_create", "report_create":
 		return strings.TrimSpace(strings.ToLower(event))
 	default:
 		return ""

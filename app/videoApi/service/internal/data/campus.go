@@ -533,6 +533,9 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 	if query.CollectedByUserID != "" {
 		db = db.Joins("JOIN campus_forum_post_collection c ON c.post_id = campus_forum_post.id AND c.user_id = ? AND c.is_deleted = ?", parseID(query.CollectedByUserID), false)
 	}
+	if query.OnlyReported {
+		db = db.Where("EXISTS (SELECT 1 FROM campus_forum_report r WHERE r.target_type = ? AND r.target_id = campus_forum_post.id AND r.status = ?)", "post", biz.CampusAuditStatusPending)
+	}
 	if query.Keyword != "" {
 		keyword := "%" + query.Keyword + "%"
 		db = db.Where("(campus_forum_post.title LIKE ? OR campus_forum_post.content LIKE ?)", keyword, keyword)
@@ -1410,6 +1413,11 @@ func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSumma
 		{"campus_event", "event_type = 'visit' AND created_at >= ?", &summary.TodayVisits},
 		{"campus_event", "event_type = 'share'", &summary.TotalShares},
 		{"campus_event", "event_type = 'share' AND created_at >= ?", &summary.TodayShares},
+		{"campus_event", "event_type = 'publish_open' AND created_at >= ?", &summary.TodayPublishOpen},
+		{"campus_event", "event_type = 'publish_success' AND created_at >= ?", &summary.TodayPublishDone},
+		{"campus_event", "event_type = 'post_detail_visit' AND created_at >= ?", &summary.TodayDetailViews},
+		{"campus_event", "event_type = 'feedback_create' AND created_at >= ?", &summary.TodayFeedback},
+		{"campus_event", "event_type = 'report_create' AND created_at >= ?", &summary.TodayReports},
 		{"campus_forum_post", "is_deleted = 0", &summary.TotalPosts},
 		{"campus_forum_post", "is_deleted = 0 AND created_at >= ?", &summary.TodayPosts},
 		{"campus_forum_comment", "is_deleted = 0", &summary.TotalComments},
