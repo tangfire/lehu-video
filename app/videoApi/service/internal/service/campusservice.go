@@ -27,6 +27,12 @@ type CampusService struct {
 	authSecret string
 }
 
+const (
+	campusMaxImageBytes       = 5 << 20
+	campusMaxVideoBytes       = 20 << 20
+	campusMultipartExtraBytes = 1 << 20
+)
+
 func NewCampusService(uc *biz.CampusUsecase, authSecret string) *CampusService {
 	return &CampusService{uc: uc, authSecret: authSecret}
 }
@@ -213,7 +219,8 @@ func (s *CampusService) handleImportTimetable(w http.ResponseWriter, r *http.Req
 }
 
 func (s *CampusService) handleUploadImage(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(8 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, campusMaxImageBytes+campusMultipartExtraBytes)
+	if err := r.ParseMultipartForm(campusMaxImageBytes); err != nil {
 		writeError(w, r, apperror.InvalidArgument("图片上传请求无效"))
 		return
 	}
@@ -223,16 +230,16 @@ func (s *CampusService) handleUploadImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer file.Close()
-	if header.Size > 5<<20 {
+	if header.Size > campusMaxImageBytes {
 		writeError(w, r, apperror.InvalidArgument("图片不能超过 5MB"))
 		return
 	}
-	data, err := io.ReadAll(io.LimitReader(file, 5<<20+1))
+	data, err := io.ReadAll(io.LimitReader(file, campusMaxImageBytes+1))
 	if err != nil {
 		writeError(w, r, apperror.Internal(err, "读取图片失败"))
 		return
 	}
-	if len(data) > 5<<20 {
+	if len(data) > campusMaxImageBytes {
 		writeError(w, r, apperror.InvalidArgument("图片不能超过 5MB"))
 		return
 	}
@@ -278,7 +285,8 @@ func (s *CampusService) handleUploadImage(w http.ResponseWriter, r *http.Request
 }
 
 func (s *CampusService) handleUploadVideo(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(90 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, campusMaxVideoBytes+campusMultipartExtraBytes)
+	if err := r.ParseMultipartForm(campusMaxVideoBytes); err != nil {
 		writeError(w, r, apperror.InvalidArgument("视频上传请求无效"))
 		return
 	}
@@ -288,17 +296,17 @@ func (s *CampusService) handleUploadVideo(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer file.Close()
-	if header.Size > 80<<20 {
-		writeError(w, r, apperror.InvalidArgument("视频不能超过 80MB"))
+	if header.Size > campusMaxVideoBytes {
+		writeError(w, r, apperror.InvalidArgument("视频不能超过 20MB"))
 		return
 	}
-	data, err := io.ReadAll(io.LimitReader(file, 80<<20+1))
+	data, err := io.ReadAll(io.LimitReader(file, campusMaxVideoBytes+1))
 	if err != nil {
 		writeError(w, r, apperror.Internal(err, "读取视频失败"))
 		return
 	}
-	if len(data) > 80<<20 {
-		writeError(w, r, apperror.InvalidArgument("视频不能超过 80MB"))
+	if len(data) > campusMaxVideoBytes {
+		writeError(w, r, apperror.InvalidArgument("视频不能超过 20MB"))
 		return
 	}
 	fileType := videoFileType(header.Filename, http.DetectContentType(data))

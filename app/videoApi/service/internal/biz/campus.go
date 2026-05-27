@@ -711,8 +711,8 @@ func (uc *CampusUsecase) PreSignPublicVideo(ctx context.Context, hash, fileType,
 	if fileType != "mp4" && fileType != "mov" {
 		return "", "", apperror.InvalidArgument("仅支持 mp4、mov 视频")
 	}
-	if size <= 0 || size > 80<<20 {
-		return "", "", apperror.InvalidArgument("视频不能超过 80MB")
+	if size <= 0 || size > 20<<20 {
+		return "", "", apperror.InvalidArgument("视频不能超过 20MB")
 	}
 	fileID, url, err := uc.base.PreSign4PublicUpload(ctx, hash, fileType, filename, size, 3600)
 	if err != nil {
