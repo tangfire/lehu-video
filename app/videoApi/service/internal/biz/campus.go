@@ -100,24 +100,26 @@ type CampusForumAuthor struct {
 }
 
 type CampusForumPost struct {
-	ID           int64
-	CategoryCode string
-	CategoryName string
-	AuthorID     string
-	Author       *CampusForumAuthor
-	Title        string
-	Content      string
-	Images       []string
-	MediaType    string
-	CoverURL     string
-	VideoURL     string
-	Status       int32
-	AuditReason  string
-	LikeCount    int64
-	CommentCount int64
-	IsLiked      bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID             int64
+	CategoryCode   string
+	CategoryName   string
+	AuthorID       string
+	Author         *CampusForumAuthor
+	Title          string
+	Content        string
+	Images         []string
+	MediaType      string
+	CoverURL       string
+	VideoURL       string
+	Status         int32
+	AuditReason    string
+	LikeCount      int64
+	CommentCount   int64
+	CollectedCount int64
+	IsLiked        bool
+	IsCollected    bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type CampusForumComment struct {
@@ -206,14 +208,15 @@ type ListCampusPostsOutput struct {
 }
 
 type ListCampusPostQuery struct {
-	CategoryCode   string
-	Sort           string
-	Keyword        string
-	AuthorID       string
-	Statuses       []int32
-	IncludeDeleted bool
-	Offset         int
-	Limit          int
+	CategoryCode      string
+	Sort              string
+	Keyword           string
+	AuthorID          string
+	CollectedByUserID string
+	Statuses          []int32
+	IncludeDeleted    bool
+	Offset            int
+	Limit             int
 }
 
 type GetCampusPostInput struct {
@@ -292,6 +295,9 @@ type CampusRepo interface {
 	GetPostLikeStatus(ctx context.Context, userID string, postIDs []int64) (map[int64]bool, error)
 	AddPostLike(ctx context.Context, id int64, userID string, postID int64) error
 	RemovePostLike(ctx context.Context, userID string, postID int64) error
+	GetPostCollectionStatus(ctx context.Context, userID string, postIDs []int64) (map[int64]bool, error)
+	AddPostCollection(ctx context.Context, id int64, userID string, postID int64) error
+	RemovePostCollection(ctx context.Context, userID string, postID int64) error
 	CreateReport(ctx context.Context, report *CampusForumReport) error
 	CreateAuditLog(ctx context.Context, log *CampusAuditLog) error
 }
@@ -651,6 +657,30 @@ func (uc *CampusUsecase) ListMyPosts(ctx context.Context, input *ListCampusPosts
 	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
 }
 
+func (uc *CampusUsecase) ListMyCollections(ctx context.Context, input *ListCampusPostsInput) (*ListCampusPostsOutput, error) {
+	if strings.TrimSpace(input.CurrentUserID) == "" {
+		return nil, apperror.Unauthorized("请先登录")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
+		CategoryCode:      strings.TrimSpace(input.CategoryCode),
+		Sort:              strings.TrimSpace(input.Sort),
+		Keyword:           strings.TrimSpace(input.Keyword),
+		CollectedByUserID: input.CurrentUserID,
+		Statuses:          []int32{CampusAuditStatusVisible},
+		IncludeDeleted:    false,
+		Offset:            int((page - 1) * size),
+		Limit:             int(size),
+	})
+	if err != nil {
+		return nil, apperror.Internal(err, "获取我的收藏失败")
+	}
+	if err := uc.hydratePosts(ctx, posts, input.CurrentUserID); err != nil {
+		uc.log.WithContext(ctx).Warnf("hydrate collected campus posts failed: %v", err)
+	}
+	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
+}
+
 func (uc *CampusUsecase) GetPost(ctx context.Context, input *GetCampusPostInput) (*CampusForumPost, error) {
 	if input.PostID <= 0 {
 		return nil, apperror.InvalidArgument("帖子 ID 无效")
@@ -814,6 +844,39 @@ func (uc *CampusUsecase) UnlikePost(ctx context.Context, userID string, postID i
 	}
 	if err := uc.repo.RemovePostLike(ctx, userID, postID); err != nil {
 		return apperror.Internal(err, "取消点赞失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) CollectPost(ctx context.Context, userID string, postID int64) error {
+	if strings.TrimSpace(userID) == "" {
+		return apperror.Unauthorized("请先登录")
+	}
+	if postID <= 0 {
+		return apperror.InvalidArgument("帖子 ID 无效")
+	}
+	ok, _, err := uc.repo.GetPostByID(ctx, postID)
+	if err != nil {
+		return apperror.Internal(err, "查询帖子失败")
+	}
+	if !ok {
+		return apperror.NotFound("帖子不存在")
+	}
+	if err := uc.repo.AddPostCollection(ctx, uc.idGen.NextID(), userID, postID); err != nil {
+		return apperror.Internal(err, "收藏失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) UncollectPost(ctx context.Context, userID string, postID int64) error {
+	if strings.TrimSpace(userID) == "" {
+		return apperror.Unauthorized("请先登录")
+	}
+	if postID <= 0 {
+		return apperror.InvalidArgument("帖子 ID 无效")
+	}
+	if err := uc.repo.RemovePostCollection(ctx, userID, postID); err != nil {
+		return apperror.Internal(err, "取消收藏失败")
 	}
 	return nil
 }
@@ -990,12 +1053,15 @@ func (uc *CampusUsecase) hydratePosts(ctx context.Context, posts []*CampusForumP
 		return err
 	}
 	likeStatus := map[int64]bool{}
+	collectionStatus := map[int64]bool{}
 	if currentUserID != "" && currentUserID != "0" {
 		likeStatus, _ = uc.repo.GetPostLikeStatus(ctx, currentUserID, postIDs)
+		collectionStatus, _ = uc.repo.GetPostCollectionStatus(ctx, currentUserID, postIDs)
 	}
 	for _, post := range posts {
 		post.Author = authors[post.AuthorID]
 		post.IsLiked = likeStatus[post.ID]
+		post.IsCollected = collectionStatus[post.ID]
 	}
 	return nil
 }

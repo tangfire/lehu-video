@@ -71,22 +71,23 @@ type campusForumCategoryModel struct {
 func (campusForumCategoryModel) TableName() string { return "campus_forum_category" }
 
 type campusForumPostModel struct {
-	ID           int64           `gorm:"column:id"`
-	CategoryCode string          `gorm:"column:category_code"`
-	AuthorID     int64           `gorm:"column:author_id"`
-	Title        string          `gorm:"column:title"`
-	Content      string          `gorm:"column:content"`
-	Images       json.RawMessage `gorm:"column:images"`
-	MediaType    string          `gorm:"column:media_type"`
-	CoverURL     string          `gorm:"column:cover_url"`
-	VideoURL     string          `gorm:"column:video_url"`
-	Status       int32           `gorm:"column:status"`
-	AuditReason  string          `gorm:"column:audit_reason"`
-	LikeCount    int64           `gorm:"column:like_count"`
-	CommentCount int64           `gorm:"column:comment_count"`
-	IsDeleted    bool            `gorm:"column:is_deleted"`
-	CreatedAt    time.Time       `gorm:"column:created_at"`
-	UpdatedAt    time.Time       `gorm:"column:updated_at"`
+	ID             int64           `gorm:"column:id"`
+	CategoryCode   string          `gorm:"column:category_code"`
+	AuthorID       int64           `gorm:"column:author_id"`
+	Title          string          `gorm:"column:title"`
+	Content        string          `gorm:"column:content"`
+	Images         json.RawMessage `gorm:"column:images"`
+	MediaType      string          `gorm:"column:media_type"`
+	CoverURL       string          `gorm:"column:cover_url"`
+	VideoURL       string          `gorm:"column:video_url"`
+	Status         int32           `gorm:"column:status"`
+	AuditReason    string          `gorm:"column:audit_reason"`
+	LikeCount      int64           `gorm:"column:like_count"`
+	CommentCount   int64           `gorm:"column:comment_count"`
+	CollectedCount int64           `gorm:"column:collected_count"`
+	IsDeleted      bool            `gorm:"column:is_deleted"`
+	CreatedAt      time.Time       `gorm:"column:created_at"`
+	UpdatedAt      time.Time       `gorm:"column:updated_at"`
 }
 
 func (campusForumPostModel) TableName() string { return "campus_forum_post" }
@@ -117,6 +118,17 @@ type campusForumPostLikeModel struct {
 }
 
 func (campusForumPostLikeModel) TableName() string { return "campus_forum_post_like" }
+
+type campusForumPostCollectionModel struct {
+	ID        int64     `gorm:"column:id"`
+	PostID    int64     `gorm:"column:post_id"`
+	UserID    int64     `gorm:"column:user_id"`
+	IsDeleted bool      `gorm:"column:is_deleted"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (campusForumPostCollectionModel) TableName() string { return "campus_forum_post_collection" }
 
 type campusForumReportModel struct {
 	ID         int64     `gorm:"column:id"`
@@ -288,28 +300,34 @@ func (r *campusRepo) CreatePost(ctx context.Context, post *biz.CampusForumPost) 
 func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuery) ([]*biz.CampusForumPost, int64, error) {
 	db := r.data.db.WithContext(ctx).Model(&campusForumPostModel{})
 	if !query.IncludeDeleted {
-		db = db.Where("is_deleted = ?", false)
+		db = db.Where("campus_forum_post.is_deleted = ?", false)
 	}
 	if len(query.Statuses) > 0 {
-		db = db.Where("status IN ?", query.Statuses)
+		db = db.Where("campus_forum_post.status IN ?", query.Statuses)
 	}
 	if query.CategoryCode != "" {
-		db = db.Where("category_code = ?", query.CategoryCode)
+		db = db.Where("campus_forum_post.category_code = ?", query.CategoryCode)
 	}
 	if query.AuthorID != "" {
-		db = db.Where("author_id = ?", parseID(query.AuthorID))
+		db = db.Where("campus_forum_post.author_id = ?", parseID(query.AuthorID))
+	}
+	if query.CollectedByUserID != "" {
+		db = db.Joins("JOIN campus_forum_post_collection c ON c.post_id = campus_forum_post.id AND c.user_id = ? AND c.is_deleted = ?", parseID(query.CollectedByUserID), false)
 	}
 	if query.Keyword != "" {
 		keyword := "%" + query.Keyword + "%"
-		db = db.Where("(title LIKE ? OR content LIKE ?)", keyword, keyword)
+		db = db.Where("(campus_forum_post.title LIKE ? OR campus_forum_post.content LIKE ?)", keyword, keyword)
 	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	order := "created_at DESC, id DESC"
+	order := "campus_forum_post.created_at DESC, campus_forum_post.id DESC"
+	if query.CollectedByUserID != "" {
+		order = "c.updated_at DESC, c.id DESC"
+	}
 	if query.Sort == "hot" {
-		order = "(like_count * 3 + comment_count * 5) DESC, created_at DESC"
+		order = "(campus_forum_post.like_count * 3 + campus_forum_post.comment_count * 5 + campus_forum_post.collected_count * 4) DESC, campus_forum_post.created_at DESC"
 	}
 	var rows []campusForumPostModel
 	if err := db.Order(order).Offset(query.Offset).Limit(query.Limit).Find(&rows).Error; err != nil {
@@ -597,6 +615,80 @@ func (r *campusRepo) RemovePostLike(ctx context.Context, userID string, postID i
 	})
 }
 
+func (r *campusRepo) GetPostCollectionStatus(ctx context.Context, userID string, postIDs []int64) (map[int64]bool, error) {
+	result := make(map[int64]bool, len(postIDs))
+	if userID == "" || len(postIDs) == 0 {
+		return result, nil
+	}
+	var rows []campusForumPostCollectionModel
+	if err := r.data.db.WithContext(ctx).
+		Where("user_id = ? AND post_id IN ? AND is_deleted = ?", parseID(userID), postIDs, false).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.PostID] = true
+	}
+	return result, nil
+}
+
+func (r *campusRepo) AddPostCollection(ctx context.Context, id int64, userID string, postID int64) error {
+	parsedUserID := parseID(userID)
+	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing campusForumPostCollectionModel
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("post_id = ? AND user_id = ?", postID, parsedUserID).
+			First(&existing).Error
+		if err == nil {
+			if !existing.IsDeleted {
+				return nil
+			}
+			if err := tx.Model(&campusForumPostCollectionModel{}).
+				Where("id = ?", existing.ID).
+				Updates(map[string]interface{}{"is_deleted": false, "updated_at": time.Now()}).Error; err != nil {
+				return err
+			}
+			return tx.Model(&campusForumPostModel{}).
+				Where("id = ?", postID).
+				UpdateColumn("collected_count", gorm.Expr("GREATEST(collected_count + ?, 0)", 1)).Error
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		row := campusForumPostCollectionModel{
+			ID:        id,
+			UserID:    parsedUserID,
+			PostID:    postID,
+			IsDeleted: false,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		if err := tx.Create(&row).Error; err != nil {
+			return err
+		}
+		return tx.Model(&campusForumPostModel{}).
+			Where("id = ?", postID).
+			UpdateColumn("collected_count", gorm.Expr("GREATEST(collected_count + ?, 0)", 1)).Error
+	})
+}
+
+func (r *campusRepo) RemovePostCollection(ctx context.Context, userID string, postID int64) error {
+	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&campusForumPostCollectionModel{}).
+			Where("post_id = ? AND user_id = ? AND is_deleted = ?", postID, parseID(userID), false).
+			Updates(map[string]interface{}{"is_deleted": true, "updated_at": time.Now()})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected > 0 {
+			return tx.Model(&campusForumPostModel{}).
+				Where("id = ?", postID).
+				UpdateColumn("collected_count", gorm.Expr("GREATEST(collected_count - ?, 0)", 1)).Error
+		}
+		return nil
+	})
+}
+
 func (r *campusRepo) CreateReport(ctx context.Context, in *biz.CampusForumReport) error {
 	row := campusForumReportModel{
 		ID:         in.ID,
@@ -683,21 +775,22 @@ func toBizPost(row *campusForumPostModel) *biz.CampusForumPost {
 	images := make([]string, 0)
 	_ = json.Unmarshal(row.Images, &images)
 	return &biz.CampusForumPost{
-		ID:           row.ID,
-		CategoryCode: row.CategoryCode,
-		AuthorID:     fmt.Sprintf("%d", row.AuthorID),
-		Title:        row.Title,
-		Content:      row.Content,
-		Images:       images,
-		MediaType:    row.MediaType,
-		CoverURL:     row.CoverURL,
-		VideoURL:     row.VideoURL,
-		Status:       row.Status,
-		AuditReason:  row.AuditReason,
-		LikeCount:    row.LikeCount,
-		CommentCount: row.CommentCount,
-		CreatedAt:    row.CreatedAt,
-		UpdatedAt:    row.UpdatedAt,
+		ID:             row.ID,
+		CategoryCode:   row.CategoryCode,
+		AuthorID:       fmt.Sprintf("%d", row.AuthorID),
+		Title:          row.Title,
+		Content:        row.Content,
+		Images:         images,
+		MediaType:      row.MediaType,
+		CoverURL:       row.CoverURL,
+		VideoURL:       row.VideoURL,
+		Status:         row.Status,
+		AuditReason:    row.AuditReason,
+		LikeCount:      row.LikeCount,
+		CommentCount:   row.CommentCount,
+		CollectedCount: row.CollectedCount,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
 	}
 }
 

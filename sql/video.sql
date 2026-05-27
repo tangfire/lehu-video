@@ -412,6 +412,7 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   `audit_reason` VARCHAR(255) NOT NULL DEFAULT '',
   `like_count` BIGINT NOT NULL DEFAULT 0,
   `comment_count` BIGINT NOT NULL DEFAULT 0,
+  `collected_count` BIGINT NOT NULL DEFAULT 0,
   `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -451,6 +452,19 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post_like` (
   INDEX `idx_campus_post_like_post` (`post_id`, `is_deleted`, `created_at`),
   INDEX `idx_campus_post_like_user` (`user_id`, `is_deleted`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园论坛帖子点赞';
+
+CREATE TABLE IF NOT EXISTS `campus_forum_post_collection` (
+  `id` BIGINT NOT NULL,
+  `post_id` BIGINT NOT NULL,
+  `user_id` BIGINT NOT NULL,
+  `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_campus_post_collection_user` (`post_id`, `user_id`),
+  INDEX `idx_campus_post_collection_post` (`post_id`, `is_deleted`, `created_at`),
+  INDEX `idx_campus_post_collection_user` (`user_id`, `is_deleted`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园社区笔记收藏';
 
 CREATE TABLE IF NOT EXISTS `campus_forum_report` (
   `id` BIGINT NOT NULL,

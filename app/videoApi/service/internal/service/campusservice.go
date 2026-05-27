@@ -42,12 +42,15 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/forum/posts", s.wrap(s.handleListPosts))
 	r.POST("/v1/campus/forum/posts", s.wrap(s.authRequired(s.handleCreatePost)))
 	r.GET("/v1/campus/forum/my-posts", s.wrap(s.authRequired(s.handleListMyPosts)))
+	r.GET("/v1/campus/forum/my-collections", s.wrap(s.authRequired(s.handleListMyCollections)))
 	r.GET("/v1/campus/forum/posts/{id}", s.wrap(s.handleGetPost))
 	r.DELETE("/v1/campus/forum/posts/{id}", s.wrap(s.authRequired(s.handleDeletePost)))
 	r.GET("/v1/campus/forum/posts/{id}/comments", s.wrap(s.handleListComments))
 	r.POST("/v1/campus/forum/posts/{id}/comments", s.wrap(s.authRequired(s.handleCreateComment)))
 	r.POST("/v1/campus/forum/posts/{id}/like", s.wrap(s.authRequired(s.handleLikePost)))
 	r.DELETE("/v1/campus/forum/posts/{id}/like", s.wrap(s.authRequired(s.handleUnlikePost)))
+	r.POST("/v1/campus/forum/posts/{id}/collection", s.wrap(s.authRequired(s.handleCollectPost)))
+	r.DELETE("/v1/campus/forum/posts/{id}/collection", s.wrap(s.authRequired(s.handleUncollectPost)))
 	r.POST("/v1/campus/forum/posts/{id}/report", s.wrap(s.authRequired(s.handleReportPost)))
 	r.DELETE("/v1/campus/forum/comments/{id}", s.wrap(s.authRequired(s.handleDeleteComment)))
 	r.POST("/v1/campus/forum/comments/{id}/report", s.wrap(s.authRequired(s.handleReportComment)))
@@ -331,6 +334,33 @@ func (s *CampusService) handleListMyPosts(w http.ResponseWriter, r *http.Request
 	})
 }
 
+func (s *CampusService) handleListMyCollections(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.ListMyCollections(r.Context(), &biz.ListCampusPostsInput{
+		CurrentUserID: userID,
+		CategoryCode:  q.Get("category_code"),
+		Sort:          q.Get("sort"),
+		Keyword:       q.Get("keyword"),
+		Page:          int32(queryInt(q.Get("page"), 1)),
+		Size:          int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	posts := make([]map[string]interface{}, 0, len(out.Posts))
+	for _, post := range out.Posts {
+		posts = append(posts, postToMap(post))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"posts": posts,
+		"page_stats": map[string]interface{}{
+			"total": out.Total,
+		},
+	})
+}
+
 type postRequest struct {
 	CategoryCode string   `json:"category_code"`
 	Title        string   `json:"title"`
@@ -466,6 +496,32 @@ func (s *CampusService) handleUnlikePost(w http.ResponseWriter, r *http.Request)
 	}
 	userID, _ := s.userIDFromRequest(r)
 	if err := s.uc.UnlikePost(r.Context(), userID, postID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleCollectPost(w http.ResponseWriter, r *http.Request) {
+	postID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.CollectPost(r.Context(), userID, postID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleUncollectPost(w http.ResponseWriter, r *http.Request) {
+	postID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.UncollectPost(r.Context(), userID, postID); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -847,23 +903,25 @@ func postToMap(post *biz.CampusForumPost) map[string]interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"id":            strconv.FormatInt(post.ID, 10),
-		"category_code": post.CategoryCode,
-		"category_name": post.CategoryName,
-		"author":        authorToMap(post.Author),
-		"title":         post.Title,
-		"content":       post.Content,
-		"images":        post.Images,
-		"media_type":    post.MediaType,
-		"cover_url":     post.CoverURL,
-		"video_url":     post.VideoURL,
-		"status":        post.Status,
-		"audit_reason":  post.AuditReason,
-		"like_count":    post.LikeCount,
-		"comment_count": post.CommentCount,
-		"is_liked":      post.IsLiked,
-		"created_at":    formatTime(post.CreatedAt),
-		"updated_at":    formatTime(post.UpdatedAt),
+		"id":              strconv.FormatInt(post.ID, 10),
+		"category_code":   post.CategoryCode,
+		"category_name":   post.CategoryName,
+		"author":          authorToMap(post.Author),
+		"title":           post.Title,
+		"content":         post.Content,
+		"images":          post.Images,
+		"media_type":      post.MediaType,
+		"cover_url":       post.CoverURL,
+		"video_url":       post.VideoURL,
+		"status":          post.Status,
+		"audit_reason":    post.AuditReason,
+		"like_count":      post.LikeCount,
+		"comment_count":   post.CommentCount,
+		"collected_count": post.CollectedCount,
+		"is_liked":        post.IsLiked,
+		"is_collected":    post.IsCollected,
+		"created_at":      formatTime(post.CreatedAt),
+		"updated_at":      formatTime(post.UpdatedAt),
 	}
 }
 
