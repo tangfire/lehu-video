@@ -26,7 +26,12 @@ func NewWhiteListMatcher() selector.MatchFunc {
 		"/api.videoApi.service.v1.VideoService/GetVideoById":        {},
 		"/api.videoApi.service.v1.CommentService/ListComment4Video": {},
 		"/api.videoApi.service.v1.CommentService/ListChildComment":  {},
-		"/ws": {},
+		"/v1/auth/wechat-login":                                     {},
+		"/v1/campus/forum/categories":                               {},
+		"/v1/campus/forum/posts":                                    {},
+		"/v1/campus/forum/posts/{id}":                               {},
+		"/v1/campus/forum/posts/{id}/comments":                      {},
+		"/ws":                                                       {},
 	}
 	return func(ctx context.Context, operation string) bool {
 		if _, ok := whiteList[operation]; ok {
@@ -49,6 +54,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	messageService *service.MessageServiceService,
 	friendService *service.FriendServiceService,
 	wsService *service.WebSocketService,
+	campusService *service.CampusService,
 	logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
@@ -92,6 +98,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	v1.RegisterGroupServiceHTTPServer(srv, groupService)
 	v1.RegisterMessageServiceHTTPServer(srv, messageService)
 	v1.RegisterFriendServiceHTTPServer(srv, friendService)
+	campusService.RegisterRoutes(srv)
 
 	// 注册WebSocket路由 - 使用标准HTTP处理器
 	// 注意：WebSocket需要绕过Kratos的中间件，所以直接使用原始HTTP处理器

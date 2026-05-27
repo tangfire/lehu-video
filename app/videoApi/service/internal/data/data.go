@@ -40,6 +40,7 @@ var ProviderSet = wire.NewSet(
 	NewMessageServiceClient,
 	NewFriendServiceClient,
 	NewFeedServiceClient,
+	NewCampusRepo,
 	kafka.NewKafkaConsumer,
 	kafka.NewKafkaProducer,
 	websocket.NewManager,
@@ -48,15 +49,13 @@ var ProviderSet = wire.NewSet(
 // Data .
 type Data struct {
 	// TODO wrapped database client
-	rds  *redis.Client
-	db   *gorm.DB
-	log  *log.Helper
-	base *baseAdapterImpl
-	core *CoreAdapterImpl
+	rds *redis.Client
+	db  *gorm.DB
+	log *log.Helper
 }
 
 // NewData .
-func NewData(db *gorm.DB, rds *redis.Client, base *baseAdapterImpl, core *CoreAdapterImpl, logger log.Logger) (*Data, func(), error) {
+func NewData(db *gorm.DB, rds *redis.Client, logger log.Logger) (*Data, func(), error) {
 	cleanup := func() {
 		log.NewHelper(logger).Info("closing the data resources")
 		if rds != nil {
@@ -66,11 +65,9 @@ func NewData(db *gorm.DB, rds *redis.Client, base *baseAdapterImpl, core *CoreAd
 		}
 	}
 	return &Data{
-		rds:  rds,
-		db:   db,
-		log:  log.NewHelper(logger),
-		base: base,
-		core: core,
+		rds: rds,
+		db:  db,
+		log: log.NewHelper(logger),
 	}, cleanup, nil
 }
 

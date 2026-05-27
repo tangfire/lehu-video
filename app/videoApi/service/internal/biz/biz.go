@@ -26,4 +26,6 @@ var ProviderSet = wire.NewSet(
 	NewGroupUsecase,
 	NewMessageUsecase,
 	NewFriendUsecase,
+	NewCampusIDGenerator,
+	NewCampusUsecase,
 )

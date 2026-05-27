@@ -117,7 +117,23 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 		return nil, nil, err
 	}
 	webSocketService := service.NewWebSocketService(messageUsecase, chatAdapter, producer, client, userServiceClient, logger)
-	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, groupServiceService, messageServiceService, friendServiceService, webSocketService, logger)
+	db, err := data.NewDB(confData, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	dataData, cleanup, err := data.NewData(db, client, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	campusRepo := data.NewCampusRepo(dataData, logger)
+	campusIDGenerator, err := biz.NewCampusIDGenerator()
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	campusUsecase := biz.NewCampusUsecase(campusRepo, baseAdapter, coreAdapter, campusIDGenerator, string2, logger)
+	campusService := service.NewCampusService(campusUsecase, string2)
+	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, groupServiceService, messageServiceService, friendServiceService, webSocketService, campusService, logger)
 	consumer := kafka.NewKafkaConsumer(confData)
 	manager := websocket.NewManager(logger, producer, client, chatAdapter, userServiceClient)
 	kafkaConsumerService := service.NewKafkaConsumerService(consumer, messageUsecase, manager, client, chatAdapter, logger)
@@ -127,5 +143,6 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 		_ = kafkaConsumerService.Close()
 		_ = producer.Close()
 		_ = client.Close()
+		cleanup()
 	}, nil
 }
