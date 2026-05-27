@@ -37,6 +37,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/profile", s.wrap(s.authRequired(s.handleGetProfile)))
 	r.PUT("/v1/campus/profile", s.wrap(s.authRequired(s.handleUpdateProfile)))
 	r.POST("/v1/campus/upload/image", s.wrap(s.authRequired(s.handleUploadImage)))
+	r.POST("/v1/campus/upload/video", s.wrap(s.authRequired(s.handleUploadVideo)))
 	r.GET("/v1/campus/forum/categories", s.wrap(s.handleListCategories))
 	r.GET("/v1/campus/forum/posts", s.wrap(s.handleListPosts))
 	r.POST("/v1/campus/forum/posts", s.wrap(s.authRequired(s.handleCreatePost)))
@@ -198,6 +199,71 @@ func (s *CampusService) handleUploadImage(w http.ResponseWriter, r *http.Request
 	writeJSON(w, r, map[string]interface{}{"url": url, "file_id": fileID})
 }
 
+func (s *CampusService) handleUploadVideo(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(90 << 20); err != nil {
+		writeError(w, r, apperror.InvalidArgument("视频上传请求无效"))
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, r, apperror.InvalidArgument("请选择视频"))
+		return
+	}
+	defer file.Close()
+	if header.Size > 80<<20 {
+		writeError(w, r, apperror.InvalidArgument("视频不能超过 80MB"))
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(file, 80<<20+1))
+	if err != nil {
+		writeError(w, r, apperror.Internal(err, "读取视频失败"))
+		return
+	}
+	if len(data) > 80<<20 {
+		writeError(w, r, apperror.InvalidArgument("视频不能超过 80MB"))
+		return
+	}
+	fileType := videoFileType(header.Filename, http.DetectContentType(data))
+	if fileType == "" {
+		writeError(w, r, apperror.InvalidArgument("仅支持 mp4、mov 视频"))
+		return
+	}
+	sum := md5.Sum(data)
+	fileID, putURL, err := s.uc.PreSignPublicVideo(r.Context(), fmt.Sprintf("%x", sum), fileType, header.Filename, int64(len(data)))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if putURL != "" {
+		uploadURL, signedHost := rewritePresignedURLForServerUpload(putURL)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodPut, uploadURL, bytes.NewReader(data))
+		if err != nil {
+			writeError(w, r, apperror.Internal(err, "创建视频上传请求失败"))
+			return
+		}
+		if signedHost != "" {
+			req.Host = signedHost
+		}
+		req.Header.Set("Content-Type", contentTypeFromVideoType(fileType))
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			writeError(w, r, apperror.DependencyUnavailable(err, "上传视频失败"))
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			writeError(w, r, apperror.DependencyUnavailable(fmt.Errorf("minio status %d", resp.StatusCode), "上传视频失败"))
+			return
+		}
+	}
+	url, err := s.uc.ReportPublicVideoUploaded(r.Context(), fileID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"url": url, "file_id": fileID})
+}
+
 func (s *CampusService) handleListCategories(w http.ResponseWriter, r *http.Request) {
 	categories, err := s.uc.ListCategories(r.Context())
 	if err != nil {
@@ -270,6 +336,9 @@ type postRequest struct {
 	Title        string   `json:"title"`
 	Content      string   `json:"content"`
 	Images       []string `json:"images"`
+	MediaType    string   `json:"media_type"`
+	CoverURL     string   `json:"cover_url"`
+	VideoURL     string   `json:"video_url"`
 }
 
 func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request) {
@@ -284,6 +353,9 @@ func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request)
 		Title:        req.Title,
 		Content:      req.Content,
 		Images:       req.Images,
+		MediaType:    req.MediaType,
+		CoverURL:     req.CoverURL,
+		VideoURL:     req.VideoURL,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -669,6 +741,25 @@ func imageFileType(filename, detected string) string {
 	}
 }
 
+func videoFileType(filename, detected string) string {
+	detected = strings.ToLower(strings.TrimSpace(detected))
+	switch detected {
+	case "video/mp4":
+		return "mp4"
+	case "video/quicktime":
+		return "mov"
+	}
+	name := strings.ToLower(strings.TrimSpace(filename))
+	switch {
+	case strings.HasSuffix(name, ".mp4"):
+		return "mp4"
+	case strings.HasSuffix(name, ".mov"):
+		return "mov"
+	default:
+		return ""
+	}
+}
+
 func contentTypeFromImageType(fileType string) string {
 	switch fileType {
 	case "jpg", "jpeg":
@@ -677,6 +768,17 @@ func contentTypeFromImageType(fileType string) string {
 		return "image/png"
 	case "webp":
 		return "image/webp"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func contentTypeFromVideoType(fileType string) string {
+	switch fileType {
+	case "mp4":
+		return "video/mp4"
+	case "mov":
+		return "video/quicktime"
 	default:
 		return "application/octet-stream"
 	}
@@ -752,6 +854,9 @@ func postToMap(post *biz.CampusForumPost) map[string]interface{} {
 		"title":         post.Title,
 		"content":       post.Content,
 		"images":        post.Images,
+		"media_type":    post.MediaType,
+		"cover_url":     post.CoverURL,
+		"video_url":     post.VideoURL,
 		"status":        post.Status,
 		"audit_reason":  post.AuditReason,
 		"like_count":    post.LikeCount,

@@ -77,6 +77,9 @@ type campusForumPostModel struct {
 	Title        string          `gorm:"column:title"`
 	Content      string          `gorm:"column:content"`
 	Images       json.RawMessage `gorm:"column:images"`
+	MediaType    string          `gorm:"column:media_type"`
+	CoverURL     string          `gorm:"column:cover_url"`
+	VideoURL     string          `gorm:"column:video_url"`
 	Status       int32           `gorm:"column:status"`
 	AuditReason  string          `gorm:"column:audit_reason"`
 	LikeCount    int64           `gorm:"column:like_count"`
@@ -271,6 +274,9 @@ func (r *campusRepo) CreatePost(ctx context.Context, post *biz.CampusForumPost) 
 		Title:        post.Title,
 		Content:      post.Content,
 		Images:       images,
+		MediaType:    post.MediaType,
+		CoverURL:     post.CoverURL,
+		VideoURL:     post.VideoURL,
 		Status:       post.Status,
 		AuditReason:  post.AuditReason,
 		CreatedAt:    time.Now(),
@@ -683,6 +689,9 @@ func toBizPost(row *campusForumPostModel) *biz.CampusForumPost {
 		Title:        row.Title,
 		Content:      row.Content,
 		Images:       images,
+		MediaType:    row.MediaType,
+		CoverURL:     row.CoverURL,
+		VideoURL:     row.VideoURL,
 		Status:       row.Status,
 		AuditReason:  row.AuditReason,
 		LikeCount:    row.LikeCount,

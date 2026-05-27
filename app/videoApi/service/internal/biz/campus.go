@@ -27,6 +27,10 @@ const (
 
 	CampusAuthStatusUnverified int32 = 0
 	CampusAuthStatusVerified   int32 = 1
+
+	CampusPostMediaText  = "text"
+	CampusPostMediaImage = "image"
+	CampusPostMediaVideo = "video"
 )
 
 type CampusIDGenerator interface {
@@ -104,6 +108,9 @@ type CampusForumPost struct {
 	Title        string
 	Content      string
 	Images       []string
+	MediaType    string
+	CoverURL     string
+	VideoURL     string
 	Status       int32
 	AuditReason  string
 	LikeCount    int64
@@ -179,6 +186,9 @@ type CreateCampusPostInput struct {
 	Title        string
 	Content      string
 	Images       []string
+	MediaType    string
+	CoverURL     string
+	VideoURL     string
 }
 
 type ListCampusPostsInput struct {
@@ -486,6 +496,26 @@ func (uc *CampusUsecase) PreSignPublicImage(ctx context.Context, hash, fileType,
 	return fileID, url, nil
 }
 
+func (uc *CampusUsecase) PreSignPublicVideo(ctx context.Context, hash, fileType, filename string, size int64) (string, string, error) {
+	hash = strings.TrimSpace(hash)
+	fileType = strings.Trim(strings.ToLower(strings.TrimSpace(fileType)), ".")
+	filename = strings.TrimSpace(filename)
+	if hash == "" {
+		return "", "", apperror.InvalidArgument("视频 hash 不能为空")
+	}
+	if fileType != "mp4" && fileType != "mov" {
+		return "", "", apperror.InvalidArgument("仅支持 mp4、mov 视频")
+	}
+	if size <= 0 || size > 80<<20 {
+		return "", "", apperror.InvalidArgument("视频不能超过 80MB")
+	}
+	fileID, url, err := uc.base.PreSign4PublicUpload(ctx, hash, fileType, filename, size, 3600)
+	if err != nil {
+		return "", "", apperror.Internal(err, "创建视频上传地址失败")
+	}
+	return fileID, url, nil
+}
+
 func (uc *CampusUsecase) ReportPublicImageUploaded(ctx context.Context, fileID string) (string, error) {
 	fileID = strings.TrimSpace(fileID)
 	if fileID == "" || fileID == "0" {
@@ -494,6 +524,18 @@ func (uc *CampusUsecase) ReportPublicImageUploaded(ctx context.Context, fileID s
 	url, err := uc.base.ReportPublicUploaded(ctx, fileID)
 	if err != nil {
 		return "", apperror.Internal(err, "确认图片上传失败")
+	}
+	return url, nil
+}
+
+func (uc *CampusUsecase) ReportPublicVideoUploaded(ctx context.Context, fileID string) (string, error) {
+	fileID = strings.TrimSpace(fileID)
+	if fileID == "" || fileID == "0" {
+		return "", apperror.InvalidArgument("视频 file_id 无效")
+	}
+	url, err := uc.base.ReportPublicUploaded(ctx, fileID)
+	if err != nil {
+		return "", apperror.Internal(err, "确认视频上传失败")
 	}
 	return url, nil
 }
@@ -522,6 +564,13 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		return nil, apperror.InvalidArgument("正文需要 2-2000 个字")
 	}
 	images := sanitizeImages(input.Images, 9)
+	mediaType, coverURL, videoURL, err := normalizeCampusPostMedia(input.MediaType, images, input.CoverURL, input.VideoURL)
+	if err != nil {
+		return nil, err
+	}
+	if mediaType != CampusPostMediaImage {
+		images = []string{}
+	}
 	audit := auditText(ctx, "post", title+"\n"+content)
 	if audit.Blocked {
 		return nil, apperror.InvalidArgument(audit.Reason)
@@ -538,6 +587,9 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		Title:        title,
 		Content:      content,
 		Images:       images,
+		MediaType:    mediaType,
+		CoverURL:     coverURL,
+		VideoURL:     videoURL,
 		Status:       status,
 		AuditReason:  audit.Reason,
 	}
@@ -1124,6 +1176,44 @@ func sanitizeImages(images []string, limit int) []string {
 		}
 	}
 	return out
+}
+
+func normalizeCampusPostMedia(mediaType string, images []string, coverURL, videoURL string) (string, string, string, error) {
+	mediaType = strings.TrimSpace(strings.ToLower(mediaType))
+	coverURL = strings.TrimSpace(coverURL)
+	videoURL = strings.TrimSpace(videoURL)
+	if mediaType == "" {
+		switch {
+		case videoURL != "":
+			mediaType = CampusPostMediaVideo
+		case len(images) > 0:
+			mediaType = CampusPostMediaImage
+		default:
+			mediaType = CampusPostMediaText
+		}
+	}
+	switch mediaType {
+	case CampusPostMediaText:
+		return mediaType, "", "", nil
+	case CampusPostMediaImage:
+		if len(images) == 0 {
+			return "", "", "", apperror.InvalidArgument("图文笔记至少需要 1 张图片")
+		}
+		if coverURL == "" {
+			coverURL = images[0]
+		}
+		return mediaType, coverURL, "", nil
+	case CampusPostMediaVideo:
+		if videoURL == "" {
+			return "", "", "", apperror.InvalidArgument("视频笔记需要上传视频")
+		}
+		if coverURL == "" {
+			return "", "", "", apperror.InvalidArgument("视频笔记需要上传封面")
+		}
+		return mediaType, coverURL, videoURL, nil
+	default:
+		return "", "", "", apperror.InvalidArgument("笔记类型无效")
+	}
 }
 
 func normalizeCampusTargetType(targetType string) string {

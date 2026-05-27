@@ -405,6 +405,9 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   `title` VARCHAR(120) NOT NULL,
   `content` TEXT NOT NULL,
   `images` JSON DEFAULT NULL,
+  `media_type` VARCHAR(16) NOT NULL DEFAULT 'text' COMMENT 'text/image/video',
+  `cover_url` VARCHAR(1024) NOT NULL DEFAULT '',
+  `video_url` VARCHAR(1024) NOT NULL DEFAULT '',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '0=待审核 1=可见 2=拒绝 3=删除',
   `audit_reason` VARCHAR(255) NOT NULL DEFAULT '',
   `like_count` BIGINT NOT NULL DEFAULT 0,
@@ -415,8 +418,9 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   PRIMARY KEY (`id`),
   INDEX `idx_campus_post_category_created` (`category_code`, `status`, `is_deleted`, `created_at`, `id`),
   INDEX `idx_campus_post_author` (`author_id`, `is_deleted`, `created_at`),
-  INDEX `idx_campus_post_hot` (`status`, `is_deleted`, `like_count`, `comment_count`, `created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园论坛帖子';
+  INDEX `idx_campus_post_hot` (`status`, `is_deleted`, `like_count`, `comment_count`, `created_at`),
+  INDEX `idx_campus_post_media` (`media_type`, `status`, `is_deleted`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园社区笔记';
 
 CREATE TABLE IF NOT EXISTS `campus_forum_comment` (
   `id` BIGINT NOT NULL,
