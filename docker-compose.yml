@@ -190,6 +190,7 @@ services:
     container_name: lehu-api
     environment:
       LEHU_DEV_VERIFICATION_CODE: "888888"
+      LEHU_CAMPUS_ADMIN_ALLOW_ALL: "true"
     depends_on:
       mysql:
         condition: service_healthy

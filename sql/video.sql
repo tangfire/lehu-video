@@ -435,6 +435,9 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   `extra` JSON DEFAULT NULL,
   `cover_url` VARCHAR(1024) NOT NULL DEFAULT '',
   `video_url` VARCHAR(1024) NOT NULL DEFAULT '',
+  `is_official` BOOLEAN NOT NULL DEFAULT FALSE COMMENT '官方/运营内容',
+  `is_featured` BOOLEAN NOT NULL DEFAULT FALSE COMMENT '精选推荐',
+  `sort_weight` INT NOT NULL DEFAULT 0 COMMENT '运营排序权重',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '0=待审核 1=可见 2=拒绝 3=删除',
   `audit_reason` VARCHAR(255) NOT NULL DEFAULT '',
   `like_count` BIGINT NOT NULL DEFAULT 0,
@@ -448,7 +451,8 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   INDEX `idx_campus_post_author` (`author_id`, `is_deleted`, `created_at`),
   INDEX `idx_campus_post_hot` (`status`, `is_deleted`, `like_count`, `comment_count`, `created_at`),
   INDEX `idx_campus_post_media` (`media_type`, `status`, `is_deleted`, `created_at`),
-  INDEX `idx_campus_post_type` (`post_type`, `status`, `is_deleted`, `created_at`)
+  INDEX `idx_campus_post_type` (`post_type`, `status`, `is_deleted`, `created_at`),
+  INDEX `idx_campus_post_ops_sort` (`status`, `is_deleted`, `is_featured`, `sort_weight`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园社区笔记';
 
 CREATE TABLE IF NOT EXISTS `campus_forum_comment` (
@@ -523,3 +527,13 @@ CREATE TABLE IF NOT EXISTS `campus_audit_log` (
   INDEX `idx_campus_audit_target` (`target_type`, `target_id`),
   INDEX `idx_campus_audit_user` (`user_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园内容审核记录';
+
+CREATE TABLE IF NOT EXISTS `campus_operator` (
+  `user_id` BIGINT NOT NULL,
+  `role` VARCHAR(24) NOT NULL DEFAULT 'operator' COMMENT 'operator/admin',
+  `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`user_id`),
+  INDEX `idx_campus_operator_role` (`role`, `is_deleted`, `updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园运营后台权限';

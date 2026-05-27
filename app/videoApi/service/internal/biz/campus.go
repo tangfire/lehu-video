@@ -206,6 +206,9 @@ type CampusForumPost struct {
 	Extra          map[string]string
 	CoverURL       string
 	VideoURL       string
+	IsOfficial     bool
+	IsFeatured     bool
+	SortWeight     int32
 	Status         int32
 	AuditReason    string
 	LikeCount      int64
@@ -236,7 +239,10 @@ type CampusForumReport struct {
 	ID         int64
 	TargetType string
 	TargetID   int64
+	Target     *CampusForumPost
+	Comment    *CampusForumComment
 	ReporterID string
+	Reporter   *CampusForumAuthor
 	Reason     string
 	Detail     string
 	Status     int32
@@ -312,6 +318,9 @@ type CreateCampusPostInput struct {
 	Extra        map[string]string
 	CoverURL     string
 	VideoURL     string
+	IsOfficial   bool
+	IsFeatured   bool
+	SortWeight   int32
 }
 
 type ListCampusPostsInput struct {
@@ -336,6 +345,8 @@ type ListCampusPostQuery struct {
 	CollectedByUserID string
 	Statuses          []int32
 	IncludeDeleted    bool
+	OnlyOfficial      *bool
+	OnlyFeatured      *bool
 	Offset            int
 	Limit             int
 }
@@ -388,6 +399,116 @@ type ListCampusModerationInput struct {
 	Size   int32
 }
 
+type CampusAdminSummary struct {
+	TotalUsers       int64
+	TodayUsers       int64
+	TotalPosts       int64
+	TodayPosts       int64
+	TotalComments    int64
+	TodayComments    int64
+	TotalLikes       int64
+	TodayLikes       int64
+	TotalCollections int64
+	TodayCollections int64
+	TotalReports     int64
+	PendingReports   int64
+	PendingPosts     int64
+	PendingComments  int64
+	FeaturedPosts    int64
+	OfficialPosts    int64
+	Trends           []*CampusAdminTrend
+}
+
+type CampusAdminTrend struct {
+	Date        string
+	Users       int64
+	Posts       int64
+	Comments    int64
+	Likes       int64
+	Collections int64
+	Reports     int64
+}
+
+type ListCampusAdminPostsInput struct {
+	UserID       string
+	CategoryCode string
+	Keyword      string
+	Status       int32
+	Sort         string
+	Page         int32
+	Size         int32
+}
+
+type UpdateCampusAdminPostInput struct {
+	UserID       string
+	PostID       int64
+	CategoryCode string
+	Title        string
+	Content      string
+	Images       []string
+	MediaType    string
+	PostType     string
+	Extra        map[string]string
+	CoverURL     string
+	VideoURL     string
+	Status       int32
+	AuditReason  string
+	IsOfficial   bool
+	IsFeatured   bool
+	SortWeight   int32
+}
+
+type ListCampusAdminCommentsInput struct {
+	UserID string
+	Status int32
+	PostID int64
+	Page   int32
+	Size   int32
+}
+
+type ListCampusReportsInput struct {
+	UserID string
+	Status int32
+	Page   int32
+	Size   int32
+}
+
+type ListCampusReportsOutput struct {
+	Reports []*CampusForumReport
+	Total   int64
+}
+
+type ReviewCampusReportInput struct {
+	UserID   string
+	ReportID int64
+	Action   string
+	Reason   string
+}
+
+type CampusAdminUser struct {
+	User    *UserBaseInfo
+	Profile *CampusProfile
+	Role    string
+}
+
+type ListCampusAdminUsersInput struct {
+	UserID  string
+	Keyword string
+	Page    int32
+	Size    int32
+}
+
+type ListCampusAdminUsersOutput struct {
+	Users []*CampusAdminUser
+	Total int64
+}
+
+type UpdateCampusUserRoleInput struct {
+	UserID       string
+	TargetUserID string
+	Role         string
+}
+
 type ReviewCampusContentInput struct {
 	UserID     string
 	TargetType string
@@ -413,6 +534,7 @@ type CampusRepo interface {
 	GetAnyPostByID(ctx context.Context, postID int64) (bool, *CampusForumPost, error)
 	DeletePost(ctx context.Context, postID int64) error
 	UpdatePostStatus(ctx context.Context, postID int64, status int32, reason string) error
+	UpdatePostByAdmin(ctx context.Context, post *CampusForumPost) error
 	CreateComment(ctx context.Context, comment *CampusForumComment) error
 	ListComments(ctx context.Context, query ListCampusCommentQuery) ([]*CampusForumComment, int64, error)
 	FillCommentPosts(ctx context.Context, comments []*CampusForumComment) error
@@ -426,7 +548,14 @@ type CampusRepo interface {
 	AddPostCollection(ctx context.Context, id int64, userID string, postID int64) error
 	RemovePostCollection(ctx context.Context, userID string, postID int64) error
 	CreateReport(ctx context.Context, report *CampusForumReport) error
+	ListReports(ctx context.Context, status int32, offset, limit int) ([]*CampusForumReport, int64, error)
+	UpdateReportStatus(ctx context.Context, reportID int64, status int32) error
 	CreateAuditLog(ctx context.Context, log *CampusAuditLog) error
+	GetAdminSummary(ctx context.Context) (*CampusAdminSummary, error)
+	ListCampusUsers(ctx context.Context, keyword string, offset, limit int) ([]*CampusAdminUser, int64, error)
+	GetCampusOperatorRole(ctx context.Context, userID string) (string, error)
+	UpsertCampusOperator(ctx context.Context, userID, role string) error
+	RemoveCampusOperator(ctx context.Context, userID string) error
 }
 
 type CampusUsecase struct {
@@ -778,6 +907,13 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 	}
 	postType := normalizeCampusPostType(input.PostType)
 	extra := sanitizeCampusPostExtra(input.Extra)
+	isOperator := uc.isCampusOperator(ctx, input.UserID)
+	isOfficial := input.IsOfficial && isOperator
+	isFeatured := input.IsFeatured && isOperator
+	sortWeight := int32(0)
+	if isOperator {
+		sortWeight = clampSortWeight(input.SortWeight)
+	}
 	post := &CampusForumPost{
 		ID:           uc.idGen.NextID(),
 		CategoryCode: category.Code,
@@ -791,6 +927,9 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		Extra:        extra,
 		CoverURL:     coverURL,
 		VideoURL:     videoURL,
+		IsOfficial:   isOfficial,
+		IsFeatured:   isFeatured,
+		SortWeight:   sortWeight,
 		Status:       CampusAuditStatusVisible,
 	}
 	if err := uc.repo.CreatePost(ctx, post); err != nil {
@@ -897,7 +1036,7 @@ func (uc *CampusUsecase) DeletePost(ctx context.Context, userID string, postID i
 	if !ok {
 		return apperror.NotFound("帖子不存在")
 	}
-	if post.AuthorID != userID && !uc.isCampusAdmin(userID) {
+	if post.AuthorID != userID && !uc.isCampusAdmin(ctx, userID) {
 		return apperror.Forbidden("只能删除自己的帖子")
 	}
 	if err := uc.repo.DeletePost(ctx, postID); err != nil {
@@ -996,7 +1135,7 @@ func (uc *CampusUsecase) DeleteComment(ctx context.Context, userID string, comme
 	if !ok {
 		return apperror.NotFound("评论不存在")
 	}
-	if comment.AuthorID != userID && !uc.isCampusAdmin(userID) {
+	if comment.AuthorID != userID && !uc.isCampusAdmin(ctx, userID) {
 		return apperror.Forbidden("只能删除自己的评论")
 	}
 	if err := uc.repo.DeleteComment(ctx, commentID); err != nil {
@@ -1122,7 +1261,7 @@ func (uc *CampusUsecase) ReportContent(ctx context.Context, input *ReportCampusC
 }
 
 func (uc *CampusUsecase) ListModerationPosts(ctx context.Context, input *ListCampusModerationInput) (*ListCampusPostsOutput, error) {
-	if !uc.isCampusAdmin(input.UserID) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
 		return nil, apperror.Forbidden("没有审核权限")
 	}
 	page, size := normalizePage(input.Page, input.Size)
@@ -1146,7 +1285,7 @@ func (uc *CampusUsecase) ListModerationPosts(ctx context.Context, input *ListCam
 }
 
 func (uc *CampusUsecase) ListModerationComments(ctx context.Context, input *ListCampusModerationInput) (*ListCampusCommentsOutput, error) {
-	if !uc.isCampusAdmin(input.UserID) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
 		return nil, apperror.Forbidden("没有审核权限")
 	}
 	page, size := normalizePage(input.Page, input.Size)
@@ -1169,7 +1308,7 @@ func (uc *CampusUsecase) ListModerationComments(ctx context.Context, input *List
 }
 
 func (uc *CampusUsecase) ReviewContent(ctx context.Context, input *ReviewCampusContentInput) error {
-	if !uc.isCampusAdmin(input.UserID) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
 		return apperror.Forbidden("没有审核权限")
 	}
 	targetType := normalizeCampusTargetType(input.TargetType)
@@ -1221,6 +1360,276 @@ func (uc *CampusUsecase) ReviewContent(ctx context.Context, input *ReviewCampusC
 		Result:     action,
 		Reason:     reason,
 	})
+	return nil
+}
+
+func (uc *CampusUsecase) AdminSummary(ctx context.Context, userID string) (*CampusAdminSummary, error) {
+	if !uc.isCampusOperator(ctx, userID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	summary, err := uc.repo.GetAdminSummary(ctx)
+	if err != nil {
+		return nil, apperror.Internal(err, "获取数据总览失败")
+	}
+	return summary, nil
+}
+
+func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAdminPostsInput) (*ListCampusPostsOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	statuses := []int32{}
+	if input.Status >= CampusAuditStatusPending && input.Status <= CampusAuditStatusDeleted {
+		statuses = []int32{input.Status}
+	}
+	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
+		CategoryCode:   strings.TrimSpace(input.CategoryCode),
+		Sort:           strings.TrimSpace(input.Sort),
+		Keyword:        strings.TrimSpace(input.Keyword),
+		Statuses:       statuses,
+		IncludeDeleted: true,
+		Offset:         int((page - 1) * size),
+		Limit:          int(size),
+	})
+	if err != nil {
+		return nil, apperror.Internal(err, "获取后台帖子失败")
+	}
+	if err := uc.hydratePosts(ctx, posts, input.UserID); err != nil {
+		uc.log.WithContext(ctx).Warnf("hydrate admin posts failed: %v", err)
+	}
+	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminCreatePost(ctx context.Context, input *CreateCampusPostInput) (*CampusForumPost, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有运营发帖权限")
+	}
+	return uc.CreatePost(ctx, input)
+}
+
+func (uc *CampusUsecase) AdminUpdatePost(ctx context.Context, input *UpdateCampusAdminPostInput) (*CampusForumPost, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	ok, existing, err := uc.repo.GetAnyPostByID(ctx, input.PostID)
+	if err != nil {
+		return nil, apperror.Internal(err, "查询帖子失败")
+	}
+	if !ok {
+		return nil, apperror.NotFound("帖子不存在")
+	}
+	categoryCode := strings.TrimSpace(input.CategoryCode)
+	if categoryCode == "" {
+		categoryCode = existing.CategoryCode
+	}
+	ok, category, err := uc.repo.GetCategoryByCode(ctx, categoryCode)
+	if err != nil {
+		return nil, apperror.Internal(err, "查询版块失败")
+	}
+	if !ok {
+		return nil, apperror.InvalidArgument("版块不存在")
+	}
+	title := firstNonEmpty(input.Title, existing.Title)
+	content := firstNonEmpty(input.Content, existing.Content)
+	if len([]rune(title)) < 2 || len([]rune(title)) > 60 {
+		return nil, apperror.InvalidArgument("标题需要 2-60 个字")
+	}
+	if len([]rune(content)) < 2 || len([]rune(content)) > 2000 {
+		return nil, apperror.InvalidArgument("正文需要 2-2000 个字")
+	}
+	images := input.Images
+	if images == nil {
+		images = existing.Images
+	}
+	images = sanitizeImages(images, 9)
+	mediaType, coverURL, videoURL, err := normalizeCampusPostMedia(firstNonEmpty(input.MediaType, existing.MediaType), images, firstNonEmpty(input.CoverURL, existing.CoverURL), firstNonEmpty(input.VideoURL, existing.VideoURL))
+	if err != nil {
+		return nil, err
+	}
+	if mediaType != CampusPostMediaImage {
+		images = []string{}
+	}
+	status := input.Status
+	if status < CampusAuditStatusPending || status > CampusAuditStatusDeleted {
+		status = existing.Status
+	}
+	post := &CampusForumPost{
+		ID:             existing.ID,
+		CategoryCode:   category.Code,
+		CategoryName:   category.Name,
+		AuthorID:       existing.AuthorID,
+		Title:          title,
+		Content:        content,
+		Images:         images,
+		MediaType:      mediaType,
+		PostType:       normalizeCampusPostType(firstNonEmpty(input.PostType, existing.PostType)),
+		Extra:          mergeCampusPostExtra(existing.Extra, input.Extra),
+		CoverURL:       coverURL,
+		VideoURL:       videoURL,
+		IsOfficial:     input.IsOfficial,
+		IsFeatured:     input.IsFeatured,
+		SortWeight:     clampSortWeight(input.SortWeight),
+		Status:         status,
+		AuditReason:    strings.TrimSpace(input.AuditReason),
+		LikeCount:      existing.LikeCount,
+		CommentCount:   existing.CommentCount,
+		CollectedCount: existing.CollectedCount,
+		CreatedAt:      existing.CreatedAt,
+	}
+	if err := uc.repo.UpdatePostByAdmin(ctx, post); err != nil {
+		return nil, apperror.Internal(err, "更新帖子失败")
+	}
+	_ = uc.hydratePosts(ctx, []*CampusForumPost{post}, input.UserID)
+	return post, nil
+}
+
+func (uc *CampusUsecase) AdminDeletePost(ctx context.Context, userID string, postID int64) error {
+	if !uc.isCampusOperator(ctx, userID) {
+		return apperror.Forbidden("没有后台权限")
+	}
+	if postID <= 0 {
+		return apperror.InvalidArgument("帖子 ID 无效")
+	}
+	if err := uc.repo.DeletePost(ctx, postID); err != nil {
+		return apperror.Internal(err, "删除帖子失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) AdminListComments(ctx context.Context, input *ListCampusAdminCommentsInput) (*ListCampusCommentsOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	statuses := []int32{}
+	if input.Status >= CampusAuditStatusPending && input.Status <= CampusAuditStatusDeleted {
+		statuses = []int32{input.Status}
+	}
+	comments, total, err := uc.repo.ListComments(ctx, ListCampusCommentQuery{
+		PostID:         input.PostID,
+		Statuses:       statuses,
+		IncludeDeleted: true,
+		Offset:         int((page - 1) * size),
+		Limit:          int(size),
+	})
+	if err != nil {
+		return nil, apperror.Internal(err, "获取后台评论失败")
+	}
+	if err := uc.hydrateComments(ctx, comments); err != nil {
+		uc.log.WithContext(ctx).Warnf("hydrate admin comments failed: %v", err)
+	}
+	if err := uc.repo.FillCommentPosts(ctx, comments); err != nil {
+		uc.log.WithContext(ctx).Warnf("fill admin comment posts failed: %v", err)
+	}
+	return &ListCampusCommentsOutput{Comments: comments, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminDeleteComment(ctx context.Context, userID string, commentID int64) error {
+	if !uc.isCampusOperator(ctx, userID) {
+		return apperror.Forbidden("没有后台权限")
+	}
+	if commentID <= 0 {
+		return apperror.InvalidArgument("评论 ID 无效")
+	}
+	if err := uc.repo.DeleteComment(ctx, commentID); err != nil {
+		return apperror.Internal(err, "删除评论失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) AdminListReports(ctx context.Context, input *ListCampusReportsInput) (*ListCampusReportsOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	status := input.Status
+	if status < 0 || status > 2 {
+		status = -1
+	}
+	reports, total, err := uc.repo.ListReports(ctx, status, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取举报列表失败")
+	}
+	return &ListCampusReportsOutput{Reports: reports, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminReviewReport(ctx context.Context, input *ReviewCampusReportInput) error {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return apperror.Forbidden("没有后台权限")
+	}
+	if input.ReportID <= 0 {
+		return apperror.InvalidArgument("举报 ID 无效")
+	}
+	status := int32(1)
+	switch strings.TrimSpace(strings.ToLower(input.Action)) {
+	case "resolve", "handled", "approve", "pass":
+		status = 1
+	case "reject", "dismiss":
+		status = 2
+	default:
+		return apperror.InvalidArgument("举报处理动作无效")
+	}
+	if err := uc.repo.UpdateReportStatus(ctx, input.ReportID, status); err != nil {
+		return apperror.Internal(err, "处理举报失败")
+	}
+	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
+		ID:         uc.idGen.NextID(),
+		TargetType: "report",
+		TargetID:   input.ReportID,
+		UserID:     input.UserID,
+		Provider:   "manual",
+		Result:     input.Action,
+		Reason:     strings.TrimSpace(input.Reason),
+	})
+	return nil
+}
+
+func (uc *CampusUsecase) AdminListUsers(ctx context.Context, input *ListCampusAdminUsersInput) (*ListCampusAdminUsersOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	users, total, err := uc.repo.ListCampusUsers(ctx, strings.TrimSpace(input.Keyword), int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取用户列表失败")
+	}
+	for _, user := range users {
+		if user.Role == "" {
+			switch {
+			case uc.isEnvListed("LEHU_CAMPUS_ADMIN_USER_IDS", user.User.ID):
+				user.Role = "admin"
+			case uc.isEnvListed("LEHU_CAMPUS_OPERATOR_USER_IDS", user.User.ID):
+				user.Role = "operator"
+			default:
+				user.Role = "user"
+			}
+		}
+	}
+	return &ListCampusAdminUsersOutput{Users: users, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminUpdateUserRole(ctx context.Context, input *UpdateCampusUserRoleInput) error {
+	if !uc.isCampusAdmin(ctx, input.UserID) {
+		return apperror.Forbidden("只有管理员可以调整运营权限")
+	}
+	targetUserID := strings.TrimSpace(input.TargetUserID)
+	if targetUserID == "" {
+		return apperror.InvalidArgument("用户 ID 无效")
+	}
+	role := strings.TrimSpace(strings.ToLower(input.Role))
+	switch role {
+	case "admin", "operator":
+		if err := uc.repo.UpsertCampusOperator(ctx, targetUserID, role); err != nil {
+			return apperror.Internal(err, "更新用户权限失败")
+		}
+	case "user", "":
+		if err := uc.repo.RemoveCampusOperator(ctx, targetUserID); err != nil {
+			return apperror.Internal(err, "移除用户权限失败")
+		}
+	default:
+		return apperror.InvalidArgument("角色无效")
+	}
 	return nil
 }
 
@@ -1514,6 +1923,23 @@ func sanitizeCampusPostExtra(extra map[string]string) map[string]string {
 	return out
 }
 
+func mergeCampusPostExtra(base map[string]string, next map[string]string) map[string]string {
+	if next == nil {
+		return sanitizeCampusPostExtra(base)
+	}
+	return sanitizeCampusPostExtra(next)
+}
+
+func clampSortWeight(weight int32) int32 {
+	if weight < 0 {
+		return 0
+	}
+	if weight > 10000 {
+		return 10000
+	}
+	return weight
+}
+
 func normalizeCampusTerm(term string) string {
 	term = strings.TrimSpace(term)
 	if term != "" {
@@ -1538,15 +1964,46 @@ func normalizeCampusTargetType(targetType string) string {
 	}
 }
 
-func (uc *CampusUsecase) isCampusAdmin(userID string) bool {
+func (uc *CampusUsecase) isCampusOperator(ctx context.Context, userID string) bool {
+	if uc.isCampusAdmin(ctx, userID) {
+		return true
+	}
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
 		return false
 	}
-	allowList := strings.TrimSpace(os.Getenv("LEHU_CAMPUS_ADMIN_USER_IDS"))
-	if allowList == "" {
+	if uc.isEnvListed("LEHU_CAMPUS_OPERATOR_USER_IDS", userID) {
 		return true
 	}
+	role, err := uc.repo.GetCampusOperatorRole(ctx, userID)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("query campus operator role failed: user_id=%s err=%v", userID, err)
+		return false
+	}
+	return role == "operator" || role == "admin"
+}
+
+func (uc *CampusUsecase) isCampusAdmin(ctx context.Context, userID string) bool {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return false
+	}
+	if strings.TrimSpace(os.Getenv("LEHU_CAMPUS_ADMIN_ALLOW_ALL")) == "true" {
+		return true
+	}
+	if uc.isEnvListed("LEHU_CAMPUS_ADMIN_USER_IDS", userID) {
+		return true
+	}
+	role, err := uc.repo.GetCampusOperatorRole(ctx, userID)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("query campus admin role failed: user_id=%s err=%v", userID, err)
+		return false
+	}
+	return role == "admin"
+}
+
+func (uc *CampusUsecase) isEnvListed(envName, userID string) bool {
+	allowList := strings.TrimSpace(os.Getenv(envName))
 	for _, item := range strings.Split(allowList, ",") {
 		if strings.TrimSpace(item) == userID {
 			return true

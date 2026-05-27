@@ -121,6 +121,9 @@ type campusForumPostModel struct {
 	Extra          json.RawMessage `gorm:"column:extra"`
 	CoverURL       string          `gorm:"column:cover_url"`
 	VideoURL       string          `gorm:"column:video_url"`
+	IsOfficial     bool            `gorm:"column:is_official"`
+	IsFeatured     bool            `gorm:"column:is_featured"`
+	SortWeight     int32           `gorm:"column:sort_weight"`
 	Status         int32           `gorm:"column:status"`
 	AuditReason    string          `gorm:"column:audit_reason"`
 	LikeCount      int64           `gorm:"column:like_count"`
@@ -197,6 +200,36 @@ type campusAuditLogModel struct {
 }
 
 func (campusAuditLogModel) TableName() string { return "campus_audit_log" }
+
+type campusOperatorModel struct {
+	UserID    int64     `gorm:"column:user_id"`
+	Role      string    `gorm:"column:role"`
+	IsDeleted bool      `gorm:"column:is_deleted"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (campusOperatorModel) TableName() string { return "campus_operator" }
+
+type campusUserRow struct {
+	UserID       int64     `gorm:"column:user_id"`
+	AccountID    int64     `gorm:"column:account_id"`
+	Mobile       string    `gorm:"column:mobile"`
+	Email        string    `gorm:"column:email"`
+	Name         string    `gorm:"column:name"`
+	Nickname     string    `gorm:"column:nickname"`
+	Avatar       string    `gorm:"column:avatar"`
+	SchoolName   string    `gorm:"column:school_name"`
+	StudentNo    string    `gorm:"column:student_no"`
+	RealName     string    `gorm:"column:real_name"`
+	ClassName    string    `gorm:"column:class_name"`
+	DormBuilding string    `gorm:"column:dorm_building"`
+	RoomNo       string    `gorm:"column:room_no"`
+	AuthStatus   int32     `gorm:"column:auth_status"`
+	Role         string    `gorm:"column:role"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at"`
+}
 
 func (r *campusRepo) GetWechatIdentity(ctx context.Context, provider, openID string) (bool, *biz.CampusWechatIdentity, error) {
 	var row campusWechatIdentityModel
@@ -387,6 +420,9 @@ func (r *campusRepo) CreatePost(ctx context.Context, post *biz.CampusForumPost) 
 		Extra:        extra,
 		CoverURL:     post.CoverURL,
 		VideoURL:     post.VideoURL,
+		IsOfficial:   post.IsOfficial,
+		IsFeatured:   post.IsFeatured,
+		SortWeight:   post.SortWeight,
 		Status:       post.Status,
 		AuditReason:  post.AuditReason,
 		CreatedAt:    time.Now(),
@@ -416,16 +452,22 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 		keyword := "%" + query.Keyword + "%"
 		db = db.Where("(campus_forum_post.title LIKE ? OR campus_forum_post.content LIKE ?)", keyword, keyword)
 	}
+	if query.OnlyOfficial != nil {
+		db = db.Where("campus_forum_post.is_official = ?", *query.OnlyOfficial)
+	}
+	if query.OnlyFeatured != nil {
+		db = db.Where("campus_forum_post.is_featured = ?", *query.OnlyFeatured)
+	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	order := "campus_forum_post.created_at DESC, campus_forum_post.id DESC"
+	order := "campus_forum_post.is_featured DESC, campus_forum_post.sort_weight DESC, campus_forum_post.created_at DESC, campus_forum_post.id DESC"
 	if query.CollectedByUserID != "" {
 		order = "c.updated_at DESC, c.id DESC"
 	}
 	if query.Sort == "hot" {
-		order = "(campus_forum_post.like_count * 3 + campus_forum_post.comment_count * 5 + campus_forum_post.collected_count * 4) DESC, campus_forum_post.created_at DESC"
+		order = "campus_forum_post.is_featured DESC, campus_forum_post.sort_weight DESC, (campus_forum_post.like_count * 3 + campus_forum_post.comment_count * 5 + campus_forum_post.collected_count * 4) DESC, campus_forum_post.created_at DESC"
 	}
 	var rows []campusForumPostModel
 	if err := db.Order(order).Offset(query.Offset).Limit(query.Limit).Find(&rows).Error; err != nil {
@@ -508,6 +550,31 @@ func (r *campusRepo) UpdatePostStatus(ctx context.Context, postID int64, status 
 			"audit_reason": reason,
 			"is_deleted":   status == biz.CampusAuditStatusDeleted,
 			"updated_at":   time.Now(),
+		}).Error
+}
+
+func (r *campusRepo) UpdatePostByAdmin(ctx context.Context, post *biz.CampusForumPost) error {
+	images, _ := json.Marshal(post.Images)
+	extra, _ := json.Marshal(post.Extra)
+	return r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
+		Where("id = ?", post.ID).
+		Updates(map[string]interface{}{
+			"category_code": post.CategoryCode,
+			"title":         post.Title,
+			"content":       post.Content,
+			"images":        images,
+			"media_type":    post.MediaType,
+			"post_type":     post.PostType,
+			"extra":         extra,
+			"cover_url":     post.CoverURL,
+			"video_url":     post.VideoURL,
+			"status":        post.Status,
+			"audit_reason":  post.AuditReason,
+			"is_official":   post.IsOfficial,
+			"is_featured":   post.IsFeatured,
+			"sort_weight":   post.SortWeight,
+			"is_deleted":    post.Status == biz.CampusAuditStatusDeleted,
+			"updated_at":    time.Now(),
 		}).Error
 }
 
@@ -610,6 +677,114 @@ func (r *campusRepo) FillCommentPosts(ctx context.Context, comments []*biz.Campu
 	for _, comment := range comments {
 		if comment != nil {
 			comment.Post = postMap[comment.PostID]
+		}
+	}
+	return nil
+}
+
+func (r *campusRepo) fillReports(ctx context.Context, reports []*biz.CampusForumReport) error {
+	if len(reports) == 0 {
+		return nil
+	}
+	postIDs := make([]int64, 0)
+	commentIDs := make([]int64, 0)
+	reporterIDs := make([]string, 0, len(reports))
+	seenPost := map[int64]struct{}{}
+	seenComment := map[int64]struct{}{}
+	seenReporter := map[string]struct{}{}
+	for _, report := range reports {
+		if report == nil {
+			continue
+		}
+		switch report.TargetType {
+		case "post":
+			if _, ok := seenPost[report.TargetID]; !ok {
+				seenPost[report.TargetID] = struct{}{}
+				postIDs = append(postIDs, report.TargetID)
+			}
+		case "comment":
+			if _, ok := seenComment[report.TargetID]; !ok {
+				seenComment[report.TargetID] = struct{}{}
+				commentIDs = append(commentIDs, report.TargetID)
+			}
+		}
+		if report.ReporterID != "" {
+			if _, ok := seenReporter[report.ReporterID]; !ok {
+				seenReporter[report.ReporterID] = struct{}{}
+				reporterIDs = append(reporterIDs, report.ReporterID)
+			}
+		}
+	}
+	postMap := make(map[int64]*biz.CampusForumPost)
+	if len(postIDs) > 0 {
+		var rows []campusForumPostModel
+		if err := r.data.db.WithContext(ctx).Where("id IN ?", postIDs).Find(&rows).Error; err != nil {
+			return err
+		}
+		posts := make([]*biz.CampusForumPost, 0, len(rows))
+		for i := range rows {
+			post := toBizPost(&rows[i])
+			posts = append(posts, post)
+			postMap[post.ID] = post
+		}
+		if err := r.fillPostCategoryNames(ctx, posts); err != nil {
+			return err
+		}
+	}
+	commentMap := make(map[int64]*biz.CampusForumComment)
+	if len(commentIDs) > 0 {
+		var rows []campusForumCommentModel
+		if err := r.data.db.WithContext(ctx).Where("id IN ?", commentIDs).Find(&rows).Error; err != nil {
+			return err
+		}
+		comments := make([]*biz.CampusForumComment, 0, len(rows))
+		for i := range rows {
+			comment := toBizComment(&rows[i])
+			comments = append(comments, comment)
+			commentMap[comment.ID] = comment
+		}
+		if err := r.FillCommentPosts(ctx, comments); err != nil {
+			return err
+		}
+	}
+	reporterMap := make(map[string]*biz.CampusForumAuthor)
+	if len(reporterIDs) > 0 {
+		var rows []struct {
+			ID       int64  `gorm:"column:id"`
+			Name     string `gorm:"column:name"`
+			Nickname string `gorm:"column:nickname"`
+			Avatar   string `gorm:"column:avatar"`
+		}
+		ids := make([]int64, 0, len(reporterIDs))
+		for _, id := range reporterIDs {
+			ids = append(ids, parseID(id))
+		}
+		if err := r.data.db.WithContext(ctx).Table("user").
+			Select("id, name, nickname, avatar").
+			Where("id IN ?", ids).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		for _, row := range rows {
+			id := fmt.Sprintf("%d", row.ID)
+			reporterMap[id] = &biz.CampusForumAuthor{
+				UserID:   id,
+				Name:     firstNonEmptyData(row.Nickname, row.Name, "同学"),
+				Nickname: row.Nickname,
+				Avatar:   row.Avatar,
+			}
+		}
+	}
+	for _, report := range reports {
+		if report == nil {
+			continue
+		}
+		report.Reporter = reporterMap[report.ReporterID]
+		if report.TargetType == "post" {
+			report.Target = postMap[report.TargetID]
+		}
+		if report.TargetType == "comment" {
+			report.Comment = commentMap[report.TargetID]
 		}
 	}
 	return nil
@@ -862,6 +1037,38 @@ func (r *campusRepo) CreateReport(ctx context.Context, in *biz.CampusForumReport
 		Create(&row).Error
 }
 
+func (r *campusRepo) ListReports(ctx context.Context, status int32, offset, limit int) ([]*biz.CampusForumReport, int64, error) {
+	db := r.data.db.WithContext(ctx).Model(&campusForumReportModel{})
+	if status >= 0 {
+		db = db.Where("status = ?", status)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusForumReportModel
+	if err := db.Order("created_at DESC, id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	reports := make([]*biz.CampusForumReport, 0, len(rows))
+	for i := range rows {
+		reports = append(reports, toBizReport(&rows[i]))
+	}
+	if err := r.fillReports(ctx, reports); err != nil {
+		return nil, 0, err
+	}
+	return reports, total, nil
+}
+
+func (r *campusRepo) UpdateReportStatus(ctx context.Context, reportID int64, status int32) error {
+	return r.data.db.WithContext(ctx).Model(&campusForumReportModel{}).
+		Where("id = ?", reportID).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		}).Error
+}
+
 func (r *campusRepo) CreateAuditLog(ctx context.Context, in *biz.CampusAuditLog) error {
 	row := campusAuditLogModel{
 		ID:         in.ID,
@@ -874,6 +1081,146 @@ func (r *campusRepo) CreateAuditLog(ctx context.Context, in *biz.CampusAuditLog)
 		CreatedAt:  time.Now(),
 	}
 	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSummary, error) {
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	summary := &biz.CampusAdminSummary{}
+	counts := []struct {
+		table string
+		where string
+		dest  *int64
+	}{
+		{"user", "1 = 1", &summary.TotalUsers},
+		{"user", "created_at >= ?", &summary.TodayUsers},
+		{"campus_forum_post", "is_deleted = 0", &summary.TotalPosts},
+		{"campus_forum_post", "is_deleted = 0 AND created_at >= ?", &summary.TodayPosts},
+		{"campus_forum_comment", "is_deleted = 0", &summary.TotalComments},
+		{"campus_forum_comment", "is_deleted = 0 AND created_at >= ?", &summary.TodayComments},
+		{"campus_forum_post_like", "is_deleted = 0", &summary.TotalLikes},
+		{"campus_forum_post_like", "is_deleted = 0 AND created_at >= ?", &summary.TodayLikes},
+		{"campus_forum_post_collection", "is_deleted = 0", &summary.TotalCollections},
+		{"campus_forum_post_collection", "is_deleted = 0 AND created_at >= ?", &summary.TodayCollections},
+		{"campus_forum_report", "1 = 1", &summary.TotalReports},
+		{"campus_forum_report", "status = 0", &summary.PendingReports},
+		{"campus_forum_post", "status = 0 AND is_deleted = 0", &summary.PendingPosts},
+		{"campus_forum_comment", "status = 0 AND is_deleted = 0", &summary.PendingComments},
+		{"campus_forum_post", "is_featured = 1 AND is_deleted = 0", &summary.FeaturedPosts},
+		{"campus_forum_post", "is_official = 1 AND is_deleted = 0", &summary.OfficialPosts},
+	}
+	for _, item := range counts {
+		db := r.data.db.WithContext(ctx).Table(item.table).Where(item.where)
+		if item.where == "created_at >= ?" || item.where == "is_deleted = 0 AND created_at >= ?" {
+			db = r.data.db.WithContext(ctx).Table(item.table).Where(item.where, today)
+		}
+		if err := db.Count(item.dest).Error; err != nil {
+			return nil, err
+		}
+	}
+	trends := make([]*biz.CampusAdminTrend, 0, 7)
+	for i := 6; i >= 0; i-- {
+		day := today.AddDate(0, 0, -i)
+		next := day.AddDate(0, 0, 1)
+		trend := &biz.CampusAdminTrend{Date: day.Format("01-02")}
+		if err := r.data.db.WithContext(ctx).Table("user").Where("created_at >= ? AND created_at < ?", day, next).Count(&trend.Users).Error; err != nil {
+			return nil, err
+		}
+		if err := r.data.db.WithContext(ctx).Table("campus_forum_post").Where("is_deleted = 0 AND created_at >= ? AND created_at < ?", day, next).Count(&trend.Posts).Error; err != nil {
+			return nil, err
+		}
+		if err := r.data.db.WithContext(ctx).Table("campus_forum_comment").Where("is_deleted = 0 AND created_at >= ? AND created_at < ?", day, next).Count(&trend.Comments).Error; err != nil {
+			return nil, err
+		}
+		if err := r.data.db.WithContext(ctx).Table("campus_forum_post_like").Where("is_deleted = 0 AND created_at >= ? AND created_at < ?", day, next).Count(&trend.Likes).Error; err != nil {
+			return nil, err
+		}
+		if err := r.data.db.WithContext(ctx).Table("campus_forum_post_collection").Where("is_deleted = 0 AND created_at >= ? AND created_at < ?", day, next).Count(&trend.Collections).Error; err != nil {
+			return nil, err
+		}
+		if err := r.data.db.WithContext(ctx).Table("campus_forum_report").Where("created_at >= ? AND created_at < ?", day, next).Count(&trend.Reports).Error; err != nil {
+			return nil, err
+		}
+		trends = append(trends, trend)
+	}
+	summary.Trends = trends
+	return summary, nil
+}
+
+func (r *campusRepo) ListCampusUsers(ctx context.Context, keyword string, offset, limit int) ([]*biz.CampusAdminUser, int64, error) {
+	db := r.data.db.WithContext(ctx).Table("user u").
+		Select(`u.id AS user_id, u.account_id, u.mobile, u.email, u.name, u.nickname, u.avatar,
+			COALESCE(p.school_name, '') AS school_name,
+			COALESCE(p.student_no, '') AS student_no,
+			COALESCE(p.real_name, '') AS real_name,
+			COALESCE(p.class_name, '') AS class_name,
+			COALESCE(p.dorm_building, '') AS dorm_building,
+			COALESCE(p.room_no, '') AS room_no,
+			COALESCE(p.auth_status, 0) AS auth_status,
+			COALESCE(o.role, '') AS role,
+			u.created_at, u.updated_at`).
+		Joins("LEFT JOIN campus_profile p ON p.user_id = u.id").
+		Joins("LEFT JOIN campus_operator o ON o.user_id = u.id AND o.is_deleted = 0")
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		db = db.Where("u.nickname LIKE ? OR u.name LIKE ? OR u.mobile LIKE ? OR u.email LIKE ? OR p.student_no LIKE ? OR p.real_name LIKE ?", like, like, like, like, like, like)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusUserRow
+	if err := db.Order("u.created_at DESC, u.id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	users := make([]*biz.CampusAdminUser, 0, len(rows))
+	for i := range rows {
+		users = append(users, toBizAdminUser(&rows[i]))
+	}
+	return users, total, nil
+}
+
+func (r *campusRepo) GetCampusOperatorRole(ctx context.Context, userID string) (string, error) {
+	var row campusOperatorModel
+	err := r.data.db.WithContext(ctx).
+		Where("user_id = ? AND is_deleted = ?", parseID(userID), false).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return row.Role, nil
+}
+
+func (r *campusRepo) UpsertCampusOperator(ctx context.Context, userID, role string) error {
+	row := campusOperatorModel{
+		UserID:    parseID(userID),
+		Role:      role,
+		IsDeleted: false,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	return r.data.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "user_id"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"role":       role,
+				"is_deleted": false,
+				"updated_at": time.Now(),
+			}),
+		}).
+		Create(&row).Error
+}
+
+func (r *campusRepo) RemoveCampusOperator(ctx context.Context, userID string) error {
+	return r.data.db.WithContext(ctx).Model(&campusOperatorModel{}).
+		Where("user_id = ?", parseID(userID)).
+		Updates(map[string]interface{}{
+			"is_deleted": true,
+			"updated_at": time.Now(),
+		}).Error
 }
 
 func toBizWechatIdentity(row *campusWechatIdentityModel) *biz.CampusWechatIdentity {
@@ -961,6 +1308,9 @@ func toBizPost(row *campusForumPostModel) *biz.CampusForumPost {
 		Extra:          extra,
 		CoverURL:       row.CoverURL,
 		VideoURL:       row.VideoURL,
+		IsOfficial:     row.IsOfficial,
+		IsFeatured:     row.IsFeatured,
+		SortWeight:     row.SortWeight,
 		Status:         row.Status,
 		AuditReason:    row.AuditReason,
 		LikeCount:      row.LikeCount,
@@ -968,6 +1318,50 @@ func toBizPost(row *campusForumPostModel) *biz.CampusForumPost {
 		CollectedCount: row.CollectedCount,
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
+	}
+}
+
+func toBizReport(row *campusForumReportModel) *biz.CampusForumReport {
+	return &biz.CampusForumReport{
+		ID:         row.ID,
+		TargetType: row.TargetType,
+		TargetID:   row.TargetID,
+		ReporterID: fmt.Sprintf("%d", row.ReporterID),
+		Reason:     row.Reason,
+		Detail:     row.Detail,
+		Status:     row.Status,
+		CreatedAt:  row.CreatedAt,
+		UpdatedAt:  row.UpdatedAt,
+	}
+}
+
+func toBizAdminUser(row *campusUserRow) *biz.CampusAdminUser {
+	userID := fmt.Sprintf("%d", row.UserID)
+	accountID := fmt.Sprintf("%d", row.AccountID)
+	return &biz.CampusAdminUser{
+		User: &biz.UserBaseInfo{
+			ID:        userID,
+			Name:      row.Name,
+			Nickname:  row.Nickname,
+			Avatar:    row.Avatar,
+			Mobile:    row.Mobile,
+			Email:     row.Email,
+			CreatedAt: row.CreatedAt.Format(time.DateTime),
+			UpdatedAt: row.UpdatedAt.Format(time.DateTime),
+		},
+		Profile: &biz.CampusProfile{
+			UserID:       userID,
+			AccountID:    accountID,
+			SchoolName:   row.SchoolName,
+			StudentNo:    row.StudentNo,
+			RealName:     row.RealName,
+			ClassName:    row.ClassName,
+			DormBuilding: row.DormBuilding,
+			RoomNo:       row.RoomNo,
+			Mobile:       row.Mobile,
+			AuthStatus:   row.AuthStatus,
+		},
+		Role: row.Role,
 	}
 }
 
@@ -1028,6 +1422,15 @@ func nullString(value string) interface{} {
 		return sql.NullString{}
 	}
 	return value
+}
+
+func firstNonEmptyData(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func parseID(value string) int64 {

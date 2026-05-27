@@ -68,6 +68,17 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/moderation/comments", s.wrap(s.authRequired(s.handleListModerationComments)))
 	r.POST("/v1/campus/moderation/posts/{id}/review", s.wrap(s.authRequired(s.handleReviewPost)))
 	r.POST("/v1/campus/moderation/comments/{id}/review", s.wrap(s.authRequired(s.handleReviewComment)))
+	r.GET("/v1/campus/admin/summary", s.wrap(s.authRequired(s.handleAdminSummary)))
+	r.GET("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminListPosts)))
+	r.POST("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminCreatePost)))
+	r.PUT("/v1/campus/admin/posts/{id}", s.wrap(s.authRequired(s.handleAdminUpdatePost)))
+	r.DELETE("/v1/campus/admin/posts/{id}", s.wrap(s.authRequired(s.handleAdminDeletePost)))
+	r.GET("/v1/campus/admin/comments", s.wrap(s.authRequired(s.handleAdminListComments)))
+	r.DELETE("/v1/campus/admin/comments/{id}", s.wrap(s.authRequired(s.handleAdminDeleteComment)))
+	r.GET("/v1/campus/admin/reports", s.wrap(s.authRequired(s.handleAdminListReports)))
+	r.POST("/v1/campus/admin/reports/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewReport)))
+	r.GET("/v1/campus/admin/users", s.wrap(s.authRequired(s.handleAdminListUsers)))
+	r.PUT("/v1/campus/admin/users/{id}/role", s.wrap(s.authRequired(s.handleAdminUpdateUserRole)))
 }
 
 func (s *CampusService) wrap(handler http.HandlerFunc) khttp.HandlerFunc {
@@ -454,6 +465,9 @@ type postRequest struct {
 	Extra        map[string]string `json:"extra"`
 	CoverURL     string            `json:"cover_url"`
 	VideoURL     string            `json:"video_url"`
+	IsOfficial   bool              `json:"is_official"`
+	IsFeatured   bool              `json:"is_featured"`
+	SortWeight   int32             `json:"sort_weight"`
 }
 
 func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request) {
@@ -473,6 +487,9 @@ func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request)
 		Extra:        req.Extra,
 		CoverURL:     req.CoverURL,
 		VideoURL:     req.VideoURL,
+		IsOfficial:   req.IsOfficial,
+		IsFeatured:   req.IsFeatured,
+		SortWeight:   req.SortWeight,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -804,6 +821,250 @@ func (s *CampusService) handleReviewComment(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, r, map[string]interface{}{})
 }
 
+func (s *CampusService) handleAdminSummary(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	summary, err := s.uc.AdminSummary(r.Context(), userID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"summary": adminSummaryToMap(summary)})
+}
+
+func (s *CampusService) handleAdminListPosts(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListPosts(r.Context(), &biz.ListCampusAdminPostsInput{
+		UserID:       userID,
+		CategoryCode: q.Get("category_code"),
+		Keyword:      q.Get("keyword"),
+		Status:       int32(queryInt(q.Get("status"), -1)),
+		Sort:         q.Get("sort"),
+		Page:         int32(queryInt(q.Get("page"), 1)),
+		Size:         int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	posts := make([]map[string]interface{}, 0, len(out.Posts))
+	for _, post := range out.Posts {
+		posts = append(posts, postToMap(post))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"posts":      posts,
+		"page_stats": map[string]interface{}{"total": out.Total},
+	})
+}
+
+func (s *CampusService) handleAdminCreatePost(w http.ResponseWriter, r *http.Request) {
+	var req postRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	post, err := s.uc.AdminCreatePost(r.Context(), &biz.CreateCampusPostInput{
+		UserID:       userID,
+		CategoryCode: req.CategoryCode,
+		Title:        req.Title,
+		Content:      req.Content,
+		Images:       req.Images,
+		MediaType:    req.MediaType,
+		PostType:     req.PostType,
+		Extra:        req.Extra,
+		CoverURL:     req.CoverURL,
+		VideoURL:     req.VideoURL,
+		IsOfficial:   req.IsOfficial,
+		IsFeatured:   req.IsFeatured,
+		SortWeight:   req.SortWeight,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"post": postToMap(post)})
+}
+
+func (s *CampusService) handleAdminUpdatePost(w http.ResponseWriter, r *http.Request) {
+	postID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		postRequest
+		Status      int32  `json:"status"`
+		AuditReason string `json:"audit_reason"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	post, err := s.uc.AdminUpdatePost(r.Context(), &biz.UpdateCampusAdminPostInput{
+		UserID:       userID,
+		PostID:       postID,
+		CategoryCode: req.CategoryCode,
+		Title:        req.Title,
+		Content:      req.Content,
+		Images:       req.Images,
+		MediaType:    req.MediaType,
+		PostType:     req.PostType,
+		Extra:        req.Extra,
+		CoverURL:     req.CoverURL,
+		VideoURL:     req.VideoURL,
+		Status:       req.Status,
+		AuditReason:  req.AuditReason,
+		IsOfficial:   req.IsOfficial,
+		IsFeatured:   req.IsFeatured,
+		SortWeight:   req.SortWeight,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"post": postToMap(post)})
+}
+
+func (s *CampusService) handleAdminDeletePost(w http.ResponseWriter, r *http.Request) {
+	postID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminDeletePost(r.Context(), userID, postID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleAdminListComments(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListComments(r.Context(), &biz.ListCampusAdminCommentsInput{
+		UserID: userID,
+		Status: int32(queryInt(q.Get("status"), -1)),
+		PostID: int64(queryInt(q.Get("post_id"), 0)),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	comments := make([]map[string]interface{}, 0, len(out.Comments))
+	for _, comment := range out.Comments {
+		comments = append(comments, commentToMap(comment))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"comments":   comments,
+		"page_stats": map[string]interface{}{"total": out.Total},
+	})
+}
+
+func (s *CampusService) handleAdminDeleteComment(w http.ResponseWriter, r *http.Request) {
+	commentID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminDeleteComment(r.Context(), userID, commentID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleAdminListReports(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListReports(r.Context(), &biz.ListCampusReportsInput{
+		UserID: userID,
+		Status: int32(queryInt(q.Get("status"), -1)),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	reports := make([]map[string]interface{}, 0, len(out.Reports))
+	for _, report := range out.Reports {
+		reports = append(reports, reportToMap(report))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"reports":    reports,
+		"page_stats": map[string]interface{}{"total": out.Total},
+	})
+}
+
+func (s *CampusService) handleAdminReviewReport(w http.ResponseWriter, r *http.Request) {
+	reportID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var req reviewRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminReviewReport(r.Context(), &biz.ReviewCampusReportInput{
+		UserID:   userID,
+		ReportID: reportID,
+		Action:   req.Action,
+		Reason:   req.Reason,
+	}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListUsers(r.Context(), &biz.ListCampusAdminUsersInput{
+		UserID:  userID,
+		Keyword: q.Get("keyword"),
+		Page:    int32(queryInt(q.Get("page"), 1)),
+		Size:    int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	users := make([]map[string]interface{}, 0, len(out.Users))
+	for _, user := range out.Users {
+		users = append(users, adminUserToMap(user))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"users":      users,
+		"page_stats": map[string]interface{}{"total": out.Total},
+	})
+}
+
+func (s *CampusService) handleAdminUpdateUserRole(w http.ResponseWriter, r *http.Request) {
+	targetUserID, ok := pathStringID(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Role string `json:"role"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminUpdateUserRole(r.Context(), &biz.UpdateCampusUserRoleInput{
+		UserID:       userID,
+		TargetUserID: targetUserID,
+		Role:         req.Role,
+	}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
 func (s *CampusService) authRequired(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
@@ -846,12 +1107,23 @@ func optionalUserIDFromRequest(r *http.Request, secret string) (string, error) {
 }
 
 func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
+	raw := mux.Vars(r)["id"]
+	id, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || id <= 0 {
 		writeError(w, r, apperror.InvalidArgument("ID 无效"))
 		return 0, false
 	}
 	return id, true
+}
+
+func pathStringID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	raw := strings.TrimSpace(mux.Vars(r)["id"])
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		writeError(w, r, apperror.InvalidArgument("ID 无效"))
+		return "", false
+	}
+	return raw, true
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, out interface{}) bool {
@@ -1049,6 +1321,9 @@ func postToMap(post *biz.CampusForumPost) map[string]interface{} {
 		"extra":           post.Extra,
 		"cover_url":       post.CoverURL,
 		"video_url":       post.VideoURL,
+		"is_official":     post.IsOfficial,
+		"is_featured":     post.IsFeatured,
+		"sort_weight":     post.SortWeight,
 		"status":          post.Status,
 		"audit_reason":    post.AuditReason,
 		"like_count":      post.LikeCount,
@@ -1058,6 +1333,73 @@ func postToMap(post *biz.CampusForumPost) map[string]interface{} {
 		"is_collected":    post.IsCollected,
 		"created_at":      formatTime(post.CreatedAt),
 		"updated_at":      formatTime(post.UpdatedAt),
+	}
+}
+
+func reportToMap(report *biz.CampusForumReport) map[string]interface{} {
+	if report == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":          strconv.FormatInt(report.ID, 10),
+		"target_type": report.TargetType,
+		"target_id":   strconv.FormatInt(report.TargetID, 10),
+		"target":      postToMap(report.Target),
+		"comment":     commentToMap(report.Comment),
+		"reporter":    authorToMap(report.Reporter),
+		"reason":      report.Reason,
+		"detail":      report.Detail,
+		"status":      report.Status,
+		"created_at":  formatTime(report.CreatedAt),
+		"updated_at":  formatTime(report.UpdatedAt),
+	}
+}
+
+func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {
+	if summary == nil {
+		return nil
+	}
+	trends := make([]map[string]interface{}, 0, len(summary.Trends))
+	for _, trend := range summary.Trends {
+		trends = append(trends, map[string]interface{}{
+			"date":        trend.Date,
+			"users":       trend.Users,
+			"posts":       trend.Posts,
+			"comments":    trend.Comments,
+			"likes":       trend.Likes,
+			"collections": trend.Collections,
+			"reports":     trend.Reports,
+		})
+	}
+	return map[string]interface{}{
+		"total_users":       summary.TotalUsers,
+		"today_users":       summary.TodayUsers,
+		"total_posts":       summary.TotalPosts,
+		"today_posts":       summary.TodayPosts,
+		"total_comments":    summary.TotalComments,
+		"today_comments":    summary.TodayComments,
+		"total_likes":       summary.TotalLikes,
+		"today_likes":       summary.TodayLikes,
+		"total_collections": summary.TotalCollections,
+		"today_collections": summary.TodayCollections,
+		"total_reports":     summary.TotalReports,
+		"pending_reports":   summary.PendingReports,
+		"pending_posts":     summary.PendingPosts,
+		"pending_comments":  summary.PendingComments,
+		"featured_posts":    summary.FeaturedPosts,
+		"official_posts":    summary.OfficialPosts,
+		"trends":            trends,
+	}
+}
+
+func adminUserToMap(user *biz.CampusAdminUser) map[string]interface{} {
+	if user == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"user":    userToMap(user.User),
+		"profile": profileToMap(user.Profile),
+		"role":    user.Role,
 	}
 }
 
