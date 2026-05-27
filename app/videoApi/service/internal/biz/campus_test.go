@@ -282,6 +282,40 @@ func TestAdminBatchPostsUpdatesContentFlags(t *testing.T) {
 	}
 }
 
+func TestCreateFeedbackSanitizesInput(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(2001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	feedback, err := uc.CreateFeedback(context.Background(), &CreateCampusFeedbackInput{
+		UserID:       "10",
+		FeedbackType: "bug",
+		Content:      "发布页草稿恢复有点问题",
+		Contact:      "微信 test",
+		Images:       []string{"https://example.com/1.jpg", "", "https://example.com/2.jpg", "https://example.com/3.jpg", "https://example.com/4.jpg"},
+	})
+	if err != nil {
+		t.Fatalf("CreateFeedback() error = %v", err)
+	}
+	if feedback.ID != 2001 || feedback.FeedbackType != "bug" || feedback.Status != CampusFeedbackStatusPending {
+		t.Fatalf("feedback mismatch: %+v", feedback)
+	}
+	if len(feedback.Images) != 3 {
+		t.Fatalf("images len = %d, want 3", len(feedback.Images))
+	}
+	if repo.lastFeedback == nil || repo.lastFeedback.Content != "发布页草稿恢复有点问题" {
+		t.Fatalf("feedback not persisted: %+v", repo.lastFeedback)
+	}
+}
+
+func TestAdminListFeedbackRequiresOperator(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	if _, err := uc.AdminListFeedback(context.Background(), &ListCampusFeedbackInput{UserID: "10"}); err == nil {
+		t.Fatalf("AdminListFeedback() expected forbidden error")
+	}
+}
+
 type fixedCampusIDGenerator int64
 
 func (g fixedCampusIDGenerator) NextID() int64 { return int64(g) }
@@ -295,6 +329,7 @@ type campusRepoStub struct {
 	roles         map[string]string
 	posts         map[int64]*CampusForumPost
 	lastPost      *CampusForumPost
+	lastFeedback  *CampusFeedback
 	lastListQuery ListCampusPostQuery
 }
 
@@ -398,7 +433,18 @@ func (r *campusRepoStub) ListReports(context.Context, int32, int, int) ([]*Campu
 	return nil, 0, nil
 }
 func (r *campusRepoStub) UpdateReportStatus(context.Context, int64, int32) error { return nil }
-func (r *campusRepoStub) CreateAuditLog(context.Context, *CampusAuditLog) error  { return nil }
+func (r *campusRepoStub) CreateFeedback(ctx context.Context, feedback *CampusFeedback) error {
+	_ = ctx
+	r.lastFeedback = feedback
+	return nil
+}
+func (r *campusRepoStub) ListFeedback(context.Context, int32, int, int) ([]*CampusFeedback, int64, error) {
+	return nil, 0, nil
+}
+func (r *campusRepoStub) UpdateFeedbackStatus(context.Context, int64, int32, string) error {
+	return nil
+}
+func (r *campusRepoStub) CreateAuditLog(context.Context, *CampusAuditLog) error { return nil }
 func (r *campusRepoStub) TrackEvent(context.Context, *TrackCampusEventInput) error {
 	return nil
 }

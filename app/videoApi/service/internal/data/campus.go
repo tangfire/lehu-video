@@ -210,6 +210,21 @@ type campusForumReportModel struct {
 
 func (campusForumReportModel) TableName() string { return "campus_forum_report" }
 
+type campusFeedbackModel struct {
+	ID           int64           `gorm:"column:id"`
+	UserID       int64           `gorm:"column:user_id"`
+	FeedbackType string          `gorm:"column:feedback_type"`
+	Content      string          `gorm:"column:content"`
+	Contact      string          `gorm:"column:contact"`
+	Images       json.RawMessage `gorm:"column:images"`
+	Status       int32           `gorm:"column:status"`
+	OperatorNote string          `gorm:"column:operator_note"`
+	CreatedAt    time.Time       `gorm:"column:created_at"`
+	UpdatedAt    time.Time       `gorm:"column:updated_at"`
+}
+
+func (campusFeedbackModel) TableName() string { return "campus_feedback" }
+
 type campusAuditLogModel struct {
 	ID         int64     `gorm:"column:id"`
 	TargetType string    `gorm:"column:target_type"`
@@ -1109,6 +1124,53 @@ func (r *campusRepo) UpdateReportStatus(ctx context.Context, reportID int64, sta
 		}).Error
 }
 
+func (r *campusRepo) CreateFeedback(ctx context.Context, in *biz.CampusFeedback) error {
+	images, _ := json.Marshal(in.Images)
+	row := campusFeedbackModel{
+		ID:           in.ID,
+		UserID:       parseID(in.UserID),
+		FeedbackType: in.FeedbackType,
+		Content:      in.Content,
+		Contact:      in.Contact,
+		Images:       images,
+		Status:       in.Status,
+		OperatorNote: in.OperatorNote,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) ListFeedback(ctx context.Context, status int32, offset, limit int) ([]*biz.CampusFeedback, int64, error) {
+	db := r.data.db.WithContext(ctx).Model(&campusFeedbackModel{})
+	if status >= 0 {
+		db = db.Where("status = ?", status)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusFeedbackModel
+	if err := db.Order("created_at DESC, id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	feedbacks := make([]*biz.CampusFeedback, 0, len(rows))
+	for i := range rows {
+		feedbacks = append(feedbacks, toBizFeedback(&rows[i]))
+	}
+	return feedbacks, total, nil
+}
+
+func (r *campusRepo) UpdateFeedbackStatus(ctx context.Context, feedbackID int64, status int32, note string) error {
+	return r.data.db.WithContext(ctx).Model(&campusFeedbackModel{}).
+		Where("id = ?", feedbackID).
+		Updates(map[string]interface{}{
+			"status":        status,
+			"operator_note": note,
+			"updated_at":    time.Now(),
+		}).Error
+}
+
 func (r *campusRepo) CreateAuditLog(ctx context.Context, in *biz.CampusAuditLog) error {
 	row := campusAuditLogModel{
 		ID:         in.ID,
@@ -1171,6 +1233,7 @@ func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSumma
 		{"campus_forum_post_collection", "is_deleted = 0 AND created_at >= ?", &summary.TodayCollections},
 		{"campus_forum_report", "1 = 1", &summary.TotalReports},
 		{"campus_forum_report", "status = 0", &summary.PendingReports},
+		{"campus_feedback", "status = 0", &summary.PendingFeedback},
 		{"campus_forum_post", "status = 0 AND is_deleted = 0", &summary.PendingPosts},
 		{"campus_forum_comment", "status = 0 AND is_deleted = 0", &summary.PendingComments},
 		{"campus_forum_post", "is_featured = 1 AND is_deleted = 0", &summary.FeaturedPosts},
@@ -1409,6 +1472,23 @@ func toBizReport(row *campusForumReportModel) *biz.CampusForumReport {
 		Status:     row.Status,
 		CreatedAt:  row.CreatedAt,
 		UpdatedAt:  row.UpdatedAt,
+	}
+}
+
+func toBizFeedback(row *campusFeedbackModel) *biz.CampusFeedback {
+	images := make([]string, 0)
+	_ = json.Unmarshal(row.Images, &images)
+	return &biz.CampusFeedback{
+		ID:           row.ID,
+		UserID:       fmt.Sprintf("%d", row.UserID),
+		FeedbackType: row.FeedbackType,
+		Content:      row.Content,
+		Contact:      row.Contact,
+		Images:       images,
+		Status:       row.Status,
+		OperatorNote: row.OperatorNote,
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
 	}
 }
 

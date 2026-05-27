@@ -65,6 +65,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/forum/posts/{id}/report", s.wrap(s.authRequired(s.handleReportPost)))
 	r.DELETE("/v1/campus/forum/comments/{id}", s.wrap(s.authRequired(s.handleDeleteComment)))
 	r.POST("/v1/campus/forum/comments/{id}/report", s.wrap(s.authRequired(s.handleReportComment)))
+	r.POST("/v1/campus/feedback", s.wrap(s.authRequired(s.handleCreateFeedback)))
 	r.GET("/v1/campus/moderation/posts", s.wrap(s.authRequired(s.handleListModerationPosts)))
 	r.GET("/v1/campus/moderation/comments", s.wrap(s.authRequired(s.handleListModerationComments)))
 	r.POST("/v1/campus/moderation/posts/{id}/review", s.wrap(s.authRequired(s.handleReviewPost)))
@@ -79,6 +80,8 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.DELETE("/v1/campus/admin/comments/{id}", s.wrap(s.authRequired(s.handleAdminDeleteComment)))
 	r.GET("/v1/campus/admin/reports", s.wrap(s.authRequired(s.handleAdminListReports)))
 	r.POST("/v1/campus/admin/reports/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewReport)))
+	r.GET("/v1/campus/admin/feedback", s.wrap(s.authRequired(s.handleAdminListFeedback)))
+	r.POST("/v1/campus/admin/feedback/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewFeedback)))
 	r.GET("/v1/campus/admin/users", s.wrap(s.authRequired(s.handleAdminListUsers)))
 	r.PUT("/v1/campus/admin/users/{id}/role", s.wrap(s.authRequired(s.handleAdminUpdateUserRole)))
 }
@@ -514,6 +517,18 @@ type batchPostsRequest struct {
 	SortWeight int32   `json:"sort_weight"`
 }
 
+type feedbackRequest struct {
+	FeedbackType string   `json:"feedback_type"`
+	Content      string   `json:"content"`
+	Contact      string   `json:"contact"`
+	Images       []string `json:"images"`
+}
+
+type reviewFeedbackRequest struct {
+	Status       int32  `json:"status"`
+	OperatorNote string `json:"operator_note"`
+}
+
 func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request) {
 	var req postRequest
 	if !decodeJSON(w, r, &req) {
@@ -763,6 +778,26 @@ func (s *CampusService) handleReportComment(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleCreateFeedback(w http.ResponseWriter, r *http.Request) {
+	var req feedbackRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	feedback, err := s.uc.CreateFeedback(r.Context(), &biz.CreateCampusFeedbackInput{
+		UserID:       userID,
+		FeedbackType: req.FeedbackType,
+		Content:      req.Content,
+		Contact:      req.Contact,
+		Images:       req.Images,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"feedback": feedbackToMap(feedback)})
 }
 
 func (s *CampusService) handleListModerationPosts(w http.ResponseWriter, r *http.Request) {
@@ -1080,6 +1115,51 @@ func (s *CampusService) handleAdminReviewReport(w http.ResponseWriter, r *http.R
 		ReportID: reportID,
 		Action:   req.Action,
 		Reason:   req.Reason,
+	}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleAdminListFeedback(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListFeedback(r.Context(), &biz.ListCampusFeedbackInput{
+		UserID: userID,
+		Status: int32(queryInt(q.Get("status"), -1)),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Feedbacks))
+	for _, feedback := range out.Feedbacks {
+		items = append(items, feedbackToMap(feedback))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"feedbacks":  items,
+		"page_stats": map[string]interface{}{"total": out.Total},
+	})
+}
+
+func (s *CampusService) handleAdminReviewFeedback(w http.ResponseWriter, r *http.Request) {
+	feedbackID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var req reviewFeedbackRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminReviewFeedback(r.Context(), &biz.ReviewCampusFeedbackInput{
+		UserID:       userID,
+		FeedbackID:   feedbackID,
+		Status:       req.Status,
+		OperatorNote: req.OperatorNote,
 	}); err != nil {
 		writeError(w, r, err)
 		return
@@ -1439,6 +1519,25 @@ func reportToMap(report *biz.CampusForumReport) map[string]interface{} {
 	}
 }
 
+func feedbackToMap(feedback *biz.CampusFeedback) map[string]interface{} {
+	if feedback == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":            strconv.FormatInt(feedback.ID, 10),
+		"user_id":       feedback.UserID,
+		"author":        authorToMap(feedback.Author),
+		"feedback_type": feedback.FeedbackType,
+		"content":       feedback.Content,
+		"contact":       feedback.Contact,
+		"images":        feedback.Images,
+		"status":        feedback.Status,
+		"operator_note": feedback.OperatorNote,
+		"created_at":    formatTime(feedback.CreatedAt),
+		"updated_at":    formatTime(feedback.UpdatedAt),
+	}
+}
+
 func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {
 	if summary == nil {
 		return nil
@@ -1477,6 +1576,7 @@ func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {
 		"today_collections": summary.TodayCollections,
 		"total_reports":     summary.TotalReports,
 		"pending_reports":   summary.PendingReports,
+		"pending_feedback":  summary.PendingFeedback,
 		"pending_posts":     summary.PendingPosts,
 		"pending_comments":  summary.PendingComments,
 		"featured_posts":    summary.FeaturedPosts,

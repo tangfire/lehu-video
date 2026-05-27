@@ -25,6 +25,10 @@ const (
 	CampusAuditStatusRejected int32 = 2
 	CampusAuditStatusDeleted  int32 = 3
 
+	CampusFeedbackStatusPending    int32 = 0
+	CampusFeedbackStatusProcessing int32 = 1
+	CampusFeedbackStatusResolved   int32 = 2
+
 	CampusAuthStatusUnverified int32 = 0
 	CampusAuthStatusVerified   int32 = 1
 
@@ -255,6 +259,20 @@ type CampusForumReport struct {
 	UpdatedAt  time.Time
 }
 
+type CampusFeedback struct {
+	ID           int64
+	UserID       string
+	Author       *CampusForumAuthor
+	FeedbackType string
+	Content      string
+	Contact      string
+	Images       []string
+	Status       int32
+	OperatorNote string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type CampusAuditLog struct {
 	ID         int64
 	TargetType string
@@ -427,6 +445,7 @@ type CampusAdminSummary struct {
 	TodayCollections int64
 	TotalReports     int64
 	PendingReports   int64
+	PendingFeedback  int64
 	PendingPosts     int64
 	PendingComments  int64
 	FeaturedPosts    int64
@@ -541,6 +560,33 @@ type UpdateCampusUserRoleInput struct {
 	Role         string
 }
 
+type CreateCampusFeedbackInput struct {
+	UserID       string
+	FeedbackType string
+	Content      string
+	Contact      string
+	Images       []string
+}
+
+type ListCampusFeedbackInput struct {
+	UserID string
+	Status int32
+	Page   int32
+	Size   int32
+}
+
+type ListCampusFeedbackOutput struct {
+	Feedbacks []*CampusFeedback
+	Total     int64
+}
+
+type ReviewCampusFeedbackInput struct {
+	UserID       string
+	FeedbackID   int64
+	Status       int32
+	OperatorNote string
+}
+
 type TrackCampusEventInput struct {
 	UserID     string
 	EventType  string
@@ -594,6 +640,9 @@ type CampusRepo interface {
 	CreateReport(ctx context.Context, report *CampusForumReport) error
 	ListReports(ctx context.Context, status int32, offset, limit int) ([]*CampusForumReport, int64, error)
 	UpdateReportStatus(ctx context.Context, reportID int64, status int32) error
+	CreateFeedback(ctx context.Context, feedback *CampusFeedback) error
+	ListFeedback(ctx context.Context, status int32, offset, limit int) ([]*CampusFeedback, int64, error)
+	UpdateFeedbackStatus(ctx context.Context, feedbackID int64, status int32, note string) error
 	CreateAuditLog(ctx context.Context, log *CampusAuditLog) error
 	TrackEvent(ctx context.Context, event *TrackCampusEventInput) error
 	GetAdminSummary(ctx context.Context) (*CampusAdminSummary, error)
@@ -1745,6 +1794,84 @@ func (uc *CampusUsecase) AdminReviewReport(ctx context.Context, input *ReviewCam
 	return nil
 }
 
+func (uc *CampusUsecase) CreateFeedback(ctx context.Context, input *CreateCampusFeedbackInput) (*CampusFeedback, error) {
+	if strings.TrimSpace(input.UserID) == "" {
+		return nil, apperror.Unauthorized("请先登录")
+	}
+	feedbackType := normalizeCampusFeedbackType(input.FeedbackType)
+	content := strings.TrimSpace(input.Content)
+	if len([]rune(content)) < 5 {
+		return nil, apperror.InvalidArgument("请至少写 5 个字，方便我们理解问题")
+	}
+	if len([]rune(content)) > 800 {
+		return nil, apperror.InvalidArgument("反馈内容不能超过 800 个字")
+	}
+	contact := strings.TrimSpace(input.Contact)
+	if len([]rune(contact)) > 80 {
+		return nil, apperror.InvalidArgument("联系方式不能超过 80 个字")
+	}
+	feedback := &CampusFeedback{
+		ID:           uc.idGen.NextID(),
+		UserID:       input.UserID,
+		FeedbackType: feedbackType,
+		Content:      content,
+		Contact:      contact,
+		Images:       sanitizeImages(input.Images, 3),
+		Status:       CampusFeedbackStatusPending,
+	}
+	if err := uc.repo.CreateFeedback(ctx, feedback); err != nil {
+		return nil, apperror.Internal(err, "提交反馈失败")
+	}
+	uc.trackEvent(ctx, &TrackCampusEventInput{
+		UserID:     input.UserID,
+		EventType:  "feedback_create",
+		Page:       "feedback",
+		TargetType: "feedback",
+		TargetID:   feedback.ID,
+		Channel:    feedbackType,
+	})
+	return feedback, nil
+}
+
+func (uc *CampusUsecase) AdminListFeedback(ctx context.Context, input *ListCampusFeedbackInput) (*ListCampusFeedbackOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	status := input.Status
+	if status < -1 || status > CampusFeedbackStatusResolved {
+		status = -1
+	}
+	feedbacks, total, err := uc.repo.ListFeedback(ctx, status, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取反馈列表失败")
+	}
+	if err := uc.hydrateFeedbackAuthors(ctx, feedbacks); err != nil {
+		uc.log.WithContext(ctx).Warnf("hydrate feedback authors failed: %v", err)
+	}
+	return &ListCampusFeedbackOutput{Feedbacks: feedbacks, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminReviewFeedback(ctx context.Context, input *ReviewCampusFeedbackInput) error {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return apperror.Forbidden("没有后台权限")
+	}
+	if input.FeedbackID <= 0 {
+		return apperror.InvalidArgument("反馈 ID 无效")
+	}
+	if input.Status < CampusFeedbackStatusPending || input.Status > CampusFeedbackStatusResolved {
+		return apperror.InvalidArgument("反馈状态无效")
+	}
+	note := strings.TrimSpace(input.OperatorNote)
+	if len([]rune(note)) > 300 {
+		return apperror.InvalidArgument("处理备注不能超过 300 个字")
+	}
+	if err := uc.repo.UpdateFeedbackStatus(ctx, input.FeedbackID, input.Status, note); err != nil {
+		return apperror.Internal(err, "更新反馈状态失败")
+	}
+	return nil
+}
+
 func (uc *CampusUsecase) AdminListUsers(ctx context.Context, input *ListCampusAdminUsersInput) (*ListCampusAdminUsersOutput, error) {
 	if !uc.isCampusOperator(ctx, input.UserID) {
 		return nil, apperror.Forbidden("没有后台权限")
@@ -1843,6 +1970,28 @@ func (uc *CampusUsecase) hydrateComments(ctx context.Context, comments []*Campus
 	}
 	for _, comment := range comments {
 		comment.Author = authors[comment.AuthorID]
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) hydrateFeedbackAuthors(ctx context.Context, feedbacks []*CampusFeedback) error {
+	if len(feedbacks) == 0 {
+		return nil
+	}
+	userIDs := make([]string, 0, len(feedbacks))
+	seen := map[string]struct{}{}
+	for _, feedback := range feedbacks {
+		if _, ok := seen[feedback.UserID]; !ok && feedback.UserID != "" {
+			seen[feedback.UserID] = struct{}{}
+			userIDs = append(userIDs, feedback.UserID)
+		}
+	}
+	authors, err := uc.loadAuthors(ctx, userIDs)
+	if err != nil {
+		return err
+	}
+	for _, feedback := range feedbacks {
+		feedback.Author = authors[feedback.UserID]
 	}
 	return nil
 }
@@ -2071,6 +2220,23 @@ func normalizeCampusPostSort(sort string, fallback string) string {
 		return fallback
 	}
 	return CampusPostSortRecommend
+}
+
+func normalizeCampusFeedbackType(feedbackType string) string {
+	switch strings.TrimSpace(strings.ToLower(feedbackType)) {
+	case "bug":
+		return "bug"
+	case "suggestion":
+		return "suggestion"
+	case "content":
+		return "content"
+	case "cooperation":
+		return "cooperation"
+	case "contact":
+		return "contact"
+	default:
+		return "suggestion"
+	}
 }
 
 func sanitizeCampusPostExtra(extra map[string]string) map[string]string {
