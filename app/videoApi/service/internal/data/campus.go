@@ -225,6 +225,34 @@ type campusFeedbackModel struct {
 
 func (campusFeedbackModel) TableName() string { return "campus_feedback" }
 
+type campusAccessLogModel struct {
+	ID          int64     `gorm:"column:id"`
+	UserID      int64     `gorm:"column:user_id"`
+	IP          string    `gorm:"column:ip"`
+	Method      string    `gorm:"column:method"`
+	Path        string    `gorm:"column:path"`
+	StatusCode  int32     `gorm:"column:status_code"`
+	DurationMs  int64     `gorm:"column:duration_ms"`
+	UserAgent   string    `gorm:"column:user_agent"`
+	RateLimited bool      `gorm:"column:rate_limited"`
+	Blocked     bool      `gorm:"column:blocked"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+}
+
+func (campusAccessLogModel) TableName() string { return "campus_access_log" }
+
+type campusIPBlockModel struct {
+	ID        int64     `gorm:"column:id"`
+	IP        string    `gorm:"column:ip"`
+	Reason    string    `gorm:"column:reason"`
+	Status    int32     `gorm:"column:status"`
+	CreatedBy int64     `gorm:"column:created_by"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (campusIPBlockModel) TableName() string { return "campus_ip_block" }
+
 type campusAuditLogModel struct {
 	ID         int64     `gorm:"column:id"`
 	TargetType string    `gorm:"column:target_type"`
@@ -1171,6 +1199,165 @@ func (r *campusRepo) UpdateFeedbackStatus(ctx context.Context, feedbackID int64,
 		}).Error
 }
 
+func (r *campusRepo) IsIPBlocked(ctx context.Context, ip string) (bool, error) {
+	var count int64
+	err := r.data.db.WithContext(ctx).Model(&campusIPBlockModel{}).
+		Where("ip = ? AND status = ?", ip, biz.CampusIPBlockStatusActive).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (r *campusRepo) AllowCampusRequest(ctx context.Context, key string, limit int64, window time.Duration) (bool, error) {
+	if r.data.rds == nil {
+		return true, nil
+	}
+	count, err := r.data.rds.Incr(ctx, key).Result()
+	if err != nil {
+		return true, err
+	}
+	if count == 1 {
+		_ = r.data.rds.Expire(ctx, key, window).Err()
+	}
+	return count <= limit, nil
+}
+
+func (r *campusRepo) CreateAccessLog(ctx context.Context, in *biz.CampusAccessLog) error {
+	row := campusAccessLogModel{
+		ID:          in.ID,
+		UserID:      parseID(in.UserID),
+		IP:          in.IP,
+		Method:      in.Method,
+		Path:        in.Path,
+		StatusCode:  in.StatusCode,
+		DurationMs:  in.DurationMs,
+		UserAgent:   in.UserAgent,
+		RateLimited: in.RateLimited,
+		Blocked:     in.Blocked,
+		CreatedAt:   time.Now(),
+	}
+	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) GetSecurityOverview(ctx context.Context) (*biz.CampusSecurityOverview, error) {
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	overview := &biz.CampusSecurityOverview{}
+	if err := r.data.db.WithContext(ctx).Table("campus_access_log").Where("created_at >= ?", today).Count(&overview.TodayRequests).Error; err != nil {
+		return nil, err
+	}
+	if err := r.data.db.WithContext(ctx).Table("campus_access_log").Where("created_at >= ?", today).Distinct("ip").Count(&overview.TodayUniqueIPs).Error; err != nil {
+		return nil, err
+	}
+	if err := r.data.db.WithContext(ctx).Table("campus_access_log").Where("created_at >= ? AND rate_limited = 1", today).Count(&overview.TodayRateLimited).Error; err != nil {
+		return nil, err
+	}
+	if err := r.data.db.WithContext(ctx).Table("campus_access_log").Where("created_at >= ? AND blocked = 1", today).Count(&overview.TodayBlocked).Error; err != nil {
+		return nil, err
+	}
+	if err := r.data.db.WithContext(ctx).Table("campus_access_log").Where("created_at >= ? AND status_code >= 400", today).Count(&overview.TodayErrors).Error; err != nil {
+		return nil, err
+	}
+	if err := r.data.db.WithContext(ctx).Table("campus_ip_block").Where("status = ?", biz.CampusIPBlockStatusActive).Count(&overview.ActiveBlockedIPs).Error; err != nil {
+		return nil, err
+	}
+
+	var ipRows []struct {
+		IP           string    `gorm:"column:ip"`
+		RequestCount int64     `gorm:"column:request_count"`
+		ErrorCount   int64     `gorm:"column:error_count"`
+		LastSeen     time.Time `gorm:"column:last_seen"`
+	}
+	if err := r.data.db.WithContext(ctx).Table("campus_access_log").
+		Select("ip, COUNT(*) AS request_count, SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS error_count, MAX(created_at) AS last_seen").
+		Where("created_at >= ?", today).
+		Group("ip").
+		Order("request_count DESC").
+		Limit(10).
+		Find(&ipRows).Error; err != nil {
+		return nil, err
+	}
+	overview.TopIPs = make([]*biz.CampusSecurityIPStat, 0, len(ipRows))
+	for _, row := range ipRows {
+		overview.TopIPs = append(overview.TopIPs, &biz.CampusSecurityIPStat{
+			IP:           row.IP,
+			RequestCount: row.RequestCount,
+			ErrorCount:   row.ErrorCount,
+			LastSeen:     row.LastSeen,
+		})
+	}
+
+	var pathRows []struct {
+		Path         string `gorm:"column:path"`
+		RequestCount int64  `gorm:"column:request_count"`
+		ErrorCount   int64  `gorm:"column:error_count"`
+	}
+	if err := r.data.db.WithContext(ctx).Table("campus_access_log").
+		Select("path, COUNT(*) AS request_count, SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS error_count").
+		Where("created_at >= ?", today).
+		Group("path").
+		Order("request_count DESC").
+		Limit(10).
+		Find(&pathRows).Error; err != nil {
+		return nil, err
+	}
+	overview.TopPaths = make([]*biz.CampusSecurityPathStat, 0, len(pathRows))
+	for _, row := range pathRows {
+		overview.TopPaths = append(overview.TopPaths, &biz.CampusSecurityPathStat{
+			Path:         row.Path,
+			RequestCount: row.RequestCount,
+			ErrorCount:   row.ErrorCount,
+		})
+	}
+
+	var logRows []campusAccessLogModel
+	if err := r.data.db.WithContext(ctx).Order("created_at DESC, id DESC").Limit(30).Find(&logRows).Error; err != nil {
+		return nil, err
+	}
+	overview.RecentAccessLogs = make([]*biz.CampusAccessLog, 0, len(logRows))
+	for i := range logRows {
+		overview.RecentAccessLogs = append(overview.RecentAccessLogs, toBizAccessLog(&logRows[i]))
+	}
+	var blockRows []campusIPBlockModel
+	if err := r.data.db.WithContext(ctx).Where("status = ?", biz.CampusIPBlockStatusActive).Order("updated_at DESC").Limit(50).Find(&blockRows).Error; err != nil {
+		return nil, err
+	}
+	overview.BlockedIPs = make([]*biz.CampusIPBlock, 0, len(blockRows))
+	for i := range blockRows {
+		overview.BlockedIPs = append(overview.BlockedIPs, toBizIPBlock(&blockRows[i]))
+	}
+	return overview, nil
+}
+
+func (r *campusRepo) BlockIP(ctx context.Context, block *biz.CampusIPBlock) error {
+	row := campusIPBlockModel{
+		ID:        block.ID,
+		IP:        block.IP,
+		Reason:    block.Reason,
+		Status:    block.Status,
+		CreatedBy: parseID(block.CreatedBy),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	return r.data.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "ip"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"reason":     block.Reason,
+			"status":     biz.CampusIPBlockStatusActive,
+			"created_by": parseID(block.CreatedBy),
+			"updated_at": time.Now(),
+		}),
+	}).Create(&row).Error
+}
+
+func (r *campusRepo) UnblockIP(ctx context.Context, ip string) error {
+	return r.data.db.WithContext(ctx).Model(&campusIPBlockModel{}).
+		Where("ip = ?", ip).
+		Updates(map[string]interface{}{
+			"status":     biz.CampusIPBlockStatusInactive,
+			"updated_at": time.Now(),
+		}).Error
+}
+
 func (r *campusRepo) CreateAuditLog(ctx context.Context, in *biz.CampusAuditLog) error {
 	row := campusAuditLogModel{
 		ID:         in.ID,
@@ -1489,6 +1676,34 @@ func toBizFeedback(row *campusFeedbackModel) *biz.CampusFeedback {
 		OperatorNote: row.OperatorNote,
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func toBizAccessLog(row *campusAccessLogModel) *biz.CampusAccessLog {
+	return &biz.CampusAccessLog{
+		ID:          row.ID,
+		UserID:      fmt.Sprintf("%d", row.UserID),
+		IP:          row.IP,
+		Method:      row.Method,
+		Path:        row.Path,
+		StatusCode:  row.StatusCode,
+		DurationMs:  row.DurationMs,
+		UserAgent:   row.UserAgent,
+		RateLimited: row.RateLimited,
+		Blocked:     row.Blocked,
+		CreatedAt:   row.CreatedAt,
+	}
+}
+
+func toBizIPBlock(row *campusIPBlockModel) *biz.CampusIPBlock {
+	return &biz.CampusIPBlock{
+		ID:        row.ID,
+		IP:        row.IP,
+		Reason:    row.Reason,
+		Status:    row.Status,
+		CreatedBy: fmt.Sprintf("%d", row.CreatedBy),
+		CreatedAt: row.CreatedAt,
+		UpdatedAt: row.UpdatedAt,
 	}
 }
 

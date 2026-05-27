@@ -82,14 +82,55 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/admin/reports/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewReport)))
 	r.GET("/v1/campus/admin/feedback", s.wrap(s.authRequired(s.handleAdminListFeedback)))
 	r.POST("/v1/campus/admin/feedback/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewFeedback)))
+	r.GET("/v1/campus/admin/security", s.wrap(s.authRequired(s.handleAdminSecurityOverview)))
+	r.POST("/v1/campus/admin/security/ip-blocks", s.wrap(s.authRequired(s.handleAdminBlockIP)))
+	r.DELETE("/v1/campus/admin/security/ip-blocks/{id}", s.wrap(s.authRequired(s.handleAdminUnblockIP)))
 	r.GET("/v1/campus/admin/users", s.wrap(s.authRequired(s.handleAdminListUsers)))
 	r.PUT("/v1/campus/admin/users/{id}/role", s.wrap(s.authRequired(s.handleAdminUpdateUserRole)))
 }
 
 func (s *CampusService) wrap(handler http.HandlerFunc) khttp.HandlerFunc {
 	return func(ctx khttp.Context) error {
-		handler(ctx.Response(), ctx.Request())
+		s.secure(handler)(ctx.Response(), ctx.Request())
 		return nil
+	}
+}
+
+func (s *CampusService) secure(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &statusRecorder{ResponseWriter: w, statusCode: http.StatusOK}
+		ip := clientIP(r)
+		userID, _ := optionalUserIDFromRequest(r, s.authSecret)
+		category := campusRequestCategory(r)
+		blocked, allowed, err := s.uc.CheckCampusRequest(r.Context(), &biz.CampusRateLimitInput{
+			UserID:   userID,
+			IP:       ip,
+			Method:   r.Method,
+			Path:     r.URL.Path,
+			Category: category,
+		})
+		if err != nil {
+			writeError(rw, r, err)
+		} else if blocked {
+			writeError(rw, r, apperror.Forbidden("当前网络访问异常，已被暂时限制"))
+		} else if !allowed {
+			writeError(rw, r, apperror.TooManyRequests("操作太频繁，请稍后再试"))
+		} else {
+			next(rw, r)
+		}
+		statusCode := int32(rw.statusCode)
+		s.uc.RecordAccessLog(r.Context(), &biz.CampusAccessLogInput{
+			UserID:      userID,
+			IP:          ip,
+			Method:      r.Method,
+			Path:        r.URL.Path,
+			StatusCode:  statusCode,
+			DurationMs:  time.Since(start).Milliseconds(),
+			UserAgent:   r.UserAgent(),
+			RateLimited: !allowed && !blocked,
+			Blocked:     blocked,
+		})
 	}
 }
 
@@ -527,6 +568,11 @@ type feedbackRequest struct {
 type reviewFeedbackRequest struct {
 	Status       int32  `json:"status"`
 	OperatorNote string `json:"operator_note"`
+}
+
+type blockIPRequest struct {
+	IP     string `json:"ip"`
+	Reason string `json:"reason"`
 }
 
 func (s *CampusService) handleCreatePost(w http.ResponseWriter, r *http.Request) {
@@ -1167,6 +1213,47 @@ func (s *CampusService) handleAdminReviewFeedback(w http.ResponseWriter, r *http
 	writeJSON(w, r, map[string]interface{}{})
 }
 
+func (s *CampusService) handleAdminSecurityOverview(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	overview, err := s.uc.AdminSecurityOverview(r.Context(), &biz.ListCampusSecurityInput{UserID: userID})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"security": securityOverviewToMap(overview)})
+}
+
+func (s *CampusService) handleAdminBlockIP(w http.ResponseWriter, r *http.Request) {
+	var req blockIPRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminBlockIP(r.Context(), &biz.BlockCampusIPInput{
+		UserID: userID,
+		IP:     req.IP,
+		Reason: req.Reason,
+	}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleAdminUnblockIP(w http.ResponseWriter, r *http.Request) {
+	ip := strings.TrimSpace(mux.Vars(r)["id"])
+	if ip == "" {
+		writeError(w, r, apperror.InvalidArgument("IP 无效"))
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminUnblockIP(r.Context(), &biz.BlockCampusIPInput{UserID: userID, IP: ip}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
 func (s *CampusService) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
@@ -1267,6 +1354,34 @@ func clientIP(r *http.Request) string {
 		return host[:idx]
 	}
 	return host
+}
+
+func campusRequestCategory(r *http.Request) string {
+	path := r.URL.Path
+	switch {
+	case path == "/v1/auth/wechat-login":
+		return "auth"
+	case strings.HasPrefix(path, "/v1/campus/admin/"):
+		return "admin"
+	case strings.HasPrefix(path, "/v1/campus/upload/"):
+		return "upload"
+	case path == "/v1/campus/feedback":
+		return "feedback"
+	case r.Method != http.MethodGet:
+		return "write"
+	default:
+		return "read"
+	}
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.statusCode = code
+	r.ResponseWriter.WriteHeader(code)
 }
 
 func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -1535,6 +1650,83 @@ func feedbackToMap(feedback *biz.CampusFeedback) map[string]interface{} {
 		"operator_note": feedback.OperatorNote,
 		"created_at":    formatTime(feedback.CreatedAt),
 		"updated_at":    formatTime(feedback.UpdatedAt),
+	}
+}
+
+func securityOverviewToMap(overview *biz.CampusSecurityOverview) map[string]interface{} {
+	if overview == nil {
+		return nil
+	}
+	topIPs := make([]map[string]interface{}, 0, len(overview.TopIPs))
+	for _, item := range overview.TopIPs {
+		topIPs = append(topIPs, map[string]interface{}{
+			"ip":            item.IP,
+			"request_count": item.RequestCount,
+			"error_count":   item.ErrorCount,
+			"last_seen":     formatTime(item.LastSeen),
+		})
+	}
+	topPaths := make([]map[string]interface{}, 0, len(overview.TopPaths))
+	for _, item := range overview.TopPaths {
+		topPaths = append(topPaths, map[string]interface{}{
+			"path":          item.Path,
+			"request_count": item.RequestCount,
+			"error_count":   item.ErrorCount,
+		})
+	}
+	recentLogs := make([]map[string]interface{}, 0, len(overview.RecentAccessLogs))
+	for _, item := range overview.RecentAccessLogs {
+		recentLogs = append(recentLogs, accessLogToMap(item))
+	}
+	blockedIPs := make([]map[string]interface{}, 0, len(overview.BlockedIPs))
+	for _, item := range overview.BlockedIPs {
+		blockedIPs = append(blockedIPs, ipBlockToMap(item))
+	}
+	return map[string]interface{}{
+		"today_requests":     overview.TodayRequests,
+		"today_unique_ips":   overview.TodayUniqueIPs,
+		"today_rate_limited": overview.TodayRateLimited,
+		"today_blocked":      overview.TodayBlocked,
+		"today_errors":       overview.TodayErrors,
+		"active_blocked_ips": overview.ActiveBlockedIPs,
+		"top_ips":            topIPs,
+		"top_paths":          topPaths,
+		"recent_logs":        recentLogs,
+		"blocked_ips":        blockedIPs,
+	}
+}
+
+func accessLogToMap(log *biz.CampusAccessLog) map[string]interface{} {
+	if log == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":           strconv.FormatInt(log.ID, 10),
+		"user_id":      log.UserID,
+		"ip":           log.IP,
+		"method":       log.Method,
+		"path":         log.Path,
+		"status_code":  log.StatusCode,
+		"duration_ms":  log.DurationMs,
+		"user_agent":   log.UserAgent,
+		"rate_limited": log.RateLimited,
+		"blocked":      log.Blocked,
+		"created_at":   formatTime(log.CreatedAt),
+	}
+}
+
+func ipBlockToMap(block *biz.CampusIPBlock) map[string]interface{} {
+	if block == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":         strconv.FormatInt(block.ID, 10),
+		"ip":         block.IP,
+		"reason":     block.Reason,
+		"status":     block.Status,
+		"created_by": block.CreatedBy,
+		"created_at": formatTime(block.CreatedAt),
+		"updated_at": formatTime(block.UpdatedAt),
 	}
 }
 

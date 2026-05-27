@@ -29,6 +29,9 @@ const (
 	CampusFeedbackStatusProcessing int32 = 1
 	CampusFeedbackStatusResolved   int32 = 2
 
+	CampusIPBlockStatusActive   int32 = 1
+	CampusIPBlockStatusInactive int32 = 0
+
 	CampusAuthStatusUnverified int32 = 0
 	CampusAuthStatusVerified   int32 = 1
 
@@ -271,6 +274,30 @@ type CampusFeedback struct {
 	OperatorNote string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type CampusAccessLog struct {
+	ID          int64
+	UserID      string
+	IP          string
+	Method      string
+	Path        string
+	StatusCode  int32
+	DurationMs  int64
+	UserAgent   string
+	RateLimited bool
+	Blocked     bool
+	CreatedAt   time.Time
+}
+
+type CampusIPBlock struct {
+	ID        int64
+	IP        string
+	Reason    string
+	Status    int32
+	CreatedBy string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type CampusAuditLog struct {
@@ -587,6 +614,62 @@ type ReviewCampusFeedbackInput struct {
 	OperatorNote string
 }
 
+type CampusRateLimitInput struct {
+	UserID   string
+	IP       string
+	Method   string
+	Path     string
+	Category string
+}
+
+type CampusAccessLogInput struct {
+	UserID      string
+	IP          string
+	Method      string
+	Path        string
+	StatusCode  int32
+	DurationMs  int64
+	UserAgent   string
+	RateLimited bool
+	Blocked     bool
+}
+
+type CampusSecurityOverview struct {
+	TodayRequests    int64
+	TodayUniqueIPs   int64
+	TodayRateLimited int64
+	TodayBlocked     int64
+	TodayErrors      int64
+	ActiveBlockedIPs int64
+	TopIPs           []*CampusSecurityIPStat
+	TopPaths         []*CampusSecurityPathStat
+	RecentAccessLogs []*CampusAccessLog
+	BlockedIPs       []*CampusIPBlock
+}
+
+type CampusSecurityIPStat struct {
+	IP           string
+	RequestCount int64
+	ErrorCount   int64
+	LastSeen     time.Time
+}
+
+type CampusSecurityPathStat struct {
+	Path         string
+	RequestCount int64
+	ErrorCount   int64
+}
+
+type ListCampusSecurityInput struct {
+	UserID string
+}
+
+type BlockCampusIPInput struct {
+	UserID string
+	IP     string
+	Reason string
+}
+
 type TrackCampusEventInput struct {
 	UserID     string
 	EventType  string
@@ -643,6 +726,12 @@ type CampusRepo interface {
 	CreateFeedback(ctx context.Context, feedback *CampusFeedback) error
 	ListFeedback(ctx context.Context, status int32, offset, limit int) ([]*CampusFeedback, int64, error)
 	UpdateFeedbackStatus(ctx context.Context, feedbackID int64, status int32, note string) error
+	IsIPBlocked(ctx context.Context, ip string) (bool, error)
+	AllowCampusRequest(ctx context.Context, key string, limit int64, window time.Duration) (bool, error)
+	CreateAccessLog(ctx context.Context, log *CampusAccessLog) error
+	GetSecurityOverview(ctx context.Context) (*CampusSecurityOverview, error)
+	BlockIP(ctx context.Context, block *CampusIPBlock) error
+	UnblockIP(ctx context.Context, ip string) error
 	CreateAuditLog(ctx context.Context, log *CampusAuditLog) error
 	TrackEvent(ctx context.Context, event *TrackCampusEventInput) error
 	GetAdminSummary(ctx context.Context) (*CampusAdminSummary, error)
@@ -1872,6 +1961,102 @@ func (uc *CampusUsecase) AdminReviewFeedback(ctx context.Context, input *ReviewC
 	return nil
 }
 
+func (uc *CampusUsecase) CheckCampusRequest(ctx context.Context, input *CampusRateLimitInput) (bool, bool, error) {
+	ip := strings.TrimSpace(input.IP)
+	if ip == "" {
+		ip = "unknown"
+	}
+	blocked, err := uc.repo.IsIPBlocked(ctx, ip)
+	if err != nil {
+		return false, false, apperror.Internal(err, "检查 IP 状态失败")
+	}
+	if blocked {
+		return true, false, nil
+	}
+	limit, window := campusRateLimitRule(input.Category, input.Method, input.Path)
+	if limit <= 0 {
+		return false, true, nil
+	}
+	userKey := strings.TrimSpace(input.UserID)
+	if userKey == "" {
+		userKey = "guest"
+	}
+	key := fmt.Sprintf("campus:rl:%s:%s:%s", input.Category, ip, userKey)
+	allowed, err := uc.repo.AllowCampusRequest(ctx, key, limit, window)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("campus rate limit failed: %v", err)
+		return false, true, nil
+	}
+	return false, allowed, nil
+}
+
+func (uc *CampusUsecase) RecordAccessLog(ctx context.Context, input *CampusAccessLogInput) {
+	if input == nil {
+		return
+	}
+	log := &CampusAccessLog{
+		ID:          uc.idGen.NextID(),
+		UserID:      strings.TrimSpace(input.UserID),
+		IP:          trimLimit(input.IP, 64),
+		Method:      trimLimit(strings.ToUpper(input.Method), 12),
+		Path:        trimLimit(input.Path, 255),
+		StatusCode:  input.StatusCode,
+		DurationMs:  input.DurationMs,
+		UserAgent:   trimLimit(input.UserAgent, 512),
+		RateLimited: input.RateLimited,
+		Blocked:     input.Blocked,
+	}
+	if err := uc.repo.CreateAccessLog(ctx, log); err != nil {
+		uc.log.WithContext(ctx).Warnf("record campus access log failed: %v", err)
+	}
+}
+
+func (uc *CampusUsecase) AdminSecurityOverview(ctx context.Context, input *ListCampusSecurityInput) (*CampusSecurityOverview, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	overview, err := uc.repo.GetSecurityOverview(ctx)
+	if err != nil {
+		return nil, apperror.Internal(err, "获取安全数据失败")
+	}
+	return overview, nil
+}
+
+func (uc *CampusUsecase) AdminBlockIP(ctx context.Context, input *BlockCampusIPInput) error {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return apperror.Forbidden("没有后台权限")
+	}
+	ip := strings.TrimSpace(input.IP)
+	if ip == "" || len(ip) > 64 {
+		return apperror.InvalidArgument("IP 无效")
+	}
+	reason := strings.TrimSpace(input.Reason)
+	if reason == "" {
+		reason = "后台手动封禁"
+	}
+	if len([]rune(reason)) > 120 {
+		return apperror.InvalidArgument("封禁原因不能超过 120 个字")
+	}
+	return uc.repo.BlockIP(ctx, &CampusIPBlock{
+		ID:        uc.idGen.NextID(),
+		IP:        ip,
+		Reason:    reason,
+		Status:    CampusIPBlockStatusActive,
+		CreatedBy: input.UserID,
+	})
+}
+
+func (uc *CampusUsecase) AdminUnblockIP(ctx context.Context, input *BlockCampusIPInput) error {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return apperror.Forbidden("没有后台权限")
+	}
+	ip := strings.TrimSpace(input.IP)
+	if ip == "" || len(ip) > 64 {
+		return apperror.InvalidArgument("IP 无效")
+	}
+	return uc.repo.UnblockIP(ctx, ip)
+}
+
 func (uc *CampusUsecase) AdminListUsers(ctx context.Context, input *ListCampusAdminUsersInput) (*ListCampusAdminUsersOutput, error) {
 	if !uc.isCampusOperator(ctx, input.UserID) {
 		return nil, apperror.Forbidden("没有后台权限")
@@ -2236,6 +2421,29 @@ func normalizeCampusFeedbackType(feedbackType string) string {
 		return "contact"
 	default:
 		return "suggestion"
+	}
+}
+
+func campusRateLimitRule(category, method, path string) (int64, time.Duration) {
+	category = strings.TrimSpace(strings.ToLower(category))
+	method = strings.ToUpper(strings.TrimSpace(method))
+	switch category {
+	case "auth":
+		return 12, time.Minute
+	case "upload":
+		return 12, time.Minute
+	case "write":
+		return 30, time.Minute
+	case "feedback":
+		return 6, time.Minute
+	case "admin":
+		return 180, time.Minute
+	default:
+		if method == http.MethodGet {
+			return 240, time.Minute
+		}
+		_ = path
+		return 60, time.Minute
 	}
 }
 

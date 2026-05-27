@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"testing"
+	"time"
 
 	core "lehu-video/api/videoCore/service/v1"
 
@@ -316,6 +317,33 @@ func TestAdminListFeedbackRequiresOperator(t *testing.T) {
 	}
 }
 
+func TestCheckCampusRequestBlocksIP(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{}, blockedIPs: map[string]bool{"1.2.3.4": true}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	blocked, allowed, err := uc.CheckCampusRequest(context.Background(), &CampusRateLimitInput{
+		IP:       "1.2.3.4",
+		Method:   "GET",
+		Path:     "/v1/campus/forum/posts",
+		Category: "read",
+	})
+	if err != nil {
+		t.Fatalf("CheckCampusRequest() error = %v", err)
+	}
+	if !blocked || allowed {
+		t.Fatalf("blocked=%v allowed=%v, want blocked only", blocked, allowed)
+	}
+}
+
+func TestAdminBlockIPRequiresOperator(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	if err := uc.AdminBlockIP(context.Background(), &BlockCampusIPInput{UserID: "10", IP: "1.2.3.4"}); err == nil {
+		t.Fatalf("AdminBlockIP() expected forbidden error")
+	}
+}
+
 type fixedCampusIDGenerator int64
 
 func (g fixedCampusIDGenerator) NextID() int64 { return int64(g) }
@@ -328,6 +356,7 @@ type campusRepoStub struct {
 	category      *CampusForumCategory
 	roles         map[string]string
 	posts         map[int64]*CampusForumPost
+	blockedIPs    map[string]bool
 	lastPost      *CampusForumPost
 	lastFeedback  *CampusFeedback
 	lastListQuery ListCampusPostQuery
@@ -444,6 +473,19 @@ func (r *campusRepoStub) ListFeedback(context.Context, int32, int, int) ([]*Camp
 func (r *campusRepoStub) UpdateFeedbackStatus(context.Context, int64, int32, string) error {
 	return nil
 }
+func (r *campusRepoStub) IsIPBlocked(ctx context.Context, ip string) (bool, error) {
+	_ = ctx
+	return r.blockedIPs[ip], nil
+}
+func (r *campusRepoStub) AllowCampusRequest(context.Context, string, int64, time.Duration) (bool, error) {
+	return true, nil
+}
+func (r *campusRepoStub) CreateAccessLog(context.Context, *CampusAccessLog) error { return nil }
+func (r *campusRepoStub) GetSecurityOverview(context.Context) (*CampusSecurityOverview, error) {
+	return &CampusSecurityOverview{}, nil
+}
+func (r *campusRepoStub) BlockIP(context.Context, *CampusIPBlock) error         { return nil }
+func (r *campusRepoStub) UnblockIP(context.Context, string) error               { return nil }
 func (r *campusRepoStub) CreateAuditLog(context.Context, *CampusAuditLog) error { return nil }
 func (r *campusRepoStub) TrackEvent(context.Context, *TrackCampusEventInput) error {
 	return nil
