@@ -36,6 +36,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/auth/wechat-login", s.wrap(s.handleWechatLogin))
 	r.GET("/v1/campus/profile", s.wrap(s.authRequired(s.handleGetProfile)))
 	r.PUT("/v1/campus/profile", s.wrap(s.authRequired(s.handleUpdateProfile)))
+	r.PUT("/v1/campus/me/avatar", s.wrap(s.authRequired(s.handleUpdateAvatar)))
 	r.GET("/v1/campus/timetable", s.wrap(s.authRequired(s.handleListTimetable)))
 	r.POST("/v1/campus/timetable/import", s.wrap(s.authRequired(s.handleImportTimetable)))
 	r.POST("/v1/campus/upload/image", s.wrap(s.authRequired(s.handleUploadImage)))
@@ -45,6 +46,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/forum/posts", s.wrap(s.authRequired(s.handleCreatePost)))
 	r.GET("/v1/campus/forum/my-posts", s.wrap(s.authRequired(s.handleListMyPosts)))
 	r.GET("/v1/campus/forum/my-collections", s.wrap(s.authRequired(s.handleListMyCollections)))
+	r.GET("/v1/campus/forum/my-comments", s.wrap(s.authRequired(s.handleListMyComments)))
 	r.GET("/v1/campus/forum/posts/{id}", s.wrap(s.handleGetPost))
 	r.DELETE("/v1/campus/forum/posts/{id}", s.wrap(s.authRequired(s.handleDeletePost)))
 	r.GET("/v1/campus/forum/posts/{id}/comments", s.wrap(s.handleListComments))
@@ -106,6 +108,10 @@ type profileRequest struct {
 	Mobile       string `json:"mobile"`
 }
 
+type avatarRequest struct {
+	Avatar string `json:"avatar"`
+}
+
 type importTimetableRequest struct {
 	StudentNo string `json:"student_no"`
 	Password  string `json:"password"`
@@ -143,6 +149,20 @@ func (s *CampusService) handleUpdateProfile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"profile": profileToMap(profile)})
+}
+
+func (s *CampusService) handleUpdateAvatar(w http.ResponseWriter, r *http.Request) {
+	var req avatarRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	user, err := s.uc.UpdateAvatar(r.Context(), userID, req.Avatar)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"user": userToMap(user)})
 }
 
 func (s *CampusService) handleListTimetable(w http.ResponseWriter, r *http.Request) {
@@ -488,6 +508,30 @@ func (s *CampusService) handleListComments(w http.ResponseWriter, r *http.Reques
 	q := r.URL.Query()
 	out, err := s.uc.ListComments(r.Context(), &biz.ListCampusCommentsInput{
 		PostID: postID,
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	comments := make([]map[string]interface{}, 0, len(out.Comments))
+	for _, comment := range out.Comments {
+		comments = append(comments, commentToMap(comment))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"comments": comments,
+		"page_stats": map[string]interface{}{
+			"total": out.Total,
+		},
+	})
+}
+
+func (s *CampusService) handleListMyComments(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.ListMyComments(r.Context(), &biz.ListCampusCommentsInput{
+		UserID: userID,
 		Page:   int32(queryInt(q.Get("page"), 1)),
 		Size:   int32(queryInt(q.Get("size"), 20)),
 	})
@@ -1016,6 +1060,7 @@ func commentToMap(comment *biz.CampusForumComment) map[string]interface{} {
 	return map[string]interface{}{
 		"id":           strconv.FormatInt(comment.ID, 10),
 		"post_id":      strconv.FormatInt(comment.PostID, 10),
+		"post":         postToMap(comment.Post),
 		"author":       authorToMap(comment.Author),
 		"content":      comment.Content,
 		"images":       comment.Images,

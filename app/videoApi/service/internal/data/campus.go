@@ -37,6 +37,24 @@ type campusWechatIdentityModel struct {
 
 func (campusWechatIdentityModel) TableName() string { return "campus_wechat_identity" }
 
+func (r *campusRepo) GetAccountIDByEmail(ctx context.Context, email string) (bool, string, error) {
+	var row struct {
+		ID int64 `gorm:"column:id"`
+	}
+	err := r.data.db.WithContext(ctx).
+		Table("account").
+		Select("id").
+		Where("email = ? AND is_deleted = ?", email, false).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, "", nil
+	}
+	if err != nil {
+		return false, "", err
+	}
+	return true, strconv.FormatInt(row.ID, 10), nil
+}
+
 type campusProfileModel struct {
 	ID           int64     `gorm:"column:id"`
 	UserID       int64     `gorm:"column:user_id"`
@@ -529,6 +547,9 @@ func (r *campusRepo) ListComments(ctx context.Context, query biz.ListCampusComme
 	if query.PostID > 0 {
 		db = db.Where("post_id = ?", query.PostID)
 	}
+	if query.AuthorID != "" {
+		db = db.Where("author_id = ?", parseID(query.AuthorID))
+	}
 	if len(query.Statuses) > 0 {
 		db = db.Where("status IN ?", query.Statuses)
 	}
@@ -537,7 +558,11 @@ func (r *campusRepo) ListComments(ctx context.Context, query biz.ListCampusComme
 		return nil, 0, err
 	}
 	var rows []campusForumCommentModel
-	if err := db.Order("created_at ASC, id ASC").Offset(query.Offset).Limit(query.Limit).Find(&rows).Error; err != nil {
+	order := "created_at ASC, id ASC"
+	if query.AuthorID != "" {
+		order = "created_at DESC, id DESC"
+	}
+	if err := db.Order(order).Offset(query.Offset).Limit(query.Limit).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	comments := make([]*biz.CampusForumComment, 0, len(rows))
@@ -545,6 +570,49 @@ func (r *campusRepo) ListComments(ctx context.Context, query biz.ListCampusComme
 		comments = append(comments, toBizComment(&rows[i]))
 	}
 	return comments, total, nil
+}
+
+func (r *campusRepo) FillCommentPosts(ctx context.Context, comments []*biz.CampusForumComment) error {
+	if len(comments) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(comments))
+	seen := map[int64]struct{}{}
+	for _, comment := range comments {
+		if comment == nil || comment.PostID <= 0 {
+			continue
+		}
+		if _, ok := seen[comment.PostID]; ok {
+			continue
+		}
+		seen[comment.PostID] = struct{}{}
+		ids = append(ids, comment.PostID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var rows []campusForumPostModel
+	if err := r.data.db.WithContext(ctx).
+		Where("id IN ? AND is_deleted = ?", ids, false).
+		Find(&rows).Error; err != nil {
+		return err
+	}
+	posts := make([]*biz.CampusForumPost, 0, len(rows))
+	postMap := make(map[int64]*biz.CampusForumPost, len(rows))
+	for i := range rows {
+		post := toBizPost(&rows[i])
+		posts = append(posts, post)
+		postMap[post.ID] = post
+	}
+	if err := r.fillPostCategoryNames(ctx, posts); err != nil {
+		return err
+	}
+	for _, comment := range comments {
+		if comment != nil {
+			comment.Post = postMap[comment.PostID]
+		}
+	}
+	return nil
 }
 
 func (r *campusRepo) GetCommentByID(ctx context.Context, commentID int64) (bool, *biz.CampusForumComment, error) {

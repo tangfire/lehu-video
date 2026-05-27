@@ -220,6 +220,7 @@ type CampusForumPost struct {
 type CampusForumComment struct {
 	ID          int64
 	PostID      int64
+	Post        *CampusForumPost
 	AuthorID    string
 	Author      *CampusForumAuthor
 	Content     string
@@ -353,6 +354,7 @@ type CreateCampusCommentInput struct {
 
 type ListCampusCommentsInput struct {
 	PostID int64
+	UserID string
 	Page   int32
 	Size   int32
 }
@@ -364,6 +366,7 @@ type ListCampusCommentsOutput struct {
 
 type ListCampusCommentQuery struct {
 	PostID         int64
+	AuthorID       string
 	Statuses       []int32
 	IncludeDeleted bool
 	Offset         int
@@ -395,6 +398,7 @@ type ReviewCampusContentInput struct {
 
 type CampusRepo interface {
 	GetWechatIdentity(ctx context.Context, provider, openID string) (bool, *CampusWechatIdentity, error)
+	GetAccountIDByEmail(ctx context.Context, email string) (bool, string, error)
 	SaveWechatIdentity(ctx context.Context, identity *CampusWechatIdentity) error
 	GetProfileByUserID(ctx context.Context, userID string) (bool, *CampusProfile, error)
 	SaveProfile(ctx context.Context, profile *CampusProfile) error
@@ -411,6 +415,7 @@ type CampusRepo interface {
 	UpdatePostStatus(ctx context.Context, postID int64, status int32, reason string) error
 	CreateComment(ctx context.Context, comment *CampusForumComment) error
 	ListComments(ctx context.Context, query ListCampusCommentQuery) ([]*CampusForumComment, int64, error)
+	FillCommentPosts(ctx context.Context, comments []*CampusForumComment) error
 	GetCommentByID(ctx context.Context, commentID int64) (bool, *CampusForumComment, error)
 	DeleteComment(ctx context.Context, commentID int64) error
 	UpdateCommentStatus(ctx context.Context, commentID int64, status int32, reason string) error
@@ -511,7 +516,14 @@ func (uc *CampusUsecase) createWechatAccountAndUser(ctx context.Context, openID,
 	if err != nil {
 		accountID, err = uc.base.CheckAccount(ctx, "", email, password)
 		if err != nil {
-			return "", "", apperror.Internal(err, "创建微信账号失败")
+			ok, existingAccountID, lookupErr := uc.repo.GetAccountIDByEmail(ctx, email)
+			if lookupErr != nil {
+				return "", "", apperror.Internal(lookupErr, "查询微信账号失败")
+			}
+			if !ok {
+				return "", "", apperror.Internal(err, "创建微信账号失败")
+			}
+			accountID = existingAccountID
 		}
 	}
 
@@ -582,6 +594,28 @@ func (uc *CampusUsecase) UpdateProfile(ctx context.Context, input *UpdateCampusP
 		return nil, apperror.Internal(err, "更新校园资料失败")
 	}
 	return profile, nil
+}
+
+func (uc *CampusUsecase) UpdateAvatar(ctx context.Context, userID, avatar string) (*UserBaseInfo, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, apperror.Unauthorized("请先登录")
+	}
+	avatar = strings.TrimSpace(avatar)
+	if avatar == "" {
+		return nil, apperror.InvalidArgument("头像不能为空")
+	}
+	if len(avatar) > 2048 {
+		return nil, apperror.InvalidArgument("头像地址过长")
+	}
+	if err := uc.core.UpdateUserInfo(ctx, userID, "", "", avatar, "", "", 0); err != nil {
+		return nil, apperror.Internal(err, "更新头像失败")
+	}
+	user, err := uc.core.GetUserBaseInfo(ctx, userID, "")
+	if err != nil {
+		return nil, apperror.Internal(err, "获取用户信息失败")
+	}
+	return user, nil
 }
 
 func (uc *CampusUsecase) GetProfile(ctx context.Context, userID string) (*CampusProfile, error) {
@@ -744,14 +778,6 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 	}
 	postType := normalizeCampusPostType(input.PostType)
 	extra := sanitizeCampusPostExtra(input.Extra)
-	audit := auditText(ctx, "post", title+"\n"+content)
-	if audit.Blocked {
-		return nil, apperror.InvalidArgument(audit.Reason)
-	}
-	status := CampusAuditStatusVisible
-	if audit.Pending {
-		status = CampusAuditStatusPending
-	}
 	post := &CampusForumPost{
 		ID:           uc.idGen.NextID(),
 		CategoryCode: category.Code,
@@ -765,21 +791,11 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		Extra:        extra,
 		CoverURL:     coverURL,
 		VideoURL:     videoURL,
-		Status:       status,
-		AuditReason:  audit.Reason,
+		Status:       CampusAuditStatusVisible,
 	}
 	if err := uc.repo.CreatePost(ctx, post); err != nil {
 		return nil, apperror.Internal(err, "发布帖子失败")
 	}
-	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
-		ID:         uc.idGen.NextID(),
-		TargetType: "post",
-		TargetID:   post.ID,
-		UserID:     input.UserID,
-		Provider:   audit.Provider,
-		Result:     audit.Result,
-		Reason:     audit.Reason,
-	})
 	_ = uc.hydratePosts(ctx, []*CampusForumPost{post}, input.UserID)
 	return post, nil
 }
@@ -908,35 +924,17 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 	if len([]rune(content)) < 1 || len([]rune(content)) > 500 {
 		return nil, apperror.InvalidArgument("评论需要 1-500 个字")
 	}
-	audit := auditText(ctx, "comment", content)
-	if audit.Blocked {
-		return nil, apperror.InvalidArgument(audit.Reason)
-	}
-	status := CampusAuditStatusVisible
-	if audit.Pending {
-		status = CampusAuditStatusPending
-	}
 	comment := &CampusForumComment{
-		ID:          uc.idGen.NextID(),
-		PostID:      input.PostID,
-		AuthorID:    input.UserID,
-		Content:     content,
-		Images:      sanitizeImages(input.Images, 3),
-		Status:      status,
-		AuditReason: audit.Reason,
+		ID:       uc.idGen.NextID(),
+		PostID:   input.PostID,
+		AuthorID: input.UserID,
+		Content:  content,
+		Images:   sanitizeImages(input.Images, 3),
+		Status:   CampusAuditStatusVisible,
 	}
 	if err := uc.repo.CreateComment(ctx, comment); err != nil {
 		return nil, apperror.Internal(err, "发表评论失败")
 	}
-	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
-		ID:         uc.idGen.NextID(),
-		TargetType: "comment",
-		TargetID:   comment.ID,
-		UserID:     input.UserID,
-		Provider:   audit.Provider,
-		Result:     audit.Result,
-		Reason:     audit.Reason,
-	})
 	_ = uc.hydrateComments(ctx, []*CampusForumComment{comment})
 	return comment, nil
 }
@@ -957,6 +955,29 @@ func (uc *CampusUsecase) ListComments(ctx context.Context, input *ListCampusComm
 	}
 	if err := uc.hydrateComments(ctx, comments); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate campus comments failed: %v", err)
+	}
+	return &ListCampusCommentsOutput{Comments: comments, Total: total}, nil
+}
+
+func (uc *CampusUsecase) ListMyComments(ctx context.Context, input *ListCampusCommentsInput) (*ListCampusCommentsOutput, error) {
+	if strings.TrimSpace(input.UserID) == "" {
+		return nil, apperror.Unauthorized("请先登录")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	comments, total, err := uc.repo.ListComments(ctx, ListCampusCommentQuery{
+		AuthorID: input.UserID,
+		Statuses: []int32{CampusAuditStatusVisible},
+		Offset:   int((page - 1) * size),
+		Limit:    int(size),
+	})
+	if err != nil {
+		return nil, apperror.Internal(err, "获取我的评论失败")
+	}
+	if err := uc.hydrateComments(ctx, comments); err != nil {
+		uc.log.WithContext(ctx).Warnf("hydrate my campus comments failed: %v", err)
+	}
+	if err := uc.repo.FillCommentPosts(ctx, comments); err != nil {
+		uc.log.WithContext(ctx).Warnf("fill my comment posts failed: %v", err)
 	}
 	return &ListCampusCommentsOutput{Comments: comments, Total: total}, nil
 }
