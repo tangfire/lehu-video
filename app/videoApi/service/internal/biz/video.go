@@ -2,10 +2,10 @@ package biz
 
 import (
 	"context"
-	"errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/spf13/cast"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
+	"lehu-video/pkg/apperror"
 )
 
 // Video 视频
@@ -247,6 +247,9 @@ func (uc *VideoUsecase) FeedVideo(ctx context.Context, input *FeedVideoInput) (*
 	if feedType < 0 || feedType > 3 {
 		feedType = 1
 	}
+	if feedType == 0 && cast.ToInt64(input.UserID) <= 0 {
+		feedType = 1
+	}
 	if input.FeedNum <= 0 {
 		input.FeedNum = 10
 	}
@@ -349,7 +352,7 @@ type UserInteractionInfo struct {
 // ============ 错误定义 ============
 
 var (
-	ErrInvalidParams = errors.New("invalid parameters")
-	ErrUnauthorized  = errors.New("unauthorized")
-	ErrVideoNotFound = errors.New("video not found")
+	ErrInvalidParams = apperror.InvalidArgument("参数错误")
+	ErrUnauthorized  = apperror.Unauthorized("请先登录")
+	ErrVideoNotFound = apperror.NotFound("视频不存在")
 )

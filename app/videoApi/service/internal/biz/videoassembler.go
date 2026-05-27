@@ -288,21 +288,21 @@ func (a *VideoAssembler) assembleSingleVideo(
 	}
 
 	// 组装计数信息
-	if counts.CommentCounts != nil {
+	if counts != nil && counts.CommentCounts != nil {
 		video.CommentCount = counts.CommentCounts[video.ID]
 	}
-	if counts.FavoriteCounts != nil {
+	if counts != nil && counts.FavoriteCounts != nil {
 		video.FavoriteCount = counts.FavoriteCounts[video.ID]
 	}
-	if counts.CollectCounts != nil {
+	if counts != nil && counts.CollectCounts != nil {
 		video.CollectedCount = counts.CollectCounts[video.ID]
 	}
 
 	// 组装互动状态
-	if interactions.IsFavoriteMap != nil {
+	if interactions != nil && interactions.IsFavoriteMap != nil {
 		video.IsFavorite = interactions.IsFavoriteMap[video.ID]
 	}
-	if interactions.IsCollectMap != nil {
+	if interactions != nil && interactions.IsCollectMap != nil {
 		video.IsCollected = interactions.IsCollectMap[video.ID]
 	}
 

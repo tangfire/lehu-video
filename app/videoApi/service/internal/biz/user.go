@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	"github.com/go-kratos/kratos/v2/transport"
-	jwtv5 "github.com/golang-jwt/jwt/v5"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
+	"lehu-video/pkg/apperror"
+	sharedauth "lehu-video/pkg/auth"
 	"os"
 	"sync"
 	"time"
@@ -206,7 +207,7 @@ func (uc *UserUsecase) Register(ctx context.Context, input *RegisterInput) (*Reg
 	if fixedCode := os.Getenv("LEHU_DEV_VERIFICATION_CODE"); fixedCode == "" || input.Code != fixedCode {
 		err := uc.base.ValidateVerificationCode(ctx, input.CodeId, input.Code)
 		if err != nil {
-			return nil, errors.New("验证码错误")
+			return nil, apperror.InvalidArgument("验证码错误")
 		}
 	}
 
@@ -230,7 +231,7 @@ func (uc *UserUsecase) Login(ctx context.Context, input *LoginInput) (*LoginOutp
 	// 1. 验证账户
 	accountID, err := uc.base.CheckAccount(ctx, input.Mobile, input.Email, input.Password)
 	if err != nil {
-		return nil, errors.New("账户或密码错误")
+		return nil, apperror.Unauthorized("账户或密码错误")
 	}
 
 	// 2. 通过账户ID查找用户ID（这里需要调用core服务，但缺少相关方法）
@@ -253,8 +254,7 @@ func (uc *UserUsecase) Login(ctx context.Context, input *LoginInput) (*LoginOutp
 }
 
 func (uc *UserUsecase) setToken2Header(ctx context.Context, claim *claims.Claims) (string, error) {
-	token := jwtv5.NewWithClaims(jwtv5.SigningMethodHS256, claim)
-	tokenString, err := token.SignedString([]byte(uc.authSecret))
+	tokenString, err := sharedauth.GenerateToken(uc.authSecret, claim)
 	if err != nil {
 		return "", err
 	}

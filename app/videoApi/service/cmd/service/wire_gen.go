@@ -26,26 +26,71 @@ import (
 
 // wireApp init kratos application.
 func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Data, auth *conf.Auth, logger log.Logger) (*kratos.App, func(), error) {
-	registrar := data.NewRegistrar(registry)
-	discovery := data.NewDiscovery(registry)
-	accountServiceClient := data.NewAccountServiceClient(discovery)
-	authServiceClient := data.NewAuthServiceClient(discovery)
-	fileServiceClient := data.NewFileServiceClient(discovery)
+	registrar, err := data.NewRegistrar(registry)
+	if err != nil {
+		return nil, nil, err
+	}
+	discovery, err := data.NewDiscovery(registry)
+	if err != nil {
+		return nil, nil, err
+	}
+	accountServiceClient, err := data.NewAccountServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	authServiceClient, err := data.NewAuthServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	fileServiceClient, err := data.NewFileServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
 	baseAdapter := data.NewBaseAdapter(accountServiceClient, authServiceClient, fileServiceClient)
-	userServiceClient := data.NewUserServiceClient(discovery)
-	videoServiceClient := data.NewVideoServiceClient(discovery)
-	feedServiceClient := data.NewFeedServiceClient(discovery)
-	collectionServiceClient := data.NewCollectionServiceClient(discovery)
-	commentServiceClient := data.NewCommentServiceClient(discovery)
-	favoriteServiceClient := data.NewFavoriteServiceClient(discovery)
-	followServiceClient := data.NewFollowServiceClient(discovery)
+	userServiceClient, err := data.NewUserServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	videoServiceClient, err := data.NewVideoServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	feedServiceClient, err := data.NewFeedServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	collectionServiceClient, err := data.NewCollectionServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	commentServiceClient, err := data.NewCommentServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	favoriteServiceClient, err := data.NewFavoriteServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	followServiceClient, err := data.NewFollowServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
 	coreAdapter := data.NewCoreAdapter(userServiceClient, videoServiceClient, feedServiceClient, collectionServiceClient, commentServiceClient, favoriteServiceClient, followServiceClient, logger)
-	groupServiceClient := data.NewGroupServiceClient(discovery)
-	messageServiceClient := data.NewMessageServiceClient(discovery)
-	friendServiceClient := data.NewFriendServiceClient(discovery)
+	groupServiceClient, err := data.NewGroupServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	messageServiceClient, err := data.NewMessageServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
+	friendServiceClient, err := data.NewFriendServiceClient(discovery)
+	if err != nil {
+		return nil, nil, err
+	}
 	chatAdapter := data.NewChatAdapter(groupServiceClient, messageServiceClient, friendServiceClient)
-	authSecret := biz.NewAuthSecret(auth)
-	userUsecase := biz.NewUserUsecase(baseAdapter, coreAdapter, chatAdapter, authSecret, logger)
+	string2 := biz.NewAuthSecret(auth)
+	userUsecase := biz.NewUserUsecase(baseAdapter, coreAdapter, chatAdapter, string2, logger)
 	userServiceService := service.NewUserServiceService(userUsecase)
 	fileUsecase := biz.NewFileUsecase(baseAdapter, logger)
 	fileServiceService := service.NewFileServiceService(fileUsecase)
@@ -67,7 +112,10 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	friendUsecase := biz.NewFriendUsecase(chatAdapter, coreAdapter, logger)
 	friendServiceService := service.NewFriendServiceService(friendUsecase, logger)
 	producer := kafka.NewKafkaProducer(confData)
-	client := data.NewRedis(confData)
+	client, err := data.NewRedis(confData)
+	if err != nil {
+		return nil, nil, err
+	}
 	webSocketService := service.NewWebSocketService(messageUsecase, chatAdapter, producer, client, userServiceClient, logger)
 	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, groupServiceService, messageServiceService, friendServiceService, webSocketService, logger)
 	consumer := kafka.NewKafkaConsumer(confData)
@@ -76,5 +124,8 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	kafkaConsumerServer := server.NewKafkaConsumerServer(kafkaConsumerService, logger)
 	app := newApp(logger, registrar, httpServer, kafkaConsumerServer)
 	return app, func() {
+		_ = kafkaConsumerService.Close()
+		_ = producer.Close()
+		_ = client.Close()
 	}, nil
 }

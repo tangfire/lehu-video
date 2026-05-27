@@ -1,6 +1,9 @@
 package data
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/coocood/freecache"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
@@ -100,22 +103,31 @@ func NewIdGenerator(c *conf.Idgen) idgen.Generator {
 	return idgen.NewGenerator(c.WorkerId)
 }
 
-func NewDB(c *conf.Data, logger log.Logger) *gorm.DB {
-	log := log.NewHelper(logger)
+func NewDB(c *conf.Data, logger log.Logger) (*gorm.DB, error) {
 	db, err := gorm.Open(mysql.Open(c.Database.Source), &gorm.Config{})
 	if err != nil {
-		log.Errorf("open db err:%v", err)
+		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	return db
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("get mysql db: %w", err)
+	}
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("ping mysql: %w", err)
+	}
+	return db, nil
 }
 
-func NewRedis(c *conf.Data) *redis.Client {
+func NewRedis(c *conf.Data) (*redis.Client, error) {
 	rds := redis.NewClient(&redis.Options{
 		Addr:     c.Redis.Addr,
 		Password: c.Redis.Password,
 		DB:       0,
 	})
-	return rds
+	if err := rds.Ping(context.Background()).Err(); err != nil {
+		return nil, fmt.Errorf("connect redis: %w", err)
+	}
+	return rds, nil
 }
 
 func NewFreeCache(c *conf.Data) *freecache.Cache {

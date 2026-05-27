@@ -5,18 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
-	jwt5 "github.com/golang-jwt/jwt/v5"
+	sharedauth "lehu-video/pkg/auth"
 )
 
-type Claims struct {
-	jwt5.RegisteredClaims
-	UserId string `json:"user_id"`
-}
+type Claims = sharedauth.Claims
 
 func New(userId string) *Claims {
-	return &Claims{
-		UserId: userId,
-	}
+	return sharedauth.NewClaims(userId, sharedauth.DefaultTokenTTL)
 }
 
 func GetUserId(ctx context.Context) (string, error) {
@@ -34,8 +29,7 @@ func GetUserId(ctx context.Context) (string, error) {
 }
 
 func GenerateToken(claim *Claims) (string, error) {
-	token := jwt5.NewWithClaims(jwt5.SigningMethodHS256, claim)
-	tokenString, err := token.SignedString([]byte("token"))
+	tokenString, err := sharedauth.GenerateToken("token", claim)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate token: %w", err)
 	}

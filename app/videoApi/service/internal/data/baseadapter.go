@@ -2,10 +2,12 @@ package data
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-kratos/kratos/v2/middleware/circuitbreaker"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/registry"
-	"github.com/go-kratos/kratos/v2/transport/grpc"
+	kgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
+	grpc "google.golang.org/grpc"
 	base "lehu-video/api/base/service/v1"
 	"lehu-video/app/videoApi/service/internal/biz"
 )
@@ -30,50 +32,38 @@ func NewBaseAdapter(account base.AccountServiceClient, auth base.AuthServiceClie
 	}
 }
 
-func NewAccountServiceClient(r registry.Discovery) base.AccountServiceClient {
-	conn, err := grpc.DialInsecure(
+func dialService(r registry.Discovery, endpoint string) (*grpc.ClientConn, error) {
+	return kgrpc.DialInsecure(
 		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.base.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
+		kgrpc.WithEndpoint(endpoint),
+		kgrpc.WithDiscovery(r),
+		kgrpc.WithMiddleware(
 			recovery.Recovery(),
 			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
-	if err != nil {
-		panic(err)
-	}
-	return base.NewAccountServiceClient(conn)
 }
 
-func NewAuthServiceClient(r registry.Discovery) base.AuthServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.base.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewAccountServiceClient(r registry.Discovery) (base.AccountServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.base.service")
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial base account service: %w", err)
 	}
-	return base.NewAuthServiceClient(conn)
+	return base.NewAccountServiceClient(conn), nil
 }
 
-func NewFileServiceClient(r registry.Discovery) base.FileServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.base.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewAuthServiceClient(r registry.Discovery) (base.AuthServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.base.service")
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial base auth service: %w", err)
 	}
-	return base.NewFileServiceClient(conn)
+	return base.NewAuthServiceClient(conn), nil
+}
+
+func NewFileServiceClient(r registry.Discovery) (base.FileServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.base.service")
+	if err != nil {
+		return nil, fmt.Errorf("dial base file service: %w", err)
+	}
+	return base.NewFileServiceClient(conn), nil
 }

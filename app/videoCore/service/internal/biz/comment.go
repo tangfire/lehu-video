@@ -3,9 +3,9 @@ package biz
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"lehu-video/app/videoCore/service/internal/pkg/idgen"
+	"lehu-video/pkg/apperror"
 	"sort"
 	"time"
 
@@ -533,8 +533,8 @@ func (uc *CommentUsecase) deleteCommentCache(ctx context.Context, commentID int6
 
 // ---------- 错误定义 ----------
 var (
-	ErrInvalidParams         = errors.New("invalid parameters")
-	ErrCommentNotFound       = errors.New("comment not found")
-	ErrParentCommentNotFound = errors.New("parent comment not found")
-	ErrNoPermission          = errors.New("no permission")
+	ErrInvalidParams         = apperror.InvalidArgument("参数错误")
+	ErrCommentNotFound       = apperror.NotFound("评论不存在")
+	ErrParentCommentNotFound = apperror.NotFound("父评论不存在")
+	ErrNoPermission          = apperror.Forbidden("没有权限")
 )

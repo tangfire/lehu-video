@@ -1,9 +1,6 @@
 package respcheck
 
-import (
-	"fmt"
-	"strings"
-)
+import "lehu-video/pkg/apperror"
 
 // MetaInfo 定义了所有Metadata共有的接口
 type MetaInfo interface {
@@ -16,24 +13,20 @@ type MetaInfo interface {
 // ValidateResponseMeta 通用的Metadata校验函数
 func ValidateResponseMeta(meta MetaInfo) error {
 	if meta == nil {
-		return fmt.Errorf("response metadata is nil")
+		return apperror.New(apperror.CodeDependencyUnavailable, apperror.ReasonDependencyUnavailable, "下游服务响应为空")
 	}
 
 	code := meta.GetCode()
 	if code != 0 {
-		// 收集错误信息
-		var errorDetails []string
-		errorDetails = append(errorDetails, fmt.Sprintf("code: %d", code))
-
-		if msg := meta.GetMessage(); msg != "" {
-			errorDetails = append(errorDetails, fmt.Sprintf("message: %s", msg))
+		reason := apperror.ReasonInternal
+		if reasons := meta.GetReason(); len(reasons) > 0 && reasons[0] != "" {
+			reason = reasons[0]
 		}
-
-		if reasons := meta.GetReason(); len(reasons) > 0 {
-			errorDetails = append(errorDetails, fmt.Sprintf("reasons: [%s]", strings.Join(reasons, ", ")))
+		message := meta.GetMessage()
+		if message == "" {
+			message = "下游服务处理失败"
 		}
-
-		return fmt.Errorf("service error: %s", strings.Join(errorDetails, ", "))
+		return apperror.New(code, reason, message)
 	}
 
 	return nil
@@ -60,7 +53,7 @@ func GetErrorMessage(meta MetaInfo) string {
 
 	msg := meta.GetMessage()
 	if msg == "" {
-		return fmt.Sprintf("error with code: %d", code)
+		return "service error"
 	}
 	return msg
 }
@@ -91,16 +84,5 @@ func FormatError(meta MetaInfo) string {
 	if code == 0 {
 		return "Success"
 	}
-
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("Error[%d]: %s", code, meta.GetMessage()))
-
-	if reasons := meta.GetReason(); len(reasons) > 0 {
-		builder.WriteString("\nReasons:")
-		for i, reason := range reasons {
-			builder.WriteString(fmt.Sprintf("\n  %d. %s", i+1, reason))
-		}
-	}
-
-	return builder.String()
+	return meta.GetMessage()
 }

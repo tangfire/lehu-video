@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"google.golang.org/protobuf/encoding/protojson"
 	videoapi "lehu-video/api/videoApi/service/v1"
+	"lehu-video/pkg/apperror"
 	"net/http"
 	"time"
 
-	"github.com/go-kratos/kratos/v2/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -32,20 +32,10 @@ func success(data interface{}) *Response {
 
 // 转换错误为统一格式
 func convertError(err error) *Response {
-	// 如果是 Kratos 错误
-	if kratosErr := errors.FromError(err); kratosErr != nil {
-		return &Response{
-			Code:      int(kratosErr.Code),
-			Message:   kratosErr.Message,
-			Data:      nil,
-			Timestamp: time.Now().Unix(),
-		}
-	}
-
-	// 其他错误
+	appErr := apperror.From(err)
 	return &Response{
-		Code:      500,
-		Message:   err.Error(),
+		Code:      int(appErr.Code),
+		Message:   appErr.Message,
 		Data:      nil,
 		Timestamp: time.Now().Unix(),
 	}
@@ -227,23 +217,6 @@ func ErrorEncoder(w http.ResponseWriter, r *http.Request, err error) {
 
 	resp := convertError(err)
 
-	// 设置 HTTP 状态码
-	var statusCode int
-	switch resp.Code {
-	case 0:
-		statusCode = http.StatusOK
-	case 400:
-		statusCode = http.StatusBadRequest
-	case 401:
-		statusCode = http.StatusUnauthorized
-	case 403:
-		statusCode = http.StatusForbidden
-	case 404:
-		statusCode = http.StatusNotFound
-	default:
-		statusCode = http.StatusInternalServerError
-	}
-
-	w.WriteHeader(statusCode)
+	w.WriteHeader(apperror.HTTPStatus(int32(resp.Code)))
 	json.NewEncoder(w).Encode(resp)
 }

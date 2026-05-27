@@ -2,18 +2,17 @@ package websocket
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 	kjwt "github.com/go-kratos/kratos/v2/middleware/auth/jwt"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 
 	"lehu-video/app/videoApi/service/internal/biz"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
+	sharedauth "lehu-video/pkg/auth"
 )
 
 var (
@@ -103,14 +102,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseJWT(tokenStr string, secret string) (*claims.Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &claims.Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(secret), nil
-	})
-	if err != nil || !token.Valid {
+	claim, err := sharedauth.ParseToken(tokenStr, secret)
+	if err != nil {
 		return nil, err
 	}
-	if c, ok := token.Claims.(*claims.Claims); ok {
-		return c, nil
-	}
-	return nil, errors.New("invalid claims type")
+	return claim, nil
 }

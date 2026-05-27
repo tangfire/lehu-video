@@ -1,6 +1,9 @@
 package data
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/go-kratos/kratos/contrib/registry/consul/v2"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/registry"
@@ -56,6 +59,11 @@ type Data struct {
 func NewData(db *gorm.DB, rds *redis.Client, base *baseAdapterImpl, core *CoreAdapterImpl, logger log.Logger) (*Data, func(), error) {
 	cleanup := func() {
 		log.NewHelper(logger).Info("closing the data resources")
+		if rds != nil {
+			if err := rds.Close(); err != nil {
+				log.NewHelper(logger).Warnf("close redis error: %v", err)
+			}
+		}
 	}
 	return &Data{
 		rds:  rds,
@@ -66,44 +74,53 @@ func NewData(db *gorm.DB, rds *redis.Client, base *baseAdapterImpl, core *CoreAd
 	}, cleanup, nil
 }
 
-func NewRedis(c *conf.Data) *redis.Client {
+func NewRedis(c *conf.Data) (*redis.Client, error) {
 	rds := redis.NewClient(&redis.Options{
 		Addr:     c.Redis.Addr,
 		Password: c.Redis.Password,
 		DB:       int(c.Redis.Db),
 	})
-	return rds
+	if err := rds.Ping(context.Background()).Err(); err != nil {
+		return nil, fmt.Errorf("connect redis: %w", err)
+	}
+	return rds, nil
 }
 
-func NewDB(c *conf.Data, logger log.Logger) *gorm.DB {
-	log := log.NewHelper(logger)
+func NewDB(c *conf.Data, logger log.Logger) (*gorm.DB, error) {
 	db, err := gorm.Open(mysql.Open(c.Database.Source), &gorm.Config{})
 	if err != nil {
-		log.Errorf("open db err:%v", err)
+		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	return db
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("get mysql db: %w", err)
+	}
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("ping mysql: %w", err)
+	}
+	return db, nil
 }
 
-func NewDiscovery(conf *conf.Registry) registry.Discovery {
+func NewDiscovery(conf *conf.Registry) (registry.Discovery, error) {
 	c := consulAPI.DefaultConfig()
 	c.Address = conf.Consul.Address
 	c.Scheme = conf.Consul.Scheme
 	cli, err := consulAPI.NewClient(c)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("new consul discovery: %w", err)
 	}
 	r := consul.New(cli, consul.WithHealthCheck(false))
-	return r
+	return r, nil
 }
 
-func NewRegistrar(conf *conf.Registry) registry.Registrar {
+func NewRegistrar(conf *conf.Registry) (registry.Registrar, error) {
 	c := consulAPI.DefaultConfig()
 	c.Address = conf.Consul.Address
 	c.Scheme = conf.Consul.Scheme
 	cli, err := consulAPI.NewClient(c)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("new consul registrar: %w", err)
 	}
 	r := consul.New(cli, consul.WithHealthCheck(false))
-	return r
+	return r, nil
 }

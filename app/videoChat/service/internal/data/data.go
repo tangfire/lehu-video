@@ -2,6 +2,8 @@ package data
 
 import (
 	"context"
+	"fmt"
+
 	"github.com/go-kratos/kratos/contrib/registry/consul/v2"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/registry"
@@ -45,6 +47,11 @@ type Data struct {
 func NewData(db *gorm.DB, user core.UserServiceClient, redis *redis.Client, logger log.Logger) (*Data, func(), error) {
 	cleanup := func() {
 		log.NewHelper(logger).Info("closing the data resources")
+		if redis != nil {
+			if err := redis.Close(); err != nil {
+				log.NewHelper(logger).Warnf("close redis error: %v", err)
+			}
+		}
 	}
 	return &Data{db: db, user: user, redis: redis, log: log.NewHelper(logger)}, cleanup, nil
 }
@@ -54,7 +61,7 @@ func NewIdGenerator(c *conf.Idgen) idgen.Generator {
 	return idgen.NewGenerator(c.WorkerId)
 }
 
-func NewUserServiceClient(r registry.Discovery) core.UserServiceClient {
+func NewUserServiceClient(r registry.Discovery) (core.UserServiceClient, error) {
 	conn, err := grpc.DialInsecure(
 		context.Background(),
 		grpc.WithEndpoint("discovery:///lehu-video.core.service"),
@@ -64,36 +71,46 @@ func NewUserServiceClient(r registry.Discovery) core.UserServiceClient {
 		),
 	)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial core user service: %w", err)
 	}
-	return core.NewUserServiceClient(conn)
+	return core.NewUserServiceClient(conn), nil
 }
 
-func NewDB(c *conf.Data, logger log.Logger) *gorm.DB {
-	log := log.NewHelper(logger)
+func NewDB(c *conf.Data, logger log.Logger) (*gorm.DB, error) {
 	db, err := gorm.Open(mysql.Open(c.Database.Source), &gorm.Config{})
 	if err != nil {
-		log.Errorf("open db err:%v", err)
+		return nil, fmt.Errorf("open mysql: %w", err)
 	}
-	return db
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("get mysql db: %w", err)
+	}
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("ping mysql: %w", err)
+	}
+	return db, nil
 }
 
-func NewDiscovery(conf *conf.Registry) registry.Discovery {
+func NewDiscovery(conf *conf.Registry) (registry.Discovery, error) {
 	c := consulAPI.DefaultConfig()
 	c.Address = conf.Consul.Address
 	c.Scheme = conf.Consul.Scheme
 	cli, err := consulAPI.NewClient(c)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("new consul discovery: %w", err)
 	}
 	r := consul.New(cli, consul.WithHealthCheck(false))
-	return r
+	return r, nil
 }
 
-func NewRedisClient(conf *conf.Data) *redis.Client {
-	return redis.NewClient(&redis.Options{
+func NewRedisClient(conf *conf.Data) (*redis.Client, error) {
+	client := redis.NewClient(&redis.Options{
 		Addr:     conf.Redis.Addr,
 		Password: conf.Redis.Password,
 		DB:       int(conf.Redis.Db),
 	})
+	if err := client.Ping(context.Background()).Err(); err != nil {
+		return nil, fmt.Errorf("connect redis: %w", err)
+	}
+	return client, nil
 }

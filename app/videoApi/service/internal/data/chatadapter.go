@@ -2,10 +2,12 @@ package data
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-kratos/kratos/v2/middleware/circuitbreaker"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/registry"
-	"github.com/go-kratos/kratos/v2/transport/grpc"
+	kgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
+	grpc "google.golang.org/grpc"
 	chat "lehu-video/api/videoChat/service/v1"
 	"lehu-video/app/videoApi/service/internal/biz"
 )
@@ -28,50 +30,38 @@ func NewChatAdapter(
 	}
 }
 
-func NewGroupServiceClient(r registry.Discovery) chat.GroupServiceClient {
-	conn, err := grpc.DialInsecure(
+func dialChatService(r registry.Discovery) (*grpc.ClientConn, error) {
+	return kgrpc.DialInsecure(
 		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.chat.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
+		kgrpc.WithEndpoint("discovery:///lehu-video.chat.service"),
+		kgrpc.WithDiscovery(r),
+		kgrpc.WithMiddleware(
 			recovery.Recovery(),
 			circuitbreaker.Client(), // 添加熔断器
 		),
 	)
-	if err != nil {
-		panic(err)
-	}
-	return chat.NewGroupServiceClient(conn)
 }
 
-func NewMessageServiceClient(r registry.Discovery) chat.MessageServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.chat.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewGroupServiceClient(r registry.Discovery) (chat.GroupServiceClient, error) {
+	conn, err := dialChatService(r)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial chat group service: %w", err)
 	}
-	return chat.NewMessageServiceClient(conn)
+	return chat.NewGroupServiceClient(conn), nil
 }
 
-func NewFriendServiceClient(r registry.Discovery) chat.FriendServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.chat.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewMessageServiceClient(r registry.Discovery) (chat.MessageServiceClient, error) {
+	conn, err := dialChatService(r)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial chat message service: %w", err)
 	}
-	return chat.NewFriendServiceClient(conn)
+	return chat.NewMessageServiceClient(conn), nil
+}
+
+func NewFriendServiceClient(r registry.Discovery) (chat.FriendServiceClient, error) {
+	conn, err := dialChatService(r)
+	if err != nil {
+		return nil, fmt.Errorf("dial chat friend service: %w", err)
+	}
+	return chat.NewFriendServiceClient(conn), nil
 }

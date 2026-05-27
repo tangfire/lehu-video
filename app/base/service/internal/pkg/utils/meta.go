@@ -1,6 +1,9 @@
 package utils
 
-import pb "lehu-video/api/base/service/v1"
+import (
+	pb "lehu-video/api/base/service/v1"
+	"lehu-video/pkg/apperror"
+)
 
 func GetSuccessMeta() *pb.Metadata {
 	return &pb.Metadata{
@@ -10,8 +13,10 @@ func GetSuccessMeta() *pb.Metadata {
 }
 
 func GetMetaWithError(err error) *pb.Metadata {
+	appErr := apperror.From(err)
 	return &pb.Metadata{
-		Code:    -1,
-		Message: err.Error(),
+		Code:    appErr.Code,
+		Message: appErr.Message,
+		Reason:  []string{appErr.Reason},
 	}
 }

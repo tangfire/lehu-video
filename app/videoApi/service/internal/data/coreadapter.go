@@ -1,12 +1,9 @@
 package data
 
 import (
-	"context"
+	"fmt"
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/middleware/circuitbreaker"
-	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/registry"
-	"github.com/go-kratos/kratos/v2/transport/grpc"
 	core "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoApi/service/internal/biz"
 )
@@ -43,114 +40,58 @@ func NewCoreAdapter(
 	}
 }
 
-func NewUserServiceClient(r registry.Discovery) core.UserServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.core.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewUserServiceClient(r registry.Discovery) (core.UserServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.core.service")
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial core user service: %w", err)
 	}
-	return core.NewUserServiceClient(conn)
+	return core.NewUserServiceClient(conn), nil
 }
 
-func NewFeedServiceClient(r registry.Discovery) core.FeedServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.core.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewFeedServiceClient(r registry.Discovery) (core.FeedServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.core.service")
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial core feed service: %w", err)
 	}
-	return core.NewFeedServiceClient(conn)
+	return core.NewFeedServiceClient(conn), nil
 }
 
-func NewVideoServiceClient(r registry.Discovery) core.VideoServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.core.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewVideoServiceClient(r registry.Discovery) (core.VideoServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.core.service")
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial core video service: %w", err)
 	}
-	return core.NewVideoServiceClient(conn)
+	return core.NewVideoServiceClient(conn), nil
 }
 
-func NewCollectionServiceClient(r registry.Discovery) core.CollectionServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.core.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewCollectionServiceClient(r registry.Discovery) (core.CollectionServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.core.service")
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial core collection service: %w", err)
 	}
-	return core.NewCollectionServiceClient(conn)
+	return core.NewCollectionServiceClient(conn), nil
 }
 
-func NewCommentServiceClient(r registry.Discovery) core.CommentServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.core.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewCommentServiceClient(r registry.Discovery) (core.CommentServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.core.service")
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial core comment service: %w", err)
 	}
-	return core.NewCommentServiceClient(conn)
+	return core.NewCommentServiceClient(conn), nil
 }
 
-func NewFavoriteServiceClient(r registry.Discovery) core.FavoriteServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.core.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewFavoriteServiceClient(r registry.Discovery) (core.FavoriteServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.core.service")
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial core favorite service: %w", err)
 	}
-	return core.NewFavoriteServiceClient(conn)
+	return core.NewFavoriteServiceClient(conn), nil
 }
 
-func NewFollowServiceClient(r registry.Discovery) core.FollowServiceClient {
-	conn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///lehu-video.core.service"),
-		grpc.WithDiscovery(r),
-		grpc.WithMiddleware(
-			recovery.Recovery(),
-			circuitbreaker.Client(), // 添加熔断器
-		),
-	)
+func NewFollowServiceClient(r registry.Discovery) (core.FollowServiceClient, error) {
+	conn, err := dialService(r, "discovery:///lehu-video.core.service")
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("dial core follow service: %w", err)
 	}
-	return core.NewFollowServiceClient(conn)
+	return core.NewFollowServiceClient(conn), nil
 }

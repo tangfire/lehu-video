@@ -46,6 +46,30 @@ api:
 	       --openapi_out=fq_schema_naming=true,default_response=false:. \
 	       $(API_PROTO_FILES)
 
+.PHONY: proto
+# alias for api proto generation
+proto: api
+
+.PHONY: test
+# run backend tests
+test:
+	go test ./...
+
+.PHONY: docker-up
+# start backend services with Docker Compose
+docker-up:
+	docker compose up -d --build
+
+.PHONY: docker-down
+# stop backend services
+docker-down:
+	docker compose down
+
+.PHONY: smoke
+# run local backend smoke checks
+smoke:
+	bash scripts/smoke.sh
+
 .PHONY: build
 # build
 build:

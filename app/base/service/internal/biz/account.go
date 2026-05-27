@@ -6,6 +6,8 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"lehu-video/app/base/service/internal/pkg/idgen"
 	"lehu-video/app/base/service/internal/pkg/utils"
+	"lehu-video/pkg/apperror"
+	"lehu-video/pkg/password"
 )
 
 const (
@@ -81,7 +83,7 @@ func (a *Account) ModifyPassword(password string) error {
 
 	isValid := a.IsPasswordValid()
 	if !isValid {
-		return errors.New(ErrInvalidPassword)
+		return apperror.InvalidArgument(ErrInvalidPassword)
 	}
 
 	if err := a.EncryptPassword(); err != nil {
@@ -92,30 +94,38 @@ func (a *Account) ModifyPassword(password string) error {
 }
 
 func (a *Account) EncryptPassword() error {
-	if err := a.generateSalt(); err != nil {
-		return err
-	}
-
-	a.Password = utils.GenerateMd5WithSalt(a.Password, a.Salt)
-	return nil
-}
-
-func (a *Account) generateSalt() error {
-	salt, err := utils.GetPasswordSalt()
+	hash, salt, err := password.Hash(a.Password)
 	if err != nil {
 		return err
 	}
-
+	a.Password = hash
 	a.Salt = salt
 	return nil
 }
 
 func (a *Account) CheckPassword(password string) error {
-	passwordMd5 := utils.GenerateMd5WithSalt(password, a.Salt)
-	if passwordMd5 != a.Password {
-		return errors.New("wrong password")
+	ok, _ := a.CheckPasswordAndUpgrade(password)
+	if !ok {
+		return apperror.Unauthorized("账户或密码错误")
 	}
 	return nil
+}
+
+func (a *Account) CheckPasswordAndUpgrade(raw string) (bool, error) {
+	ok, needsUpgrade := password.Verify(raw, a.Password, a.Salt)
+	if !ok {
+		return false, nil
+	}
+	if !needsUpgrade {
+		return true, nil
+	}
+	hash, salt, err := password.Hash(raw)
+	if err != nil {
+		return false, err
+	}
+	a.Password = hash
+	a.Salt = salt
+	return true, nil
 }
 
 type AccountRepo interface {
@@ -152,7 +162,7 @@ func (uc *AccountUsecase) Register(ctx context.Context, cmd *RegisterCommand) (*
 
 	valid := account.IsPasswordValid()
 	if !valid {
-		return nil, errors.New(ErrInvalidPassword)
+		return nil, apperror.InvalidArgument(ErrInvalidPassword)
 	}
 
 	err = account.EncryptPassword()
@@ -183,7 +193,7 @@ func (uc *AccountUsecase) CheckAccount(ctx context.Context, query *CheckAccountQ
 			return nil, err
 		}
 		if !exist {
-			return nil, errors.New("account not exist")
+			return nil, apperror.Unauthorized("账户或密码错误")
 		}
 	}
 
@@ -193,7 +203,7 @@ func (uc *AccountUsecase) CheckAccount(ctx context.Context, query *CheckAccountQ
 			return nil, err
 		}
 		if !exist {
-			return nil, errors.New("account not exist")
+			return nil, apperror.Unauthorized("账户或密码错误")
 		}
 	}
 
@@ -203,17 +213,26 @@ func (uc *AccountUsecase) CheckAccount(ctx context.Context, query *CheckAccountQ
 			return nil, err
 		}
 		if !exist {
-			return nil, errors.New("account not exist")
+			return nil, apperror.Unauthorized("账户或密码错误")
 		}
 	}
 
 	if account == nil {
-		return nil, errors.New("account not exist")
+		return nil, apperror.Unauthorized("账户或密码错误")
 	}
 
-	err = account.CheckPassword(query.Password)
+	wasLegacyHash := !password.IsModern(account.Password)
+	ok, err := account.CheckPasswordAndUpgrade(query.Password)
 	if err != nil {
-		return nil, err
+		return nil, apperror.Internal(err, "密码校验失败")
+	}
+	if !ok {
+		return nil, apperror.Unauthorized("账户或密码错误")
+	}
+	if wasLegacyHash {
+		if err := uc.repo.UpdateAccount(ctx, account); err != nil {
+			uc.log.WithContext(ctx).Warnf("upgrade password hash failed: account_id=%d err=%v", account.Id, err)
+		}
 	}
 
 	return &CheckAccountResult{

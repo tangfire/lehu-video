@@ -18,16 +18,16 @@ import (
 )
 
 func NewWhiteListMatcher() selector.MatchFunc {
-
-	whiteList := make(map[string]struct{})
-	whiteList["/api.videoApi.service.v1.UserService/Login"] = struct{}{}
-	whiteList["/api.videoApi.service.v1.UserService/Register"] = struct{}{}
-	whiteList["/api.videoApi.service.v1.UserService/GetVerificationCode"] = struct{}{}
-	whiteList["/api.videoApi.service.v1.VideoService/FeedShortVideo"] = struct{}{}
-	whiteList["/api.videoApi.service.v1.VideoService/GetVideoById"] = struct{}{}
-	whiteList["/api.videoApi.service.v1.CommentService/ListComment4Video"] = struct{}{}
-	whiteList["/api.videoApi.service.v1.CommentService/ListChildComment"] = struct{}{}
-	whiteList["/ws"] = struct{}{} // 添加WebSocket路径到白名单
+	whiteList := map[string]struct{}{
+		"/api.videoApi.service.v1.UserService/Login":                {},
+		"/api.videoApi.service.v1.UserService/Register":             {},
+		"/api.videoApi.service.v1.UserService/GetVerificationCode":  {},
+		"/api.videoApi.service.v1.VideoService/FeedShortVideo":      {},
+		"/api.videoApi.service.v1.VideoService/GetVideoById":        {},
+		"/api.videoApi.service.v1.CommentService/ListComment4Video": {},
+		"/api.videoApi.service.v1.CommentService/ListChildComment":  {},
+		"/ws": {},
+	}
 	return func(ctx context.Context, operation string) bool {
 		if _, ok := whiteList[operation]; ok {
 			return false
@@ -97,56 +97,6 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	// 注意：WebSocket需要绕过Kratos的中间件，所以直接使用原始HTTP处理器
 	srv.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		wsService.GetHandler().ServeHTTP(w, r)
-	})
-
-	// 可选的WebSocket连接测试页面
-	srv.HandleFunc("/ws-test", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>WebSocket测试</title>
-            </head>
-            <body>
-                <h1>WebSocket连接测试</h1>
-                <div>
-                    <input type="text" id="userId" placeholder="用户ID" value="1001">
-                    <button onclick="connect()">连接</button>
-                    <button onclick="disconnect()">断开</button>
-                    <span id="status">未连接</span>
-                </div>
-                <div id="messages"></div>
-                <script>
-                    let ws = null;
-                    function connect() {
-                        const userId = document.getElementById('userId').value;
-                        const url = 'ws://' + window.location.host + '/ws?token=' + userId;
-                        ws = new WebSocket(url);
-                        ws.onopen = () => {
-                            document.getElementById('status').innerText = '已连接';
-                            console.log('WebSocket连接成功');
-                        };
-                        ws.onmessage = (event) => {
-                            console.log('收到消息:', event.data);
-                            const msgDiv = document.createElement('div');
-                            msgDiv.innerText = '收到: ' + event.data;
-                            document.getElementById('messages').appendChild(msgDiv);
-                        };
-                        ws.onclose = () => {
-                            document.getElementById('status').innerText = '已断开';
-                        };
-                    }
-                    function disconnect() {
-                        if (ws) {
-                            ws.close();
-                            ws = null;
-                        }
-                    }
-                </script>
-            </body>
-            </html>
-        `))
 	})
 
 	return srv

@@ -1,5 +1,16 @@
 # Lehu Video Backend
 
+## 项目亮点
+
+- Kratos 微服务结构：`videoApi / base / videoCore / videoChat`
+- Docker Compose 一键启动 MySQL、Redis、Kafka、MinIO、Consul 和后端服务
+- 统一 HTTP 响应与业务错误码
+- JWT 登录态，HTTP 与 WebSocket 共用 token 校验
+- Argon2id 密码存储，并兼容旧 MD5+salt 账号自动迁移
+- Feed、点赞、评论、收藏、播放量使用 Redis counter + 异步落库 + 对账思路
+
+架构说明见：[docs/architecture.md](docs/architecture.md)
+
 ## 本地 Docker 启动
 
 启动前先打开 Docker Desktop。
@@ -31,6 +42,16 @@ docker compose ps
 
 ```bash
 docker compose logs -f
+```
+
+常用开发命令：
+
+```bash
+make test        # 运行后端测试
+make docker-up   # 重新构建并启动后端 Docker 服务
+make docker-down # 停止后端 Docker 服务
+make smoke       # 运行本地核心链路 smoke 检查
+make proto       # 生成 protobuf 代码
 ```
 
 停止后端：
