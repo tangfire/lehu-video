@@ -233,18 +233,25 @@ type CampusForumPost struct {
 }
 
 type CampusForumComment struct {
-	ID          int64
-	PostID      int64
-	Post        *CampusForumPost
-	AuthorID    string
-	Author      *CampusForumAuthor
-	Content     string
-	Images      []string
-	Status      int32
-	AuditReason string
-	LikeCount   int64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID               int64
+	PostID           int64
+	Post             *CampusForumPost
+	ParentID         int64
+	ReplyToCommentID int64
+	ReplyToUserID    string
+	ReplyToUser      *CampusForumAuthor
+	AuthorID         string
+	Author           *CampusForumAuthor
+	Content          string
+	Images           []string
+	Status           int32
+	AuditReason      string
+	LikeCount        int64
+	ReplyCount       int64
+	IsLiked          bool
+	PreviewReplies   []*CampusForumComment
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type CampusForumReport struct {
@@ -412,17 +419,21 @@ type GetCampusPostInput struct {
 }
 
 type CreateCampusCommentInput struct {
-	UserID  string
-	PostID  int64
-	Content string
-	Images  []string
+	UserID           string
+	PostID           int64
+	ParentID         int64
+	ReplyToCommentID int64
+	Content          string
+	Images           []string
 }
 
 type ListCampusCommentsInput struct {
-	PostID int64
-	UserID string
-	Page   int32
-	Size   int32
+	PostID        int64
+	UserID        string
+	CommentID     int64
+	CurrentUserID string
+	Page          int32
+	Size          int32
 }
 
 type ListCampusCommentsOutput struct {
@@ -432,6 +443,7 @@ type ListCampusCommentsOutput struct {
 
 type ListCampusCommentQuery struct {
 	PostID         int64
+	ParentID       *int64
 	AuthorID       string
 	Statuses       []int32
 	IncludeDeleted bool
@@ -720,6 +732,9 @@ type CampusRepo interface {
 	GetCommentByID(ctx context.Context, commentID int64) (bool, *CampusForumComment, error)
 	DeleteComment(ctx context.Context, commentID int64) error
 	UpdateCommentStatus(ctx context.Context, commentID int64, status int32, reason string) error
+	GetCommentLikeStatus(ctx context.Context, userID string, commentIDs []int64) (map[int64]bool, error)
+	AddCommentLike(ctx context.Context, id int64, userID string, commentID int64) error
+	RemoveCommentLike(ctx context.Context, userID string, commentID int64) error
 	GetPostLikeStatus(ctx context.Context, userID string, postIDs []int64) (map[int64]bool, error)
 	AddPostLike(ctx context.Context, id int64, userID string, postID int64) error
 	RemovePostLike(ctx context.Context, userID string, postID int64) error
@@ -1267,17 +1282,45 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 	if !ok {
 		return nil, apperror.NotFound("帖子不存在")
 	}
+	parentID := int64(0)
+	replyToCommentID := int64(0)
+	replyToUserID := ""
+	if input.ParentID > 0 || input.ReplyToCommentID > 0 {
+		targetID := input.ReplyToCommentID
+		if targetID <= 0 {
+			targetID = input.ParentID
+		}
+		ok, target, err := uc.repo.GetCommentByID(ctx, targetID)
+		if err != nil {
+			return nil, apperror.Internal(err, "查询被回复评论失败")
+		}
+		if !ok || target.PostID != input.PostID || target.Status != CampusAuditStatusVisible {
+			return nil, apperror.NotFound("被回复评论不存在")
+		}
+		if target.ParentID > 0 {
+			parentID = target.ParentID
+			replyToCommentID = target.ID
+			replyToUserID = target.AuthorID
+		} else {
+			parentID = target.ID
+			replyToCommentID = target.ID
+			replyToUserID = target.AuthorID
+		}
+	}
 	content := strings.TrimSpace(input.Content)
 	if len([]rune(content)) < 1 || len([]rune(content)) > 500 {
 		return nil, apperror.InvalidArgument("评论需要 1-500 个字")
 	}
 	comment := &CampusForumComment{
-		ID:       uc.idGen.NextID(),
-		PostID:   input.PostID,
-		AuthorID: input.UserID,
-		Content:  content,
-		Images:   sanitizeImages(input.Images, 3),
-		Status:   CampusAuditStatusVisible,
+		ID:               uc.idGen.NextID(),
+		PostID:           input.PostID,
+		ParentID:         parentID,
+		ReplyToCommentID: replyToCommentID,
+		ReplyToUserID:    replyToUserID,
+		AuthorID:         input.UserID,
+		Content:          content,
+		Images:           sanitizeImages(input.Images, 3),
+		Status:           CampusAuditStatusVisible,
 	}
 	if err := uc.repo.CreateComment(ctx, comment); err != nil {
 		return nil, apperror.Internal(err, "发表评论失败")
@@ -1289,7 +1332,7 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 		TargetType: "post",
 		TargetID:   input.PostID,
 	})
-	_ = uc.hydrateComments(ctx, []*CampusForumComment{comment})
+	_ = uc.hydrateComments(ctx, []*CampusForumComment{comment}, input.UserID)
 	return comment, nil
 }
 
@@ -1298,8 +1341,10 @@ func (uc *CampusUsecase) ListComments(ctx context.Context, input *ListCampusComm
 		return nil, apperror.InvalidArgument("帖子 ID 无效")
 	}
 	page, size := normalizePage(input.Page, input.Size)
+	rootParentID := int64(0)
 	comments, total, err := uc.repo.ListComments(ctx, ListCampusCommentQuery{
 		PostID:   input.PostID,
+		ParentID: &rootParentID,
 		Statuses: []int32{CampusAuditStatusVisible},
 		Offset:   int((page - 1) * size),
 		Limit:    int(size),
@@ -1307,10 +1352,45 @@ func (uc *CampusUsecase) ListComments(ctx context.Context, input *ListCampusComm
 	if err != nil {
 		return nil, apperror.Internal(err, "获取评论失败")
 	}
-	if err := uc.hydrateComments(ctx, comments); err != nil {
+	if err := uc.hydrateComments(ctx, comments, input.CurrentUserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate campus comments failed: %v", err)
 	}
+	if err := uc.fillPreviewReplies(ctx, comments, input.CurrentUserID); err != nil {
+		uc.log.WithContext(ctx).Warnf("fill campus comment replies failed: %v", err)
+	}
 	return &ListCampusCommentsOutput{Comments: comments, Total: total}, nil
+}
+
+func (uc *CampusUsecase) ListCommentReplies(ctx context.Context, input *ListCampusCommentsInput) (*ListCampusCommentsOutput, error) {
+	if input.CommentID <= 0 {
+		return nil, apperror.InvalidArgument("评论 ID 无效")
+	}
+	ok, comment, err := uc.repo.GetCommentByID(ctx, input.CommentID)
+	if err != nil {
+		return nil, apperror.Internal(err, "查询评论失败")
+	}
+	if !ok || comment.Status != CampusAuditStatusVisible {
+		return nil, apperror.NotFound("评论不存在")
+	}
+	rootID := comment.ID
+	if comment.ParentID > 0 {
+		rootID = comment.ParentID
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	replies, total, err := uc.repo.ListComments(ctx, ListCampusCommentQuery{
+		PostID:   comment.PostID,
+		ParentID: &rootID,
+		Statuses: []int32{CampusAuditStatusVisible},
+		Offset:   int((page - 1) * size),
+		Limit:    int(size),
+	})
+	if err != nil {
+		return nil, apperror.Internal(err, "获取回复失败")
+	}
+	if err := uc.hydrateComments(ctx, replies, input.CurrentUserID); err != nil {
+		uc.log.WithContext(ctx).Warnf("hydrate campus replies failed: %v", err)
+	}
+	return &ListCampusCommentsOutput{Comments: replies, Total: total}, nil
 }
 
 func (uc *CampusUsecase) ListMyComments(ctx context.Context, input *ListCampusCommentsInput) (*ListCampusCommentsOutput, error) {
@@ -1327,7 +1407,7 @@ func (uc *CampusUsecase) ListMyComments(ctx context.Context, input *ListCampusCo
 	if err != nil {
 		return nil, apperror.Internal(err, "获取我的评论失败")
 	}
-	if err := uc.hydrateComments(ctx, comments); err != nil {
+	if err := uc.hydrateComments(ctx, comments, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate my campus comments failed: %v", err)
 	}
 	if err := uc.repo.FillCommentPosts(ctx, comments); err != nil {
@@ -1355,6 +1435,46 @@ func (uc *CampusUsecase) DeleteComment(ctx context.Context, userID string, comme
 	}
 	if err := uc.repo.DeleteComment(ctx, commentID); err != nil {
 		return apperror.Internal(err, "撤回评论失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) LikeComment(ctx context.Context, userID string, commentID int64) error {
+	if strings.TrimSpace(userID) == "" {
+		return apperror.Unauthorized("请先登录")
+	}
+	if commentID <= 0 {
+		return apperror.InvalidArgument("评论 ID 无效")
+	}
+	ok, comment, err := uc.repo.GetCommentByID(ctx, commentID)
+	if err != nil {
+		return apperror.Internal(err, "查询评论失败")
+	}
+	if !ok || comment.Status != CampusAuditStatusVisible {
+		return apperror.NotFound("评论不存在")
+	}
+	if err := uc.repo.AddCommentLike(ctx, uc.idGen.NextID(), userID, commentID); err != nil {
+		return apperror.Internal(err, "评论点赞失败")
+	}
+	uc.trackEvent(ctx, &TrackCampusEventInput{
+		UserID:     userID,
+		EventType:  "comment_like",
+		Page:       "post-detail",
+		TargetType: "comment",
+		TargetID:   commentID,
+	})
+	return nil
+}
+
+func (uc *CampusUsecase) UnlikeComment(ctx context.Context, userID string, commentID int64) error {
+	if strings.TrimSpace(userID) == "" {
+		return apperror.Unauthorized("请先登录")
+	}
+	if commentID <= 0 {
+		return apperror.InvalidArgument("评论 ID 无效")
+	}
+	if err := uc.repo.RemoveCommentLike(ctx, userID, commentID); err != nil {
+		return apperror.Internal(err, "取消评论点赞失败")
 	}
 	return nil
 }
@@ -1530,7 +1650,7 @@ func (uc *CampusUsecase) ListModerationComments(ctx context.Context, input *List
 	if err != nil {
 		return nil, apperror.Internal(err, "获取审核评论失败")
 	}
-	if err := uc.hydrateComments(ctx, comments); err != nil {
+	if err := uc.hydrateComments(ctx, comments, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate moderation comments failed: %v", err)
 	}
 	return &ListCampusCommentsOutput{Comments: comments, Total: total}, nil
@@ -1821,7 +1941,7 @@ func (uc *CampusUsecase) AdminListComments(ctx context.Context, input *ListCampu
 	if err != nil {
 		return nil, apperror.Internal(err, "获取后台评论失败")
 	}
-	if err := uc.hydrateComments(ctx, comments); err != nil {
+	if err := uc.hydrateComments(ctx, comments, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate admin comments failed: %v", err)
 	}
 	if err := uc.repo.FillCommentPosts(ctx, comments); err != nil {
@@ -2144,26 +2264,95 @@ func (uc *CampusUsecase) hydratePosts(ctx context.Context, posts []*CampusForumP
 	return nil
 }
 
-func (uc *CampusUsecase) hydrateComments(ctx context.Context, comments []*CampusForumComment) error {
+func (uc *CampusUsecase) hydrateComments(ctx context.Context, comments []*CampusForumComment, currentUserID string) error {
 	if len(comments) == 0 {
 		return nil
 	}
-	userIDs := make([]string, 0, len(comments))
-	seen := map[string]struct{}{}
-	for _, comment := range comments {
-		if _, ok := seen[comment.AuthorID]; !ok && comment.AuthorID != "" {
-			seen[comment.AuthorID] = struct{}{}
-			userIDs = append(userIDs, comment.AuthorID)
+	flat := flattenComments(comments)
+	userIDs := make([]string, 0, len(flat)*2)
+	seenUsers := map[string]struct{}{}
+	commentIDs := make([]int64, 0, len(flat))
+	for _, comment := range flat {
+		if comment == nil {
+			continue
 		}
+		commentIDs = append(commentIDs, comment.ID)
+		appendUniqueUserID(&userIDs, seenUsers, comment.AuthorID)
+		appendUniqueUserID(&userIDs, seenUsers, comment.ReplyToUserID)
 	}
 	authors, err := uc.loadAuthors(ctx, userIDs)
 	if err != nil {
 		return err
 	}
-	for _, comment := range comments {
+	likeStatus := map[int64]bool{}
+	if currentUserID != "" && currentUserID != "0" {
+		likeStatus, _ = uc.repo.GetCommentLikeStatus(ctx, currentUserID, commentIDs)
+	}
+	for _, comment := range flat {
+		if comment == nil {
+			continue
+		}
 		comment.Author = authors[comment.AuthorID]
+		if comment.ReplyToUserID != "" && comment.ReplyToUserID != "0" {
+			comment.ReplyToUser = authors[comment.ReplyToUserID]
+		}
+		comment.IsLiked = likeStatus[comment.ID]
 	}
 	return nil
+}
+
+func (uc *CampusUsecase) fillPreviewReplies(ctx context.Context, comments []*CampusForumComment, currentUserID string) error {
+	for _, comment := range comments {
+		if comment == nil || comment.ID <= 0 || comment.ReplyCount <= 0 {
+			continue
+		}
+		parentID := comment.ID
+		replies, _, err := uc.repo.ListComments(ctx, ListCampusCommentQuery{
+			PostID:   comment.PostID,
+			ParentID: &parentID,
+			Statuses: []int32{CampusAuditStatusVisible},
+			Offset:   0,
+			Limit:    2,
+		})
+		if err != nil {
+			return err
+		}
+		if err := uc.hydrateComments(ctx, replies, currentUserID); err != nil {
+			return err
+		}
+		comment.PreviewReplies = replies
+	}
+	return nil
+}
+
+func appendUniqueUserID(userIDs *[]string, seen map[string]struct{}, userID string) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" || userID == "0" {
+		return
+	}
+	if _, ok := seen[userID]; ok {
+		return
+	}
+	seen[userID] = struct{}{}
+	*userIDs = append(*userIDs, userID)
+}
+
+func flattenComments(comments []*CampusForumComment) []*CampusForumComment {
+	flat := make([]*CampusForumComment, 0, len(comments))
+	var walk func(items []*CampusForumComment)
+	walk = func(items []*CampusForumComment) {
+		for _, item := range items {
+			if item == nil {
+				continue
+			}
+			flat = append(flat, item)
+			if len(item.PreviewReplies) > 0 {
+				walk(item.PreviewReplies)
+			}
+		}
+	}
+	walk(comments)
+	return flat
 }
 
 func (uc *CampusUsecase) hydrateFeedbackAuthors(ctx context.Context, feedbacks []*CampusFeedback) error {
@@ -2620,7 +2809,7 @@ func (uc *CampusUsecase) trackEvent(ctx context.Context, input *TrackCampusEvent
 
 func normalizeCampusEvent(event string) string {
 	switch strings.TrimSpace(strings.ToLower(event)) {
-	case "visit", "share", "login", "post_create", "publish_open", "publish_success", "post_detail_visit", "comment_create", "like", "collect", "feedback_create", "report_create":
+	case "visit", "share", "login", "post_create", "publish_open", "publish_success", "post_detail_visit", "comment_create", "comment_like", "like", "collect", "feedback_create", "report_create":
 		return strings.TrimSpace(strings.ToLower(event))
 	default:
 		return ""

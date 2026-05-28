@@ -159,20 +159,35 @@ type campusForumPostModel struct {
 func (campusForumPostModel) TableName() string { return "campus_forum_post" }
 
 type campusForumCommentModel struct {
-	ID          int64           `gorm:"column:id"`
-	PostID      int64           `gorm:"column:post_id"`
-	AuthorID    int64           `gorm:"column:author_id"`
-	Content     string          `gorm:"column:content"`
-	Images      json.RawMessage `gorm:"column:images"`
-	Status      int32           `gorm:"column:status"`
-	AuditReason string          `gorm:"column:audit_reason"`
-	LikeCount   int64           `gorm:"column:like_count"`
-	IsDeleted   bool            `gorm:"column:is_deleted"`
-	CreatedAt   time.Time       `gorm:"column:created_at"`
-	UpdatedAt   time.Time       `gorm:"column:updated_at"`
+	ID               int64           `gorm:"column:id"`
+	PostID           int64           `gorm:"column:post_id"`
+	ParentID         int64           `gorm:"column:parent_id"`
+	ReplyToCommentID int64           `gorm:"column:reply_to_comment_id"`
+	ReplyToUserID    int64           `gorm:"column:reply_to_user_id"`
+	AuthorID         int64           `gorm:"column:author_id"`
+	Content          string          `gorm:"column:content"`
+	Images           json.RawMessage `gorm:"column:images"`
+	Status           int32           `gorm:"column:status"`
+	AuditReason      string          `gorm:"column:audit_reason"`
+	LikeCount        int64           `gorm:"column:like_count"`
+	ReplyCount       int64           `gorm:"column:reply_count"`
+	IsDeleted        bool            `gorm:"column:is_deleted"`
+	CreatedAt        time.Time       `gorm:"column:created_at"`
+	UpdatedAt        time.Time       `gorm:"column:updated_at"`
 }
 
 func (campusForumCommentModel) TableName() string { return "campus_forum_comment" }
+
+type campusForumCommentLikeModel struct {
+	ID        int64     `gorm:"column:id"`
+	CommentID int64     `gorm:"column:comment_id"`
+	UserID    int64     `gorm:"column:user_id"`
+	IsDeleted bool      `gorm:"column:is_deleted"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (campusForumCommentLikeModel) TableName() string { return "campus_forum_comment_like" }
 
 type campusForumPostLikeModel struct {
 	ID        int64     `gorm:"column:id"`
@@ -667,15 +682,18 @@ func (r *campusRepo) UpdatePostByAdmin(ctx context.Context, post *biz.CampusForu
 func (r *campusRepo) CreateComment(ctx context.Context, comment *biz.CampusForumComment) error {
 	images, _ := json.Marshal(comment.Images)
 	row := campusForumCommentModel{
-		ID:          comment.ID,
-		PostID:      comment.PostID,
-		AuthorID:    parseID(comment.AuthorID),
-		Content:     comment.Content,
-		Images:      images,
-		Status:      comment.Status,
-		AuditReason: comment.AuditReason,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:               comment.ID,
+		PostID:           comment.PostID,
+		ParentID:         comment.ParentID,
+		ReplyToCommentID: comment.ReplyToCommentID,
+		ReplyToUserID:    parseID(comment.ReplyToUserID),
+		AuthorID:         parseID(comment.AuthorID),
+		Content:          comment.Content,
+		Images:           images,
+		Status:           comment.Status,
+		AuditReason:      comment.AuditReason,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&row).Error; err != nil {
@@ -686,6 +704,13 @@ func (r *campusRepo) CreateComment(ctx context.Context, comment *biz.CampusForum
 				Where("id = ?", comment.PostID).
 				UpdateColumn("comment_count", gorm.Expr("comment_count + ?", 1)).Error; err != nil {
 				return err
+			}
+			if comment.ParentID > 0 {
+				if err := tx.Model(&campusForumCommentModel{}).
+					Where("id = ?", comment.ParentID).
+					UpdateColumn("reply_count", gorm.Expr("reply_count + ?", 1)).Error; err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -699,6 +724,9 @@ func (r *campusRepo) ListComments(ctx context.Context, query biz.ListCampusComme
 	}
 	if query.PostID > 0 {
 		db = db.Where("post_id = ?", query.PostID)
+	}
+	if query.ParentID != nil {
+		db = db.Where("parent_id = ?", *query.ParentID)
 	}
 	if query.AuthorID != "" {
 		db = db.Where("author_id = ?", parseID(query.AuthorID))
@@ -898,6 +926,16 @@ func (r *campusRepo) DeleteComment(ctx context.Context, commentID int64) error {
 			First(&comment).Error; err != nil {
 			return err
 		}
+		decrement := int64(1)
+		if comment.ParentID == 0 && comment.Status == biz.CampusAuditStatusVisible {
+			var replyCount int64
+			if err := tx.Model(&campusForumCommentModel{}).
+				Where("parent_id = ? AND status = ? AND is_deleted = ?", comment.ID, biz.CampusAuditStatusVisible, false).
+				Count(&replyCount).Error; err != nil {
+				return err
+			}
+			decrement += replyCount
+		}
 		if err := tx.Model(&campusForumCommentModel{}).
 			Where("id = ?", commentID).
 			Updates(map[string]interface{}{
@@ -908,10 +946,29 @@ func (r *campusRepo) DeleteComment(ctx context.Context, commentID int64) error {
 			}).Error; err != nil {
 			return err
 		}
+		if comment.ParentID == 0 {
+			if err := tx.Model(&campusForumCommentModel{}).
+				Where("parent_id = ? AND is_deleted = ?", comment.ID, false).
+				Updates(map[string]interface{}{
+					"is_deleted":   true,
+					"status":       biz.CampusAuditStatusDeleted,
+					"audit_reason": "父评论已撤回",
+					"updated_at":   time.Now(),
+				}).Error; err != nil {
+				return err
+			}
+		}
 		if comment.Status == biz.CampusAuditStatusVisible {
-			return tx.Model(&campusForumPostModel{}).
+			if err := tx.Model(&campusForumPostModel{}).
 				Where("id = ?", comment.PostID).
-				UpdateColumn("comment_count", gorm.Expr("GREATEST(comment_count - ?, 0)", 1)).Error
+				UpdateColumn("comment_count", gorm.Expr("GREATEST(comment_count - ?, 0)", decrement)).Error; err != nil {
+				return err
+			}
+			if comment.ParentID > 0 {
+				return tx.Model(&campusForumCommentModel{}).
+					Where("id = ?", comment.ParentID).
+					UpdateColumn("reply_count", gorm.Expr("GREATEST(reply_count - ?, 0)", 1)).Error
+			}
 		}
 		return nil
 	})
@@ -944,9 +1001,91 @@ func (r *campusRepo) UpdateCommentStatus(ctx context.Context, commentID int64, s
 		if willVisible {
 			delta = 1
 		}
-		return tx.Model(&campusForumPostModel{}).
+		if err := tx.Model(&campusForumPostModel{}).
 			Where("id = ?", comment.PostID).
-			UpdateColumn("comment_count", gorm.Expr("GREATEST(comment_count + ?, 0)", delta)).Error
+			UpdateColumn("comment_count", gorm.Expr("GREATEST(comment_count + ?, 0)", delta)).Error; err != nil {
+			return err
+		}
+		if comment.ParentID > 0 {
+			return tx.Model(&campusForumCommentModel{}).
+				Where("id = ?", comment.ParentID).
+				UpdateColumn("reply_count", gorm.Expr("GREATEST(reply_count + ?, 0)", delta)).Error
+		}
+		return nil
+	})
+}
+
+func (r *campusRepo) GetCommentLikeStatus(ctx context.Context, userID string, commentIDs []int64) (map[int64]bool, error) {
+	result := make(map[int64]bool, len(commentIDs))
+	if userID == "" || len(commentIDs) == 0 {
+		return result, nil
+	}
+	var rows []campusForumCommentLikeModel
+	if err := r.data.db.WithContext(ctx).
+		Where("user_id = ? AND comment_id IN ? AND is_deleted = ?", parseID(userID), commentIDs, false).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.CommentID] = true
+	}
+	return result, nil
+}
+
+func (r *campusRepo) AddCommentLike(ctx context.Context, id int64, userID string, commentID int64) error {
+	parsedUserID := parseID(userID)
+	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing campusForumCommentLikeModel
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("comment_id = ? AND user_id = ?", commentID, parsedUserID).
+			First(&existing).Error
+		if err == nil {
+			if !existing.IsDeleted {
+				return nil
+			}
+			if err := tx.Model(&campusForumCommentLikeModel{}).
+				Where("id = ?", existing.ID).
+				Updates(map[string]interface{}{"is_deleted": false, "updated_at": time.Now()}).Error; err != nil {
+				return err
+			}
+			return tx.Model(&campusForumCommentModel{}).
+				Where("id = ?", commentID).
+				UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		row := campusForumCommentLikeModel{
+			ID:        id,
+			UserID:    parsedUserID,
+			CommentID: commentID,
+			IsDeleted: false,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		if err := tx.Create(&row).Error; err != nil {
+			return err
+		}
+		return tx.Model(&campusForumCommentModel{}).
+			Where("id = ?", commentID).
+			UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error
+	})
+}
+
+func (r *campusRepo) RemoveCommentLike(ctx context.Context, userID string, commentID int64) error {
+	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&campusForumCommentLikeModel{}).
+			Where("comment_id = ? AND user_id = ? AND is_deleted = ?", commentID, parseID(userID), false).
+			Updates(map[string]interface{}{"is_deleted": true, "updated_at": time.Now()})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected > 0 {
+			return tx.Model(&campusForumCommentModel{}).
+				Where("id = ?", commentID).
+				UpdateColumn("like_count", gorm.Expr("GREATEST(like_count - ?, 0)", 1)).Error
+		}
+		return nil
 	})
 }
 
@@ -1749,16 +1888,20 @@ func toBizComment(row *campusForumCommentModel) *biz.CampusForumComment {
 	images := make([]string, 0)
 	_ = json.Unmarshal(row.Images, &images)
 	return &biz.CampusForumComment{
-		ID:          row.ID,
-		PostID:      row.PostID,
-		AuthorID:    fmt.Sprintf("%d", row.AuthorID),
-		Content:     row.Content,
-		Images:      images,
-		Status:      row.Status,
-		AuditReason: row.AuditReason,
-		LikeCount:   row.LikeCount,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		ID:               row.ID,
+		PostID:           row.PostID,
+		ParentID:         row.ParentID,
+		ReplyToCommentID: row.ReplyToCommentID,
+		ReplyToUserID:    fmt.Sprintf("%d", row.ReplyToUserID),
+		AuthorID:         fmt.Sprintf("%d", row.AuthorID),
+		Content:          row.Content,
+		Images:           images,
+		Status:           row.Status,
+		AuditReason:      row.AuditReason,
+		LikeCount:        row.LikeCount,
+		ReplyCount:       row.ReplyCount,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
 	}
 }
 

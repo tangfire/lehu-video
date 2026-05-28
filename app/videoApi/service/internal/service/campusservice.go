@@ -63,6 +63,9 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/forum/posts/{id}/collection", s.wrap(s.authRequired(s.handleCollectPost)))
 	r.DELETE("/v1/campus/forum/posts/{id}/collection", s.wrap(s.authRequired(s.handleUncollectPost)))
 	r.POST("/v1/campus/forum/posts/{id}/report", s.wrap(s.authRequired(s.handleReportPost)))
+	r.GET("/v1/campus/forum/comments/{id}/replies", s.wrap(s.handleListCommentReplies))
+	r.POST("/v1/campus/forum/comments/{id}/like", s.wrap(s.authRequired(s.handleLikeComment)))
+	r.DELETE("/v1/campus/forum/comments/{id}/like", s.wrap(s.authRequired(s.handleUnlikeComment)))
 	r.DELETE("/v1/campus/forum/comments/{id}", s.wrap(s.authRequired(s.handleDeleteComment)))
 	r.POST("/v1/campus/forum/comments/{id}/report", s.wrap(s.authRequired(s.handleReportComment)))
 	r.POST("/v1/campus/feedback", s.wrap(s.authRequired(s.handleCreateFeedback)))
@@ -637,10 +640,12 @@ func (s *CampusService) handleListComments(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	q := r.URL.Query()
+	currentUserID, _ := optionalUserIDFromRequest(r, s.authSecret)
 	out, err := s.uc.ListComments(r.Context(), &biz.ListCampusCommentsInput{
-		PostID: postID,
-		Page:   int32(queryInt(q.Get("page"), 1)),
-		Size:   int32(queryInt(q.Get("size"), 20)),
+		PostID:        postID,
+		CurrentUserID: currentUserID,
+		Page:          int32(queryInt(q.Get("page"), 1)),
+		Size:          int32(queryInt(q.Get("size"), 20)),
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -652,6 +657,35 @@ func (s *CampusService) handleListComments(w http.ResponseWriter, r *http.Reques
 	}
 	writeJSON(w, r, map[string]interface{}{
 		"comments": comments,
+		"page_stats": map[string]interface{}{
+			"total": out.Total,
+		},
+	})
+}
+
+func (s *CampusService) handleListCommentReplies(w http.ResponseWriter, r *http.Request) {
+	commentID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	currentUserID, _ := optionalUserIDFromRequest(r, s.authSecret)
+	out, err := s.uc.ListCommentReplies(r.Context(), &biz.ListCampusCommentsInput{
+		CommentID:     commentID,
+		CurrentUserID: currentUserID,
+		Page:          int32(queryInt(q.Get("page"), 1)),
+		Size:          int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	replies := make([]map[string]interface{}, 0, len(out.Comments))
+	for _, comment := range out.Comments {
+		replies = append(replies, commentToMap(comment))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"comments": replies,
 		"page_stats": map[string]interface{}{
 			"total": out.Total,
 		},
@@ -683,8 +717,10 @@ func (s *CampusService) handleListMyComments(w http.ResponseWriter, r *http.Requ
 }
 
 type commentRequest struct {
-	Content string   `json:"content"`
-	Images  []string `json:"images"`
+	Content          string   `json:"content"`
+	ParentID         int64    `json:"parent_id"`
+	ReplyToCommentID int64    `json:"reply_to_comment_id"`
+	Images           []string `json:"images"`
 }
 
 func (s *CampusService) handleCreateComment(w http.ResponseWriter, r *http.Request) {
@@ -698,16 +734,44 @@ func (s *CampusService) handleCreateComment(w http.ResponseWriter, r *http.Reque
 	}
 	userID, _ := s.userIDFromRequest(r)
 	comment, err := s.uc.CreateComment(r.Context(), &biz.CreateCampusCommentInput{
-		UserID:  userID,
-		PostID:  postID,
-		Content: req.Content,
-		Images:  req.Images,
+		UserID:           userID,
+		PostID:           postID,
+		ParentID:         req.ParentID,
+		ReplyToCommentID: req.ReplyToCommentID,
+		Content:          req.Content,
+		Images:           req.Images,
 	})
 	if err != nil {
 		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"comment": commentToMap(comment)})
+}
+
+func (s *CampusService) handleLikeComment(w http.ResponseWriter, r *http.Request) {
+	commentID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.LikeComment(r.Context(), userID, commentID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleUnlikeComment(w http.ResponseWriter, r *http.Request) {
+	commentID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.UnlikeComment(r.Context(), userID, commentID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
 }
 
 func (s *CampusService) handleLikePost(w http.ResponseWriter, r *http.Request) {
@@ -1750,35 +1814,35 @@ func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {
 		})
 	}
 	return map[string]interface{}{
-		"total_users":       summary.TotalUsers,
-		"today_users":       summary.TodayUsers,
-		"total_logins":      summary.TotalLogins,
-		"today_logins":      summary.TodayLogins,
-		"total_visits":      summary.TotalVisits,
-		"today_visits":      summary.TodayVisits,
-		"total_shares":      summary.TotalShares,
-		"today_shares":      summary.TodayShares,
+		"total_users":        summary.TotalUsers,
+		"today_users":        summary.TodayUsers,
+		"total_logins":       summary.TotalLogins,
+		"today_logins":       summary.TodayLogins,
+		"total_visits":       summary.TotalVisits,
+		"today_visits":       summary.TodayVisits,
+		"total_shares":       summary.TotalShares,
+		"today_shares":       summary.TodayShares,
 		"today_publish_open": summary.TodayPublishOpen,
 		"today_publish_done": summary.TodayPublishDone,
 		"today_detail_views": summary.TodayDetailViews,
 		"today_feedback":     summary.TodayFeedback,
 		"today_reports":      summary.TodayReports,
-		"total_posts":       summary.TotalPosts,
-		"today_posts":       summary.TodayPosts,
-		"total_comments":    summary.TotalComments,
-		"today_comments":    summary.TodayComments,
-		"total_likes":       summary.TotalLikes,
-		"today_likes":       summary.TodayLikes,
-		"total_collections": summary.TotalCollections,
-		"today_collections": summary.TodayCollections,
-		"total_reports":     summary.TotalReports,
-		"pending_reports":   summary.PendingReports,
-		"pending_feedback":  summary.PendingFeedback,
-		"pending_posts":     summary.PendingPosts,
-		"pending_comments":  summary.PendingComments,
-		"featured_posts":    summary.FeaturedPosts,
-		"official_posts":    summary.OfficialPosts,
-		"trends":            trends,
+		"total_posts":        summary.TotalPosts,
+		"today_posts":        summary.TodayPosts,
+		"total_comments":     summary.TotalComments,
+		"today_comments":     summary.TodayComments,
+		"total_likes":        summary.TotalLikes,
+		"today_likes":        summary.TodayLikes,
+		"total_collections":  summary.TotalCollections,
+		"today_collections":  summary.TodayCollections,
+		"total_reports":      summary.TotalReports,
+		"pending_reports":    summary.PendingReports,
+		"pending_feedback":   summary.PendingFeedback,
+		"pending_posts":      summary.PendingPosts,
+		"pending_comments":   summary.PendingComments,
+		"featured_posts":     summary.FeaturedPosts,
+		"official_posts":     summary.OfficialPosts,
+		"trends":             trends,
 	}
 }
 
@@ -1797,18 +1861,28 @@ func commentToMap(comment *biz.CampusForumComment) map[string]interface{} {
 	if comment == nil {
 		return nil
 	}
+	previewReplies := make([]map[string]interface{}, 0, len(comment.PreviewReplies))
+	for _, reply := range comment.PreviewReplies {
+		previewReplies = append(previewReplies, commentToMap(reply))
+	}
 	return map[string]interface{}{
-		"id":           strconv.FormatInt(comment.ID, 10),
-		"post_id":      strconv.FormatInt(comment.PostID, 10),
-		"post":         postToMap(comment.Post),
-		"author":       authorToMap(comment.Author),
-		"content":      comment.Content,
-		"images":       comment.Images,
-		"status":       comment.Status,
-		"audit_reason": comment.AuditReason,
-		"like_count":   comment.LikeCount,
-		"created_at":   formatTime(comment.CreatedAt),
-		"updated_at":   formatTime(comment.UpdatedAt),
+		"id":                  strconv.FormatInt(comment.ID, 10),
+		"post_id":             strconv.FormatInt(comment.PostID, 10),
+		"post":                postToMap(comment.Post),
+		"parent_id":           strconv.FormatInt(comment.ParentID, 10),
+		"reply_to_comment_id": strconv.FormatInt(comment.ReplyToCommentID, 10),
+		"reply_to_user":       authorToMap(comment.ReplyToUser),
+		"author":              authorToMap(comment.Author),
+		"content":             comment.Content,
+		"images":              comment.Images,
+		"status":              comment.Status,
+		"audit_reason":        comment.AuditReason,
+		"like_count":          comment.LikeCount,
+		"reply_count":         comment.ReplyCount,
+		"is_liked":            comment.IsLiked,
+		"preview_replies":     previewReplies,
+		"created_at":          formatTime(comment.CreatedAt),
+		"updated_at":          formatTime(comment.UpdatedAt),
 	}
 }
 

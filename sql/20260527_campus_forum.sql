@@ -99,19 +99,37 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
 CREATE TABLE IF NOT EXISTS `campus_forum_comment` (
   `id` BIGINT NOT NULL,
   `post_id` BIGINT NOT NULL,
+  `parent_id` BIGINT NOT NULL DEFAULT 0 COMMENT '一级评论 ID，0 表示根评论',
+  `reply_to_comment_id` BIGINT NOT NULL DEFAULT 0 COMMENT '回复的评论 ID',
+  `reply_to_user_id` BIGINT NOT NULL DEFAULT 0 COMMENT '回复的用户 ID',
   `author_id` BIGINT NOT NULL,
   `content` VARCHAR(1000) NOT NULL,
   `images` JSON DEFAULT NULL,
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '0=待审核 1=可见 2=拒绝 3=删除',
   `audit_reason` VARCHAR(255) NOT NULL DEFAULT '',
   `like_count` BIGINT NOT NULL DEFAULT 0,
+  `reply_count` BIGINT NOT NULL DEFAULT 0,
   `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   INDEX `idx_campus_comment_post_created` (`post_id`, `status`, `is_deleted`, `created_at`, `id`),
+  INDEX `idx_campus_comment_parent_created` (`parent_id`, `status`, `is_deleted`, `created_at`, `id`),
   INDEX `idx_campus_comment_author` (`author_id`, `is_deleted`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园论坛评论';
+
+CREATE TABLE IF NOT EXISTS `campus_forum_comment_like` (
+  `id` BIGINT NOT NULL,
+  `comment_id` BIGINT NOT NULL,
+  `user_id` BIGINT NOT NULL,
+  `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_campus_comment_like_user` (`comment_id`, `user_id`),
+  INDEX `idx_campus_comment_like_comment` (`comment_id`, `is_deleted`, `created_at`),
+  INDEX `idx_campus_comment_like_user` (`user_id`, `is_deleted`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园论坛评论点赞';
 
 CREATE TABLE IF NOT EXISTS `campus_forum_post_like` (
   `id` BIGINT NOT NULL,

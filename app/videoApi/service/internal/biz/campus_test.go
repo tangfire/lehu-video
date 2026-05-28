@@ -443,6 +443,11 @@ func (r *campusRepoStub) DeleteComment(context.Context, int64) error { return ni
 func (r *campusRepoStub) UpdateCommentStatus(context.Context, int64, int32, string) error {
 	return nil
 }
+func (r *campusRepoStub) GetCommentLikeStatus(context.Context, string, []int64) (map[int64]bool, error) {
+	return nil, nil
+}
+func (r *campusRepoStub) AddCommentLike(context.Context, int64, string, int64) error { return nil }
+func (r *campusRepoStub) RemoveCommentLike(context.Context, string, int64) error     { return nil }
 func (r *campusRepoStub) GetPostLikeStatus(context.Context, string, []int64) (map[int64]bool, error) {
 	return nil, nil
 }
