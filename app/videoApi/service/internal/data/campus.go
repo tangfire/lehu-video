@@ -260,6 +260,31 @@ type campusNotificationModel struct {
 
 func (campusNotificationModel) TableName() string { return "campus_notification" }
 
+type campusNotificationOutboxModel struct {
+	ID          int64           `gorm:"column:id"`
+	RecipientID int64           `gorm:"column:recipient_id"`
+	ActorID     int64           `gorm:"column:actor_id"`
+	EventType   string          `gorm:"column:event_type"`
+	TargetType  string          `gorm:"column:target_type"`
+	TargetID    int64           `gorm:"column:target_id"`
+	DedupeKey   *string         `gorm:"column:dedupe_key"`
+	Title       string          `gorm:"column:title"`
+	Content     string          `gorm:"column:content"`
+	LinkPage    string          `gorm:"column:link_page"`
+	LinkParams  json.RawMessage `gorm:"column:link_params"`
+	Audience    string          `gorm:"column:audience"`
+	Status      string          `gorm:"column:status"`
+	RetryCount  int32           `gorm:"column:retry_count"`
+	NextRetryAt *time.Time      `gorm:"column:next_retry_at"`
+	LockedUntil *time.Time      `gorm:"column:locked_until"`
+	LastError   string          `gorm:"column:last_error"`
+	CreatedAt   time.Time       `gorm:"column:created_at"`
+	UpdatedAt   time.Time       `gorm:"column:updated_at"`
+	ProcessedAt *time.Time      `gorm:"column:processed_at"`
+}
+
+func (campusNotificationOutboxModel) TableName() string { return "campus_notification_outbox" }
+
 type campusAccessLogModel struct {
 	ID          int64     `gorm:"column:id"`
 	UserID      int64     `gorm:"column:user_id"`
@@ -777,6 +802,10 @@ func (r *campusRepo) UpdatePostByAdmin(ctx context.Context, post *biz.CampusForu
 }
 
 func (r *campusRepo) CreateComment(ctx context.Context, comment *biz.CampusForumComment) error {
+	return r.CreateCommentWithOutbox(ctx, comment, nil)
+}
+
+func (r *campusRepo) CreateCommentWithOutbox(ctx context.Context, comment *biz.CampusForumComment, outbox *biz.CampusNotificationOutbox) error {
 	images, _ := json.Marshal(comment.Images)
 	row := campusForumCommentModel{
 		ID:               comment.ID,
@@ -809,6 +838,9 @@ func (r *campusRepo) CreateComment(ctx context.Context, comment *biz.CampusForum
 					return err
 				}
 			}
+		}
+		if err := createNotificationOutboxWithTx(tx, outbox); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -1144,6 +1176,10 @@ func (r *campusRepo) GetCommentLikeStatus(ctx context.Context, userID string, co
 }
 
 func (r *campusRepo) AddCommentLike(ctx context.Context, id int64, userID string, commentID int64) error {
+	return r.AddCommentLikeWithOutbox(ctx, id, userID, commentID, nil)
+}
+
+func (r *campusRepo) AddCommentLikeWithOutbox(ctx context.Context, id int64, userID string, commentID int64, outbox *biz.CampusNotificationOutbox) error {
 	parsedUserID := parseID(userID)
 	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing campusForumCommentLikeModel
@@ -1159,9 +1195,12 @@ func (r *campusRepo) AddCommentLike(ctx context.Context, id int64, userID string
 				Updates(map[string]interface{}{"is_deleted": false, "updated_at": time.Now()}).Error; err != nil {
 				return err
 			}
-			return tx.Model(&campusForumCommentModel{}).
+			if err := tx.Model(&campusForumCommentModel{}).
 				Where("id = ?", commentID).
-				UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error
+				UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error; err != nil {
+				return err
+			}
+			return createNotificationOutboxWithTx(tx, outbox)
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -1177,9 +1216,12 @@ func (r *campusRepo) AddCommentLike(ctx context.Context, id int64, userID string
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		return tx.Model(&campusForumCommentModel{}).
+		if err := tx.Model(&campusForumCommentModel{}).
 			Where("id = ?", commentID).
-			UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error
+			UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error; err != nil {
+			return err
+		}
+		return createNotificationOutboxWithTx(tx, outbox)
 	})
 }
 
@@ -1218,6 +1260,10 @@ func (r *campusRepo) GetPostLikeStatus(ctx context.Context, userID string, postI
 }
 
 func (r *campusRepo) AddPostLike(ctx context.Context, id int64, userID string, postID int64) error {
+	return r.AddPostLikeWithOutbox(ctx, id, userID, postID, nil)
+}
+
+func (r *campusRepo) AddPostLikeWithOutbox(ctx context.Context, id int64, userID string, postID int64, outbox *biz.CampusNotificationOutbox) error {
 	parsedUserID := parseID(userID)
 	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing campusForumPostLikeModel
@@ -1233,9 +1279,12 @@ func (r *campusRepo) AddPostLike(ctx context.Context, id int64, userID string, p
 				Updates(map[string]interface{}{"is_deleted": false, "updated_at": time.Now()}).Error; err != nil {
 				return err
 			}
-			return tx.Model(&campusForumPostModel{}).
+			if err := tx.Model(&campusForumPostModel{}).
 				Where("id = ?", postID).
-				UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error
+				UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error; err != nil {
+				return err
+			}
+			return createNotificationOutboxWithTx(tx, outbox)
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -1251,9 +1300,12 @@ func (r *campusRepo) AddPostLike(ctx context.Context, id int64, userID string, p
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		return tx.Model(&campusForumPostModel{}).
+		if err := tx.Model(&campusForumPostModel{}).
 			Where("id = ?", postID).
-			UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error
+			UpdateColumn("like_count", gorm.Expr("GREATEST(like_count + ?, 0)", 1)).Error; err != nil {
+			return err
+		}
+		return createNotificationOutboxWithTx(tx, outbox)
 	})
 }
 
@@ -1292,6 +1344,10 @@ func (r *campusRepo) GetPostCollectionStatus(ctx context.Context, userID string,
 }
 
 func (r *campusRepo) AddPostCollection(ctx context.Context, id int64, userID string, postID int64) error {
+	return r.AddPostCollectionWithOutbox(ctx, id, userID, postID, nil)
+}
+
+func (r *campusRepo) AddPostCollectionWithOutbox(ctx context.Context, id int64, userID string, postID int64, outbox *biz.CampusNotificationOutbox) error {
 	parsedUserID := parseID(userID)
 	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing campusForumPostCollectionModel
@@ -1307,9 +1363,12 @@ func (r *campusRepo) AddPostCollection(ctx context.Context, id int64, userID str
 				Updates(map[string]interface{}{"is_deleted": false, "updated_at": time.Now()}).Error; err != nil {
 				return err
 			}
-			return tx.Model(&campusForumPostModel{}).
+			if err := tx.Model(&campusForumPostModel{}).
 				Where("id = ?", postID).
-				UpdateColumn("collected_count", gorm.Expr("GREATEST(collected_count + ?, 0)", 1)).Error
+				UpdateColumn("collected_count", gorm.Expr("GREATEST(collected_count + ?, 0)", 1)).Error; err != nil {
+				return err
+			}
+			return createNotificationOutboxWithTx(tx, outbox)
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -1325,9 +1384,12 @@ func (r *campusRepo) AddPostCollection(ctx context.Context, id int64, userID str
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		return tx.Model(&campusForumPostModel{}).
+		if err := tx.Model(&campusForumPostModel{}).
 			Where("id = ?", postID).
-			UpdateColumn("collected_count", gorm.Expr("GREATEST(collected_count + ?, 0)", 1)).Error
+			UpdateColumn("collected_count", gorm.Expr("GREATEST(collected_count + ?, 0)", 1)).Error; err != nil {
+			return err
+		}
+		return createNotificationOutboxWithTx(tx, outbox)
 	})
 }
 
@@ -1493,6 +1555,88 @@ func (r *campusRepo) BulkCreateNotifications(ctx context.Context, notifications 
 		return nil
 	}
 	return r.data.db.WithContext(ctx).CreateInBatches(rows, 100).Error
+}
+
+func (r *campusRepo) CreateNotificationOutbox(ctx context.Context, outbox *biz.CampusNotificationOutbox) error {
+	return createNotificationOutboxWithTx(r.data.db.WithContext(ctx), outbox)
+}
+
+func (r *campusRepo) ClaimNotificationOutbox(ctx context.Context, limit int, lockFor time.Duration) ([]*biz.CampusNotificationOutbox, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if lockFor <= 0 {
+		lockFor = 30 * time.Second
+	}
+	now := time.Now()
+	lockedUntil := now.Add(lockFor)
+	var rows []campusNotificationOutboxModel
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("((status = ? AND (next_retry_at IS NULL OR next_retry_at <= ?)) OR (status = ? AND (locked_until IS NULL OR locked_until < ?)))",
+				biz.CampusNotificationOutboxStatusPending, now, biz.CampusNotificationOutboxStatusProcessing, now).
+			Order("created_at ASC, id ASC").
+			Limit(limit).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		ids := make([]int64, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		return tx.Model(&campusNotificationOutboxModel{}).
+			Where("id IN ?", ids).
+			Updates(map[string]interface{}{
+				"status":       biz.CampusNotificationOutboxStatusProcessing,
+				"locked_until": lockedUntil,
+				"updated_at":   now,
+			}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*biz.CampusNotificationOutbox, 0, len(rows))
+	for i := range rows {
+		rows[i].Status = biz.CampusNotificationOutboxStatusProcessing
+		rows[i].LockedUntil = &lockedUntil
+		out = append(out, toBizNotificationOutbox(&rows[i]))
+	}
+	return out, nil
+}
+
+func (r *campusRepo) MarkNotificationOutboxDone(ctx context.Context, id int64) error {
+	now := time.Now()
+	return r.data.db.WithContext(ctx).Model(&campusNotificationOutboxModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":        biz.CampusNotificationOutboxStatusDone,
+			"locked_until":  nil,
+			"next_retry_at": nil,
+			"last_error":    "",
+			"processed_at":  now,
+			"updated_at":    now,
+		}).Error
+}
+
+func (r *campusRepo) MarkNotificationOutboxRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error {
+	status := biz.CampusNotificationOutboxStatusPending
+	if final {
+		status = biz.CampusNotificationOutboxStatusFailed
+	}
+	values := map[string]interface{}{
+		"status":        status,
+		"retry_count":   retryCount,
+		"next_retry_at": nextRetryAt,
+		"locked_until":  nil,
+		"last_error":    trimLimitData(lastError, 600),
+		"updated_at":    time.Now(),
+	}
+	return r.data.db.WithContext(ctx).Model(&campusNotificationOutboxModel{}).
+		Where("id = ?", id).
+		Updates(values).Error
 }
 
 func (r *campusRepo) ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*biz.CampusNotification, int64, error) {
@@ -2326,6 +2470,73 @@ func toNotificationModel(in *biz.CampusNotification) campusNotificationModel {
 	}
 }
 
+func toNotificationOutboxModel(in *biz.CampusNotificationOutbox) campusNotificationOutboxModel {
+	linkParams, _ := json.Marshal(in.LinkParams)
+	now := time.Now()
+	var dedupeKey *string
+	if strings.TrimSpace(in.DedupeKey) != "" {
+		key := strings.TrimSpace(in.DedupeKey)
+		dedupeKey = &key
+	}
+	status := in.Status
+	if status == "" {
+		status = biz.CampusNotificationOutboxStatusPending
+	}
+	return campusNotificationOutboxModel{
+		ID:          in.ID,
+		RecipientID: parseID(in.RecipientID),
+		ActorID:     parseID(in.ActorID),
+		EventType:   in.EventType,
+		TargetType:  in.TargetType,
+		TargetID:    in.TargetID,
+		DedupeKey:   dedupeKey,
+		Title:       in.Title,
+		Content:     in.Content,
+		LinkPage:    in.LinkPage,
+		LinkParams:  linkParams,
+		Audience:    in.Audience,
+		Status:      status,
+		RetryCount:  in.RetryCount,
+		NextRetryAt: in.NextRetryAt,
+		LockedUntil: in.LockedUntil,
+		LastError:   in.LastError,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		ProcessedAt: in.ProcessedAt,
+	}
+}
+
+func toBizNotificationOutbox(row *campusNotificationOutboxModel) *biz.CampusNotificationOutbox {
+	linkParams := make(map[string]string)
+	_ = json.Unmarshal(row.LinkParams, &linkParams)
+	dedupeKey := ""
+	if row.DedupeKey != nil {
+		dedupeKey = *row.DedupeKey
+	}
+	return &biz.CampusNotificationOutbox{
+		ID:          row.ID,
+		RecipientID: fmt.Sprintf("%d", row.RecipientID),
+		ActorID:     fmt.Sprintf("%d", row.ActorID),
+		EventType:   row.EventType,
+		TargetType:  row.TargetType,
+		TargetID:    row.TargetID,
+		DedupeKey:   dedupeKey,
+		Title:       row.Title,
+		Content:     row.Content,
+		LinkPage:    row.LinkPage,
+		LinkParams:  linkParams,
+		Audience:    row.Audience,
+		Status:      row.Status,
+		RetryCount:  row.RetryCount,
+		NextRetryAt: row.NextRetryAt,
+		LockedUntil: row.LockedUntil,
+		LastError:   row.LastError,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+		ProcessedAt: row.ProcessedAt,
+	}
+}
+
 func toBizNotification(row *campusNotificationModel) *biz.CampusNotification {
 	linkParams := make(map[string]string)
 	_ = json.Unmarshal(row.LinkParams, &linkParams)
@@ -2356,6 +2567,21 @@ func notificationDedupeKey(recipientID, actorID int64, eventType, targetType str
 		return ""
 	}
 	return fmt.Sprintf("%d:%d:%s:%s:%d", recipientID, actorID, eventType, targetType, targetID)
+}
+
+func createNotificationOutboxWithTx(tx *gorm.DB, outbox *biz.CampusNotificationOutbox) error {
+	if outbox == nil {
+		return nil
+	}
+	row := toNotificationOutboxModel(outbox)
+	db := tx
+	if row.DedupeKey != nil && strings.TrimSpace(*row.DedupeKey) != "" {
+		db = db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "dedupe_key"}},
+			DoNothing: true,
+		})
+	}
+	return db.Create(&row).Error
 }
 
 func toBizAccessLog(row *campusAccessLogModel) *biz.CampusAccessLog {
@@ -2535,6 +2761,18 @@ func firstNonEmptyData(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func trimLimitData(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if limit <= 0 {
+		return value
+	}
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit])
 }
 
 func parseID(value string) int64 {

@@ -441,6 +441,65 @@ func TestAdminBlockIPRequiresOperator(t *testing.T) {
 	}
 }
 
+func TestAdminCreateSystemNotificationQueuesOutbox(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{"10": "operator"}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	taskID, err := uc.AdminCreateSystemNotification(context.Background(), &CreateCampusAdminNotificationInput{
+		UserID:   "10",
+		Title:    "内测提醒",
+		Content:  "欢迎体验深汕校园e站",
+		LinkPage: "community",
+		Audience: "all_users",
+	})
+	if err != nil {
+		t.Fatalf("AdminCreateSystemNotification() error = %v", err)
+	}
+	if taskID != 1001 {
+		t.Fatalf("taskID = %d, want 1001", taskID)
+	}
+	if len(repo.notificationOutboxes) != 1 {
+		t.Fatalf("outbox count = %d, want 1", len(repo.notificationOutboxes))
+	}
+	outbox := repo.notificationOutboxes[0]
+	if outbox.EventType != CampusNotificationTypeSystem || outbox.Audience != "all_users" {
+		t.Fatalf("outbox event/audience = %s/%s", outbox.EventType, outbox.Audience)
+	}
+	if len(repo.notifications) != 0 {
+		t.Fatalf("notifications count = %d, want 0 before worker", len(repo.notifications))
+	}
+}
+
+func TestProcessNotificationOutboxDeliversSystemNotification(t *testing.T) {
+	repo := &campusRepoStub{
+		recipients: []string{"1", "2"},
+		notificationOutboxes: []*CampusNotificationOutbox{{
+			ID:        1001,
+			ActorID:   "10",
+			EventType: CampusNotificationTypeSystem,
+			Title:     "内测提醒",
+			Content:   "欢迎体验深汕校园e站",
+			LinkPage:  "community",
+			Audience:  "all_users",
+			Status:    CampusNotificationOutboxStatusPending,
+		}},
+	}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(2001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	if err := uc.ProcessPendingNotificationOutbox(context.Background(), 100); err != nil {
+		t.Fatalf("ProcessPendingNotificationOutbox() error = %v", err)
+	}
+	if len(repo.notifications) != 2 {
+		t.Fatalf("notifications count = %d, want 2", len(repo.notifications))
+	}
+	if repo.notifications[0].DedupeKey != "campus:system:1001:1" || repo.notifications[1].DedupeKey != "campus:system:1001:2" {
+		t.Fatalf("unexpected dedupe keys: %#v %#v", repo.notifications[0].DedupeKey, repo.notifications[1].DedupeKey)
+	}
+	if len(repo.doneOutboxIDs) != 1 || repo.doneOutboxIDs[0] != 1001 {
+		t.Fatalf("done outbox ids = %#v, want [1001]", repo.doneOutboxIDs)
+	}
+}
+
 type fixedCampusIDGenerator int64
 
 func (g fixedCampusIDGenerator) NextID() int64 { return int64(g) }
@@ -450,15 +509,19 @@ type ioDiscard struct{}
 func (ioDiscard) Write(p []byte) (int, error) { return len(p), nil }
 
 type campusRepoStub struct {
-	category      *CampusForumCategory
-	roles         map[string]string
-	posts         map[int64]*CampusForumPost
-	profiles      map[string]*CampusProfile
-	publicStats   *CampusPublicUserStats
-	blockedIPs    map[string]bool
-	lastPost      *CampusForumPost
-	lastFeedback  *CampusFeedback
-	lastListQuery ListCampusPostQuery
+	category             *CampusForumCategory
+	roles                map[string]string
+	posts                map[int64]*CampusForumPost
+	profiles             map[string]*CampusProfile
+	publicStats          *CampusPublicUserStats
+	blockedIPs           map[string]bool
+	lastPost             *CampusForumPost
+	lastFeedback         *CampusFeedback
+	lastListQuery        ListCampusPostQuery
+	recipients           []string
+	notifications        []*CampusNotification
+	notificationOutboxes []*CampusNotificationOutbox
+	doneOutboxIDs        []int64
 }
 
 func (r *campusRepoStub) GetCategoryByCode(ctx context.Context, code string) (bool, *CampusForumCategory, error) {
@@ -584,6 +647,9 @@ func (r *campusRepoStub) UpdatePostByAdmin(ctx context.Context, post *CampusForu
 	return nil
 }
 func (r *campusRepoStub) CreateComment(context.Context, *CampusForumComment) error { return nil }
+func (r *campusRepoStub) CreateCommentWithOutbox(context.Context, *CampusForumComment, *CampusNotificationOutbox) error {
+	return nil
+}
 func (r *campusRepoStub) ListComments(context.Context, ListCampusCommentQuery) ([]*CampusForumComment, int64, error) {
 	return nil, 0, nil
 }
@@ -604,16 +670,25 @@ func (r *campusRepoStub) GetCommentLikeStatus(context.Context, string, []int64) 
 	return nil, nil
 }
 func (r *campusRepoStub) AddCommentLike(context.Context, int64, string, int64) error { return nil }
-func (r *campusRepoStub) RemoveCommentLike(context.Context, string, int64) error     { return nil }
+func (r *campusRepoStub) AddCommentLikeWithOutbox(context.Context, int64, string, int64, *CampusNotificationOutbox) error {
+	return nil
+}
+func (r *campusRepoStub) RemoveCommentLike(context.Context, string, int64) error { return nil }
 func (r *campusRepoStub) GetPostLikeStatus(context.Context, string, []int64) (map[int64]bool, error) {
 	return nil, nil
 }
 func (r *campusRepoStub) AddPostLike(context.Context, int64, string, int64) error { return nil }
-func (r *campusRepoStub) RemovePostLike(context.Context, string, int64) error     { return nil }
+func (r *campusRepoStub) AddPostLikeWithOutbox(context.Context, int64, string, int64, *CampusNotificationOutbox) error {
+	return nil
+}
+func (r *campusRepoStub) RemovePostLike(context.Context, string, int64) error { return nil }
 func (r *campusRepoStub) GetPostCollectionStatus(context.Context, string, []int64) (map[int64]bool, error) {
 	return nil, nil
 }
 func (r *campusRepoStub) AddPostCollection(context.Context, int64, string, int64) error {
+	return nil
+}
+func (r *campusRepoStub) AddPostCollectionWithOutbox(context.Context, int64, string, int64, *CampusNotificationOutbox) error {
 	return nil
 }
 func (r *campusRepoStub) RemovePostCollection(context.Context, string, int64) error {
@@ -635,10 +710,33 @@ func (r *campusRepoStub) ListFeedback(context.Context, int32, int, int) ([]*Camp
 func (r *campusRepoStub) UpdateFeedbackStatus(context.Context, int64, int32, string) error {
 	return nil
 }
-func (r *campusRepoStub) CreateNotification(context.Context, *CampusNotification, bool) error {
+func (r *campusRepoStub) CreateNotification(_ context.Context, notification *CampusNotification, _ bool) error {
+	if notification != nil {
+		copyNotification := *notification
+		r.notifications = append(r.notifications, &copyNotification)
+	}
 	return nil
 }
 func (r *campusRepoStub) BulkCreateNotifications(context.Context, []*CampusNotification) error {
+	return nil
+}
+func (r *campusRepoStub) CreateNotificationOutbox(_ context.Context, outbox *CampusNotificationOutbox) error {
+	if outbox != nil {
+		copyOutbox := *outbox
+		r.notificationOutboxes = append(r.notificationOutboxes, &copyOutbox)
+	}
+	return nil
+}
+func (r *campusRepoStub) ClaimNotificationOutbox(context.Context, int, time.Duration) ([]*CampusNotificationOutbox, error) {
+	out := r.notificationOutboxes
+	r.notificationOutboxes = nil
+	return out, nil
+}
+func (r *campusRepoStub) MarkNotificationOutboxDone(_ context.Context, id int64) error {
+	r.doneOutboxIDs = append(r.doneOutboxIDs, id)
+	return nil
+}
+func (r *campusRepoStub) MarkNotificationOutboxRetry(context.Context, int64, int32, *time.Time, string, bool) error {
 	return nil
 }
 func (r *campusRepoStub) ListNotifications(context.Context, string, string, int, int) ([]*CampusNotification, int64, error) {
@@ -654,7 +752,7 @@ func (r *campusRepoStub) MarkAllNotificationsRead(context.Context, string) error
 	return nil
 }
 func (r *campusRepoStub) ListNotificationRecipients(context.Context) ([]string, error) {
-	return nil, nil
+	return r.recipients, nil
 }
 func (r *campusRepoStub) IsIPBlocked(ctx context.Context, ip string) (bool, error) {
 	_ = ctx

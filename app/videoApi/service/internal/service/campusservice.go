@@ -1499,18 +1499,19 @@ func (s *CampusService) handleAdminCreateNotification(w http.ResponseWriter, r *
 		return
 	}
 	userID, _ := s.userIDFromRequest(r)
-	if err := s.uc.AdminCreateSystemNotification(r.Context(), &biz.CreateCampusAdminNotificationInput{
+	taskID, err := s.uc.AdminCreateSystemNotification(r.Context(), &biz.CreateCampusAdminNotificationInput{
 		UserID:     userID,
 		Title:      req.Title,
 		Content:    req.Content,
 		LinkPage:   req.LinkPage,
 		LinkParams: req.LinkParams,
 		Audience:   req.Audience,
-	}); err != nil {
+	})
+	if err != nil {
 		writeError(w, r, err)
 		return
 	}
-	writeJSON(w, r, map[string]interface{}{"queued": true})
+	writeJSON(w, r, map[string]interface{}{"queued": true, "task_id": fmt.Sprintf("%d", taskID)})
 }
 
 func (s *CampusService) handleAdminSecurityOverview(w http.ResponseWriter, r *http.Request) {

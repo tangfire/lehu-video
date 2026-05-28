@@ -61,12 +61,15 @@ func (s *CampusTaskServer) Stop(ctx context.Context) error {
 func (s *CampusTaskServer) run(ctx context.Context) {
 	defer close(s.done)
 	s.safeRefreshRecommendPool(ctx)
+	s.safeProcessNotificationOutbox(ctx)
 	recommendTicker := time.NewTicker(5 * time.Minute)
 	reconcileTicker := time.NewTicker(1 * time.Hour)
 	flushTicker := time.NewTicker(10 * time.Second)
+	notificationTicker := time.NewTicker(2 * time.Second)
 	defer recommendTicker.Stop()
 	defer reconcileTicker.Stop()
 	defer flushTicker.Stop()
+	defer notificationTicker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -79,6 +82,8 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 			if err := s.uc.FlushCampusBatches(ctx); err != nil {
 				s.log.Warnf("flush campus batches failed: %v", err)
 			}
+		case <-notificationTicker.C:
+			s.safeProcessNotificationOutbox(ctx)
 		}
 	}
 }
@@ -100,4 +105,12 @@ func (s *CampusTaskServer) safeReconcile(ctx context.Context) {
 		return
 	}
 	s.log.Infof("校园计数对账完成: updated_posts=%d updated_comments=%d", result.UpdatedPosts, result.UpdatedComments)
+}
+
+func (s *CampusTaskServer) safeProcessNotificationOutbox(ctx context.Context) {
+	taskCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := s.uc.ProcessPendingNotificationOutbox(taskCtx, 100); err != nil {
+		s.log.Warnf("处理校园通知任务失败: %v", err)
+	}
 }

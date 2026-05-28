@@ -60,6 +60,13 @@ const (
 	CampusNotificationGroupReply       = "reply"
 	CampusNotificationGroupInteraction = "interaction"
 	CampusNotificationGroupSystem      = "system"
+
+	CampusNotificationOutboxStatusPending    = "pending"
+	CampusNotificationOutboxStatusProcessing = "processing"
+	CampusNotificationOutboxStatusDone       = "done"
+	CampusNotificationOutboxStatusFailed     = "failed"
+
+	campusNotificationOutboxMaxRetry = 5
 )
 
 type CampusIDGenerator interface {
@@ -330,6 +337,29 @@ type CampusNotification struct {
 	ReadAt      *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type CampusNotificationOutbox struct {
+	ID          int64
+	RecipientID string
+	ActorID     string
+	EventType   string
+	TargetType  string
+	TargetID    int64
+	DedupeKey   string
+	Title       string
+	Content     string
+	LinkPage    string
+	LinkParams  map[string]string
+	Audience    string
+	Status      string
+	RetryCount  int32
+	NextRetryAt *time.Time
+	LockedUntil *time.Time
+	LastError   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ProcessedAt *time.Time
 }
 
 type CampusAccessLog struct {
@@ -855,6 +885,7 @@ type CampusRepo interface {
 	UpdatePostStatus(ctx context.Context, postID int64, status int32, reason string) error
 	UpdatePostByAdmin(ctx context.Context, post *CampusForumPost) error
 	CreateComment(ctx context.Context, comment *CampusForumComment) error
+	CreateCommentWithOutbox(ctx context.Context, comment *CampusForumComment, outbox *CampusNotificationOutbox) error
 	ListComments(ctx context.Context, query ListCampusCommentQuery) ([]*CampusForumComment, int64, error)
 	FillCommentPosts(ctx context.Context, comments []*CampusForumComment) error
 	GetCommentByID(ctx context.Context, commentID int64) (bool, *CampusForumComment, error)
@@ -863,12 +894,15 @@ type CampusRepo interface {
 	UpdateCommentStatus(ctx context.Context, commentID int64, status int32, reason string) error
 	GetCommentLikeStatus(ctx context.Context, userID string, commentIDs []int64) (map[int64]bool, error)
 	AddCommentLike(ctx context.Context, id int64, userID string, commentID int64) error
+	AddCommentLikeWithOutbox(ctx context.Context, id int64, userID string, commentID int64, outbox *CampusNotificationOutbox) error
 	RemoveCommentLike(ctx context.Context, userID string, commentID int64) error
 	GetPostLikeStatus(ctx context.Context, userID string, postIDs []int64) (map[int64]bool, error)
 	AddPostLike(ctx context.Context, id int64, userID string, postID int64) error
+	AddPostLikeWithOutbox(ctx context.Context, id int64, userID string, postID int64, outbox *CampusNotificationOutbox) error
 	RemovePostLike(ctx context.Context, userID string, postID int64) error
 	GetPostCollectionStatus(ctx context.Context, userID string, postIDs []int64) (map[int64]bool, error)
 	AddPostCollection(ctx context.Context, id int64, userID string, postID int64) error
+	AddPostCollectionWithOutbox(ctx context.Context, id int64, userID string, postID int64, outbox *CampusNotificationOutbox) error
 	RemovePostCollection(ctx context.Context, userID string, postID int64) error
 	CreateReport(ctx context.Context, report *CampusForumReport) error
 	ListReports(ctx context.Context, status int32, offset, limit int) ([]*CampusForumReport, int64, error)
@@ -878,6 +912,10 @@ type CampusRepo interface {
 	UpdateFeedbackStatus(ctx context.Context, feedbackID int64, status int32, note string) error
 	CreateNotification(ctx context.Context, notification *CampusNotification, unique bool) error
 	BulkCreateNotifications(ctx context.Context, notifications []*CampusNotification) error
+	CreateNotificationOutbox(ctx context.Context, outbox *CampusNotificationOutbox) error
+	ClaimNotificationOutbox(ctx context.Context, limit int, lockFor time.Duration) ([]*CampusNotificationOutbox, error)
+	MarkNotificationOutboxDone(ctx context.Context, id int64) error
+	MarkNotificationOutboxRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
 	CountUnreadNotifications(ctx context.Context, userID string) (*CampusUnreadNotificationCount, error)
 	MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error
@@ -902,23 +940,17 @@ type CampusRepo interface {
 }
 
 type CampusUsecase struct {
-	repo                CampusRepo
-	base                BaseAdapter
-	core                CoreAdapter
-	timetableProvider   CampusTimetableProvider
-	idGen               CampusIDGenerator
-	authSecret          string
-	assembler           *CampusPostAssembler
-	recommendPool       *CampusRecommendPool
-	eventBatcher        *CampusBatchProcessor[*TrackCampusEventInput]
-	accessLogBatcher    *CampusBatchProcessor[*CampusAccessLog]
-	notificationBatcher *CampusBatchProcessor[*campusNotificationBatchItem]
-	log                 *log.Helper
-}
-
-type campusNotificationBatchItem struct {
-	notification *CampusNotification
-	unique       bool
+	repo              CampusRepo
+	base              BaseAdapter
+	core              CoreAdapter
+	timetableProvider CampusTimetableProvider
+	idGen             CampusIDGenerator
+	authSecret        string
+	assembler         *CampusPostAssembler
+	recommendPool     *CampusRecommendPool
+	eventBatcher      *CampusBatchProcessor[*TrackCampusEventInput]
+	accessLogBatcher  *CampusBatchProcessor[*CampusAccessLog]
+	log               *log.Helper
 }
 
 func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timetableProvider CampusTimetableProvider, idGen CampusIDGenerator, authSecret string, logger log.Logger) *CampusUsecase {
@@ -937,7 +969,6 @@ func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timet
 	}
 	uc.eventBatcher = NewCampusBatchProcessor("campus_event", 100, 2*time.Second, uc.persistCampusEvents, logger)
 	uc.accessLogBatcher = NewCampusBatchProcessor("campus_access_log", 100, 2*time.Second, uc.persistCampusAccessLogs, logger)
-	uc.notificationBatcher = NewCampusBatchProcessor("campus_notification", 100, 2*time.Second, uc.persistCampusNotifications, logger)
 	return uc
 }
 
@@ -1640,33 +1671,36 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 		Images:           sanitizeImages(input.Images, 3),
 		Status:           CampusAuditStatusVisible,
 	}
-	if err := uc.repo.CreateComment(ctx, comment); err != nil {
-		return nil, apperror.Internal(err, "发表评论失败")
-	}
+	var notification *CampusNotification
 	if parentID > 0 && replyToUserID != "" {
-		uc.createInteractionNotification(ctx, &CampusNotification{
+		notification = &CampusNotification{
 			RecipientID: replyToUserID,
 			ActorID:     input.UserID,
 			EventType:   CampusNotificationTypeReply,
 			TargetType:  "post",
 			TargetID:    input.PostID,
+			DedupeKey:   fmt.Sprintf("campus:reply:%d", comment.ID),
 			Title:       "有人回复了你的评论",
 			Content:     trimLimit(content, 80),
 			LinkPage:    "post-detail",
 			LinkParams:  map[string]string{"id": fmt.Sprintf("%d", input.PostID)},
-		}, false)
+		}
 	} else if post != nil {
-		uc.createInteractionNotification(ctx, &CampusNotification{
+		notification = &CampusNotification{
 			RecipientID: post.AuthorID,
 			ActorID:     input.UserID,
 			EventType:   CampusNotificationTypeComment,
 			TargetType:  "post",
 			TargetID:    input.PostID,
+			DedupeKey:   fmt.Sprintf("campus:comment:%d", comment.ID),
 			Title:       "有人评论了你的帖子",
 			Content:     trimLimit(content, 80),
 			LinkPage:    "post-detail",
 			LinkParams:  map[string]string{"id": fmt.Sprintf("%d", input.PostID)},
-		}, false)
+		}
+	}
+	if err := uc.repo.CreateCommentWithOutbox(ctx, comment, uc.buildNotificationOutbox(notification, false)); err != nil {
+		return nil, apperror.Internal(err, "发表评论失败")
 	}
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     input.UserID,
@@ -1796,10 +1830,7 @@ func (uc *CampusUsecase) LikeComment(ctx context.Context, userID string, comment
 	if !ok || comment.Status != CampusAuditStatusVisible {
 		return apperror.NotFound("评论不存在")
 	}
-	if err := uc.repo.AddCommentLike(ctx, uc.idGen.NextID(), userID, commentID); err != nil {
-		return apperror.Internal(err, "评论点赞失败")
-	}
-	uc.createInteractionNotification(ctx, &CampusNotification{
+	notification := uc.buildNotificationOutbox(&CampusNotification{
 		RecipientID: comment.AuthorID,
 		ActorID:     userID,
 		EventType:   CampusNotificationTypeCommentLike,
@@ -1810,6 +1841,9 @@ func (uc *CampusUsecase) LikeComment(ctx context.Context, userID string, comment
 		LinkPage:    "post-detail",
 		LinkParams:  map[string]string{"id": fmt.Sprintf("%d", comment.PostID)},
 	}, true)
+	if err := uc.repo.AddCommentLikeWithOutbox(ctx, uc.idGen.NextID(), userID, commentID, notification); err != nil {
+		return apperror.Internal(err, "评论点赞失败")
+	}
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     userID,
 		EventType:  "comment_like",
@@ -1847,11 +1881,9 @@ func (uc *CampusUsecase) LikePost(ctx context.Context, userID string, postID int
 	if !ok {
 		return apperror.NotFound("帖子不存在")
 	}
-	if err := uc.repo.AddPostLike(ctx, uc.idGen.NextID(), userID, postID); err != nil {
-		return apperror.Internal(err, "点赞失败")
-	}
+	var notification *CampusNotificationOutbox
 	if post != nil {
-		uc.createInteractionNotification(ctx, &CampusNotification{
+		notification = uc.buildNotificationOutbox(&CampusNotification{
 			RecipientID: post.AuthorID,
 			ActorID:     userID,
 			EventType:   CampusNotificationTypePostLike,
@@ -1862,6 +1894,9 @@ func (uc *CampusUsecase) LikePost(ctx context.Context, userID string, postID int
 			LinkPage:    "post-detail",
 			LinkParams:  map[string]string{"id": fmt.Sprintf("%d", postID)},
 		}, true)
+	}
+	if err := uc.repo.AddPostLikeWithOutbox(ctx, uc.idGen.NextID(), userID, postID, notification); err != nil {
+		return apperror.Internal(err, "点赞失败")
 	}
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     userID,
@@ -1900,11 +1935,9 @@ func (uc *CampusUsecase) CollectPost(ctx context.Context, userID string, postID 
 	if !ok {
 		return apperror.NotFound("帖子不存在")
 	}
-	if err := uc.repo.AddPostCollection(ctx, uc.idGen.NextID(), userID, postID); err != nil {
-		return apperror.Internal(err, "收藏失败")
-	}
+	var notification *CampusNotificationOutbox
 	if post != nil {
-		uc.createInteractionNotification(ctx, &CampusNotification{
+		notification = uc.buildNotificationOutbox(&CampusNotification{
 			RecipientID: post.AuthorID,
 			ActorID:     userID,
 			EventType:   CampusNotificationTypePostCollect,
@@ -1915,6 +1948,9 @@ func (uc *CampusUsecase) CollectPost(ctx context.Context, userID string, postID 
 			LinkPage:    "post-detail",
 			LinkParams:  map[string]string{"id": fmt.Sprintf("%d", postID)},
 		}, true)
+	}
+	if err := uc.repo.AddPostCollectionWithOutbox(ctx, uc.idGen.NextID(), userID, postID, notification); err != nil {
+		return apperror.Internal(err, "收藏失败")
 	}
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     userID,
@@ -1986,72 +2022,207 @@ func (uc *CampusUsecase) MarkAllNotificationsRead(ctx context.Context, userID st
 	return nil
 }
 
-func (uc *CampusUsecase) AdminCreateSystemNotification(ctx context.Context, input *CreateCampusAdminNotificationInput) error {
+func (uc *CampusUsecase) AdminCreateSystemNotification(ctx context.Context, input *CreateCampusAdminNotificationInput) (int64, error) {
 	if !uc.isCampusOperator(ctx, input.UserID) {
-		return apperror.Forbidden("没有后台权限")
+		return 0, apperror.Forbidden("没有后台权限")
 	}
 	title := trimLimit(input.Title, 80)
 	content := trimLimit(input.Content, 500)
 	if len([]rune(title)) < 2 {
-		return apperror.InvalidArgument("通知标题至少 2 个字")
+		return 0, apperror.InvalidArgument("通知标题至少 2 个字")
 	}
 	if len([]rune(content)) < 2 {
-		return apperror.InvalidArgument("通知内容至少 2 个字")
+		return 0, apperror.InvalidArgument("通知内容至少 2 个字")
 	}
 	if strings.TrimSpace(input.Audience) != "" && strings.TrimSpace(input.Audience) != "all_users" {
-		return apperror.InvalidArgument("通知范围暂只支持全体用户")
+		return 0, apperror.InvalidArgument("通知范围暂只支持全体用户")
+	}
+	taskID := uc.idGen.NextID()
+	linkPage := firstNonEmpty(input.LinkPage, "community")
+	outbox := &CampusNotificationOutbox{
+		ID:         taskID,
+		ActorID:    input.UserID,
+		EventType:  CampusNotificationTypeSystem,
+		TargetType: "system",
+		TargetID:   taskID,
+		DedupeKey:  fmt.Sprintf("campus:system-task:%d", taskID),
+		Title:      title,
+		Content:    content,
+		LinkPage:   trimLimit(linkPage, 64),
+		LinkParams: sanitizeTrackExtra(input.LinkParams),
+		Audience:   "all_users",
+		Status:     CampusNotificationOutboxStatusPending,
+	}
+	if err := uc.repo.CreateNotificationOutbox(ctx, outbox); err != nil {
+		return 0, apperror.Internal(err, "创建系统通知任务失败")
+	}
+	return taskID, nil
+}
+
+func (uc *CampusUsecase) buildNotificationOutbox(notification *CampusNotification, unique bool) *CampusNotificationOutbox {
+	if notification == nil {
+		return nil
+	}
+	if strings.TrimSpace(notification.RecipientID) == "" || notification.RecipientID == "0" || notification.RecipientID == notification.ActorID {
+		return nil
+	}
+	outboxID := uc.idGen.NextID()
+	dedupeKey := strings.TrimSpace(notification.DedupeKey)
+	if dedupeKey == "" && unique {
+		dedupeKey = campusNotificationDedupeKey(notification)
+	}
+	if dedupeKey == "" {
+		dedupeKey = fmt.Sprintf("campus:notification-outbox:%d", outboxID)
+	}
+	return &CampusNotificationOutbox{
+		ID:          outboxID,
+		RecipientID: strings.TrimSpace(notification.RecipientID),
+		ActorID:     strings.TrimSpace(notification.ActorID),
+		EventType:   trimLimit(notification.EventType, 32),
+		TargetType:  trimLimit(notification.TargetType, 32),
+		TargetID:    notification.TargetID,
+		DedupeKey:   dedupeKey,
+		Title:       trimLimit(notification.Title, 80),
+		Content:     trimLimit(notification.Content, 500),
+		LinkPage:    trimLimit(firstNonEmpty(notification.LinkPage, "post-detail"), 64),
+		LinkParams:  sanitizeTrackExtra(notification.LinkParams),
+		Status:      CampusNotificationOutboxStatusPending,
+	}
+}
+
+func campusNotificationDedupeKey(notification *CampusNotification) string {
+	if notification == nil {
+		return ""
+	}
+	recipientID := strings.TrimSpace(notification.RecipientID)
+	actorID := strings.TrimSpace(notification.ActorID)
+	eventType := strings.TrimSpace(notification.EventType)
+	targetType := strings.TrimSpace(notification.TargetType)
+	if recipientID == "" || recipientID == "0" || actorID == "" || actorID == "0" || eventType == "" || targetType == "" || notification.TargetID == 0 {
+		return ""
+	}
+	return fmt.Sprintf("campus:%s:%s:%s:%s:%d", recipientID, actorID, eventType, targetType, notification.TargetID)
+}
+
+func (uc *CampusUsecase) ProcessPendingNotificationOutbox(ctx context.Context, limit int) error {
+	if limit <= 0 {
+		limit = 100
+	}
+	items, err := uc.repo.ClaimNotificationOutbox(ctx, limit, 30*time.Second)
+	if err != nil {
+		return apperror.Internal(err, "领取通知任务失败")
+	}
+	var firstErr error
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		if err := uc.processNotificationOutboxItem(ctx, item); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			uc.markNotificationOutboxRetry(ctx, item, err)
+			continue
+		}
+		if err := uc.repo.MarkNotificationOutboxDone(ctx, item.ID); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			uc.log.WithContext(ctx).Warnf("mark campus notification outbox done failed: id=%d err=%v", item.ID, err)
+		}
+	}
+	return firstErr
+}
+
+func (uc *CampusUsecase) processNotificationOutboxItem(ctx context.Context, item *CampusNotificationOutbox) error {
+	if item.EventType == CampusNotificationTypeSystem {
+		return uc.deliverSystemNotificationOutbox(ctx, item)
+	}
+	return uc.deliverInteractionNotificationOutbox(ctx, item)
+}
+
+func (uc *CampusUsecase) deliverSystemNotificationOutbox(ctx context.Context, item *CampusNotificationOutbox) error {
+	if strings.TrimSpace(item.Audience) != "" && item.Audience != "all_users" {
+		return fmt.Errorf("unsupported notification audience: %s", item.Audience)
 	}
 	recipients, err := uc.repo.ListNotificationRecipients(ctx)
 	if err != nil {
-		return apperror.Internal(err, "获取通知用户失败")
+		return err
 	}
-	linkPage := firstNonEmpty(input.LinkPage, "community")
-	notifications := make([]*CampusNotification, 0, len(recipients))
 	for _, recipientID := range recipients {
-		if strings.TrimSpace(recipientID) == "" {
+		recipientID = strings.TrimSpace(recipientID)
+		if recipientID == "" || recipientID == "0" {
 			continue
 		}
-		notifications = append(notifications, &CampusNotification{
+		notification := &CampusNotification{
 			ID:          uc.idGen.NextID(),
 			RecipientID: recipientID,
-			ActorID:     input.UserID,
+			ActorID:     item.ActorID,
 			EventType:   CampusNotificationTypeSystem,
-			TargetType:  "system",
-			TargetID:    0,
-			Title:       title,
-			Content:     content,
-			LinkPage:    trimLimit(linkPage, 64),
-			LinkParams:  sanitizeTrackExtra(input.LinkParams),
-		})
-	}
-	for _, notification := range notifications {
-		uc.enqueueCampusNotification(ctx, notification, false)
+			TargetType:  firstNonEmpty(item.TargetType, "system"),
+			TargetID:    item.ID,
+			DedupeKey:   fmt.Sprintf("campus:system:%d:%s", item.ID, recipientID),
+			Title:       item.Title,
+			Content:     item.Content,
+			LinkPage:    firstNonEmpty(item.LinkPage, "community"),
+			LinkParams:  sanitizeTrackExtra(item.LinkParams),
+		}
+		if err := uc.repo.CreateNotification(ctx, notification, true); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (uc *CampusUsecase) createInteractionNotification(ctx context.Context, notification *CampusNotification, unique bool) {
-	uc.enqueueCampusNotification(ctx, notification, unique)
+func (uc *CampusUsecase) deliverInteractionNotificationOutbox(ctx context.Context, item *CampusNotificationOutbox) error {
+	if strings.TrimSpace(item.RecipientID) == "" || item.RecipientID == "0" || item.RecipientID == item.ActorID {
+		return nil
+	}
+	dedupeKey := strings.TrimSpace(item.DedupeKey)
+	if dedupeKey == "" {
+		dedupeKey = fmt.Sprintf("campus:notification-outbox:%d", item.ID)
+	}
+	notification := &CampusNotification{
+		ID:          uc.idGen.NextID(),
+		RecipientID: item.RecipientID,
+		ActorID:     item.ActorID,
+		EventType:   item.EventType,
+		TargetType:  item.TargetType,
+		TargetID:    item.TargetID,
+		DedupeKey:   dedupeKey,
+		Title:       item.Title,
+		Content:     item.Content,
+		LinkPage:    firstNonEmpty(item.LinkPage, "post-detail"),
+		LinkParams:  sanitizeTrackExtra(item.LinkParams),
+	}
+	return uc.repo.CreateNotification(ctx, notification, true)
 }
 
-func (uc *CampusUsecase) enqueueCampusNotification(ctx context.Context, notification *CampusNotification, unique bool) {
-	if notification == nil {
-		return
+func (uc *CampusUsecase) markNotificationOutboxRetry(ctx context.Context, item *CampusNotificationOutbox, processErr error) {
+	retryCount := item.RetryCount + 1
+	final := retryCount >= campusNotificationOutboxMaxRetry
+	var nextRetryAt *time.Time
+	if !final {
+		next := time.Now().Add(campusNotificationOutboxBackoff(retryCount))
+		nextRetryAt = &next
 	}
-	if strings.TrimSpace(notification.RecipientID) == "" || notification.RecipientID == "0" || notification.RecipientID == notification.ActorID {
-		return
+	if err := uc.repo.MarkNotificationOutboxRetry(ctx, item.ID, retryCount, nextRetryAt, trimLimit(processErr.Error(), 500), final); err != nil {
+		uc.log.WithContext(ctx).Warnf("mark campus notification outbox retry failed: id=%d err=%v", item.ID, err)
 	}
-	notification.ID = uc.idGen.NextID()
-	notification.Title = trimLimit(notification.Title, 80)
-	notification.Content = trimLimit(notification.Content, 500)
-	notification.LinkPage = trimLimit(firstNonEmpty(notification.LinkPage, "post-detail"), 64)
-	notification.LinkParams = sanitizeTrackExtra(notification.LinkParams)
-	if uc.notificationBatcher != nil {
-		uc.notificationBatcher.AddAsync(&campusNotificationBatchItem{notification: notification, unique: unique})
-		return
-	}
-	if err := uc.repo.CreateNotification(ctx, notification, unique); err != nil {
-		uc.log.WithContext(ctx).Warnf("create campus notification failed: event=%s target=%s:%d err=%v", notification.EventType, notification.TargetType, notification.TargetID, err)
+}
+
+func campusNotificationOutboxBackoff(retryCount int32) time.Duration {
+	switch retryCount {
+	case 1:
+		return 10 * time.Second
+	case 2:
+		return 30 * time.Second
+	case 3:
+		return 2 * time.Minute
+	case 4:
+		return 10 * time.Minute
+	default:
+		return 30 * time.Minute
 	}
 }
 
@@ -3211,11 +3382,6 @@ func (uc *CampusUsecase) FlushCampusBatches(ctx context.Context) error {
 			firstErr = err
 		}
 	}
-	if uc.notificationBatcher != nil {
-		if err := uc.notificationBatcher.Flush(ctx); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
 	return firstErr
 }
 
@@ -3228,11 +3394,6 @@ func (uc *CampusUsecase) StopCampusBatches(ctx context.Context) error {
 	}
 	if uc.accessLogBatcher != nil {
 		if err := uc.accessLogBatcher.Stop(ctx); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	if uc.notificationBatcher != nil {
-		if err := uc.notificationBatcher.Stop(ctx); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -3261,42 +3422,6 @@ func (uc *CampusUsecase) persistCampusAccessLogs(ctx context.Context, logs []*Ca
 		return err
 	}
 	return nil
-}
-
-func (uc *CampusUsecase) persistCampusNotifications(ctx context.Context, items []*campusNotificationBatchItem) error {
-	if len(items) == 0 {
-		return nil
-	}
-	normal := make([]*CampusNotification, 0, len(items))
-	var firstErr error
-	for _, item := range items {
-		if item == nil || item.notification == nil {
-			continue
-		}
-		if item.unique {
-			if err := uc.repo.CreateNotification(ctx, item.notification, true); err != nil {
-				uc.log.WithContext(ctx).Warnf("create unique campus notification failed: event=%s target=%s:%d err=%v", item.notification.EventType, item.notification.TargetType, item.notification.TargetID, err)
-				if firstErr == nil {
-					firstErr = err
-				}
-			}
-			continue
-		}
-		normal = append(normal, item.notification)
-	}
-	if len(normal) > 0 {
-		if err := uc.repo.BulkCreateNotifications(ctx, normal); err != nil {
-			for _, notification := range normal {
-				if singleErr := uc.repo.CreateNotification(ctx, notification, false); singleErr != nil {
-					uc.log.WithContext(ctx).Warnf("fallback create campus notification failed: event=%s target=%s:%d err=%v", notification.EventType, notification.TargetType, notification.TargetID, singleErr)
-				}
-			}
-			if firstErr == nil {
-				firstErr = err
-			}
-		}
-	}
-	return firstErr
 }
 
 func (uc *CampusUsecase) trackEvent(ctx context.Context, input *TrackCampusEventInput) {
