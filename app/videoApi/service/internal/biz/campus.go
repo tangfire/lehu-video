@@ -665,6 +665,12 @@ type CampusSecurityOverview struct {
 	BlockedIPs       []*CampusIPBlock
 }
 
+type CampusStatsReconcileResult struct {
+	CheckedAt       time.Time
+	UpdatedPosts    int64
+	UpdatedComments int64
+}
+
 type CampusSecurityIPStat struct {
 	IP           string
 	RequestCount int64
@@ -756,6 +762,7 @@ type CampusRepo interface {
 	CreateAuditLog(ctx context.Context, log *CampusAuditLog) error
 	TrackEvent(ctx context.Context, event *TrackCampusEventInput) error
 	GetAdminSummary(ctx context.Context) (*CampusAdminSummary, error)
+	ReconcileCampusStats(ctx context.Context) (*CampusStatsReconcileResult, error)
 	ListCampusUsers(ctx context.Context, keyword string, offset, limit int) ([]*CampusAdminUser, int64, error)
 	GetCampusOperatorRole(ctx context.Context, userID string) (string, error)
 	UpsertCampusOperator(ctx context.Context, userID, role string) error
@@ -1721,6 +1728,26 @@ func (uc *CampusUsecase) AdminSummary(ctx context.Context, userID string) (*Camp
 		return nil, apperror.Internal(err, "获取数据总览失败")
 	}
 	return summary, nil
+}
+
+func (uc *CampusUsecase) AdminReconcileCampusStats(ctx context.Context, userID string) (*CampusStatsReconcileResult, error) {
+	if !uc.isCampusOperator(ctx, userID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	result, err := uc.repo.ReconcileCampusStats(ctx)
+	if err != nil {
+		return nil, apperror.Internal(err, "计数对账失败")
+	}
+	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
+		ID:         uc.idGen.NextID(),
+		TargetType: "campus_stats",
+		TargetID:   0,
+		UserID:     userID,
+		Provider:   "manual",
+		Result:     "reconcile",
+		Reason:     fmt.Sprintf("updated_posts=%d updated_comments=%d", result.UpdatedPosts, result.UpdatedComments),
+	})
+	return result, nil
 }
 
 func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAdminPostsInput) (*ListCampusPostsOutput, error) {

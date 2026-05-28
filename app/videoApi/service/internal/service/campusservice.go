@@ -74,6 +74,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/moderation/posts/{id}/review", s.wrap(s.authRequired(s.handleReviewPost)))
 	r.POST("/v1/campus/moderation/comments/{id}/review", s.wrap(s.authRequired(s.handleReviewComment)))
 	r.GET("/v1/campus/admin/summary", s.wrap(s.authRequired(s.handleAdminSummary)))
+	r.POST("/v1/campus/admin/stats/reconcile", s.wrap(s.authRequired(s.handleAdminReconcileStats)))
 	r.GET("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminListPosts)))
 	r.POST("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminCreatePost)))
 	r.POST("/v1/campus/admin/posts/batch", s.wrap(s.authRequired(s.handleAdminBatchPosts)))
@@ -1021,6 +1022,16 @@ func (s *CampusService) handleAdminSummary(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, r, map[string]interface{}{"summary": adminSummaryToMap(summary)})
 }
 
+func (s *CampusService) handleAdminReconcileStats(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	result, err := s.uc.AdminReconcileCampusStats(r.Context(), userID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"result": statsReconcileResultToMap(result)})
+}
+
 func (s *CampusService) handleAdminListPosts(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
@@ -1791,6 +1802,17 @@ func ipBlockToMap(block *biz.CampusIPBlock) map[string]interface{} {
 		"created_by": block.CreatedBy,
 		"created_at": formatTime(block.CreatedAt),
 		"updated_at": formatTime(block.UpdatedAt),
+	}
+}
+
+func statsReconcileResultToMap(result *biz.CampusStatsReconcileResult) map[string]interface{} {
+	if result == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"checked_at":       formatTime(result.CheckedAt),
+		"updated_posts":    result.UpdatedPosts,
+		"updated_comments": result.UpdatedComments,
 	}
 }
 

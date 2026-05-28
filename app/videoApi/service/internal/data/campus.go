@@ -1620,6 +1620,84 @@ func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSumma
 	return summary, nil
 }
 
+func (r *campusRepo) ReconcileCampusStats(ctx context.Context) (*biz.CampusStatsReconcileResult, error) {
+	result := &biz.CampusStatsReconcileResult{CheckedAt: time.Now()}
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		postSQL := `
+			UPDATE campus_forum_post p
+			LEFT JOIN (
+				SELECT post_id, COUNT(*) AS real_likes
+				FROM campus_forum_post_like
+				WHERE is_deleted = 0
+				GROUP BY post_id
+			) likes ON p.id = likes.post_id
+			LEFT JOIN (
+				SELECT post_id, COUNT(*) AS real_collections
+				FROM campus_forum_post_collection
+				WHERE is_deleted = 0
+				GROUP BY post_id
+			) collections ON p.id = collections.post_id
+			LEFT JOIN (
+				SELECT post_id, COUNT(*) AS real_comments
+				FROM campus_forum_comment
+				WHERE is_deleted = 0 AND status = ?
+				GROUP BY post_id
+			) comments ON p.id = comments.post_id
+			SET
+				p.like_count = COALESCE(likes.real_likes, 0),
+				p.collected_count = COALESCE(collections.real_collections, 0),
+				p.comment_count = COALESCE(comments.real_comments, 0),
+				p.updated_at = NOW(3)
+			WHERE p.is_deleted = 0
+			  AND (
+				p.like_count != COALESCE(likes.real_likes, 0)
+				OR p.collected_count != COALESCE(collections.real_collections, 0)
+				OR p.comment_count != COALESCE(comments.real_comments, 0)
+			  )
+		`
+		postRes := tx.Exec(postSQL, biz.CampusAuditStatusVisible)
+		if postRes.Error != nil {
+			return postRes.Error
+		}
+		result.UpdatedPosts = postRes.RowsAffected
+
+		commentSQL := `
+			UPDATE campus_forum_comment c
+			LEFT JOIN (
+				SELECT comment_id, COUNT(*) AS real_likes
+				FROM campus_forum_comment_like
+				WHERE is_deleted = 0
+				GROUP BY comment_id
+			) likes ON c.id = likes.comment_id
+			LEFT JOIN (
+				SELECT parent_id, COUNT(*) AS real_replies
+				FROM campus_forum_comment
+				WHERE is_deleted = 0 AND status = ? AND parent_id > 0
+				GROUP BY parent_id
+			) replies ON c.id = replies.parent_id
+			SET
+				c.like_count = COALESCE(likes.real_likes, 0),
+				c.reply_count = COALESCE(replies.real_replies, 0),
+				c.updated_at = NOW(3)
+			WHERE c.is_deleted = 0
+			  AND (
+				c.like_count != COALESCE(likes.real_likes, 0)
+				OR c.reply_count != COALESCE(replies.real_replies, 0)
+			  )
+		`
+		commentRes := tx.Exec(commentSQL, biz.CampusAuditStatusVisible)
+		if commentRes.Error != nil {
+			return commentRes.Error
+		}
+		result.UpdatedComments = commentRes.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (r *campusRepo) ListCampusUsers(ctx context.Context, keyword string, offset, limit int) ([]*biz.CampusAdminUser, int64, error) {
 	db := r.data.db.WithContext(ctx).Table("user u").
 		Select(`u.id AS user_id, u.account_id, u.mobile, u.email, u.name, u.nickname, u.avatar,
