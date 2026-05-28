@@ -33,6 +33,7 @@ type CampusService struct {
 const (
 	campusMaxImageBytes       = 5 << 20
 	campusMaxVideoBytes       = 20 << 20
+	campusMaxKnowledgeBytes   = 20 << 20
 	campusMultipartExtraBytes = 1 << 20
 )
 
@@ -96,6 +97,14 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/ai-replies/summary", s.wrap(s.authRequired(s.handleAdminAIReplySummary)))
 	r.GET("/v1/campus/admin/ai-replies/tasks", s.wrap(s.authRequired(s.handleAdminListAIReplyTasks)))
 	r.POST("/v1/campus/admin/ai-replies/tasks/{id}/retry", s.wrap(s.authRequired(s.handleAdminRetryAIReplyTask)))
+	r.GET("/v1/campus/admin/knowledge/documents", s.wrap(s.authRequired(s.handleAdminListKnowledgeDocuments)))
+	r.POST("/v1/campus/admin/knowledge/documents", s.wrap(s.authRequired(s.handleAdminCreateKnowledgeDocument)))
+	r.PUT("/v1/campus/admin/knowledge/documents/{id}", s.wrap(s.authRequired(s.handleAdminUpdateKnowledgeDocument)))
+	r.POST("/v1/campus/admin/knowledge/documents/{id}/reindex", s.wrap(s.authRequired(s.handleAdminReindexKnowledgeDocument)))
+	r.GET("/v1/campus/admin/knowledge/documents/{id}/chunks", s.wrap(s.authRequired(s.handleAdminListKnowledgeChunks)))
+	r.POST("/v1/campus/admin/knowledge/test-query", s.wrap(s.authRequired(s.handleAdminTestKnowledgeQuery)))
+	r.GET("/v1/campus/admin/knowledge/query-logs", s.wrap(s.authRequired(s.handleAdminListRAGQueryLogs)))
+	r.POST("/v1/campus/admin/knowledge/upload", s.wrap(s.authRequired(s.handleAdminUploadKnowledgeFile)))
 	r.GET("/v1/campus/admin/reports", s.wrap(s.authRequired(s.handleAdminListReports)))
 	r.POST("/v1/campus/admin/reports/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewReport)))
 	r.GET("/v1/campus/admin/feedback", s.wrap(s.authRequired(s.handleAdminListFeedback)))
@@ -541,6 +550,77 @@ func (s *CampusService) handleUploadVideo(w http.ResponseWriter, r *http.Request
 	writeJSON(w, r, map[string]interface{}{"url": url, "file_id": fileID})
 }
 
+func (s *CampusService) handleAdminUploadKnowledgeFile(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	if _, err := s.uc.AdminListKnowledgeDocuments(r.Context(), &biz.ListCampusKnowledgeDocumentsInput{UserID: userID, Page: 1, Size: 1}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, campusMaxKnowledgeBytes+campusMultipartExtraBytes)
+	if err := r.ParseMultipartForm(campusMaxKnowledgeBytes); err != nil {
+		writeError(w, r, apperror.InvalidArgument("知识库文档上传请求无效"))
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, r, apperror.InvalidArgument("请选择知识库文档"))
+		return
+	}
+	defer file.Close()
+	if header.Size > campusMaxKnowledgeBytes {
+		writeError(w, r, apperror.InvalidArgument("知识库文档不能超过 20MB"))
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(file, campusMaxKnowledgeBytes+1))
+	if err != nil {
+		writeError(w, r, apperror.Internal(err, "读取知识库文档失败"))
+		return
+	}
+	if len(data) > campusMaxKnowledgeBytes {
+		writeError(w, r, apperror.InvalidArgument("知识库文档不能超过 20MB"))
+		return
+	}
+	fileType := knowledgeFileType(header.Filename)
+	if fileType == "" {
+		writeError(w, r, apperror.InvalidArgument("仅支持 PDF、DOCX、TXT、MD 文档"))
+		return
+	}
+	sum := md5.Sum(data)
+	fileID, putURL, err := s.uc.PreSignPublicKnowledgeFile(r.Context(), fmt.Sprintf("%x", sum), fileType, header.Filename, int64(len(data)))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if putURL != "" {
+		uploadURL, signedHost := rewritePresignedURLForServerUpload(putURL)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodPut, uploadURL, bytes.NewReader(data))
+		if err != nil {
+			writeError(w, r, apperror.Internal(err, "创建知识库文档上传请求失败"))
+			return
+		}
+		if signedHost != "" {
+			req.Host = signedHost
+		}
+		req.Header.Set("Content-Type", contentTypeFromKnowledgeType(fileType))
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			writeError(w, r, apperror.DependencyUnavailable(err, "上传知识库文档失败"))
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			writeError(w, r, apperror.DependencyUnavailable(fmt.Errorf("minio status %d", resp.StatusCode), "上传知识库文档失败"))
+			return
+		}
+	}
+	url, err := s.uc.ReportPublicKnowledgeFileUploaded(r.Context(), fileID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"url": url, "file_id": fileID, "file_type": fileType, "filename": header.Filename})
+}
+
 func (s *CampusService) handleListCategories(w http.ResponseWriter, r *http.Request) {
 	categories, err := s.uc.ListCategories(r.Context())
 	if err != nil {
@@ -720,6 +800,23 @@ type adminNotificationRequest struct {
 	LinkPage   string            `json:"link_page"`
 	LinkParams map[string]string `json:"link_params"`
 	Audience   string            `json:"audience"`
+}
+
+type knowledgeDocumentRequest struct {
+	Title       string `json:"title"`
+	Source      string `json:"source"`
+	Category    string `json:"category"`
+	ContentType string `json:"content_type"`
+	FileURL     string `json:"file_url"`
+	FileID      string `json:"file_id"`
+	FileType    string `json:"file_type"`
+	RawContent  string `json:"raw_content"`
+	Status      string `json:"status"`
+}
+
+type knowledgeTestQueryRequest struct {
+	Query string `json:"query"`
+	TopK  int32  `json:"top_k"`
 }
 
 type blockIPRequest struct {
@@ -1455,6 +1552,153 @@ func (s *CampusService) handleAdminRetryAIReplyTask(w http.ResponseWriter, r *ht
 	writeJSON(w, r, map[string]interface{}{})
 }
 
+func (s *CampusService) handleAdminListKnowledgeDocuments(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListKnowledgeDocuments(r.Context(), &biz.ListCampusKnowledgeDocumentsInput{
+		UserID:   userID,
+		Keyword:  q.Get("keyword"),
+		Category: q.Get("category"),
+		Status:   q.Get("status"),
+		Page:     int32(queryInt(q.Get("page"), 1)),
+		Size:     int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Documents))
+	for _, doc := range out.Documents {
+		items = append(items, knowledgeDocumentToMap(doc))
+	}
+	writeJSON(w, r, map[string]interface{}{"documents": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleAdminCreateKnowledgeDocument(w http.ResponseWriter, r *http.Request) {
+	var req knowledgeDocumentRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	doc, err := s.uc.AdminCreateKnowledgeDocument(r.Context(), &biz.CreateCampusKnowledgeDocumentInput{
+		UserID:      userID,
+		Title:       req.Title,
+		Source:      req.Source,
+		Category:    req.Category,
+		ContentType: req.ContentType,
+		FileURL:     req.FileURL,
+		FileID:      req.FileID,
+		FileType:    req.FileType,
+		RawContent:  req.RawContent,
+		Status:      req.Status,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"document": knowledgeDocumentToMap(doc)})
+}
+
+func (s *CampusService) handleAdminUpdateKnowledgeDocument(w http.ResponseWriter, r *http.Request) {
+	documentID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var req knowledgeDocumentRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	doc, err := s.uc.AdminUpdateKnowledgeDocument(r.Context(), &biz.UpdateCampusKnowledgeDocumentInput{
+		UserID:     userID,
+		DocumentID: documentID,
+		Title:      req.Title,
+		Source:     req.Source,
+		Category:   req.Category,
+		Status:     req.Status,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"document": knowledgeDocumentToMap(doc)})
+}
+
+func (s *CampusService) handleAdminReindexKnowledgeDocument(w http.ResponseWriter, r *http.Request) {
+	documentID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	doc, err := s.uc.AdminReindexKnowledgeDocument(r.Context(), userID, documentID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"document": knowledgeDocumentToMap(doc)})
+}
+
+func (s *CampusService) handleAdminListKnowledgeChunks(w http.ResponseWriter, r *http.Request) {
+	documentID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListKnowledgeChunks(r.Context(), &biz.ListCampusKnowledgeChunksInput{
+		UserID:     userID,
+		DocumentID: documentID,
+		Page:       int32(queryInt(q.Get("page"), 1)),
+		Size:       int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Chunks))
+	for _, chunk := range out.Chunks {
+		items = append(items, knowledgeChunkToMap(chunk))
+	}
+	writeJSON(w, r, map[string]interface{}{"chunks": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleAdminTestKnowledgeQuery(w http.ResponseWriter, r *http.Request) {
+	var req knowledgeTestQueryRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminTestKnowledgeQuery(r.Context(), &biz.TestCampusKnowledgeQueryInput{
+		UserID: userID,
+		Query:  req.Query,
+		TopK:   req.TopK,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"result": ragQueryResponseToMap(out)})
+}
+
+func (s *CampusService) handleAdminListRAGQueryLogs(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListRAGQueryLogs(r.Context(), &biz.ListCampusRAGQueryLogsInput{
+		UserID: userID,
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Logs))
+	for _, item := range out.Logs {
+		items = append(items, ragQueryLogToMap(item))
+	}
+	writeJSON(w, r, map[string]interface{}{"logs": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
 func (s *CampusService) handleAdminListReports(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
@@ -1832,6 +2076,22 @@ func videoFileType(filename, detected string) string {
 	}
 }
 
+func knowledgeFileType(filename string) string {
+	name := strings.ToLower(strings.TrimSpace(filename))
+	switch {
+	case strings.HasSuffix(name, ".pdf"):
+		return "pdf"
+	case strings.HasSuffix(name, ".docx"):
+		return "docx"
+	case strings.HasSuffix(name, ".txt"):
+		return "txt"
+	case strings.HasSuffix(name, ".md"), strings.HasSuffix(name, ".markdown"):
+		return "md"
+	default:
+		return ""
+	}
+}
+
 func contentTypeFromImageType(fileType string) string {
 	switch fileType {
 	case "jpg", "jpeg":
@@ -1851,6 +2111,21 @@ func contentTypeFromVideoType(fileType string) string {
 		return "video/mp4"
 	case "mov":
 		return "video/quicktime"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func contentTypeFromKnowledgeType(fileType string) string {
+	switch fileType {
+	case "pdf":
+		return "application/pdf"
+	case "docx":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	case "txt":
+		return "text/plain; charset=utf-8"
+	case "md":
+		return "text/markdown; charset=utf-8"
 	default:
 		return "application/octet-stream"
 	}
@@ -2165,6 +2440,7 @@ func aiReplyOverviewToMap(overview *biz.CampusAIReplyOverview) map[string]interf
 		"bot_avatar":  overview.BotAvatar,
 		"model":       overview.Model,
 		"base_url":    overview.BaseURL,
+		"rag_health":  ragHealthToMap(overview.RAGHealth),
 		"daily_limit": overview.DailyLimit,
 		"today_used":  overview.TodayUsed,
 		"pending":     overview.Pending,
@@ -2172,6 +2448,19 @@ func aiReplyOverviewToMap(overview *biz.CampusAIReplyOverview) map[string]interf
 		"done":        overview.Done,
 		"failed":      overview.Failed,
 		"recent":      recent,
+	}
+}
+
+func ragHealthToMap(health *biz.CampusRAGHealth) map[string]interface{} {
+	if health == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"status":       health.Status,
+		"qdrant":       health.Qdrant,
+		"chunk_count":  health.ChunkCount,
+		"failed_count": health.FailedCount,
+		"last_error":   health.LastError,
 	}
 }
 
@@ -2196,6 +2485,110 @@ func aiReplyTaskToMap(task *biz.CampusAIReplyTask) map[string]interface{} {
 		"created_at":         formatTime(task.CreatedAt),
 		"updated_at":         formatTime(task.UpdatedAt),
 		"processed_at":       formatOptionalTime(task.ProcessedAt),
+	}
+}
+
+func knowledgeDocumentToMap(doc *biz.CampusKnowledgeDocument) map[string]interface{} {
+	if doc == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":            strconv.FormatInt(doc.ID, 10),
+		"title":         doc.Title,
+		"source":        doc.Source,
+		"category":      doc.Category,
+		"content_type":  doc.ContentType,
+		"file_url":      doc.FileURL,
+		"file_id":       doc.FileID,
+		"file_type":     doc.FileType,
+		"raw_content":   doc.RawContent,
+		"status":        doc.Status,
+		"parse_status":  doc.ParseStatus,
+		"error_message": doc.ErrorMessage,
+		"uploaded_by":   doc.UploadedBy,
+		"effective_at":  formatOptionalTime(doc.EffectiveAt),
+		"expired_at":    formatOptionalTime(doc.ExpiredAt),
+		"chunk_count":   doc.ChunkCount,
+		"created_at":    formatTime(doc.CreatedAt),
+		"updated_at":    formatTime(doc.UpdatedAt),
+	}
+}
+
+func knowledgeChunkToMap(chunk *biz.CampusKnowledgeChunk) map[string]interface{} {
+	if chunk == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":               strconv.FormatInt(chunk.ID, 10),
+		"document_id":      strconv.FormatInt(chunk.DocumentID, 10),
+		"chunk_index":      chunk.ChunkIndex,
+		"title":            chunk.Title,
+		"content":          chunk.Content,
+		"summary":          chunk.Summary,
+		"category":         chunk.Category,
+		"keywords":         chunk.Keywords,
+		"source":           chunk.Source,
+		"status":           chunk.Status,
+		"qdrant_point_id":  chunk.QdrantPointID,
+		"embedding_status": chunk.EmbeddingStatus,
+		"score":            chunk.Score,
+		"created_at":       formatTime(chunk.CreatedAt),
+		"updated_at":       formatTime(chunk.UpdatedAt),
+	}
+}
+
+func ragQueryResponseToMap(resp *biz.CampusRAGQueryResponse) map[string]interface{} {
+	if resp == nil {
+		return nil
+	}
+	chunks := make([]map[string]interface{}, 0, len(resp.Chunks))
+	for _, chunk := range resp.Chunks {
+		chunks = append(chunks, ragQueryChunkToMap(chunk))
+	}
+	return map[string]interface{}{
+		"need_knowledge": resp.NeedKnowledge,
+		"confidence":     resp.Confidence,
+		"chunks":         chunks,
+	}
+}
+
+func ragQueryChunkToMap(chunk *biz.CampusRAGQueryChunk) map[string]interface{} {
+	if chunk == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"chunk_id":    chunk.ChunkID,
+		"document_id": chunk.DocumentID,
+		"title":       chunk.Title,
+		"category":    chunk.Category,
+		"content":     chunk.Content,
+		"source":      chunk.Source,
+		"score":       chunk.Score,
+	}
+}
+
+func ragQueryLogToMap(item *biz.CampusRAGQueryLog) map[string]interface{} {
+	if item == nil {
+		return nil
+	}
+	chunks := make([]map[string]interface{}, 0, len(item.HitChunks))
+	for _, chunk := range item.HitChunks {
+		chunks = append(chunks, ragQueryChunkToMap(chunk))
+	}
+	return map[string]interface{}{
+		"id":                 strconv.FormatInt(item.ID, 10),
+		"user_id":            item.UserID,
+		"post_id":            strconv.FormatInt(item.PostID, 10),
+		"trigger_comment_id": strconv.FormatInt(item.TriggerCommentID, 10),
+		"query":              item.Query,
+		"need_knowledge":     item.NeedKnowledge,
+		"confidence":         item.Confidence,
+		"hit_chunks":         chunks,
+		"answer":             item.Answer,
+		"model":              item.Model,
+		"duration_ms":        item.DurationMs,
+		"error_message":      item.ErrorMessage,
+		"created_at":         formatTime(item.CreatedAt),
 	}
 }
 

@@ -1,0 +1,70 @@
+USE lehu_video_db;
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `campus_knowledge_document` (
+  `id` BIGINT NOT NULL,
+  `title` VARCHAR(120) NOT NULL,
+  `source` VARCHAR(120) NOT NULL DEFAULT '',
+  `category` VARCHAR(32) NOT NULL DEFAULT 'general',
+  `content_type` VARCHAR(16) NOT NULL DEFAULT 'text' COMMENT 'file/text',
+  `file_url` VARCHAR(1024) NOT NULL DEFAULT '',
+  `file_id` BIGINT NOT NULL DEFAULT 0,
+  `file_type` VARCHAR(16) NOT NULL DEFAULT '',
+  `raw_content` MEDIUMTEXT DEFAULT NULL,
+  `status` VARCHAR(24) NOT NULL DEFAULT 'draft' COMMENT 'draft/indexing/active/disabled/failed',
+  `parse_status` VARCHAR(24) NOT NULL DEFAULT 'draft',
+  `error_message` VARCHAR(1000) NOT NULL DEFAULT '',
+  `uploaded_by` BIGINT NOT NULL DEFAULT 0,
+  `effective_at` DATETIME(3) DEFAULT NULL,
+  `expired_at` DATETIME(3) DEFAULT NULL,
+  `chunk_count` BIGINT NOT NULL DEFAULT 0,
+  `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  INDEX `idx_campus_knowledge_doc_status` (`status`, `is_deleted`, `updated_at`),
+  INDEX `idx_campus_knowledge_doc_category` (`category`, `status`, `is_deleted`, `updated_at`),
+  INDEX `idx_campus_knowledge_doc_uploader` (`uploaded_by`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园e仔知识库文档';
+
+CREATE TABLE IF NOT EXISTS `campus_knowledge_chunk` (
+  `id` BIGINT NOT NULL,
+  `document_id` BIGINT NOT NULL,
+  `chunk_index` INT NOT NULL DEFAULT 0,
+  `title` VARCHAR(120) NOT NULL DEFAULT '',
+  `content` TEXT NOT NULL,
+  `summary` VARCHAR(500) NOT NULL DEFAULT '',
+  `category` VARCHAR(32) NOT NULL DEFAULT 'general',
+  `keywords` JSON DEFAULT NULL,
+  `source` VARCHAR(120) NOT NULL DEFAULT '',
+  `status` VARCHAR(24) NOT NULL DEFAULT 'active' COMMENT 'active/disabled/failed',
+  `qdrant_point_id` VARCHAR(128) NOT NULL DEFAULT '',
+  `embedding_status` VARCHAR(24) NOT NULL DEFAULT 'done',
+  `is_deleted` BOOLEAN NOT NULL DEFAULT FALSE,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  INDEX `idx_campus_knowledge_chunk_doc` (`document_id`, `is_deleted`, `chunk_index`, `id`),
+  INDEX `idx_campus_knowledge_chunk_status` (`status`, `category`, `is_deleted`, `updated_at`),
+  INDEX `idx_campus_knowledge_chunk_point` (`qdrant_point_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园e仔知识库切片';
+
+CREATE TABLE IF NOT EXISTS `campus_rag_query_log` (
+  `id` BIGINT NOT NULL,
+  `user_id` BIGINT NOT NULL DEFAULT 0,
+  `post_id` BIGINT NOT NULL DEFAULT 0,
+  `trigger_comment_id` BIGINT NOT NULL DEFAULT 0,
+  `query` VARCHAR(1000) NOT NULL DEFAULT '',
+  `need_knowledge` BOOLEAN NOT NULL DEFAULT FALSE,
+  `confidence` DOUBLE NOT NULL DEFAULT 0,
+  `hit_chunks` JSON DEFAULT NULL,
+  `answer` VARCHAR(1000) NOT NULL DEFAULT '',
+  `model` VARCHAR(64) NOT NULL DEFAULT '',
+  `duration_ms` BIGINT NOT NULL DEFAULT 0,
+  `error_message` VARCHAR(1000) NOT NULL DEFAULT '',
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  INDEX `idx_campus_rag_log_created` (`created_at`),
+  INDEX `idx_campus_rag_log_user_created` (`user_id`, `created_at`),
+  INDEX `idx_campus_rag_log_comment` (`trigger_comment_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园e仔RAG查询日志';

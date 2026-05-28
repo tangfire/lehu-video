@@ -123,6 +123,45 @@ CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
 
 生产环境建议先把每日上限设低一点，观察 Dozzle 日志里的 `e仔 AI 回复任务`错误和 DeepSeek 控制台用量后再逐步调高。大模型回复只作为校园生活问答参考，不替代学校官方通知。
 
+## e仔知识库 RAG
+
+后台新增「e仔知识库」，运营可以上传 PDF/DOCX/TXT/MD 或手动录入学校资料。Go 后端负责权限、任务和 e仔回复编排，`campus-rag` 只在 Docker 内网提供解析、切片、embedding、Qdrant 检索能力。
+
+本地启动知识库依赖：
+
+```bash
+docker compose up -d qdrant campus-rag
+```
+
+API 容器会通过内网访问：
+
+```text
+CAMPUS_RAG_BASE_URL=http://campus-rag:8090
+```
+
+需要配置低成本 embedding：
+
+```text
+SILICONFLOW_API_KEY=sk-xxx
+SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
+CAMPUS_RAG_EMBEDDING_MODEL=BAAI/bge-m3
+```
+
+本地调试地址：
+
+```text
+Qdrant：http://localhost:16333
+RAG 健康检查：docker compose exec campus-rag python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8090/healthz').read().decode())"
+```
+
+如果生产环境已有旧数据库，需要先执行：
+
+```bash
+mysql -h <host> -u <user> -p lehu_video_db < sql/20260529_campus_knowledge_rag.sql
+```
+
+RAG 服务没有公网端口，正式部署时保持内网访问即可。未配置 `CAMPUS_RAG_BASE_URL` 时，Go 后端会自动降级为普通 e仔回复；未配置 `SILICONFLOW_API_KEY` 时，知识库索引和测试提问会返回可读错误，不影响小程序主链路。
+
 常用开发命令：
 
 ```bash

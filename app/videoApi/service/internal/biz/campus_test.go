@@ -87,7 +87,7 @@ func TestCreatePostIgnoresOpsFlagsForNormalUser(t *testing.T) {
 		roles:    map[string]string{},
 	}
 	core := &campusCoreStub{users: users}
-	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	post, err := uc.CreatePost(context.Background(), &CreateCampusPostInput{
 		UserID:       "10",
@@ -116,7 +116,7 @@ func TestCreatePostAllowsOpsFlagsForOperator(t *testing.T) {
 		roles:    map[string]string{"10": "operator"},
 	}
 	core := &campusCoreStub{users: users}
-	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	post, err := uc.CreatePost(context.Background(), &CreateCampusPostInput{
 		UserID:       "10",
@@ -140,7 +140,7 @@ func TestCreatePostAllowsOpsFlagsForOperator(t *testing.T) {
 
 func TestListPostsPassesPostTypeQuery(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	if _, err := uc.ListPosts(context.Background(), &ListCampusPostsInput{PostType: CampusPostTypeQuestion, Page: 1, Size: 20}); err != nil {
 		t.Fatalf("ListPosts() error = %v", err)
@@ -152,7 +152,7 @@ func TestListPostsPassesPostTypeQuery(t *testing.T) {
 
 func TestListPostsDefaultsToRecommendSort(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	if _, err := uc.ListPosts(context.Background(), &ListCampusPostsInput{Sort: "unknown", Page: 1, Size: 20}); err != nil {
 		t.Fatalf("ListPosts() error = %v", err)
@@ -187,7 +187,7 @@ func TestGetPublicCampusUserProfileHidesSensitiveProfileFields(t *testing.T) {
 	core := &campusCoreStub{users: map[string]*UserBaseInfo{
 		"10": {ID: "10", Name: "真实姓名", Nickname: "深汕e仔", Avatar: "https://example.com/avatar.png", Mobile: "13800000000"},
 	}}
-	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	profile, err := uc.GetPublicCampusUserProfile(context.Background(), "10")
 	if err != nil {
@@ -209,7 +209,7 @@ func TestGetPublicCampusUserProfileHidesSensitiveProfileFields(t *testing.T) {
 
 func TestGetPublicCampusUserProfileReturnsNotFound(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{users: map[string]*UserBaseInfo{}}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{users: map[string]*UserBaseInfo{}}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	_, err := uc.GetPublicCampusUserProfile(context.Background(), "404")
 	if err == nil {
@@ -231,7 +231,7 @@ func TestListPublicUserPostsOnlyVisibleAuthorPosts(t *testing.T) {
 		},
 	}
 	core := &campusCoreStub{users: map[string]*UserBaseInfo{"10": {ID: "10", Nickname: "同学"}}}
-	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	out, err := uc.ListPublicUserPosts(context.Background(), &ListCampusPostsInput{
 		CurrentUserID: "12",
@@ -259,7 +259,7 @@ func TestListPublicUserPostsOnlyVisibleAuthorPosts(t *testing.T) {
 
 func TestAdminListPostsDefaultsToNewSort(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{"10": "operator"}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	if _, err := uc.AdminListPosts(context.Background(), &ListCampusAdminPostsInput{
 		UserID: "10",
@@ -276,7 +276,7 @@ func TestAdminListPostsDefaultsToNewSort(t *testing.T) {
 
 func TestAdminListPostsPassesOpsFilters(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{"10": "operator"}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	if _, err := uc.AdminListPosts(context.Background(), &ListCampusAdminPostsInput{
 		UserID:       "10",
@@ -302,7 +302,7 @@ func TestAdminListPostsPassesOpsFilters(t *testing.T) {
 
 func TestAdminBatchPostsRequiresOperator(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	if _, err := uc.AdminBatchPosts(context.Background(), &BatchCampusAdminPostsInput{
 		UserID:  "10",
@@ -339,7 +339,7 @@ func TestAdminBatchPostsUpdatesContentFlags(t *testing.T) {
 			},
 		},
 	}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	out, err := uc.AdminBatchPosts(context.Background(), &BatchCampusAdminPostsInput{
 		UserID:  "10",
@@ -382,7 +382,7 @@ func TestAdminBatchPostsUpdatesContentFlags(t *testing.T) {
 
 func TestCreateFeedbackSanitizesInput(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(2001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(2001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	feedback, err := uc.CreateFeedback(context.Background(), &CreateCampusFeedbackInput{
 		UserID:       "10",
@@ -407,7 +407,7 @@ func TestCreateFeedbackSanitizesInput(t *testing.T) {
 
 func TestAdminListFeedbackRequiresOperator(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	if _, err := uc.AdminListFeedback(context.Background(), &ListCampusFeedbackInput{UserID: "10"}); err == nil {
 		t.Fatalf("AdminListFeedback() expected forbidden error")
@@ -416,7 +416,7 @@ func TestAdminListFeedbackRequiresOperator(t *testing.T) {
 
 func TestCheckCampusRequestBlocksIP(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{}, blockedIPs: map[string]bool{"1.2.3.4": true}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	blocked, allowed, err := uc.CheckCampusRequest(context.Background(), &CampusRateLimitInput{
 		IP:       "1.2.3.4",
@@ -434,7 +434,7 @@ func TestCheckCampusRequestBlocksIP(t *testing.T) {
 
 func TestAdminBlockIPRequiresOperator(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	if err := uc.AdminBlockIP(context.Background(), &BlockCampusIPInput{UserID: "10", IP: "1.2.3.4"}); err == nil {
 		t.Fatalf("AdminBlockIP() expected forbidden error")
@@ -443,7 +443,7 @@ func TestAdminBlockIPRequiresOperator(t *testing.T) {
 
 func TestAdminCreateSystemNotificationQueuesOutbox(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{"10": "operator"}}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	taskID, err := uc.AdminCreateSystemNotification(context.Background(), &CreateCampusAdminNotificationInput{
 		UserID:   "10",
@@ -484,7 +484,7 @@ func TestCreateCommentMentionEzaiQueuesAIReplyTask(t *testing.T) {
 			},
 		},
 	}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	_, err := uc.CreateComment(context.Background(), &CreateCampusCommentInput{
 		UserID:  "30",
@@ -517,7 +517,7 @@ func TestProcessNotificationOutboxDeliversSystemNotification(t *testing.T) {
 			Status:    CampusNotificationOutboxStatusPending,
 		}},
 	}
-	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(2001), "secret", log.NewStdLogger(ioDiscard{}))
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(2001), nil, "secret", log.NewStdLogger(ioDiscard{}))
 
 	if err := uc.ProcessPendingNotificationOutbox(context.Background(), 100); err != nil {
 		t.Fatalf("ProcessPendingNotificationOutbox() error = %v", err)
@@ -806,6 +806,30 @@ func (r *campusRepoStub) ListAIReplyTasks(context.Context, string, int, int) ([]
 func (r *campusRepoStub) ResetAIReplyTask(_ context.Context, id int64) error {
 	r.resetAIReplyTaskIDs = append(r.resetAIReplyTaskIDs, id)
 	return nil
+}
+func (r *campusRepoStub) CreateKnowledgeDocument(context.Context, *CampusKnowledgeDocument) error {
+	return nil
+}
+func (r *campusRepoStub) UpdateKnowledgeDocument(context.Context, *CampusKnowledgeDocument) error {
+	return nil
+}
+func (r *campusRepoStub) GetKnowledgeDocumentByID(context.Context, int64) (bool, *CampusKnowledgeDocument, error) {
+	return false, nil, nil
+}
+func (r *campusRepoStub) ListKnowledgeDocuments(context.Context, string, string, string, int, int) ([]*CampusKnowledgeDocument, int64, error) {
+	return nil, 0, nil
+}
+func (r *campusRepoStub) ReplaceKnowledgeChunks(context.Context, int64, []*CampusKnowledgeChunk) error {
+	return nil
+}
+func (r *campusRepoStub) ListKnowledgeChunks(context.Context, int64, int, int) ([]*CampusKnowledgeChunk, int64, error) {
+	return nil, 0, nil
+}
+func (r *campusRepoStub) CreateRAGQueryLog(context.Context, *CampusRAGQueryLog) error {
+	return nil
+}
+func (r *campusRepoStub) ListRAGQueryLogs(context.Context, int, int) ([]*CampusRAGQueryLog, int64, error) {
+	return nil, 0, nil
 }
 func (r *campusRepoStub) ListNotifications(context.Context, string, string, int, int) ([]*CampusNotification, int64, error) {
 	return nil, 0, nil

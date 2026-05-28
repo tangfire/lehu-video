@@ -306,6 +306,68 @@ type campusAIReplyTaskModel struct {
 
 func (campusAIReplyTaskModel) TableName() string { return "campus_ai_reply_task" }
 
+type campusKnowledgeDocumentModel struct {
+	ID           int64      `gorm:"column:id"`
+	Title        string     `gorm:"column:title"`
+	Source       string     `gorm:"column:source"`
+	Category     string     `gorm:"column:category"`
+	ContentType  string     `gorm:"column:content_type"`
+	FileURL      string     `gorm:"column:file_url"`
+	FileID       int64      `gorm:"column:file_id"`
+	FileType     string     `gorm:"column:file_type"`
+	RawContent   string     `gorm:"column:raw_content"`
+	Status       string     `gorm:"column:status"`
+	ParseStatus  string     `gorm:"column:parse_status"`
+	ErrorMessage string     `gorm:"column:error_message"`
+	UploadedBy   int64      `gorm:"column:uploaded_by"`
+	EffectiveAt  *time.Time `gorm:"column:effective_at"`
+	ExpiredAt    *time.Time `gorm:"column:expired_at"`
+	ChunkCount   int64      `gorm:"column:chunk_count"`
+	IsDeleted    bool       `gorm:"column:is_deleted"`
+	CreatedAt    time.Time  `gorm:"column:created_at"`
+	UpdatedAt    time.Time  `gorm:"column:updated_at"`
+}
+
+func (campusKnowledgeDocumentModel) TableName() string { return "campus_knowledge_document" }
+
+type campusKnowledgeChunkModel struct {
+	ID              int64           `gorm:"column:id"`
+	DocumentID      int64           `gorm:"column:document_id"`
+	ChunkIndex      int32           `gorm:"column:chunk_index"`
+	Title           string          `gorm:"column:title"`
+	Content         string          `gorm:"column:content"`
+	Summary         string          `gorm:"column:summary"`
+	Category        string          `gorm:"column:category"`
+	Keywords        json.RawMessage `gorm:"column:keywords"`
+	Source          string          `gorm:"column:source"`
+	Status          string          `gorm:"column:status"`
+	QdrantPointID   string          `gorm:"column:qdrant_point_id"`
+	EmbeddingStatus string          `gorm:"column:embedding_status"`
+	IsDeleted       bool            `gorm:"column:is_deleted"`
+	CreatedAt       time.Time       `gorm:"column:created_at"`
+	UpdatedAt       time.Time       `gorm:"column:updated_at"`
+}
+
+func (campusKnowledgeChunkModel) TableName() string { return "campus_knowledge_chunk" }
+
+type campusRAGQueryLogModel struct {
+	ID               int64           `gorm:"column:id"`
+	UserID           int64           `gorm:"column:user_id"`
+	PostID           int64           `gorm:"column:post_id"`
+	TriggerCommentID int64           `gorm:"column:trigger_comment_id"`
+	Query            string          `gorm:"column:query"`
+	NeedKnowledge    bool            `gorm:"column:need_knowledge"`
+	Confidence       float64         `gorm:"column:confidence"`
+	HitChunks        json.RawMessage `gorm:"column:hit_chunks"`
+	Answer           string          `gorm:"column:answer"`
+	Model            string          `gorm:"column:model"`
+	DurationMs       int64           `gorm:"column:duration_ms"`
+	ErrorMessage     string          `gorm:"column:error_message"`
+	CreatedAt        time.Time       `gorm:"column:created_at"`
+}
+
+func (campusRAGQueryLogModel) TableName() string { return "campus_rag_query_log" }
+
 type campusAccessLogModel struct {
 	ID          int64     `gorm:"column:id"`
 	UserID      int64     `gorm:"column:user_id"`
@@ -1840,6 +1902,153 @@ func (r *campusRepo) ResetAIReplyTask(ctx context.Context, id int64) error {
 		}).Error
 }
 
+func (r *campusRepo) CreateKnowledgeDocument(ctx context.Context, doc *biz.CampusKnowledgeDocument) error {
+	if doc == nil {
+		return nil
+	}
+	row := toKnowledgeDocumentModel(doc)
+	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) UpdateKnowledgeDocument(ctx context.Context, doc *biz.CampusKnowledgeDocument) error {
+	if doc == nil {
+		return nil
+	}
+	values := map[string]interface{}{
+		"title":         doc.Title,
+		"source":        doc.Source,
+		"category":      doc.Category,
+		"status":        doc.Status,
+		"parse_status":  doc.ParseStatus,
+		"error_message": trimLimitData(doc.ErrorMessage, 1000),
+		"effective_at":  doc.EffectiveAt,
+		"expired_at":    doc.ExpiredAt,
+		"chunk_count":   doc.ChunkCount,
+		"updated_at":    time.Now(),
+	}
+	return r.data.db.WithContext(ctx).Model(&campusKnowledgeDocumentModel{}).
+		Where("id = ? AND is_deleted = ?", doc.ID, false).
+		Updates(values).Error
+}
+
+func (r *campusRepo) GetKnowledgeDocumentByID(ctx context.Context, id int64) (bool, *biz.CampusKnowledgeDocument, error) {
+	var row campusKnowledgeDocumentModel
+	err := r.data.db.WithContext(ctx).
+		Where("id = ? AND is_deleted = ?", id, false).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	return true, toBizKnowledgeDocument(&row), nil
+}
+
+func (r *campusRepo) ListKnowledgeDocuments(ctx context.Context, keyword, category, status string, offset, limit int) ([]*biz.CampusKnowledgeDocument, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	db := r.data.db.WithContext(ctx).Model(&campusKnowledgeDocumentModel{}).Where("is_deleted = ?", false)
+	if strings.TrimSpace(keyword) != "" {
+		like := "%" + strings.TrimSpace(keyword) + "%"
+		db = db.Where("title LIKE ? OR source LIKE ? OR raw_content LIKE ?", like, like, like)
+	}
+	if strings.TrimSpace(category) != "" {
+		db = db.Where("category = ?", strings.TrimSpace(category))
+	}
+	if strings.TrimSpace(status) != "" {
+		db = db.Where("status = ?", strings.TrimSpace(status))
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusKnowledgeDocumentModel
+	if err := db.Order("updated_at DESC, id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*biz.CampusKnowledgeDocument, 0, len(rows))
+	for i := range rows {
+		out = append(out, toBizKnowledgeDocument(&rows[i]))
+	}
+	return out, total, nil
+}
+
+func (r *campusRepo) ReplaceKnowledgeChunks(ctx context.Context, documentID int64, chunks []*biz.CampusKnowledgeChunk) error {
+	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&campusKnowledgeChunkModel{}).
+			Where("document_id = ?", documentID).
+			Updates(map[string]interface{}{"is_deleted": true, "status": biz.CampusKnowledgeChunkStatusDisabled, "updated_at": time.Now()}).Error; err != nil {
+			return err
+		}
+		rows := make([]campusKnowledgeChunkModel, 0, len(chunks))
+		for _, chunk := range chunks {
+			if chunk == nil {
+				continue
+			}
+			rows = append(rows, toKnowledgeChunkModel(chunk))
+		}
+		if len(rows) > 0 {
+			if err := tx.CreateInBatches(rows, 100).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(&campusKnowledgeDocumentModel{}).
+			Where("id = ?", documentID).
+			Updates(map[string]interface{}{"chunk_count": len(rows), "updated_at": time.Now()}).Error
+	})
+}
+
+func (r *campusRepo) ListKnowledgeChunks(ctx context.Context, documentID int64, offset, limit int) ([]*biz.CampusKnowledgeChunk, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	db := r.data.db.WithContext(ctx).Model(&campusKnowledgeChunkModel{}).
+		Where("document_id = ? AND is_deleted = ?", documentID, false)
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusKnowledgeChunkModel
+	if err := db.Order("chunk_index ASC, id ASC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*biz.CampusKnowledgeChunk, 0, len(rows))
+	for i := range rows {
+		out = append(out, toBizKnowledgeChunk(&rows[i]))
+	}
+	return out, total, nil
+}
+
+func (r *campusRepo) CreateRAGQueryLog(ctx context.Context, item *biz.CampusRAGQueryLog) error {
+	if item == nil {
+		return nil
+	}
+	row := toRAGQueryLogModel(item)
+	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) ListRAGQueryLogs(ctx context.Context, offset, limit int) ([]*biz.CampusRAGQueryLog, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	db := r.data.db.WithContext(ctx).Model(&campusRAGQueryLogModel{})
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusRAGQueryLogModel
+	if err := db.Order("created_at DESC, id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*biz.CampusRAGQueryLog, 0, len(rows))
+	for i := range rows {
+		out = append(out, toBizRAGQueryLog(&rows[i]))
+	}
+	return out, total, nil
+}
+
 func (r *campusRepo) ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*biz.CampusNotification, int64, error) {
 	db := r.data.db.WithContext(ctx).Model(&campusNotificationModel{}).
 		Where("recipient_id = ? AND is_deleted = ?", parseID(userID), false)
@@ -2642,6 +2851,163 @@ func toBizFeedback(row *campusFeedbackModel) *biz.CampusFeedback {
 		OperatorNote: row.OperatorNote,
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func toKnowledgeDocumentModel(in *biz.CampusKnowledgeDocument) campusKnowledgeDocumentModel {
+	now := time.Now()
+	status := in.Status
+	if status == "" {
+		status = biz.CampusKnowledgeDocumentStatusDraft
+	}
+	parseStatus := in.ParseStatus
+	if parseStatus == "" {
+		parseStatus = status
+	}
+	return campusKnowledgeDocumentModel{
+		ID:           in.ID,
+		Title:        trimLimitData(in.Title, 120),
+		Source:       trimLimitData(in.Source, 120),
+		Category:     trimLimitData(in.Category, 32),
+		ContentType:  trimLimitData(in.ContentType, 16),
+		FileURL:      trimLimitData(in.FileURL, 1024),
+		FileID:       parseID(in.FileID),
+		FileType:     trimLimitData(in.FileType, 16),
+		RawContent:   in.RawContent,
+		Status:       status,
+		ParseStatus:  parseStatus,
+		ErrorMessage: trimLimitData(in.ErrorMessage, 1000),
+		UploadedBy:   parseID(in.UploadedBy),
+		EffectiveAt:  in.EffectiveAt,
+		ExpiredAt:    in.ExpiredAt,
+		ChunkCount:   in.ChunkCount,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+}
+
+func toBizKnowledgeDocument(row *campusKnowledgeDocumentModel) *biz.CampusKnowledgeDocument {
+	if row == nil {
+		return nil
+	}
+	return &biz.CampusKnowledgeDocument{
+		ID:           row.ID,
+		Title:        row.Title,
+		Source:       row.Source,
+		Category:     row.Category,
+		ContentType:  row.ContentType,
+		FileURL:      row.FileURL,
+		FileID:       fmt.Sprintf("%d", row.FileID),
+		FileType:     row.FileType,
+		RawContent:   row.RawContent,
+		Status:       row.Status,
+		ParseStatus:  row.ParseStatus,
+		ErrorMessage: row.ErrorMessage,
+		UploadedBy:   fmt.Sprintf("%d", row.UploadedBy),
+		EffectiveAt:  row.EffectiveAt,
+		ExpiredAt:    row.ExpiredAt,
+		ChunkCount:   row.ChunkCount,
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func toKnowledgeChunkModel(in *biz.CampusKnowledgeChunk) campusKnowledgeChunkModel {
+	now := time.Now()
+	keywords, _ := json.Marshal(in.Keywords)
+	status := in.Status
+	if status == "" {
+		status = biz.CampusKnowledgeChunkStatusActive
+	}
+	embeddingStatus := in.EmbeddingStatus
+	if embeddingStatus == "" {
+		embeddingStatus = "done"
+	}
+	return campusKnowledgeChunkModel{
+		ID:              in.ID,
+		DocumentID:      in.DocumentID,
+		ChunkIndex:      in.ChunkIndex,
+		Title:           trimLimitData(in.Title, 120),
+		Content:         in.Content,
+		Summary:         trimLimitData(in.Summary, 500),
+		Category:        trimLimitData(in.Category, 32),
+		Keywords:        keywords,
+		Source:          trimLimitData(in.Source, 120),
+		Status:          status,
+		QdrantPointID:   trimLimitData(in.QdrantPointID, 128),
+		EmbeddingStatus: trimLimitData(embeddingStatus, 24),
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+}
+
+func toBizKnowledgeChunk(row *campusKnowledgeChunkModel) *biz.CampusKnowledgeChunk {
+	if row == nil {
+		return nil
+	}
+	keywords := make([]string, 0)
+	_ = json.Unmarshal(row.Keywords, &keywords)
+	return &biz.CampusKnowledgeChunk{
+		ID:              row.ID,
+		DocumentID:      row.DocumentID,
+		ChunkIndex:      row.ChunkIndex,
+		Title:           row.Title,
+		Content:         row.Content,
+		Summary:         row.Summary,
+		Category:        row.Category,
+		Keywords:        keywords,
+		Source:          row.Source,
+		Status:          row.Status,
+		QdrantPointID:   row.QdrantPointID,
+		EmbeddingStatus: row.EmbeddingStatus,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
+	}
+}
+
+func toRAGQueryLogModel(in *biz.CampusRAGQueryLog) campusRAGQueryLogModel {
+	hitChunks, _ := json.Marshal(in.HitChunks)
+	now := time.Now()
+	if !in.CreatedAt.IsZero() {
+		now = in.CreatedAt
+	}
+	return campusRAGQueryLogModel{
+		ID:               in.ID,
+		UserID:           parseID(in.UserID),
+		PostID:           in.PostID,
+		TriggerCommentID: in.TriggerCommentID,
+		Query:            trimLimitData(in.Query, 1000),
+		NeedKnowledge:    in.NeedKnowledge,
+		Confidence:       in.Confidence,
+		HitChunks:        hitChunks,
+		Answer:           trimLimitData(in.Answer, 1000),
+		Model:            trimLimitData(in.Model, 64),
+		DurationMs:       in.DurationMs,
+		ErrorMessage:     trimLimitData(in.ErrorMessage, 1000),
+		CreatedAt:        now,
+	}
+}
+
+func toBizRAGQueryLog(row *campusRAGQueryLogModel) *biz.CampusRAGQueryLog {
+	if row == nil {
+		return nil
+	}
+	chunks := make([]*biz.CampusRAGQueryChunk, 0)
+	_ = json.Unmarshal(row.HitChunks, &chunks)
+	return &biz.CampusRAGQueryLog{
+		ID:               row.ID,
+		UserID:           fmt.Sprintf("%d", row.UserID),
+		PostID:           row.PostID,
+		TriggerCommentID: row.TriggerCommentID,
+		Query:            row.Query,
+		NeedKnowledge:    row.NeedKnowledge,
+		Confidence:       row.Confidence,
+		HitChunks:        chunks,
+		Answer:           row.Answer,
+		Model:            row.Model,
+		DurationMs:       row.DurationMs,
+		ErrorMessage:     row.ErrorMessage,
+		CreatedAt:        row.CreatedAt,
 	}
 }
 

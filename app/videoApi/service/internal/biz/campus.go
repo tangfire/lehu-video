@@ -76,6 +76,19 @@ const (
 	CampusAIReplyTaskStatusFailed     = "failed"
 
 	campusAIReplyTaskMaxRetry = 3
+
+	CampusKnowledgeDocumentStatusDraft    = "draft"
+	CampusKnowledgeDocumentStatusIndexing = "indexing"
+	CampusKnowledgeDocumentStatusActive   = "active"
+	CampusKnowledgeDocumentStatusDisabled = "disabled"
+	CampusKnowledgeDocumentStatusFailed   = "failed"
+
+	CampusKnowledgeChunkStatusActive   = "active"
+	CampusKnowledgeChunkStatusDisabled = "disabled"
+	CampusKnowledgeChunkStatusFailed   = "failed"
+
+	CampusKnowledgeContentTypeFile = "file"
+	CampusKnowledgeContentTypeText = "text"
 )
 
 type CampusIDGenerator interface {
@@ -398,6 +411,7 @@ type CampusAIReplyOverview struct {
 	BotAvatar  string
 	Model      string
 	BaseURL    string
+	RAGHealth  *CampusRAGHealth
 	DailyLimit int64
 	TodayUsed  int64
 	Pending    int64
@@ -405,6 +419,61 @@ type CampusAIReplyOverview struct {
 	Done       int64
 	Failed     int64
 	Recent     []*CampusAIReplyTask
+}
+
+type CampusKnowledgeDocument struct {
+	ID           int64
+	Title        string
+	Source       string
+	Category     string
+	ContentType  string
+	FileURL      string
+	FileID       string
+	FileType     string
+	RawContent   string
+	Status       string
+	ParseStatus  string
+	ErrorMessage string
+	UploadedBy   string
+	EffectiveAt  *time.Time
+	ExpiredAt    *time.Time
+	ChunkCount   int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type CampusKnowledgeChunk struct {
+	ID              int64
+	DocumentID      int64
+	ChunkIndex      int32
+	Title           string
+	Content         string
+	Summary         string
+	Category        string
+	Keywords        []string
+	Source          string
+	Status          string
+	QdrantPointID   string
+	EmbeddingStatus string
+	Score           float64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type CampusRAGQueryLog struct {
+	ID               int64
+	UserID           string
+	PostID           int64
+	TriggerCommentID int64
+	Query            string
+	NeedKnowledge    bool
+	Confidence       float64
+	HitChunks        []*CampusRAGQueryChunk
+	Answer           string
+	Model            string
+	DurationMs       int64
+	ErrorMessage     string
+	CreatedAt        time.Time
 }
 
 type CampusAccessLog struct {
@@ -704,6 +773,75 @@ type RetryCampusAIReplyTaskInput struct {
 	TaskID int64
 }
 
+type ListCampusKnowledgeDocumentsInput struct {
+	UserID   string
+	Keyword  string
+	Category string
+	Status   string
+	Page     int32
+	Size     int32
+}
+
+type ListCampusKnowledgeDocumentsOutput struct {
+	Documents []*CampusKnowledgeDocument
+	Total     int64
+}
+
+type CreateCampusKnowledgeDocumentInput struct {
+	UserID      string
+	Title       string
+	Source      string
+	Category    string
+	ContentType string
+	FileURL     string
+	FileID      string
+	FileType    string
+	RawContent  string
+	Status      string
+	EffectiveAt *time.Time
+	ExpiredAt   *time.Time
+}
+
+type UpdateCampusKnowledgeDocumentInput struct {
+	UserID      string
+	DocumentID  int64
+	Title       string
+	Source      string
+	Category    string
+	Status      string
+	EffectiveAt *time.Time
+	ExpiredAt   *time.Time
+}
+
+type ListCampusKnowledgeChunksInput struct {
+	UserID     string
+	DocumentID int64
+	Page       int32
+	Size       int32
+}
+
+type ListCampusKnowledgeChunksOutput struct {
+	Chunks []*CampusKnowledgeChunk
+	Total  int64
+}
+
+type TestCampusKnowledgeQueryInput struct {
+	UserID string
+	Query  string
+	TopK   int32
+}
+
+type ListCampusRAGQueryLogsInput struct {
+	UserID string
+	Page   int32
+	Size   int32
+}
+
+type ListCampusRAGQueryLogsOutput struct {
+	Logs  []*CampusRAGQueryLog
+	Total int64
+}
+
 type ListCampusReportsInput struct {
 	UserID string
 	Status int32
@@ -986,6 +1124,14 @@ type CampusRepo interface {
 	GetAIReplyOverview(ctx context.Context, botUserID string, limit int) (*CampusAIReplyOverview, error)
 	ListAIReplyTasks(ctx context.Context, status string, offset, limit int) ([]*CampusAIReplyTask, int64, error)
 	ResetAIReplyTask(ctx context.Context, id int64) error
+	CreateKnowledgeDocument(ctx context.Context, doc *CampusKnowledgeDocument) error
+	UpdateKnowledgeDocument(ctx context.Context, doc *CampusKnowledgeDocument) error
+	GetKnowledgeDocumentByID(ctx context.Context, id int64) (bool, *CampusKnowledgeDocument, error)
+	ListKnowledgeDocuments(ctx context.Context, keyword, category, status string, offset, limit int) ([]*CampusKnowledgeDocument, int64, error)
+	ReplaceKnowledgeChunks(ctx context.Context, documentID int64, chunks []*CampusKnowledgeChunk) error
+	ListKnowledgeChunks(ctx context.Context, documentID int64, offset, limit int) ([]*CampusKnowledgeChunk, int64, error)
+	CreateRAGQueryLog(ctx context.Context, item *CampusRAGQueryLog) error
+	ListRAGQueryLogs(ctx context.Context, offset, limit int) ([]*CampusRAGQueryLog, int64, error)
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
 	CountUnreadNotifications(ctx context.Context, userID string) (*CampusUnreadNotificationCount, error)
 	MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error
@@ -1021,6 +1167,7 @@ type CampusUsecase struct {
 	eventBatcher      *CampusBatchProcessor[*TrackCampusEventInput]
 	accessLogBatcher  *CampusBatchProcessor[*CampusAccessLog]
 	aiReplyConfig     CampusAIReplyConfig
+	rag               CampusRAGClient
 	log               *log.Helper
 }
 
@@ -1036,7 +1183,10 @@ type CampusAIReplyConfig struct {
 	Timeout         time.Duration
 }
 
-func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timetableProvider CampusTimetableProvider, idGen CampusIDGenerator, authSecret string, logger log.Logger) *CampusUsecase {
+func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timetableProvider CampusTimetableProvider, idGen CampusIDGenerator, rag CampusRAGClient, authSecret string, logger log.Logger) *CampusUsecase {
+	if rag == nil {
+		rag = &noopCampusRAGClient{}
+	}
 	assembler := NewCampusPostAssembler(repo, core, logger)
 	recommendPool := NewCampusRecommendPool(logger)
 	uc := &CampusUsecase{
@@ -1049,6 +1199,7 @@ func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timet
 		assembler:         assembler,
 		recommendPool:     recommendPool,
 		aiReplyConfig:     loadCampusAIReplyConfig(),
+		rag:               rag,
 		log:               log.NewHelper(logger),
 	}
 	uc.eventBatcher = NewCampusBatchProcessor("campus_event", 100, 2*time.Second, uc.persistCampusEvents, logger)
@@ -1373,6 +1524,28 @@ func (uc *CampusUsecase) PreSignPublicVideo(ctx context.Context, hash, fileType,
 	return fileID, url, nil
 }
 
+func (uc *CampusUsecase) PreSignPublicKnowledgeFile(ctx context.Context, hash, fileType, filename string, size int64) (string, string, error) {
+	hash = strings.TrimSpace(hash)
+	fileType = normalizeKnowledgeFileType(fileType)
+	filename = strings.TrimSpace(filename)
+	if hash == "" {
+		return "", "", apperror.InvalidArgument("文档 hash 不能为空")
+	}
+	switch fileType {
+	case "pdf", "docx", "txt", "md":
+	default:
+		return "", "", apperror.InvalidArgument("仅支持 PDF、DOCX、TXT、MD 文档")
+	}
+	if size <= 0 || size > 20<<20 {
+		return "", "", apperror.InvalidArgument("知识库文档不能超过 20MB")
+	}
+	fileID, url, err := uc.base.PreSign4PublicUpload(ctx, hash, fileType, filename, size, 3600)
+	if err != nil {
+		return "", "", apperror.Internal(err, "创建文档上传地址失败")
+	}
+	return fileID, url, nil
+}
+
 func (uc *CampusUsecase) PreSignCampusUpload(ctx context.Context, input *CampusUploadPresignInput) (*CampusUploadPresignOutput, error) {
 	if input == nil {
 		return nil, apperror.InvalidArgument("上传参数不能为空")
@@ -1466,6 +1639,18 @@ func campusUploadContentType(mediaType, fileType string) string {
 		}
 	}
 	return "application/octet-stream"
+}
+
+func (uc *CampusUsecase) ReportPublicKnowledgeFileUploaded(ctx context.Context, fileID string) (string, error) {
+	fileID = strings.TrimSpace(fileID)
+	if fileID == "" || fileID == "0" {
+		return "", apperror.InvalidArgument("文档 file_id 无效")
+	}
+	url, err := uc.base.ReportPublicUploaded(ctx, fileID)
+	if err != nil {
+		return "", apperror.Internal(err, "确认文档上传失败")
+	}
+	return url, nil
 }
 
 func (uc *CampusUsecase) ReportPublicVideoUploaded(ctx context.Context, fileID string) (string, error) {
@@ -2448,7 +2633,7 @@ func (uc *CampusUsecase) processAIReplyTask(ctx context.Context, task *CampusAIR
 	if !ok || trigger == nil || trigger.Status != CampusAuditStatusVisible {
 		return fmt.Errorf("trigger comment not visible")
 	}
-	answer, err := uc.generateEzaiAnswer(ctx, post, trigger, task.Prompt)
+	answer, err := uc.generateEzaiAnswer(ctx, task, post, trigger, task.Prompt)
 	if err != nil {
 		return err
 	}
@@ -2488,22 +2673,34 @@ func (uc *CampusUsecase) processAIReplyTask(ctx context.Context, task *CampusAIR
 	return uc.repo.MarkAIReplyTaskDone(ctx, task.ID, comment.ID)
 }
 
-func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, post *CampusForumPost, trigger *CampusForumComment, prompt string) (string, error) {
+func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, task *CampusAIReplyTask, post *CampusForumPost, trigger *CampusForumComment, prompt string) (string, error) {
 	cfg := uc.aiReplyConfig
 	taskCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
+	query := trimLimit(firstNonEmpty(prompt, trigger.Content), 500)
+	ragResp, ragDuration, ragErr := uc.queryKnowledgeForEzai(taskCtx, query)
+	knowledgeContext := buildEzaiKnowledgeContext(ragResp)
 	userPrompt := fmt.Sprintf("帖子标题：%s\n帖子正文：%s\n同学评论：%s\n需要回答的问题：%s",
 		trimLimit(post.Title, 80),
 		trimLimit(post.Content, 500),
 		trimLimit(trigger.Content, 500),
-		trimLimit(firstNonEmpty(prompt, trigger.Content), 500),
+		query,
 	)
+	if knowledgeContext != "" {
+		userPrompt += "\n\n可参考的校园资料：\n" + knowledgeContext
+	} else if ragResp != nil && ragResp.NeedKnowledge {
+		userPrompt += "\n\n知识库检索结果：当前资料里没有高置信度命中。若问题涉及报到、宿舍、交通、校园网、军训等学校事实，请不要编造。"
+	}
+	systemPrompt := "你是“深汕e仔”，深汕校园e站的官方内容小伙伴。请用温和、简洁、像校园学长学姐一样的语气回复。只回答深圳职业技术大学深汕校区校园生活、报到、宿舍、交通、课表演示、平台使用、问答互助相关问题。不要冒充学校官方，不确定时明确说以学校官方渠道为准。不要输出联系方式、广告、敏感隐私，不要编造政策。回复控制在120字以内。"
+	if knowledgeContext != "" {
+		systemPrompt += " 若提供了校园资料，优先依据资料回答；可以自然提到“资料里写到/目前资料显示”，但不要生硬罗列引用。"
+	}
 	body, _ := json.Marshal(map[string]interface{}{
 		"model": cfg.Model,
 		"messages": []map[string]string{
 			{
 				"role":    "system",
-				"content": "你是“深汕e仔”，深汕校园e站的官方内容小伙伴。请用温和、简洁、像校园学长学姐一样的语气回复。只回答深圳职业技术大学深汕校区校园生活、报到、宿舍、交通、课表演示、平台使用、问答互助相关问题。不要冒充学校官方，不确定时明确说以学校官方渠道为准。不要输出联系方式、广告、敏感隐私，不要编造政策。回复控制在120字以内。",
+				"content": systemPrompt,
 			},
 			{"role": "user", "content": userPrompt},
 		},
@@ -2538,7 +2735,73 @@ func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, post *CampusFor
 	if len(out.Choices) == 0 {
 		return "", fmt.Errorf("ai api returned empty choices")
 	}
-	return out.Choices[0].Message.Content, nil
+	answer := out.Choices[0].Message.Content
+	uc.recordRAGQueryLog(ctx, task, post, query, ragResp, answer, ragDuration, ragErr)
+	return answer, nil
+}
+
+func (uc *CampusUsecase) queryKnowledgeForEzai(ctx context.Context, query string) (*CampusRAGQueryResponse, int64, error) {
+	if uc.rag == nil || strings.TrimSpace(query) == "" {
+		return nil, 0, nil
+	}
+	start := time.Now()
+	resp, err := uc.rag.Query(ctx, &CampusRAGQueryRequest{Query: query, TopK: 5})
+	duration := time.Since(start).Milliseconds()
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("ezai rag query failed: %v", err)
+		return nil, duration, err
+	}
+	return resp, duration, nil
+}
+
+func (uc *CampusUsecase) recordRAGQueryLog(ctx context.Context, task *CampusAIReplyTask, post *CampusForumPost, query string, ragResp *CampusRAGQueryResponse, answer string, durationMs int64, ragErr error) {
+	if task == nil {
+		return
+	}
+	item := &CampusRAGQueryLog{
+		ID:               uc.idGen.NextID(),
+		UserID:           task.AskerID,
+		PostID:           task.PostID,
+		TriggerCommentID: task.TriggerCommentID,
+		Query:            query,
+		Answer:           trimLimit(answer, 1000),
+		Model:            uc.aiReplyConfig.Model,
+		DurationMs:       durationMs,
+		CreatedAt:        time.Now(),
+	}
+	if post != nil {
+		item.PostID = post.ID
+	}
+	if ragResp != nil {
+		item.NeedKnowledge = ragResp.NeedKnowledge
+		item.Confidence = ragResp.Confidence
+		item.HitChunks = ragResp.Chunks
+	}
+	if ragErr != nil {
+		item.ErrorMessage = trimLimit(ragErr.Error(), 1000)
+	}
+	if err := uc.repo.CreateRAGQueryLog(ctx, item); err != nil {
+		uc.log.WithContext(ctx).Warnf("create rag query log failed: %v", err)
+	}
+}
+
+func buildEzaiKnowledgeContext(resp *CampusRAGQueryResponse) string {
+	if resp == nil || !resp.NeedKnowledge || resp.Confidence < 0.52 || len(resp.Chunks) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	count := 0
+	for _, chunk := range resp.Chunks {
+		if chunk == nil || strings.TrimSpace(chunk.Content) == "" {
+			continue
+		}
+		count++
+		builder.WriteString(fmt.Sprintf("[%d] 标题：%s；来源：%s；内容：%s\n", count, trimLimit(chunk.Title, 80), trimLimit(chunk.Source, 80), trimLimit(chunk.Content, 420)))
+		if count >= 4 {
+			break
+		}
+	}
+	return strings.TrimSpace(builder.String())
 }
 
 func (uc *CampusUsecase) markAIReplyTaskRetry(ctx context.Context, item *CampusAIReplyTask, processErr error) {
@@ -2568,6 +2831,59 @@ func normalizeAIReplyTaskStatus(status string) string {
 		return strings.TrimSpace(strings.ToLower(status))
 	default:
 		return ""
+	}
+}
+
+func normalizeKnowledgeDocumentStatus(status string) string {
+	switch strings.TrimSpace(strings.ToLower(status)) {
+	case CampusKnowledgeDocumentStatusDraft:
+		return CampusKnowledgeDocumentStatusDraft
+	case CampusKnowledgeDocumentStatusIndexing:
+		return CampusKnowledgeDocumentStatusIndexing
+	case CampusKnowledgeDocumentStatusActive:
+		return CampusKnowledgeDocumentStatusActive
+	case CampusKnowledgeDocumentStatusDisabled:
+		return CampusKnowledgeDocumentStatusDisabled
+	case CampusKnowledgeDocumentStatusFailed:
+		return CampusKnowledgeDocumentStatusFailed
+	default:
+		return ""
+	}
+}
+
+func normalizeKnowledgeContentType(contentType string) string {
+	switch strings.TrimSpace(strings.ToLower(contentType)) {
+	case CampusKnowledgeContentTypeFile:
+		return CampusKnowledgeContentTypeFile
+	case CampusKnowledgeContentTypeText:
+		return CampusKnowledgeContentTypeText
+	default:
+		return CampusKnowledgeContentTypeText
+	}
+}
+
+func normalizeKnowledgeCategory(category string) string {
+	category = strings.TrimSpace(strings.ToLower(category))
+	switch category {
+	case "registration", "dorm", "traffic", "timetable", "network", "express", "military", "club", "lost", "platform", "policy", "life", "study":
+		return category
+	case "":
+		return "general"
+	default:
+		return trimLimit(category, 32)
+	}
+}
+
+func normalizeKnowledgeFileType(fileType string) string {
+	fileType = strings.Trim(strings.ToLower(strings.TrimSpace(fileType)), ".")
+	switch fileType {
+	case "pdf", "docx", "txt", "md", "markdown":
+		if fileType == "markdown" {
+			return "md"
+		}
+		return fileType
+	default:
+		return fileType
 	}
 }
 
@@ -3025,6 +3341,13 @@ func (uc *CampusUsecase) AdminAIReplyOverview(ctx context.Context, userID string
 			uc.log.WithContext(ctx).Warnf("count ezai replies today failed: %v", err)
 		}
 	}
+	if uc.rag != nil {
+		if health, err := uc.rag.Health(ctx); err == nil {
+			overview.RAGHealth = health
+		} else {
+			overview.RAGHealth = &CampusRAGHealth{Status: "unavailable", Qdrant: "unknown", LastError: trimLimit(err.Error(), 200)}
+		}
+	}
 	return overview, nil
 }
 
@@ -3050,6 +3373,258 @@ func (uc *CampusUsecase) AdminRetryAIReplyTask(ctx context.Context, input *Retry
 	}
 	if err := uc.repo.ResetAIReplyTask(ctx, input.TaskID); err != nil {
 		return apperror.Internal(err, "重试 e仔回复任务失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) AdminListKnowledgeDocuments(ctx context.Context, input *ListCampusKnowledgeDocumentsInput) (*ListCampusKnowledgeDocumentsOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	status := normalizeKnowledgeDocumentStatus(input.Status)
+	docs, total, err := uc.repo.ListKnowledgeDocuments(ctx, strings.TrimSpace(input.Keyword), normalizeKnowledgeCategory(input.Category), status, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取知识库文档失败")
+	}
+	return &ListCampusKnowledgeDocumentsOutput{Documents: docs, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminCreateKnowledgeDocument(ctx context.Context, input *CreateCampusKnowledgeDocumentInput) (*CampusKnowledgeDocument, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	if input == nil {
+		return nil, apperror.InvalidArgument("知识库文档不能为空")
+	}
+	contentType := normalizeKnowledgeContentType(input.ContentType)
+	title := trimLimit(input.Title, 120)
+	source := trimLimit(firstNonEmpty(input.Source, "运营录入"), 120)
+	category := normalizeKnowledgeCategory(input.Category)
+	if len([]rune(title)) < 2 {
+		return nil, apperror.InvalidArgument("标题至少 2 个字")
+	}
+	if contentType == CampusKnowledgeContentTypeText && len([]rune(strings.TrimSpace(input.RawContent))) < 10 {
+		return nil, apperror.InvalidArgument("手动录入内容至少 10 个字")
+	}
+	if contentType == CampusKnowledgeContentTypeFile && strings.TrimSpace(input.FileURL) == "" {
+		return nil, apperror.InvalidArgument("请先上传知识库文档")
+	}
+	doc := &CampusKnowledgeDocument{
+		ID:           uc.idGen.NextID(),
+		Title:        title,
+		Source:       source,
+		Category:     category,
+		ContentType:  contentType,
+		FileURL:      trimLimit(input.FileURL, 1024),
+		FileID:       trimLimit(input.FileID, 64),
+		FileType:     normalizeKnowledgeFileType(input.FileType),
+		RawContent:   trimLimit(input.RawContent, 20000),
+		Status:       CampusKnowledgeDocumentStatusIndexing,
+		ParseStatus:  "indexing",
+		UploadedBy:   strings.TrimSpace(input.UserID),
+		EffectiveAt:  input.EffectiveAt,
+		ExpiredAt:    input.ExpiredAt,
+		ErrorMessage: "",
+	}
+	if strings.TrimSpace(input.Status) == CampusKnowledgeDocumentStatusDraft {
+		doc.Status = CampusKnowledgeDocumentStatusDraft
+		doc.ParseStatus = "draft"
+	}
+	if err := uc.repo.CreateKnowledgeDocument(ctx, doc); err != nil {
+		return nil, apperror.Internal(err, "创建知识库文档失败")
+	}
+	if doc.Status != CampusKnowledgeDocumentStatusDraft {
+		if err := uc.indexKnowledgeDocument(ctx, doc); err != nil {
+			return doc, err
+		}
+	}
+	return doc, nil
+}
+
+func (uc *CampusUsecase) AdminUpdateKnowledgeDocument(ctx context.Context, input *UpdateCampusKnowledgeDocumentInput) (*CampusKnowledgeDocument, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	ok, doc, err := uc.repo.GetKnowledgeDocumentByID(ctx, input.DocumentID)
+	if err != nil {
+		return nil, apperror.Internal(err, "查询知识库文档失败")
+	}
+	if !ok || doc == nil {
+		return nil, apperror.NotFound("知识库文档不存在")
+	}
+	if strings.TrimSpace(input.Title) != "" {
+		doc.Title = trimLimit(input.Title, 120)
+	}
+	if strings.TrimSpace(input.Source) != "" {
+		doc.Source = trimLimit(input.Source, 120)
+	}
+	if strings.TrimSpace(input.Category) != "" {
+		doc.Category = normalizeKnowledgeCategory(input.Category)
+	}
+	doc.EffectiveAt = input.EffectiveAt
+	doc.ExpiredAt = input.ExpiredAt
+	status := normalizeKnowledgeDocumentStatus(input.Status)
+	if status != "" && status != doc.Status {
+		switch status {
+		case CampusKnowledgeDocumentStatusActive:
+			doc.Status = CampusKnowledgeDocumentStatusIndexing
+			doc.ParseStatus = "indexing"
+			doc.ErrorMessage = ""
+			if err := uc.repo.UpdateKnowledgeDocument(ctx, doc); err != nil {
+				return nil, apperror.Internal(err, "更新知识库文档失败")
+			}
+			if err := uc.indexKnowledgeDocument(ctx, doc); err != nil {
+				return doc, err
+			}
+			return doc, nil
+		case CampusKnowledgeDocumentStatusDisabled:
+			doc.Status = CampusKnowledgeDocumentStatusDisabled
+			doc.ParseStatus = "disabled"
+			doc.ErrorMessage = ""
+			doc.ChunkCount = 0
+			_ = uc.rag.DeleteDocument(ctx, doc.ID)
+			if err := uc.repo.ReplaceKnowledgeChunks(ctx, doc.ID, nil); err != nil {
+				return nil, apperror.Internal(err, "下架知识片段失败")
+			}
+		case CampusKnowledgeDocumentStatusDraft:
+			doc.Status = CampusKnowledgeDocumentStatusDraft
+			doc.ParseStatus = "draft"
+		default:
+			return nil, apperror.InvalidArgument("知识库文档状态无效")
+		}
+	}
+	if err := uc.repo.UpdateKnowledgeDocument(ctx, doc); err != nil {
+		return nil, apperror.Internal(err, "更新知识库文档失败")
+	}
+	return doc, nil
+}
+
+func (uc *CampusUsecase) AdminReindexKnowledgeDocument(ctx context.Context, userID string, documentID int64) (*CampusKnowledgeDocument, error) {
+	if !uc.isCampusOperator(ctx, userID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	ok, doc, err := uc.repo.GetKnowledgeDocumentByID(ctx, documentID)
+	if err != nil {
+		return nil, apperror.Internal(err, "查询知识库文档失败")
+	}
+	if !ok || doc == nil {
+		return nil, apperror.NotFound("知识库文档不存在")
+	}
+	doc.Status = CampusKnowledgeDocumentStatusIndexing
+	doc.ParseStatus = "indexing"
+	doc.ErrorMessage = ""
+	if err := uc.repo.UpdateKnowledgeDocument(ctx, doc); err != nil {
+		return nil, apperror.Internal(err, "更新知识库文档状态失败")
+	}
+	if err := uc.indexKnowledgeDocument(ctx, doc); err != nil {
+		return doc, err
+	}
+	return doc, nil
+}
+
+func (uc *CampusUsecase) AdminListKnowledgeChunks(ctx context.Context, input *ListCampusKnowledgeChunksInput) (*ListCampusKnowledgeChunksOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	if input.DocumentID <= 0 {
+		return nil, apperror.InvalidArgument("文档 ID 无效")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	chunks, total, err := uc.repo.ListKnowledgeChunks(ctx, input.DocumentID, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取知识片段失败")
+	}
+	return &ListCampusKnowledgeChunksOutput{Chunks: chunks, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminTestKnowledgeQuery(ctx context.Context, input *TestCampusKnowledgeQueryInput) (*CampusRAGQueryResponse, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	query := strings.TrimSpace(input.Query)
+	if len([]rune(query)) < 2 {
+		return nil, apperror.InvalidArgument("请输入要测试的问题")
+	}
+	topK := int(input.TopK)
+	if topK <= 0 || topK > 10 {
+		topK = 5
+	}
+	out, err := uc.rag.Query(ctx, &CampusRAGQueryRequest{Query: query, TopK: topK})
+	if err != nil {
+		return nil, apperror.DependencyUnavailable(err, "RAG 服务暂不可用")
+	}
+	return out, nil
+}
+
+func (uc *CampusUsecase) AdminListRAGQueryLogs(ctx context.Context, input *ListCampusRAGQueryLogsInput) (*ListCampusRAGQueryLogsOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	logs, total, err := uc.repo.ListRAGQueryLogs(ctx, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取 RAG 查询日志失败")
+	}
+	return &ListCampusRAGQueryLogsOutput{Logs: logs, Total: total}, nil
+}
+
+func (uc *CampusUsecase) indexKnowledgeDocument(ctx context.Context, doc *CampusKnowledgeDocument) error {
+	if doc == nil {
+		return nil
+	}
+	req := &CampusRAGIndexRequest{
+		DocumentID: doc.ID,
+		Title:      doc.Title,
+		Category:   doc.Category,
+		Source:     doc.Source,
+		FileURL:    doc.FileURL,
+		FileType:   doc.FileType,
+		Content:    doc.RawContent,
+		Metadata:   map[string]string{"content_type": doc.ContentType, "file_id": doc.FileID},
+	}
+	var resp *CampusRAGIndexResponse
+	var err error
+	if doc.ContentType == CampusKnowledgeContentTypeText {
+		resp, err = uc.rag.IndexText(ctx, req)
+	} else {
+		resp, err = uc.rag.IndexDocument(ctx, req)
+	}
+	if err != nil {
+		doc.Status = CampusKnowledgeDocumentStatusFailed
+		doc.ParseStatus = "failed"
+		doc.ErrorMessage = trimLimit(err.Error(), 1000)
+		_ = uc.repo.UpdateKnowledgeDocument(ctx, doc)
+		return apperror.DependencyUnavailable(err, "知识库索引失败")
+	}
+	chunks := make([]*CampusKnowledgeChunk, 0, len(resp.Chunks))
+	for idx, chunk := range resp.Chunks {
+		if chunk == nil {
+			continue
+		}
+		chunk.ID = uc.idGen.NextID()
+		chunk.DocumentID = doc.ID
+		chunk.ChunkIndex = int32(idx)
+		chunk.Title = firstNonEmpty(chunk.Title, doc.Title)
+		chunk.Category = firstNonEmpty(chunk.Category, doc.Category)
+		chunk.Source = firstNonEmpty(chunk.Source, doc.Source)
+		chunk.Status = firstNonEmpty(chunk.Status, CampusKnowledgeChunkStatusActive)
+		chunk.EmbeddingStatus = firstNonEmpty(chunk.EmbeddingStatus, "done")
+		chunks = append(chunks, chunk)
+	}
+	if err := uc.repo.ReplaceKnowledgeChunks(ctx, doc.ID, chunks); err != nil {
+		doc.Status = CampusKnowledgeDocumentStatusFailed
+		doc.ParseStatus = "failed"
+		doc.ErrorMessage = trimLimit(err.Error(), 1000)
+		_ = uc.repo.UpdateKnowledgeDocument(ctx, doc)
+		return apperror.Internal(err, "保存知识片段失败")
+	}
+	doc.Status = CampusKnowledgeDocumentStatusActive
+	doc.ParseStatus = "done"
+	doc.ErrorMessage = ""
+	doc.ChunkCount = int64(len(chunks))
+	if err := uc.repo.UpdateKnowledgeDocument(ctx, doc); err != nil {
+		return apperror.Internal(err, "更新知识库文档状态失败")
 	}
 	return nil
 }
