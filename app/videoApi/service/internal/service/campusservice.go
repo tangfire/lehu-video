@@ -71,6 +71,10 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.DELETE("/v1/campus/forum/comments/{id}", s.wrap(s.authRequired(s.handleDeleteComment)))
 	r.POST("/v1/campus/forum/comments/{id}/report", s.wrap(s.authRequired(s.handleReportComment)))
 	r.POST("/v1/campus/feedback", s.wrap(s.authRequired(s.handleCreateFeedback)))
+	r.GET("/v1/campus/notifications", s.wrap(s.authRequired(s.handleListNotifications)))
+	r.GET("/v1/campus/notifications/unread-count", s.wrap(s.authRequired(s.handleUnreadNotificationCount)))
+	r.POST("/v1/campus/notifications/read-all", s.wrap(s.authRequired(s.handleMarkAllNotificationsRead)))
+	r.POST("/v1/campus/notifications/{id}/read", s.wrap(s.authRequired(s.handleMarkNotificationRead)))
 	r.GET("/v1/campus/moderation/posts", s.wrap(s.authRequired(s.handleListModerationPosts)))
 	r.GET("/v1/campus/moderation/comments", s.wrap(s.authRequired(s.handleListModerationComments)))
 	r.POST("/v1/campus/moderation/posts/{id}/review", s.wrap(s.authRequired(s.handleReviewPost)))
@@ -93,6 +97,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.DELETE("/v1/campus/admin/security/ip-blocks/{id}", s.wrap(s.authRequired(s.handleAdminUnblockIP)))
 	r.GET("/v1/campus/admin/users", s.wrap(s.authRequired(s.handleAdminListUsers)))
 	r.PUT("/v1/campus/admin/users/{id}/role", s.wrap(s.authRequired(s.handleAdminUpdateUserRole)))
+	r.POST("/v1/campus/admin/notifications", s.wrap(s.authRequired(s.handleAdminCreateNotification)))
 }
 
 func (s *CampusService) wrap(handler http.HandlerFunc) khttp.HandlerFunc {
@@ -634,6 +639,14 @@ type reviewFeedbackRequest struct {
 	OperatorNote string `json:"operator_note"`
 }
 
+type adminNotificationRequest struct {
+	Title      string            `json:"title"`
+	Content    string            `json:"content"`
+	LinkPage   string            `json:"link_page"`
+	LinkParams map[string]string `json:"link_params"`
+	Audience   string            `json:"audience"`
+}
+
 type blockIPRequest struct {
 	IP     string `json:"ip"`
 	Reason string `json:"reason"`
@@ -922,6 +935,66 @@ func (s *CampusService) handleReportPost(w http.ResponseWriter, r *http.Request)
 		Reason:     req.Reason,
 		Detail:     req.Detail,
 	}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleListNotifications(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.ListNotifications(r.Context(), &biz.ListCampusNotificationsInput{
+		UserID: userID,
+		Type:   q.Get("type"),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Notifications))
+	for _, item := range out.Notifications {
+		items = append(items, notificationToMap(item))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"notifications": items,
+		"page_stats":    map[string]interface{}{"total": out.Total},
+	})
+}
+
+func (s *CampusService) handleUnreadNotificationCount(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	count, err := s.uc.CountUnreadNotifications(r.Context(), userID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"total":       count.Total,
+		"reply":       count.Reply,
+		"interaction": count.Interaction,
+		"system":      count.System,
+	})
+}
+
+func (s *CampusService) handleMarkNotificationRead(w http.ResponseWriter, r *http.Request) {
+	notificationID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.MarkNotificationRead(r.Context(), userID, notificationID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleMarkAllNotificationsRead(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.MarkAllNotificationsRead(r.Context(), userID); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -1341,6 +1414,26 @@ func (s *CampusService) handleAdminReviewFeedback(w http.ResponseWriter, r *http
 		FeedbackID:   feedbackID,
 		Status:       req.Status,
 		OperatorNote: req.OperatorNote,
+	}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
+func (s *CampusService) handleAdminCreateNotification(w http.ResponseWriter, r *http.Request) {
+	var req adminNotificationRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminCreateSystemNotification(r.Context(), &biz.CreateCampusAdminNotificationInput{
+		UserID:     userID,
+		Title:      req.Title,
+		Content:    req.Content,
+		LinkPage:   req.LinkPage,
+		LinkParams: req.LinkParams,
+		Audience:   req.Audience,
 	}); err != nil {
 		writeError(w, r, err)
 		return
@@ -1785,6 +1878,34 @@ func feedbackToMap(feedback *biz.CampusFeedback) map[string]interface{} {
 		"operator_note": feedback.OperatorNote,
 		"created_at":    formatTime(feedback.CreatedAt),
 		"updated_at":    formatTime(feedback.UpdatedAt),
+	}
+}
+
+func notificationToMap(notification *biz.CampusNotification) map[string]interface{} {
+	if notification == nil {
+		return nil
+	}
+	readAt := ""
+	if notification.ReadAt != nil {
+		readAt = formatTime(*notification.ReadAt)
+	}
+	return map[string]interface{}{
+		"id":           strconv.FormatInt(notification.ID, 10),
+		"recipient_id": notification.RecipientID,
+		"actor_id":     notification.ActorID,
+		"actor":        authorToMap(notification.Actor),
+		"event_type":   notification.EventType,
+		"target_type":  notification.TargetType,
+		"target_id":    strconv.FormatInt(notification.TargetID, 10),
+		"dedupe_key":   notification.DedupeKey,
+		"title":        notification.Title,
+		"content":      notification.Content,
+		"link_page":    notification.LinkPage,
+		"link_params":  notification.LinkParams,
+		"is_read":      notification.ReadAt != nil,
+		"read_at":      readAt,
+		"created_at":   formatTime(notification.CreatedAt),
+		"updated_at":   formatTime(notification.UpdatedAt),
 	}
 }
 

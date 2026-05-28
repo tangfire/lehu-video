@@ -240,6 +240,26 @@ type campusFeedbackModel struct {
 
 func (campusFeedbackModel) TableName() string { return "campus_feedback" }
 
+type campusNotificationModel struct {
+	ID          int64           `gorm:"column:id"`
+	RecipientID int64           `gorm:"column:recipient_id"`
+	ActorID     int64           `gorm:"column:actor_id"`
+	EventType   string          `gorm:"column:event_type"`
+	TargetType  string          `gorm:"column:target_type"`
+	TargetID    int64           `gorm:"column:target_id"`
+	DedupeKey   *string         `gorm:"column:dedupe_key"`
+	Title       string          `gorm:"column:title"`
+	Content     string          `gorm:"column:content"`
+	LinkPage    string          `gorm:"column:link_page"`
+	LinkParams  json.RawMessage `gorm:"column:link_params"`
+	ReadAt      *time.Time      `gorm:"column:read_at"`
+	IsDeleted   bool            `gorm:"column:is_deleted"`
+	CreatedAt   time.Time       `gorm:"column:created_at"`
+	UpdatedAt   time.Time       `gorm:"column:updated_at"`
+}
+
+func (campusNotificationModel) TableName() string { return "campus_notification" }
+
 type campusAccessLogModel struct {
 	ID          int64     `gorm:"column:id"`
 	UserID      int64     `gorm:"column:user_id"`
@@ -1391,6 +1411,145 @@ func (r *campusRepo) UpdateFeedbackStatus(ctx context.Context, feedbackID int64,
 		}).Error
 }
 
+func (r *campusRepo) CreateNotification(ctx context.Context, in *biz.CampusNotification, unique bool) error {
+	if in == nil {
+		return nil
+	}
+	row := toNotificationModel(in)
+	db := r.data.db.WithContext(ctx)
+	if unique {
+		if row.DedupeKey == nil || strings.TrimSpace(*row.DedupeKey) == "" {
+			dedupeKey := notificationDedupeKey(row.RecipientID, row.ActorID, row.EventType, row.TargetType, row.TargetID)
+			row.DedupeKey = &dedupeKey
+		}
+		db = db.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "dedupe_key"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"title":       row.Title,
+				"content":     row.Content,
+				"link_page":   row.LinkPage,
+				"link_params": row.LinkParams,
+				"is_deleted":  false,
+				"updated_at":  time.Now(),
+			}),
+		})
+	}
+	return db.Create(&row).Error
+}
+
+func (r *campusRepo) BulkCreateNotifications(ctx context.Context, notifications []*biz.CampusNotification) error {
+	if len(notifications) == 0 {
+		return nil
+	}
+	rows := make([]campusNotificationModel, 0, len(notifications))
+	for _, notification := range notifications {
+		if notification == nil {
+			continue
+		}
+		rows = append(rows, toNotificationModel(notification))
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return r.data.db.WithContext(ctx).CreateInBatches(rows, 100).Error
+}
+
+func (r *campusRepo) ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*biz.CampusNotification, int64, error) {
+	db := r.data.db.WithContext(ctx).Model(&campusNotificationModel{}).
+		Where("recipient_id = ? AND is_deleted = ?", parseID(userID), false)
+	switch group {
+	case biz.CampusNotificationGroupReply:
+		db = db.Where("event_type IN ?", []string{biz.CampusNotificationTypeComment, biz.CampusNotificationTypeReply})
+	case biz.CampusNotificationGroupInteraction:
+		db = db.Where("event_type IN ?", []string{biz.CampusNotificationTypePostLike, biz.CampusNotificationTypePostCollect, biz.CampusNotificationTypeCommentLike})
+	case biz.CampusNotificationGroupSystem:
+		db = db.Where("event_type = ?", biz.CampusNotificationTypeSystem)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusNotificationModel
+	if err := db.Order("created_at DESC, id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	notifications := make([]*biz.CampusNotification, 0, len(rows))
+	actorIDs := make([]int64, 0, len(rows))
+	seenActors := map[int64]struct{}{}
+	for i := range rows {
+		notification := toBizNotification(&rows[i])
+		notifications = append(notifications, notification)
+		if rows[i].ActorID > 0 {
+			if _, ok := seenActors[rows[i].ActorID]; !ok {
+				seenActors[rows[i].ActorID] = struct{}{}
+				actorIDs = append(actorIDs, rows[i].ActorID)
+			}
+		}
+	}
+	if len(actorIDs) > 0 {
+		actors, err := r.loadCampusAuthors(ctx, actorIDs)
+		if err != nil {
+			return nil, 0, err
+		}
+		for _, notification := range notifications {
+			if notification != nil {
+				notification.Actor = actors[parseID(notification.ActorID)]
+			}
+		}
+	}
+	return notifications, total, nil
+}
+
+func (r *campusRepo) CountUnreadNotifications(ctx context.Context, userID string) (*biz.CampusUnreadNotificationCount, error) {
+	base := func() *gorm.DB {
+		return r.data.db.WithContext(ctx).Model(&campusNotificationModel{}).
+			Where("recipient_id = ? AND read_at IS NULL AND is_deleted = ?", parseID(userID), false)
+	}
+	result := &biz.CampusUnreadNotificationCount{}
+	if err := base().Count(&result.Total).Error; err != nil {
+		return nil, err
+	}
+	if err := base().Where("event_type IN ?", []string{biz.CampusNotificationTypeComment, biz.CampusNotificationTypeReply}).Count(&result.Reply).Error; err != nil {
+		return nil, err
+	}
+	if err := base().Where("event_type IN ?", []string{biz.CampusNotificationTypePostLike, biz.CampusNotificationTypePostCollect, biz.CampusNotificationTypeCommentLike}).Count(&result.Interaction).Error; err != nil {
+		return nil, err
+	}
+	if err := base().Where("event_type = ?", biz.CampusNotificationTypeSystem).Count(&result.System).Error; err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (r *campusRepo) MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error {
+	return r.data.db.WithContext(ctx).Model(&campusNotificationModel{}).
+		Where("id = ? AND recipient_id = ? AND is_deleted = ?", notificationID, parseID(userID), false).
+		Updates(map[string]interface{}{"read_at": time.Now(), "updated_at": time.Now()}).Error
+}
+
+func (r *campusRepo) MarkAllNotificationsRead(ctx context.Context, userID string) error {
+	return r.data.db.WithContext(ctx).Model(&campusNotificationModel{}).
+		Where("recipient_id = ? AND read_at IS NULL AND is_deleted = ?", parseID(userID), false).
+		Updates(map[string]interface{}{"read_at": time.Now(), "updated_at": time.Now()}).Error
+}
+
+func (r *campusRepo) ListNotificationRecipients(ctx context.Context) ([]string, error) {
+	var rows []struct {
+		ID int64 `gorm:"column:id"`
+	}
+	if err := r.data.db.WithContext(ctx).Table("user").
+		Select("id").
+		Order("id ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, fmt.Sprintf("%d", row.ID))
+	}
+	return out, nil
+}
+
 func (r *campusRepo) IsIPBlocked(ctx context.Context, ip string) (bool, error) {
 	var count int64
 	err := r.data.db.WithContext(ctx).Model(&campusIPBlockModel{}).
@@ -2022,6 +2181,64 @@ func toBizFeedback(row *campusFeedbackModel) *biz.CampusFeedback {
 	}
 }
 
+func toNotificationModel(in *biz.CampusNotification) campusNotificationModel {
+	linkParams, _ := json.Marshal(in.LinkParams)
+	now := time.Now()
+	var dedupeKey *string
+	if strings.TrimSpace(in.DedupeKey) != "" {
+		key := strings.TrimSpace(in.DedupeKey)
+		dedupeKey = &key
+	}
+	return campusNotificationModel{
+		ID:          in.ID,
+		RecipientID: parseID(in.RecipientID),
+		ActorID:     parseID(in.ActorID),
+		EventType:   in.EventType,
+		TargetType:  in.TargetType,
+		TargetID:    in.TargetID,
+		DedupeKey:   dedupeKey,
+		Title:       in.Title,
+		Content:     in.Content,
+		LinkPage:    in.LinkPage,
+		LinkParams:  linkParams,
+		ReadAt:      in.ReadAt,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+}
+
+func toBizNotification(row *campusNotificationModel) *biz.CampusNotification {
+	linkParams := make(map[string]string)
+	_ = json.Unmarshal(row.LinkParams, &linkParams)
+	dedupeKey := ""
+	if row.DedupeKey != nil {
+		dedupeKey = *row.DedupeKey
+	}
+	return &biz.CampusNotification{
+		ID:          row.ID,
+		RecipientID: fmt.Sprintf("%d", row.RecipientID),
+		ActorID:     fmt.Sprintf("%d", row.ActorID),
+		EventType:   row.EventType,
+		TargetType:  row.TargetType,
+		TargetID:    row.TargetID,
+		DedupeKey:   dedupeKey,
+		Title:       row.Title,
+		Content:     row.Content,
+		LinkPage:    row.LinkPage,
+		LinkParams:  linkParams,
+		ReadAt:      row.ReadAt,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
+}
+
+func notificationDedupeKey(recipientID, actorID int64, eventType, targetType string, targetID int64) string {
+	if recipientID == 0 || actorID == 0 || strings.TrimSpace(eventType) == "" || strings.TrimSpace(targetType) == "" || targetID == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d:%d:%s:%s:%d", recipientID, actorID, eventType, targetType, targetID)
+}
+
 func toBizAccessLog(row *campusAccessLogModel) *biz.CampusAccessLog {
 	return &biz.CampusAccessLog{
 		ID:          row.ID,
@@ -2048,6 +2265,34 @@ func toBizIPBlock(row *campusIPBlockModel) *biz.CampusIPBlock {
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}
+}
+
+func (r *campusRepo) loadCampusAuthors(ctx context.Context, ids []int64) (map[int64]*biz.CampusForumAuthor, error) {
+	result := make(map[int64]*biz.CampusForumAuthor, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var rows []struct {
+		ID       int64  `gorm:"column:id"`
+		Name     string `gorm:"column:name"`
+		Nickname string `gorm:"column:nickname"`
+		Avatar   string `gorm:"column:avatar"`
+	}
+	if err := r.data.db.WithContext(ctx).Table("user").
+		Select("id, name, nickname, avatar").
+		Where("id IN ?", ids).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.ID] = &biz.CampusForumAuthor{
+			UserID:   fmt.Sprintf("%d", row.ID),
+			Name:     firstNonEmptyData(row.Nickname, row.Name, "同学"),
+			Nickname: row.Nickname,
+			Avatar:   row.Avatar,
+		}
+	}
+	return result, nil
 }
 
 func toBizAdminUser(row *campusUserRow) *biz.CampusAdminUser {

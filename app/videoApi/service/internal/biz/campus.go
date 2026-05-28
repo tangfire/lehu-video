@@ -48,6 +48,18 @@ const (
 	CampusPostSortRecommend = "recommend"
 	CampusPostSortHot       = "hot"
 	CampusPostSortNew       = "new"
+
+	CampusNotificationTypeComment     = "comment"
+	CampusNotificationTypeReply       = "reply"
+	CampusNotificationTypePostLike    = "post_like"
+	CampusNotificationTypePostCollect = "post_collect"
+	CampusNotificationTypeCommentLike = "comment_like"
+	CampusNotificationTypeSystem      = "system"
+
+	CampusNotificationGroupAll         = "all"
+	CampusNotificationGroupReply       = "reply"
+	CampusNotificationGroupInteraction = "interaction"
+	CampusNotificationGroupSystem      = "system"
 )
 
 type CampusIDGenerator interface {
@@ -281,6 +293,24 @@ type CampusFeedback struct {
 	OperatorNote string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type CampusNotification struct {
+	ID          int64
+	RecipientID string
+	ActorID     string
+	Actor       *CampusForumAuthor
+	EventType   string
+	TargetType  string
+	TargetID    int64
+	DedupeKey   string
+	Title       string
+	Content     string
+	LinkPage    string
+	LinkParams  map[string]string
+	ReadAt      *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type CampusAccessLog struct {
@@ -632,6 +662,34 @@ type ReviewCampusFeedbackInput struct {
 	OperatorNote string
 }
 
+type ListCampusNotificationsInput struct {
+	UserID string
+	Type   string
+	Page   int32
+	Size   int32
+}
+
+type ListCampusNotificationsOutput struct {
+	Notifications []*CampusNotification
+	Total         int64
+}
+
+type CreateCampusAdminNotificationInput struct {
+	UserID     string
+	Title      string
+	Content    string
+	LinkPage   string
+	LinkParams map[string]string
+	Audience   string
+}
+
+type CampusUnreadNotificationCount struct {
+	Total       int64
+	Reply       int64
+	Interaction int64
+	System      int64
+}
+
 type CampusRateLimitInput struct {
 	UserID   string
 	IP       string
@@ -782,6 +840,13 @@ type CampusRepo interface {
 	CreateFeedback(ctx context.Context, feedback *CampusFeedback) error
 	ListFeedback(ctx context.Context, status int32, offset, limit int) ([]*CampusFeedback, int64, error)
 	UpdateFeedbackStatus(ctx context.Context, feedbackID int64, status int32, note string) error
+	CreateNotification(ctx context.Context, notification *CampusNotification, unique bool) error
+	BulkCreateNotifications(ctx context.Context, notifications []*CampusNotification) error
+	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
+	CountUnreadNotifications(ctx context.Context, userID string) (*CampusUnreadNotificationCount, error)
+	MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error
+	MarkAllNotificationsRead(ctx context.Context, userID string) error
+	ListNotificationRecipients(ctx context.Context) ([]string, error)
 	IsIPBlocked(ctx context.Context, ip string) (bool, error)
 	AllowCampusRequest(ctx context.Context, key string, limit int64, window time.Duration) (bool, error)
 	CreateAccessLog(ctx context.Context, log *CampusAccessLog) error
@@ -1042,9 +1107,9 @@ func (uc *CampusUsecase) ImportTimetable(ctx context.Context, input *ImportCampu
 		course.ID = uc.idGen.NextID()
 		course.UserID = input.UserID
 		course.Term = term
-		course.Source = "educational_system"
+		course.Source = "demo"
 	}
-	if err := uc.repo.ReplaceTimetableCourses(ctx, input.UserID, term, "educational_system", courses); err != nil {
+	if err := uc.repo.ReplaceTimetableCourses(ctx, input.UserID, term, "demo", courses); err != nil {
 		return nil, apperror.Internal(err, "保存课表失败")
 	}
 	return &ImportCampusTimetableOutput{Term: term, Courses: courses, Count: int32(len(courses))}, nil
@@ -1414,7 +1479,7 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 	if input.PostID <= 0 {
 		return nil, apperror.InvalidArgument("帖子 ID 无效")
 	}
-	ok, _, err := uc.repo.GetPostByID(ctx, input.PostID)
+	ok, post, err := uc.repo.GetPostByID(ctx, input.PostID)
 	if err != nil {
 		return nil, apperror.Internal(err, "查询帖子失败")
 	}
@@ -1463,6 +1528,31 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 	}
 	if err := uc.repo.CreateComment(ctx, comment); err != nil {
 		return nil, apperror.Internal(err, "发表评论失败")
+	}
+	if parentID > 0 && replyToUserID != "" {
+		uc.createInteractionNotification(ctx, &CampusNotification{
+			RecipientID: replyToUserID,
+			ActorID:     input.UserID,
+			EventType:   CampusNotificationTypeReply,
+			TargetType:  "post",
+			TargetID:    input.PostID,
+			Title:       "有人回复了你的评论",
+			Content:     trimLimit(content, 80),
+			LinkPage:    "post-detail",
+			LinkParams:  map[string]string{"id": fmt.Sprintf("%d", input.PostID)},
+		}, false)
+	} else if post != nil {
+		uc.createInteractionNotification(ctx, &CampusNotification{
+			RecipientID: post.AuthorID,
+			ActorID:     input.UserID,
+			EventType:   CampusNotificationTypeComment,
+			TargetType:  "post",
+			TargetID:    input.PostID,
+			Title:       "有人评论了你的帖子",
+			Content:     trimLimit(content, 80),
+			LinkPage:    "post-detail",
+			LinkParams:  map[string]string{"id": fmt.Sprintf("%d", input.PostID)},
+		}, false)
 	}
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     input.UserID,
@@ -1595,6 +1685,17 @@ func (uc *CampusUsecase) LikeComment(ctx context.Context, userID string, comment
 	if err := uc.repo.AddCommentLike(ctx, uc.idGen.NextID(), userID, commentID); err != nil {
 		return apperror.Internal(err, "评论点赞失败")
 	}
+	uc.createInteractionNotification(ctx, &CampusNotification{
+		RecipientID: comment.AuthorID,
+		ActorID:     userID,
+		EventType:   CampusNotificationTypeCommentLike,
+		TargetType:  "comment",
+		TargetID:    commentID,
+		Title:       "有人赞了你的评论",
+		Content:     trimLimit(comment.Content, 80),
+		LinkPage:    "post-detail",
+		LinkParams:  map[string]string{"id": fmt.Sprintf("%d", comment.PostID)},
+	}, true)
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     userID,
 		EventType:  "comment_like",
@@ -1625,7 +1726,7 @@ func (uc *CampusUsecase) LikePost(ctx context.Context, userID string, postID int
 	if postID <= 0 {
 		return apperror.InvalidArgument("帖子 ID 无效")
 	}
-	ok, _, err := uc.repo.GetPostByID(ctx, postID)
+	ok, post, err := uc.repo.GetPostByID(ctx, postID)
 	if err != nil {
 		return apperror.Internal(err, "查询帖子失败")
 	}
@@ -1634,6 +1735,19 @@ func (uc *CampusUsecase) LikePost(ctx context.Context, userID string, postID int
 	}
 	if err := uc.repo.AddPostLike(ctx, uc.idGen.NextID(), userID, postID); err != nil {
 		return apperror.Internal(err, "点赞失败")
+	}
+	if post != nil {
+		uc.createInteractionNotification(ctx, &CampusNotification{
+			RecipientID: post.AuthorID,
+			ActorID:     userID,
+			EventType:   CampusNotificationTypePostLike,
+			TargetType:  "post",
+			TargetID:    postID,
+			Title:       "有人赞了你的帖子",
+			Content:     trimLimit(post.Title, 80),
+			LinkPage:    "post-detail",
+			LinkParams:  map[string]string{"id": fmt.Sprintf("%d", postID)},
+		}, true)
 	}
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     userID,
@@ -1665,7 +1779,7 @@ func (uc *CampusUsecase) CollectPost(ctx context.Context, userID string, postID 
 	if postID <= 0 {
 		return apperror.InvalidArgument("帖子 ID 无效")
 	}
-	ok, _, err := uc.repo.GetPostByID(ctx, postID)
+	ok, post, err := uc.repo.GetPostByID(ctx, postID)
 	if err != nil {
 		return apperror.Internal(err, "查询帖子失败")
 	}
@@ -1674,6 +1788,19 @@ func (uc *CampusUsecase) CollectPost(ctx context.Context, userID string, postID 
 	}
 	if err := uc.repo.AddPostCollection(ctx, uc.idGen.NextID(), userID, postID); err != nil {
 		return apperror.Internal(err, "收藏失败")
+	}
+	if post != nil {
+		uc.createInteractionNotification(ctx, &CampusNotification{
+			RecipientID: post.AuthorID,
+			ActorID:     userID,
+			EventType:   CampusNotificationTypePostCollect,
+			TargetType:  "post",
+			TargetID:    postID,
+			Title:       "有人收藏了你的帖子",
+			Content:     trimLimit(post.Title, 80),
+			LinkPage:    "post-detail",
+			LinkParams:  map[string]string{"id": fmt.Sprintf("%d", postID)},
+		}, true)
 	}
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     userID,
@@ -1696,6 +1823,114 @@ func (uc *CampusUsecase) UncollectPost(ctx context.Context, userID string, postI
 		return apperror.Internal(err, "取消收藏失败")
 	}
 	return nil
+}
+
+func (uc *CampusUsecase) ListNotifications(ctx context.Context, input *ListCampusNotificationsInput) (*ListCampusNotificationsOutput, error) {
+	if strings.TrimSpace(input.UserID) == "" {
+		return nil, apperror.Unauthorized("请先登录")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	group := normalizeCampusNotificationGroup(input.Type)
+	notifications, total, err := uc.repo.ListNotifications(ctx, input.UserID, group, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取消息失败")
+	}
+	return &ListCampusNotificationsOutput{Notifications: notifications, Total: total}, nil
+}
+
+func (uc *CampusUsecase) CountUnreadNotifications(ctx context.Context, userID string) (*CampusUnreadNotificationCount, error) {
+	if strings.TrimSpace(userID) == "" {
+		return nil, apperror.Unauthorized("请先登录")
+	}
+	count, err := uc.repo.CountUnreadNotifications(ctx, userID)
+	if err != nil {
+		return nil, apperror.Internal(err, "获取未读消息失败")
+	}
+	return count, nil
+}
+
+func (uc *CampusUsecase) MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error {
+	if strings.TrimSpace(userID) == "" {
+		return apperror.Unauthorized("请先登录")
+	}
+	if notificationID <= 0 {
+		return apperror.InvalidArgument("消息 ID 无效")
+	}
+	if err := uc.repo.MarkNotificationRead(ctx, userID, notificationID); err != nil {
+		return apperror.Internal(err, "标记消息已读失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) MarkAllNotificationsRead(ctx context.Context, userID string) error {
+	if strings.TrimSpace(userID) == "" {
+		return apperror.Unauthorized("请先登录")
+	}
+	if err := uc.repo.MarkAllNotificationsRead(ctx, userID); err != nil {
+		return apperror.Internal(err, "标记全部已读失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) AdminCreateSystemNotification(ctx context.Context, input *CreateCampusAdminNotificationInput) error {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return apperror.Forbidden("没有后台权限")
+	}
+	title := trimLimit(input.Title, 80)
+	content := trimLimit(input.Content, 500)
+	if len([]rune(title)) < 2 {
+		return apperror.InvalidArgument("通知标题至少 2 个字")
+	}
+	if len([]rune(content)) < 2 {
+		return apperror.InvalidArgument("通知内容至少 2 个字")
+	}
+	if strings.TrimSpace(input.Audience) != "" && strings.TrimSpace(input.Audience) != "all_users" {
+		return apperror.InvalidArgument("通知范围暂只支持全体用户")
+	}
+	recipients, err := uc.repo.ListNotificationRecipients(ctx)
+	if err != nil {
+		return apperror.Internal(err, "获取通知用户失败")
+	}
+	linkPage := firstNonEmpty(input.LinkPage, "community")
+	notifications := make([]*CampusNotification, 0, len(recipients))
+	for _, recipientID := range recipients {
+		if strings.TrimSpace(recipientID) == "" {
+			continue
+		}
+		notifications = append(notifications, &CampusNotification{
+			ID:          uc.idGen.NextID(),
+			RecipientID: recipientID,
+			ActorID:     input.UserID,
+			EventType:   CampusNotificationTypeSystem,
+			TargetType:  "system",
+			TargetID:    0,
+			Title:       title,
+			Content:     content,
+			LinkPage:    trimLimit(linkPage, 64),
+			LinkParams:  sanitizeTrackExtra(input.LinkParams),
+		})
+	}
+	if err := uc.repo.BulkCreateNotifications(ctx, notifications); err != nil {
+		return apperror.Internal(err, "发送系统通知失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) createInteractionNotification(ctx context.Context, notification *CampusNotification, unique bool) {
+	if notification == nil {
+		return
+	}
+	if strings.TrimSpace(notification.RecipientID) == "" || notification.RecipientID == "0" || notification.RecipientID == notification.ActorID {
+		return
+	}
+	notification.ID = uc.idGen.NextID()
+	notification.Title = trimLimit(notification.Title, 80)
+	notification.Content = trimLimit(notification.Content, 500)
+	notification.LinkPage = trimLimit(firstNonEmpty(notification.LinkPage, "post-detail"), 64)
+	notification.LinkParams = sanitizeTrackExtra(notification.LinkParams)
+	if err := uc.repo.CreateNotification(ctx, notification, unique); err != nil {
+		uc.log.WithContext(ctx).Warnf("create campus notification failed: event=%s target=%s:%d err=%v", notification.EventType, notification.TargetType, notification.TargetID, err)
+	}
 }
 
 func (uc *CampusUsecase) ReportContent(ctx context.Context, input *ReportCampusContentInput) error {
@@ -2636,6 +2871,19 @@ func normalizeCampusFeedbackType(feedbackType string) string {
 		return "contact"
 	default:
 		return "suggestion"
+	}
+}
+
+func normalizeCampusNotificationGroup(group string) string {
+	switch strings.TrimSpace(strings.ToLower(group)) {
+	case CampusNotificationGroupReply:
+		return CampusNotificationGroupReply
+	case CampusNotificationGroupInteraction:
+		return CampusNotificationGroupInteraction
+	case CampusNotificationGroupSystem:
+		return CampusNotificationGroupSystem
+	default:
+		return CampusNotificationGroupAll
 	}
 }
 

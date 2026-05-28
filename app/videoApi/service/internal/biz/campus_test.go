@@ -484,6 +484,27 @@ func (r *campusRepoStub) ListFeedback(context.Context, int32, int, int) ([]*Camp
 func (r *campusRepoStub) UpdateFeedbackStatus(context.Context, int64, int32, string) error {
 	return nil
 }
+func (r *campusRepoStub) CreateNotification(context.Context, *CampusNotification, bool) error {
+	return nil
+}
+func (r *campusRepoStub) BulkCreateNotifications(context.Context, []*CampusNotification) error {
+	return nil
+}
+func (r *campusRepoStub) ListNotifications(context.Context, string, string, int, int) ([]*CampusNotification, int64, error) {
+	return nil, 0, nil
+}
+func (r *campusRepoStub) CountUnreadNotifications(context.Context, string) (*CampusUnreadNotificationCount, error) {
+	return &CampusUnreadNotificationCount{}, nil
+}
+func (r *campusRepoStub) MarkNotificationRead(context.Context, string, int64) error {
+	return nil
+}
+func (r *campusRepoStub) MarkAllNotificationsRead(context.Context, string) error {
+	return nil
+}
+func (r *campusRepoStub) ListNotificationRecipients(context.Context) ([]string, error) {
+	return nil, nil
+}
 func (r *campusRepoStub) IsIPBlocked(ctx context.Context, ip string) (bool, error) {
 	_ = ctx
 	return r.blockedIPs[ip], nil
