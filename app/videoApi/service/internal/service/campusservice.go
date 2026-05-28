@@ -1510,7 +1510,7 @@ func (s *CampusService) handleAdminCreateNotification(w http.ResponseWriter, r *
 		writeError(w, r, err)
 		return
 	}
-	writeJSON(w, r, map[string]interface{}{})
+	writeJSON(w, r, map[string]interface{}{"queued": true})
 }
 
 func (s *CampusService) handleAdminSecurityOverview(w http.ResponseWriter, r *http.Request) {

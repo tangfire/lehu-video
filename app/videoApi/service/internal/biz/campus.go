@@ -902,17 +902,23 @@ type CampusRepo interface {
 }
 
 type CampusUsecase struct {
-	repo              CampusRepo
-	base              BaseAdapter
-	core              CoreAdapter
-	timetableProvider CampusTimetableProvider
-	idGen             CampusIDGenerator
-	authSecret        string
-	assembler         *CampusPostAssembler
-	recommendPool     *CampusRecommendPool
-	eventBatcher      *CampusBatchProcessor[*TrackCampusEventInput]
-	accessLogBatcher  *CampusBatchProcessor[*CampusAccessLog]
-	log               *log.Helper
+	repo                CampusRepo
+	base                BaseAdapter
+	core                CoreAdapter
+	timetableProvider   CampusTimetableProvider
+	idGen               CampusIDGenerator
+	authSecret          string
+	assembler           *CampusPostAssembler
+	recommendPool       *CampusRecommendPool
+	eventBatcher        *CampusBatchProcessor[*TrackCampusEventInput]
+	accessLogBatcher    *CampusBatchProcessor[*CampusAccessLog]
+	notificationBatcher *CampusBatchProcessor[*campusNotificationBatchItem]
+	log                 *log.Helper
+}
+
+type campusNotificationBatchItem struct {
+	notification *CampusNotification
+	unique       bool
 }
 
 func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timetableProvider CampusTimetableProvider, idGen CampusIDGenerator, authSecret string, logger log.Logger) *CampusUsecase {
@@ -931,6 +937,7 @@ func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timet
 	}
 	uc.eventBatcher = NewCampusBatchProcessor("campus_event", 100, 2*time.Second, uc.persistCampusEvents, logger)
 	uc.accessLogBatcher = NewCampusBatchProcessor("campus_access_log", 100, 2*time.Second, uc.persistCampusAccessLogs, logger)
+	uc.notificationBatcher = NewCampusBatchProcessor("campus_notification", 100, 2*time.Second, uc.persistCampusNotifications, logger)
 	return uc
 }
 
@@ -2017,13 +2024,17 @@ func (uc *CampusUsecase) AdminCreateSystemNotification(ctx context.Context, inpu
 			LinkParams:  sanitizeTrackExtra(input.LinkParams),
 		})
 	}
-	if err := uc.repo.BulkCreateNotifications(ctx, notifications); err != nil {
-		return apperror.Internal(err, "发送系统通知失败")
+	for _, notification := range notifications {
+		uc.enqueueCampusNotification(ctx, notification, false)
 	}
 	return nil
 }
 
 func (uc *CampusUsecase) createInteractionNotification(ctx context.Context, notification *CampusNotification, unique bool) {
+	uc.enqueueCampusNotification(ctx, notification, unique)
+}
+
+func (uc *CampusUsecase) enqueueCampusNotification(ctx context.Context, notification *CampusNotification, unique bool) {
 	if notification == nil {
 		return
 	}
@@ -2035,6 +2046,10 @@ func (uc *CampusUsecase) createInteractionNotification(ctx context.Context, noti
 	notification.Content = trimLimit(notification.Content, 500)
 	notification.LinkPage = trimLimit(firstNonEmpty(notification.LinkPage, "post-detail"), 64)
 	notification.LinkParams = sanitizeTrackExtra(notification.LinkParams)
+	if uc.notificationBatcher != nil {
+		uc.notificationBatcher.AddAsync(&campusNotificationBatchItem{notification: notification, unique: unique})
+		return
+	}
 	if err := uc.repo.CreateNotification(ctx, notification, unique); err != nil {
 		uc.log.WithContext(ctx).Warnf("create campus notification failed: event=%s target=%s:%d err=%v", notification.EventType, notification.TargetType, notification.TargetID, err)
 	}
@@ -3196,6 +3211,11 @@ func (uc *CampusUsecase) FlushCampusBatches(ctx context.Context) error {
 			firstErr = err
 		}
 	}
+	if uc.notificationBatcher != nil {
+		if err := uc.notificationBatcher.Flush(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
 	return firstErr
 }
 
@@ -3208,6 +3228,11 @@ func (uc *CampusUsecase) StopCampusBatches(ctx context.Context) error {
 	}
 	if uc.accessLogBatcher != nil {
 		if err := uc.accessLogBatcher.Stop(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if uc.notificationBatcher != nil {
+		if err := uc.notificationBatcher.Stop(ctx); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -3236,6 +3261,42 @@ func (uc *CampusUsecase) persistCampusAccessLogs(ctx context.Context, logs []*Ca
 		return err
 	}
 	return nil
+}
+
+func (uc *CampusUsecase) persistCampusNotifications(ctx context.Context, items []*campusNotificationBatchItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	normal := make([]*CampusNotification, 0, len(items))
+	var firstErr error
+	for _, item := range items {
+		if item == nil || item.notification == nil {
+			continue
+		}
+		if item.unique {
+			if err := uc.repo.CreateNotification(ctx, item.notification, true); err != nil {
+				uc.log.WithContext(ctx).Warnf("create unique campus notification failed: event=%s target=%s:%d err=%v", item.notification.EventType, item.notification.TargetType, item.notification.TargetID, err)
+				if firstErr == nil {
+					firstErr = err
+				}
+			}
+			continue
+		}
+		normal = append(normal, item.notification)
+	}
+	if len(normal) > 0 {
+		if err := uc.repo.BulkCreateNotifications(ctx, normal); err != nil {
+			for _, notification := range normal {
+				if singleErr := uc.repo.CreateNotification(ctx, notification, false); singleErr != nil {
+					uc.log.WithContext(ctx).Warnf("fallback create campus notification failed: event=%s target=%s:%d err=%v", notification.EventType, notification.TargetType, notification.TargetID, singleErr)
+				}
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
 }
 
 func (uc *CampusUsecase) trackEvent(ctx context.Context, input *TrackCampusEventInput) {

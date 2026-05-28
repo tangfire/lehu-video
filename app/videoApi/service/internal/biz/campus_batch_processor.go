@@ -64,6 +64,30 @@ func (b *CampusBatchProcessor[T]) Add(ctx context.Context, item T) error {
 	return b.process(ctx, items)
 }
 
+func (b *CampusBatchProcessor[T]) AddAsync(item T) {
+	if b == nil || b.processor == nil {
+		return
+	}
+	b.mu.Lock()
+	if b.stopped {
+		b.mu.Unlock()
+		go b.processWithTimeout([]T{item})
+		return
+	}
+	b.items = append(b.items, item)
+	shouldFlush := len(b.items) >= b.size
+	if len(b.items) == 1 {
+		b.timer.Reset(b.interval)
+	}
+	if !shouldFlush {
+		b.mu.Unlock()
+		return
+	}
+	items := b.takeLocked()
+	b.mu.Unlock()
+	go b.processWithTimeout(items)
+}
+
 func (b *CampusBatchProcessor[T]) Flush(ctx context.Context) error {
 	if b == nil {
 		return nil
@@ -72,6 +96,14 @@ func (b *CampusBatchProcessor[T]) Flush(ctx context.Context) error {
 	items := b.takeLocked()
 	b.mu.Unlock()
 	return b.process(ctx, items)
+}
+
+func (b *CampusBatchProcessor[T]) processWithTimeout(items []T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := b.process(ctx, items); err != nil {
+		b.log.Warnf("async campus batch failed: name=%s count=%d err=%v", b.name, len(items), err)
+	}
 }
 
 func (b *CampusBatchProcessor[T]) Stop(ctx context.Context) error {
