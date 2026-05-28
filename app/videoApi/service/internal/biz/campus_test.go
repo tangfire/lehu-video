@@ -378,6 +378,9 @@ func (r *campusRepoStub) ListPosts(ctx context.Context, query ListCampusPostQuer
 	r.lastListQuery = query
 	return []*CampusForumPost{}, 0, nil
 }
+func (r *campusRepoStub) ListPostsByIDs(context.Context, []int64, []int32) ([]*CampusForumPost, error) {
+	return []*CampusForumPost{}, nil
+}
 
 func (r *campusRepoStub) GetCampusOperatorRole(ctx context.Context, userID string) (string, error) {
 	return r.roles[userID], nil
@@ -486,6 +489,9 @@ func (r *campusRepoStub) AllowCampusRequest(context.Context, string, int64, time
 	return true, nil
 }
 func (r *campusRepoStub) CreateAccessLog(context.Context, *CampusAccessLog) error { return nil }
+func (r *campusRepoStub) CreateAccessLogs(context.Context, []*CampusAccessLog) error {
+	return nil
+}
 func (r *campusRepoStub) GetSecurityOverview(context.Context) (*CampusSecurityOverview, error) {
 	return &CampusSecurityOverview{}, nil
 }
@@ -493,6 +499,9 @@ func (r *campusRepoStub) BlockIP(context.Context, *CampusIPBlock) error         
 func (r *campusRepoStub) UnblockIP(context.Context, string) error               { return nil }
 func (r *campusRepoStub) CreateAuditLog(context.Context, *CampusAuditLog) error { return nil }
 func (r *campusRepoStub) TrackEvent(context.Context, *TrackCampusEventInput) error {
+	return nil
+}
+func (r *campusRepoStub) TrackEvents(context.Context, []*TrackCampusEventInput) error {
 	return nil
 }
 func (r *campusRepoStub) GetAdminSummary(context.Context) (*CampusAdminSummary, error) {

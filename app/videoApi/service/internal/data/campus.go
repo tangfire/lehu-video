@@ -584,6 +584,38 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 	return posts, total, nil
 }
 
+func (r *campusRepo) ListPostsByIDs(ctx context.Context, postIDs []int64, statuses []int32) ([]*biz.CampusForumPost, error) {
+	if len(postIDs) == 0 {
+		return []*biz.CampusForumPost{}, nil
+	}
+	var rows []campusForumPostModel
+	db := r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
+		Where("id IN ? AND is_deleted = ?", postIDs, false)
+	if len(statuses) > 0 {
+		db = db.Where("status IN ?", statuses)
+	}
+	if err := db.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	postMap := make(map[int64]*biz.CampusForumPost, len(rows))
+	postsForCategory := make([]*biz.CampusForumPost, 0, len(rows))
+	for i := range rows {
+		post := toBizPost(&rows[i])
+		postMap[post.ID] = post
+		postsForCategory = append(postsForCategory, post)
+	}
+	if err := r.fillPostCategoryNames(ctx, postsForCategory); err != nil {
+		return nil, err
+	}
+	ordered := make([]*biz.CampusForumPost, 0, len(postIDs))
+	for _, id := range postIDs {
+		if post := postMap[id]; post != nil {
+			ordered = append(ordered, post)
+		}
+	}
+	return ordered, nil
+}
+
 func (r *campusRepo) GetPostByID(ctx context.Context, postID int64) (bool, *biz.CampusForumPost, error) {
 	var row campusForumPostModel
 	err := r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
@@ -1364,6 +1396,9 @@ func (r *campusRepo) AllowCampusRequest(ctx context.Context, key string, limit i
 }
 
 func (r *campusRepo) CreateAccessLog(ctx context.Context, in *biz.CampusAccessLog) error {
+	if in == nil {
+		return nil
+	}
 	row := campusAccessLogModel{
 		ID:          in.ID,
 		UserID:      parseID(in.UserID),
@@ -1378,6 +1413,40 @@ func (r *campusRepo) CreateAccessLog(ctx context.Context, in *biz.CampusAccessLo
 		CreatedAt:   time.Now(),
 	}
 	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) CreateAccessLogs(ctx context.Context, logs []*biz.CampusAccessLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	now := time.Now()
+	rows := make([]campusAccessLogModel, 0, len(logs))
+	for _, in := range logs {
+		if in == nil {
+			continue
+		}
+		createdAt := in.CreatedAt
+		if createdAt.IsZero() {
+			createdAt = now
+		}
+		rows = append(rows, campusAccessLogModel{
+			ID:          in.ID,
+			UserID:      parseID(in.UserID),
+			IP:          in.IP,
+			Method:      in.Method,
+			Path:        in.Path,
+			StatusCode:  in.StatusCode,
+			DurationMs:  in.DurationMs,
+			UserAgent:   in.UserAgent,
+			RateLimited: in.RateLimited,
+			Blocked:     in.Blocked,
+			CreatedAt:   createdAt,
+		})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return r.data.db.WithContext(ctx).CreateInBatches(rows, 100).Error
 }
 
 func (r *campusRepo) GetSecurityOverview(ctx context.Context) (*biz.CampusSecurityOverview, error) {
@@ -1533,6 +1602,37 @@ func (r *campusRepo) TrackEvent(ctx context.Context, in *biz.TrackCampusEventInp
 		CreatedAt:  time.Now(),
 	}
 	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) TrackEvents(ctx context.Context, events []*biz.TrackCampusEventInput) error {
+	if len(events) == 0 {
+		return nil
+	}
+	now := time.Now()
+	rows := make([]campusEventModel, 0, len(events))
+	for _, in := range events {
+		if in == nil {
+			continue
+		}
+		extra, _ := json.Marshal(in.Extra)
+		rows = append(rows, campusEventModel{
+			ID:         time.Now().UnixNano() + int64(len(rows)),
+			UserID:     parseID(in.UserID),
+			EventType:  in.EventType,
+			Page:       in.Page,
+			TargetType: in.TargetType,
+			TargetID:   in.TargetID,
+			Channel:    in.Channel,
+			Extra:      extra,
+			UserAgent:  in.UserAgent,
+			IP:         in.IP,
+			CreatedAt:  now,
+		})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return r.data.db.WithContext(ctx).CreateInBatches(rows, 100).Error
 }
 
 func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSummary, error) {

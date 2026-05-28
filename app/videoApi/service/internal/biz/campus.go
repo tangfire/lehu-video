@@ -671,6 +671,33 @@ type CampusStatsReconcileResult struct {
 	UpdatedComments int64
 }
 
+type CampusUploadPresignInput struct {
+	MediaType string
+	Hash      string
+	FileType  string
+	Filename  string
+	Size      int64
+}
+
+type CampusUploadPresignOutput struct {
+	FileID    string
+	UploadURL string
+	Method    string
+	Headers   map[string]string
+	ExpiresIn int64
+}
+
+type CampusUploadCompleteInput struct {
+	MediaType string
+	FileID    string
+}
+
+type CampusUploadCompleteOutput struct {
+	FileID     string
+	URL        string
+	ObjectName string
+}
+
 type CampusSecurityIPStat struct {
 	IP           string
 	RequestCount int64
@@ -727,6 +754,7 @@ type CampusRepo interface {
 	GetCategoryByCode(ctx context.Context, code string) (bool, *CampusForumCategory, error)
 	CreatePost(ctx context.Context, post *CampusForumPost) error
 	ListPosts(ctx context.Context, query ListCampusPostQuery) ([]*CampusForumPost, int64, error)
+	ListPostsByIDs(ctx context.Context, postIDs []int64, statuses []int32) ([]*CampusForumPost, error)
 	GetPostByID(ctx context.Context, postID int64) (bool, *CampusForumPost, error)
 	GetAnyPostByID(ctx context.Context, postID int64) (bool, *CampusForumPost, error)
 	DeletePost(ctx context.Context, postID int64) error
@@ -756,11 +784,13 @@ type CampusRepo interface {
 	IsIPBlocked(ctx context.Context, ip string) (bool, error)
 	AllowCampusRequest(ctx context.Context, key string, limit int64, window time.Duration) (bool, error)
 	CreateAccessLog(ctx context.Context, log *CampusAccessLog) error
+	CreateAccessLogs(ctx context.Context, logs []*CampusAccessLog) error
 	GetSecurityOverview(ctx context.Context) (*CampusSecurityOverview, error)
 	BlockIP(ctx context.Context, block *CampusIPBlock) error
 	UnblockIP(ctx context.Context, ip string) error
 	CreateAuditLog(ctx context.Context, log *CampusAuditLog) error
 	TrackEvent(ctx context.Context, event *TrackCampusEventInput) error
+	TrackEvents(ctx context.Context, events []*TrackCampusEventInput) error
 	GetAdminSummary(ctx context.Context) (*CampusAdminSummary, error)
 	ReconcileCampusStats(ctx context.Context) (*CampusStatsReconcileResult, error)
 	ListCampusUsers(ctx context.Context, keyword string, offset, limit int) ([]*CampusAdminUser, int64, error)
@@ -776,19 +806,30 @@ type CampusUsecase struct {
 	timetableProvider CampusTimetableProvider
 	idGen             CampusIDGenerator
 	authSecret        string
+	assembler         *CampusPostAssembler
+	recommendPool     *CampusRecommendPool
+	eventBatcher      *CampusBatchProcessor[*TrackCampusEventInput]
+	accessLogBatcher  *CampusBatchProcessor[*CampusAccessLog]
 	log               *log.Helper
 }
 
 func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timetableProvider CampusTimetableProvider, idGen CampusIDGenerator, authSecret string, logger log.Logger) *CampusUsecase {
-	return &CampusUsecase{
+	assembler := NewCampusPostAssembler(repo, core, logger)
+	recommendPool := NewCampusRecommendPool(logger)
+	uc := &CampusUsecase{
 		repo:              repo,
 		base:              base,
 		core:              core,
 		timetableProvider: timetableProvider,
 		idGen:             idGen,
 		authSecret:        authSecret,
+		assembler:         assembler,
+		recommendPool:     recommendPool,
 		log:               log.NewHelper(logger),
 	}
+	uc.eventBatcher = NewCampusBatchProcessor("campus_event", 100, 2*time.Second, uc.persistCampusEvents, logger)
+	uc.accessLogBatcher = NewCampusBatchProcessor("campus_access_log", 100, 2*time.Second, uc.persistCampusAccessLogs, logger)
+	return uc
 }
 
 func (uc *CampusUsecase) WechatLogin(ctx context.Context, input *WechatLoginInput) (*WechatLoginOutput, error) {
@@ -1068,6 +1109,66 @@ func (uc *CampusUsecase) PreSignPublicVideo(ctx context.Context, hash, fileType,
 	return fileID, url, nil
 }
 
+func (uc *CampusUsecase) PreSignCampusUpload(ctx context.Context, input *CampusUploadPresignInput) (*CampusUploadPresignOutput, error) {
+	if input == nil {
+		return nil, apperror.InvalidArgument("上传参数不能为空")
+	}
+	mediaType := strings.TrimSpace(strings.ToLower(input.MediaType))
+	var fileID, uploadURL string
+	var err error
+	switch mediaType {
+	case CampusPostMediaImage:
+		fileID, uploadURL, err = uc.PreSignPublicImage(ctx, input.Hash, input.FileType, input.Filename, input.Size)
+	case CampusPostMediaVideo:
+		fileID, uploadURL, err = uc.PreSignPublicVideo(ctx, input.Hash, input.FileType, input.Filename, input.Size)
+	default:
+		return nil, apperror.InvalidArgument("上传类型无效")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &CampusUploadPresignOutput{
+		FileID:    fileID,
+		UploadURL: uploadURL,
+		Method:    http.MethodPut,
+		Headers:   map[string]string{"Content-Type": campusUploadContentType(mediaType, input.FileType)},
+		ExpiresIn: 3600,
+	}, nil
+}
+
+func (uc *CampusUsecase) CompleteCampusUpload(ctx context.Context, input *CampusUploadCompleteInput) (*CampusUploadCompleteOutput, error) {
+	if input == nil {
+		return nil, apperror.InvalidArgument("上传确认参数不能为空")
+	}
+	mediaType := strings.TrimSpace(strings.ToLower(input.MediaType))
+	fileID := strings.TrimSpace(input.FileID)
+	if fileID == "" || fileID == "0" {
+		return nil, apperror.InvalidArgument("file_id 无效")
+	}
+	var finalURL string
+	var err error
+	switch mediaType {
+	case CampusPostMediaImage:
+		finalURL, err = uc.ReportPublicImageUploaded(ctx, fileID)
+	case CampusPostMediaVideo:
+		finalURL, err = uc.ReportPublicVideoUploaded(ctx, fileID)
+	default:
+		return nil, apperror.InvalidArgument("上传类型无效")
+	}
+	if err != nil {
+		return nil, err
+	}
+	objectName := ""
+	if uc.base != nil {
+		if info, infoErr := uc.base.GetFileInfoById(ctx, fileID); infoErr == nil && info != nil {
+			objectName = info.ObjectName
+		} else if infoErr != nil {
+			uc.log.WithContext(ctx).Warnf("get uploaded file info failed: file_id=%s err=%v", fileID, infoErr)
+		}
+	}
+	return &CampusUploadCompleteOutput{FileID: fileID, URL: finalURL, ObjectName: objectName}, nil
+}
+
 func (uc *CampusUsecase) ReportPublicImageUploaded(ctx context.Context, fileID string) (string, error) {
 	fileID = strings.TrimSpace(fileID)
 	if fileID == "" || fileID == "0" {
@@ -1078,6 +1179,29 @@ func (uc *CampusUsecase) ReportPublicImageUploaded(ctx context.Context, fileID s
 		return "", apperror.Internal(err, "确认图片上传失败")
 	}
 	return url, nil
+}
+
+func campusUploadContentType(mediaType, fileType string) string {
+	fileType = strings.Trim(strings.ToLower(strings.TrimSpace(fileType)), ".")
+	switch strings.TrimSpace(strings.ToLower(mediaType)) {
+	case CampusPostMediaImage:
+		switch fileType {
+		case "jpg", "jpeg":
+			return "image/jpeg"
+		case "png":
+			return "image/png"
+		case "webp":
+			return "image/webp"
+		}
+	case CampusPostMediaVideo:
+		switch fileType {
+		case "mov":
+			return "video/quicktime"
+		case "mp4":
+			return "video/mp4"
+		}
+	}
+	return "application/octet-stream"
 }
 
 func (uc *CampusUsecase) ReportPublicVideoUploaded(ctx context.Context, fileID string) (string, error) {
@@ -1162,13 +1286,13 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		TargetType: "post",
 		TargetID:   post.ID,
 	})
-	_ = uc.hydratePosts(ctx, []*CampusForumPost{post}, input.UserID)
+	_ = uc.assembler.HydratePosts(ctx, []*CampusForumPost{post}, input.UserID)
 	return post, nil
 }
 
 func (uc *CampusUsecase) ListPosts(ctx context.Context, input *ListCampusPostsInput) (*ListCampusPostsOutput, error) {
 	page, size := normalizePage(input.Page, input.Size)
-	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
+	query := ListCampusPostQuery{
 		CategoryCode: strings.TrimSpace(input.CategoryCode),
 		PostType:     strings.TrimSpace(input.PostType),
 		Sort:         normalizeCampusPostSort(input.Sort, CampusPostSortRecommend),
@@ -1176,11 +1300,18 @@ func (uc *CampusUsecase) ListPosts(ctx context.Context, input *ListCampusPostsIn
 		Statuses:     []int32{CampusAuditStatusVisible},
 		Offset:       int((page - 1) * size),
 		Limit:        int(size),
-	})
+	}
+	posts, total, usedPool, err := uc.listPostsFromPool(ctx, query)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("list campus posts from pool failed: %v", err)
+	}
+	if !usedPool || err != nil {
+		posts, total, err = uc.repo.ListPosts(ctx, query)
+	}
 	if err != nil {
 		return nil, apperror.Internal(err, "获取帖子列表失败")
 	}
-	if err := uc.hydratePosts(ctx, posts, input.CurrentUserID); err != nil {
+	if err := uc.assembler.HydratePosts(ctx, posts, input.CurrentUserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate campus posts failed: %v", err)
 	}
 	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
@@ -1204,7 +1335,7 @@ func (uc *CampusUsecase) ListMyPosts(ctx context.Context, input *ListCampusPosts
 	if err != nil {
 		return nil, apperror.Internal(err, "获取我的帖子失败")
 	}
-	if err := uc.hydratePosts(ctx, posts, input.CurrentUserID); err != nil {
+	if err := uc.assembler.HydratePosts(ctx, posts, input.CurrentUserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate my campus posts failed: %v", err)
 	}
 	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
@@ -1229,7 +1360,7 @@ func (uc *CampusUsecase) ListMyCollections(ctx context.Context, input *ListCampu
 	if err != nil {
 		return nil, apperror.Internal(err, "获取我的收藏失败")
 	}
-	if err := uc.hydratePosts(ctx, posts, input.CurrentUserID); err != nil {
+	if err := uc.assembler.HydratePosts(ctx, posts, input.CurrentUserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate collected campus posts failed: %v", err)
 	}
 	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
@@ -1246,7 +1377,7 @@ func (uc *CampusUsecase) GetPost(ctx context.Context, input *GetCampusPostInput)
 	if !ok {
 		return nil, apperror.NotFound("帖子不存在")
 	}
-	if err := uc.hydratePosts(ctx, []*CampusForumPost{post}, input.CurrentUserID); err != nil {
+	if err := uc.assembler.HydratePosts(ctx, []*CampusForumPost{post}, input.CurrentUserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate campus post failed: %v", err)
 	}
 	return post, nil
@@ -1339,7 +1470,7 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 		TargetType: "post",
 		TargetID:   input.PostID,
 	})
-	_ = uc.hydrateComments(ctx, []*CampusForumComment{comment}, input.UserID)
+	_ = uc.assembler.HydrateComments(ctx, []*CampusForumComment{comment}, input.UserID)
 	return comment, nil
 }
 
@@ -1359,10 +1490,10 @@ func (uc *CampusUsecase) ListComments(ctx context.Context, input *ListCampusComm
 	if err != nil {
 		return nil, apperror.Internal(err, "获取评论失败")
 	}
-	if err := uc.hydrateComments(ctx, comments, input.CurrentUserID); err != nil {
+	if err := uc.assembler.HydrateComments(ctx, comments, input.CurrentUserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate campus comments failed: %v", err)
 	}
-	if err := uc.fillPreviewReplies(ctx, comments, input.CurrentUserID); err != nil {
+	if err := uc.assembler.FillPreviewReplies(ctx, comments, input.CurrentUserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("fill campus comment replies failed: %v", err)
 	}
 	return &ListCampusCommentsOutput{Comments: comments, Total: total}, nil
@@ -1394,7 +1525,7 @@ func (uc *CampusUsecase) ListCommentReplies(ctx context.Context, input *ListCamp
 	if err != nil {
 		return nil, apperror.Internal(err, "获取回复失败")
 	}
-	if err := uc.hydrateComments(ctx, replies, input.CurrentUserID); err != nil {
+	if err := uc.assembler.HydrateComments(ctx, replies, input.CurrentUserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate campus replies failed: %v", err)
 	}
 	return &ListCampusCommentsOutput{Comments: replies, Total: total}, nil
@@ -1414,7 +1545,7 @@ func (uc *CampusUsecase) ListMyComments(ctx context.Context, input *ListCampusCo
 	if err != nil {
 		return nil, apperror.Internal(err, "获取我的评论失败")
 	}
-	if err := uc.hydrateComments(ctx, comments, input.UserID); err != nil {
+	if err := uc.assembler.HydrateComments(ctx, comments, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate my campus comments failed: %v", err)
 	}
 	if err := uc.repo.FillCommentPosts(ctx, comments); err != nil {
@@ -1634,7 +1765,7 @@ func (uc *CampusUsecase) ListModerationPosts(ctx context.Context, input *ListCam
 	if err != nil {
 		return nil, apperror.Internal(err, "获取审核帖子失败")
 	}
-	if err := uc.hydratePosts(ctx, posts, input.UserID); err != nil {
+	if err := uc.assembler.HydratePosts(ctx, posts, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate moderation posts failed: %v", err)
 	}
 	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
@@ -1657,7 +1788,7 @@ func (uc *CampusUsecase) ListModerationComments(ctx context.Context, input *List
 	if err != nil {
 		return nil, apperror.Internal(err, "获取审核评论失败")
 	}
-	if err := uc.hydrateComments(ctx, comments, input.UserID); err != nil {
+	if err := uc.assembler.HydrateComments(ctx, comments, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate moderation comments failed: %v", err)
 	}
 	return &ListCampusCommentsOutput{Comments: comments, Total: total}, nil
@@ -1750,6 +1881,14 @@ func (uc *CampusUsecase) AdminReconcileCampusStats(ctx context.Context, userID s
 	return result, nil
 }
 
+func (uc *CampusUsecase) RunCampusStatsReconcile(ctx context.Context) (*CampusStatsReconcileResult, error) {
+	result, err := uc.repo.ReconcileCampusStats(ctx)
+	if err != nil {
+		return nil, apperror.Internal(err, "计数对账失败")
+	}
+	return result, nil
+}
+
 func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAdminPostsInput) (*ListCampusPostsOutput, error) {
 	if !uc.isCampusOperator(ctx, input.UserID) {
 		return nil, apperror.Forbidden("没有后台权限")
@@ -1777,7 +1916,7 @@ func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAd
 	if err != nil {
 		return nil, apperror.Internal(err, "获取后台帖子失败")
 	}
-	if err := uc.hydratePosts(ctx, posts, input.UserID); err != nil {
+	if err := uc.assembler.HydratePosts(ctx, posts, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate admin posts failed: %v", err)
 	}
 	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
@@ -1932,7 +2071,7 @@ func (uc *CampusUsecase) AdminUpdatePost(ctx context.Context, input *UpdateCampu
 	if err := uc.repo.UpdatePostByAdmin(ctx, post); err != nil {
 		return nil, apperror.Internal(err, "更新帖子失败")
 	}
-	_ = uc.hydratePosts(ctx, []*CampusForumPost{post}, input.UserID)
+	_ = uc.assembler.HydratePosts(ctx, []*CampusForumPost{post}, input.UserID)
 	return post, nil
 }
 
@@ -1968,7 +2107,7 @@ func (uc *CampusUsecase) AdminListComments(ctx context.Context, input *ListCampu
 	if err != nil {
 		return nil, apperror.Internal(err, "获取后台评论失败")
 	}
-	if err := uc.hydrateComments(ctx, comments, input.UserID); err != nil {
+	if err := uc.assembler.HydrateComments(ctx, comments, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate admin comments failed: %v", err)
 	}
 	if err := uc.repo.FillCommentPosts(ctx, comments); err != nil {
@@ -2089,7 +2228,7 @@ func (uc *CampusUsecase) AdminListFeedback(ctx context.Context, input *ListCampu
 	if err != nil {
 		return nil, apperror.Internal(err, "获取反馈列表失败")
 	}
-	if err := uc.hydrateFeedbackAuthors(ctx, feedbacks); err != nil {
+	if err := uc.assembler.HydrateFeedbackAuthors(ctx, feedbacks); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate feedback authors failed: %v", err)
 	}
 	return &ListCampusFeedbackOutput{Feedbacks: feedbacks, Total: total}, nil
@@ -2159,6 +2298,13 @@ func (uc *CampusUsecase) RecordAccessLog(ctx context.Context, input *CampusAcces
 		UserAgent:   trimLimit(input.UserAgent, 512),
 		RateLimited: input.RateLimited,
 		Blocked:     input.Blocked,
+		CreatedAt:   time.Now(),
+	}
+	if uc.accessLogBatcher != nil {
+		if err := uc.accessLogBatcher.Add(ctx, log); err != nil {
+			uc.log.WithContext(ctx).Warnf("record campus access log batch failed: %v", err)
+		}
+		return
 	}
 	if err := uc.repo.CreateAccessLog(ctx, log); err != nil {
 		uc.log.WithContext(ctx).Warnf("record campus access log failed: %v", err)
@@ -2259,111 +2405,6 @@ func (uc *CampusUsecase) AdminUpdateUserRole(ctx context.Context, input *UpdateC
 	return nil
 }
 
-func (uc *CampusUsecase) hydratePosts(ctx context.Context, posts []*CampusForumPost, currentUserID string) error {
-	if len(posts) == 0 {
-		return nil
-	}
-	userIDs := make([]string, 0, len(posts))
-	postIDs := make([]int64, 0, len(posts))
-	seen := map[string]struct{}{}
-	for _, post := range posts {
-		postIDs = append(postIDs, post.ID)
-		if _, ok := seen[post.AuthorID]; !ok && post.AuthorID != "" {
-			seen[post.AuthorID] = struct{}{}
-			userIDs = append(userIDs, post.AuthorID)
-		}
-	}
-	authors, err := uc.loadAuthors(ctx, userIDs)
-	if err != nil {
-		return err
-	}
-	likeStatus := map[int64]bool{}
-	collectionStatus := map[int64]bool{}
-	if currentUserID != "" && currentUserID != "0" {
-		likeStatus, _ = uc.repo.GetPostLikeStatus(ctx, currentUserID, postIDs)
-		collectionStatus, _ = uc.repo.GetPostCollectionStatus(ctx, currentUserID, postIDs)
-	}
-	for _, post := range posts {
-		post.Author = authors[post.AuthorID]
-		post.IsLiked = likeStatus[post.ID]
-		post.IsCollected = collectionStatus[post.ID]
-	}
-	return nil
-}
-
-func (uc *CampusUsecase) hydrateComments(ctx context.Context, comments []*CampusForumComment, currentUserID string) error {
-	if len(comments) == 0 {
-		return nil
-	}
-	flat := flattenComments(comments)
-	userIDs := make([]string, 0, len(flat)*2)
-	seenUsers := map[string]struct{}{}
-	commentIDs := make([]int64, 0, len(flat))
-	for _, comment := range flat {
-		if comment == nil {
-			continue
-		}
-		commentIDs = append(commentIDs, comment.ID)
-		appendUniqueUserID(&userIDs, seenUsers, comment.AuthorID)
-		appendUniqueUserID(&userIDs, seenUsers, comment.ReplyToUserID)
-	}
-	authors, err := uc.loadAuthors(ctx, userIDs)
-	if err != nil {
-		return err
-	}
-	likeStatus := map[int64]bool{}
-	if currentUserID != "" && currentUserID != "0" {
-		likeStatus, _ = uc.repo.GetCommentLikeStatus(ctx, currentUserID, commentIDs)
-	}
-	for _, comment := range flat {
-		if comment == nil {
-			continue
-		}
-		comment.Author = authors[comment.AuthorID]
-		if comment.ReplyToUserID != "" && comment.ReplyToUserID != "0" {
-			comment.ReplyToUser = authors[comment.ReplyToUserID]
-		}
-		comment.IsLiked = likeStatus[comment.ID]
-	}
-	return nil
-}
-
-func (uc *CampusUsecase) fillPreviewReplies(ctx context.Context, comments []*CampusForumComment, currentUserID string) error {
-	for _, comment := range comments {
-		if comment == nil || comment.ID <= 0 || comment.ReplyCount <= 0 {
-			continue
-		}
-		parentID := comment.ID
-		replies, _, err := uc.repo.ListComments(ctx, ListCampusCommentQuery{
-			PostID:   comment.PostID,
-			ParentID: &parentID,
-			Statuses: []int32{CampusAuditStatusVisible},
-			Offset:   0,
-			Limit:    2,
-		})
-		if err != nil {
-			return err
-		}
-		if err := uc.hydrateComments(ctx, replies, currentUserID); err != nil {
-			return err
-		}
-		comment.PreviewReplies = replies
-	}
-	return nil
-}
-
-func appendUniqueUserID(userIDs *[]string, seen map[string]struct{}, userID string) {
-	userID = strings.TrimSpace(userID)
-	if userID == "" || userID == "0" {
-		return
-	}
-	if _, ok := seen[userID]; ok {
-		return
-	}
-	seen[userID] = struct{}{}
-	*userIDs = append(*userIDs, userID)
-}
-
 func flattenComments(comments []*CampusForumComment) []*CampusForumComment {
 	flat := make([]*CampusForumComment, 0, len(comments))
 	var walk func(items []*CampusForumComment)
@@ -2380,56 +2421,6 @@ func flattenComments(comments []*CampusForumComment) []*CampusForumComment {
 	}
 	walk(comments)
 	return flat
-}
-
-func (uc *CampusUsecase) hydrateFeedbackAuthors(ctx context.Context, feedbacks []*CampusFeedback) error {
-	if len(feedbacks) == 0 {
-		return nil
-	}
-	userIDs := make([]string, 0, len(feedbacks))
-	seen := map[string]struct{}{}
-	for _, feedback := range feedbacks {
-		if _, ok := seen[feedback.UserID]; !ok && feedback.UserID != "" {
-			seen[feedback.UserID] = struct{}{}
-			userIDs = append(userIDs, feedback.UserID)
-		}
-	}
-	authors, err := uc.loadAuthors(ctx, userIDs)
-	if err != nil {
-		return err
-	}
-	for _, feedback := range feedbacks {
-		feedback.Author = authors[feedback.UserID]
-	}
-	return nil
-}
-
-func (uc *CampusUsecase) loadAuthors(ctx context.Context, userIDs []string) (map[string]*CampusForumAuthor, error) {
-	authors := make(map[string]*CampusForumAuthor, len(userIDs))
-	if len(userIDs) == 0 {
-		return authors, nil
-	}
-	users, err := uc.core.BatchGetUserBaseInfo(ctx, userIDs)
-	if err != nil {
-		return nil, err
-	}
-	for _, user := range users {
-		if user == nil {
-			continue
-		}
-		author := &CampusForumAuthor{
-			UserID:   user.ID,
-			Name:     firstNonEmpty(user.Nickname, user.Name, "同学"),
-			Nickname: user.Nickname,
-			Avatar:   user.Avatar,
-		}
-		if ok, profile, err := uc.repo.GetProfileByUserID(ctx, user.ID); err == nil && ok {
-			author.SchoolName = profile.SchoolName
-			author.AuthStatus = profile.AuthStatus
-		}
-		authors[user.ID] = author
-	}
-	return authors, nil
 }
 
 type wechatSession struct {
@@ -2819,8 +2810,68 @@ func (uc *CampusUsecase) TrackEvent(ctx context.Context, input *TrackCampusEvent
 		UserAgent:  trimLimit(input.UserAgent, 512),
 		IP:         trimLimit(input.IP, 64),
 	}
+	if uc.eventBatcher != nil {
+		if err := uc.eventBatcher.Add(ctx, tracked); err != nil {
+			return apperror.Internal(err, "记录埋点失败")
+		}
+		return nil
+	}
 	if err := uc.repo.TrackEvent(ctx, tracked); err != nil {
 		return apperror.Internal(err, "记录埋点失败")
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) FlushCampusBatches(ctx context.Context) error {
+	var firstErr error
+	if uc.eventBatcher != nil {
+		if err := uc.eventBatcher.Flush(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if uc.accessLogBatcher != nil {
+		if err := uc.accessLogBatcher.Flush(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func (uc *CampusUsecase) StopCampusBatches(ctx context.Context) error {
+	var firstErr error
+	if uc.eventBatcher != nil {
+		if err := uc.eventBatcher.Stop(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if uc.accessLogBatcher != nil {
+		if err := uc.accessLogBatcher.Stop(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func (uc *CampusUsecase) persistCampusEvents(ctx context.Context, events []*TrackCampusEventInput) error {
+	if err := uc.repo.TrackEvents(ctx, events); err != nil {
+		for _, event := range events {
+			if singleErr := uc.repo.TrackEvent(ctx, event); singleErr != nil {
+				uc.log.WithContext(ctx).Warnf("fallback track campus event failed: event=%s err=%v", event.EventType, singleErr)
+			}
+		}
+		return err
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) persistCampusAccessLogs(ctx context.Context, logs []*CampusAccessLog) error {
+	if err := uc.repo.CreateAccessLogs(ctx, logs); err != nil {
+		for _, item := range logs {
+			if singleErr := uc.repo.CreateAccessLog(ctx, item); singleErr != nil {
+				uc.log.WithContext(ctx).Warnf("fallback create campus access log failed: path=%s err=%v", item.Path, singleErr)
+			}
+		}
+		return err
 	}
 	return nil
 }

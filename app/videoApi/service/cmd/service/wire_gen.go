@@ -139,7 +139,8 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 	manager := websocket.NewManager(logger, producer, client, chatAdapter, userServiceClient)
 	kafkaConsumerService := service.NewKafkaConsumerService(consumer, messageUsecase, manager, client, chatAdapter, logger)
 	kafkaConsumerServer := server.NewKafkaConsumerServer(kafkaConsumerService, logger)
-	app := newApp(logger, registrar, httpServer, kafkaConsumerServer)
+	campusTaskServer := server.NewCampusTaskServer(campusUsecase, logger)
+	app := newApp(logger, registrar, httpServer, kafkaConsumerServer, campusTaskServer)
 	return app, func() {
 		cleanup()
 	}, nil

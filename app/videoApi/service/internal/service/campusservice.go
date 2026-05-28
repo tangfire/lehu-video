@@ -46,6 +46,8 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/timetable", s.wrap(s.authRequired(s.handleListTimetable)))
 	r.POST("/v1/campus/timetable/import", s.wrap(s.authRequired(s.handleImportTimetable)))
 	r.POST("/v1/campus/analytics/track", s.wrap(s.handleTrackEvent))
+	r.POST("/v1/campus/upload/presign", s.wrap(s.authRequired(s.handleUploadPresign)))
+	r.POST("/v1/campus/upload/complete", s.wrap(s.authRequired(s.handleUploadComplete)))
 	r.POST("/v1/campus/upload/image", s.wrap(s.authRequired(s.handleUploadImage)))
 	r.POST("/v1/campus/upload/video", s.wrap(s.authRequired(s.handleUploadVideo)))
 	r.GET("/v1/campus/forum/categories", s.wrap(s.handleListCategories))
@@ -375,6 +377,64 @@ func (s *CampusService) handleUploadImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"url": url, "file_id": fileID})
+}
+
+type uploadPresignRequest struct {
+	MediaType string `json:"media_type"`
+	Hash      string `json:"hash"`
+	FileType  string `json:"file_type"`
+	Filename  string `json:"filename"`
+	Size      int64  `json:"size"`
+}
+
+type uploadCompleteRequest struct {
+	MediaType string `json:"media_type"`
+	FileID    string `json:"file_id"`
+}
+
+func (s *CampusService) handleUploadPresign(w http.ResponseWriter, r *http.Request) {
+	var req uploadPresignRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	out, err := s.uc.PreSignCampusUpload(r.Context(), &biz.CampusUploadPresignInput{
+		MediaType: req.MediaType,
+		Hash:      req.Hash,
+		FileType:  req.FileType,
+		Filename:  req.Filename,
+		Size:      req.Size,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"file_id":    out.FileID,
+		"upload_url": out.UploadURL,
+		"method":     out.Method,
+		"headers":    out.Headers,
+		"expires_in": out.ExpiresIn,
+	})
+}
+
+func (s *CampusService) handleUploadComplete(w http.ResponseWriter, r *http.Request) {
+	var req uploadCompleteRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	out, err := s.uc.CompleteCampusUpload(r.Context(), &biz.CampusUploadCompleteInput{
+		MediaType: req.MediaType,
+		FileID:    req.FileID,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"file_id":     out.FileID,
+		"url":         out.URL,
+		"object_name": out.ObjectName,
+	})
 }
 
 func (s *CampusService) handleUploadVideo(w http.ResponseWriter, r *http.Request) {
