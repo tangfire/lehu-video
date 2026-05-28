@@ -1486,10 +1486,12 @@ func (s *CampusService) handleAdminListUsers(w http.ResponseWriter, r *http.Requ
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
 	out, err := s.uc.AdminListUsers(r.Context(), &biz.ListCampusAdminUsersInput{
-		UserID:  userID,
-		Keyword: q.Get("keyword"),
-		Page:    int32(queryInt(q.Get("page"), 1)),
-		Size:    int32(queryInt(q.Get("size"), 20)),
+		UserID:     userID,
+		Keyword:    q.Get("keyword"),
+		Role:       q.Get("role"),
+		AuthStatus: int32(queryInt(q.Get("auth_status"), -1)),
+		Page:       int32(queryInt(q.Get("page"), 1)),
+		Size:       int32(queryInt(q.Get("size"), 20)),
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -2054,9 +2056,22 @@ func adminUserToMap(user *biz.CampusAdminUser) map[string]interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"user":    userToMap(user.User),
-		"profile": profileToMap(user.Profile),
-		"role":    user.Role,
+		"user":               userToMap(user.User),
+		"profile":            profileToMap(user.Profile),
+		"role":               user.Role,
+		"post_count":         user.PostCount,
+		"comment_count":      user.CommentCount,
+		"like_count":         user.LikeCount,
+		"collection_count":   user.CollectionCount,
+		"feedback_count":     user.FeedbackCount,
+		"report_count":       user.ReportCount,
+		"login_count":        user.LoginCount,
+		"visit_count":        user.VisitCount,
+		"last_login_at":      formatTime(user.LastLoginAt),
+		"last_active_at":     formatTime(user.LastActiveAt),
+		"last_active_ip":     user.LastActiveIP,
+		"last_active_path":   user.LastActivePath,
+		"last_active_status": user.LastActiveStatus,
 	}
 }
 

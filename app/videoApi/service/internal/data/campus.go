@@ -328,23 +328,36 @@ type campusEventModel struct {
 func (campusEventModel) TableName() string { return "campus_event" }
 
 type campusUserRow struct {
-	UserID       int64     `gorm:"column:user_id"`
-	AccountID    int64     `gorm:"column:account_id"`
-	Mobile       string    `gorm:"column:mobile"`
-	Email        string    `gorm:"column:email"`
-	Name         string    `gorm:"column:name"`
-	Nickname     string    `gorm:"column:nickname"`
-	Avatar       string    `gorm:"column:avatar"`
-	SchoolName   string    `gorm:"column:school_name"`
-	StudentNo    string    `gorm:"column:student_no"`
-	RealName     string    `gorm:"column:real_name"`
-	ClassName    string    `gorm:"column:class_name"`
-	DormBuilding string    `gorm:"column:dorm_building"`
-	RoomNo       string    `gorm:"column:room_no"`
-	AuthStatus   int32     `gorm:"column:auth_status"`
-	Role         string    `gorm:"column:role"`
-	CreatedAt    time.Time `gorm:"column:created_at"`
-	UpdatedAt    time.Time `gorm:"column:updated_at"`
+	UserID           int64        `gorm:"column:user_id"`
+	AccountID        int64        `gorm:"column:account_id"`
+	Mobile           string       `gorm:"column:mobile"`
+	Email            string       `gorm:"column:email"`
+	Name             string       `gorm:"column:name"`
+	Nickname         string       `gorm:"column:nickname"`
+	Avatar           string       `gorm:"column:avatar"`
+	SchoolName       string       `gorm:"column:school_name"`
+	StudentNo        string       `gorm:"column:student_no"`
+	RealName         string       `gorm:"column:real_name"`
+	ClassName        string       `gorm:"column:class_name"`
+	DormBuilding     string       `gorm:"column:dorm_building"`
+	RoomNo           string       `gorm:"column:room_no"`
+	AuthStatus       int32        `gorm:"column:auth_status"`
+	Role             string       `gorm:"column:role"`
+	PostCount        int64        `gorm:"column:post_count"`
+	CommentCount     int64        `gorm:"column:comment_count"`
+	LikeCount        int64        `gorm:"column:like_count"`
+	CollectionCount  int64        `gorm:"column:collection_count"`
+	FeedbackCount    int64        `gorm:"column:feedback_count"`
+	ReportCount      int64        `gorm:"column:report_count"`
+	LoginCount       int64        `gorm:"column:login_count"`
+	VisitCount       int64        `gorm:"column:visit_count"`
+	LastLoginAt      sql.NullTime `gorm:"column:last_login_at"`
+	LastActiveAt     sql.NullTime `gorm:"column:last_active_at"`
+	LastActiveIP     string       `gorm:"column:last_active_ip"`
+	LastActivePath   string       `gorm:"column:last_active_path"`
+	LastActiveStatus int32        `gorm:"column:last_active_status"`
+	CreatedAt        time.Time    `gorm:"column:created_at"`
+	UpdatedAt        time.Time    `gorm:"column:updated_at"`
 }
 
 func (r *campusRepo) GetWechatIdentity(ctx context.Context, provider, openID string) (bool, *biz.CampusWechatIdentity, error) {
@@ -1975,7 +1988,7 @@ func (r *campusRepo) ReconcileCampusStats(ctx context.Context) (*biz.CampusStats
 	return result, nil
 }
 
-func (r *campusRepo) ListCampusUsers(ctx context.Context, keyword string, offset, limit int) ([]*biz.CampusAdminUser, int64, error) {
+func (r *campusRepo) ListCampusUsers(ctx context.Context, keyword, role string, authStatus int32, offset, limit int) ([]*biz.CampusAdminUser, int64, error) {
 	db := r.data.db.WithContext(ctx).Table("user u").
 		Select(`u.id AS user_id, u.account_id, u.mobile, u.email, u.name, u.nickname, u.avatar,
 			COALESCE(p.school_name, '') AS school_name,
@@ -1986,12 +1999,90 @@ func (r *campusRepo) ListCampusUsers(ctx context.Context, keyword string, offset
 			COALESCE(p.room_no, '') AS room_no,
 			COALESCE(p.auth_status, 0) AS auth_status,
 			COALESCE(o.role, '') AS role,
+			COALESCE(post_stats.post_count, 0) AS post_count,
+			COALESCE(comment_stats.comment_count, 0) AS comment_count,
+			COALESCE(like_stats.like_count, 0) AS like_count,
+			COALESCE(collection_stats.collection_count, 0) AS collection_count,
+			COALESCE(feedback_stats.feedback_count, 0) AS feedback_count,
+			COALESCE(report_stats.report_count, 0) AS report_count,
+			COALESCE(login_stats.login_count, 0) AS login_count,
+			COALESCE(visit_stats.visit_count, 0) AS visit_count,
+			login_stats.last_login_at AS last_login_at,
+			access_stats.last_active_at AS last_active_at,
+			COALESCE(access_stats.last_active_ip, '') AS last_active_ip,
+			COALESCE(access_stats.last_active_path, '') AS last_active_path,
+			COALESCE(access_stats.last_active_status, 0) AS last_active_status,
 			u.created_at, u.updated_at`).
 		Joins("LEFT JOIN campus_profile p ON p.user_id = u.id").
-		Joins("LEFT JOIN campus_operator o ON o.user_id = u.id AND o.is_deleted = 0")
+		Joins("LEFT JOIN campus_operator o ON o.user_id = u.id AND o.is_deleted = 0").
+		Joins(`LEFT JOIN (
+			SELECT author_id AS user_id, COUNT(*) AS post_count
+			FROM campus_forum_post
+			WHERE is_deleted = 0
+			GROUP BY author_id
+		) post_stats ON post_stats.user_id = u.id`).
+		Joins(`LEFT JOIN (
+			SELECT author_id AS user_id, COUNT(*) AS comment_count
+			FROM campus_forum_comment
+			WHERE is_deleted = 0
+			GROUP BY author_id
+		) comment_stats ON comment_stats.user_id = u.id`).
+		Joins(`LEFT JOIN (
+			SELECT user_id, COUNT(*) AS like_count
+			FROM campus_forum_post_like
+			WHERE is_deleted = 0
+			GROUP BY user_id
+		) like_stats ON like_stats.user_id = u.id`).
+		Joins(`LEFT JOIN (
+			SELECT user_id, COUNT(*) AS collection_count
+			FROM campus_forum_post_collection
+			WHERE is_deleted = 0
+			GROUP BY user_id
+		) collection_stats ON collection_stats.user_id = u.id`).
+		Joins(`LEFT JOIN (
+			SELECT user_id, COUNT(*) AS feedback_count
+			FROM campus_feedback
+			GROUP BY user_id
+		) feedback_stats ON feedback_stats.user_id = u.id`).
+		Joins(`LEFT JOIN (
+			SELECT reporter_id AS user_id, COUNT(*) AS report_count
+			FROM campus_forum_report
+			GROUP BY reporter_id
+		) report_stats ON report_stats.user_id = u.id`).
+		Joins(`LEFT JOIN (
+			SELECT user_id, COUNT(*) AS login_count, MAX(created_at) AS last_login_at
+			FROM campus_event
+			WHERE event_type = 'login'
+			GROUP BY user_id
+		) login_stats ON login_stats.user_id = u.id`).
+		Joins(`LEFT JOIN (
+			SELECT user_id, COUNT(*) AS visit_count
+			FROM campus_event
+			WHERE event_type = 'visit'
+			GROUP BY user_id
+		) visit_stats ON visit_stats.user_id = u.id`).
+		Joins(`LEFT JOIN (
+			SELECT l.user_id, l.created_at AS last_active_at, l.ip AS last_active_ip, l.path AS last_active_path, l.status_code AS last_active_status
+			FROM campus_access_log l
+			INNER JOIN (
+				SELECT user_id, MAX(id) AS max_id
+				FROM campus_access_log
+				WHERE user_id > 0
+				GROUP BY user_id
+			) latest ON latest.max_id = l.id
+		) access_stats ON access_stats.user_id = u.id`)
 	if keyword != "" {
 		like := "%" + keyword + "%"
 		db = db.Where("u.nickname LIKE ? OR u.name LIKE ? OR u.mobile LIKE ? OR u.email LIKE ? OR p.student_no LIKE ? OR p.real_name LIKE ?", like, like, like, like, like, like)
+	}
+	if authStatus >= 0 {
+		db = db.Where("COALESCE(p.auth_status, 0) = ?", authStatus)
+	}
+	switch role {
+	case "admin", "operator":
+		db = db.Where("o.role = ?", role)
+	case "user":
+		db = db.Where("o.role IS NULL OR o.role = ''")
 	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
@@ -2298,6 +2389,14 @@ func (r *campusRepo) loadCampusAuthors(ctx context.Context, ids []int64) (map[in
 func toBizAdminUser(row *campusUserRow) *biz.CampusAdminUser {
 	userID := fmt.Sprintf("%d", row.UserID)
 	accountID := fmt.Sprintf("%d", row.AccountID)
+	var lastLoginAt time.Time
+	if row.LastLoginAt.Valid {
+		lastLoginAt = row.LastLoginAt.Time
+	}
+	var lastActiveAt time.Time
+	if row.LastActiveAt.Valid {
+		lastActiveAt = row.LastActiveAt.Time
+	}
 	return &biz.CampusAdminUser{
 		User: &biz.UserBaseInfo{
 			ID:        userID,
@@ -2321,7 +2420,20 @@ func toBizAdminUser(row *campusUserRow) *biz.CampusAdminUser {
 			Mobile:       row.Mobile,
 			AuthStatus:   row.AuthStatus,
 		},
-		Role: row.Role,
+		Role:             row.Role,
+		PostCount:        row.PostCount,
+		CommentCount:     row.CommentCount,
+		LikeCount:        row.LikeCount,
+		CollectionCount:  row.CollectionCount,
+		FeedbackCount:    row.FeedbackCount,
+		ReportCount:      row.ReportCount,
+		LoginCount:       row.LoginCount,
+		VisitCount:       row.VisitCount,
+		LastLoginAt:      lastLoginAt,
+		LastActiveAt:     lastActiveAt,
+		LastActiveIP:     row.LastActiveIP,
+		LastActivePath:   row.LastActivePath,
+		LastActiveStatus: row.LastActiveStatus,
 	}
 }
 

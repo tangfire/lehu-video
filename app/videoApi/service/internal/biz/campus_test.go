@@ -534,7 +534,7 @@ func (r *campusRepoStub) GetAdminSummary(context.Context) (*CampusAdminSummary, 
 func (r *campusRepoStub) ReconcileCampusStats(context.Context) (*CampusStatsReconcileResult, error) {
 	return &CampusStatsReconcileResult{}, nil
 }
-func (r *campusRepoStub) ListCampusUsers(context.Context, string, int, int) ([]*CampusAdminUser, int64, error) {
+func (r *campusRepoStub) ListCampusUsers(context.Context, string, string, int32, int, int) ([]*CampusAdminUser, int64, error) {
 	return nil, 0, nil
 }
 func (r *campusRepoStub) UpsertCampusOperator(context.Context, string, string) error { return nil }

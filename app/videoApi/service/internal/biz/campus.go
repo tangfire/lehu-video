@@ -612,16 +612,31 @@ type ReviewCampusReportInput struct {
 }
 
 type CampusAdminUser struct {
-	User    *UserBaseInfo
-	Profile *CampusProfile
-	Role    string
+	User             *UserBaseInfo
+	Profile          *CampusProfile
+	Role             string
+	PostCount        int64
+	CommentCount     int64
+	LikeCount        int64
+	CollectionCount  int64
+	FeedbackCount    int64
+	ReportCount      int64
+	LoginCount       int64
+	VisitCount       int64
+	LastLoginAt      time.Time
+	LastActiveAt     time.Time
+	LastActiveIP     string
+	LastActivePath   string
+	LastActiveStatus int32
 }
 
 type ListCampusAdminUsersInput struct {
-	UserID  string
-	Keyword string
-	Page    int32
-	Size    int32
+	UserID     string
+	Keyword    string
+	Role       string
+	AuthStatus int32
+	Page       int32
+	Size       int32
 }
 
 type ListCampusAdminUsersOutput struct {
@@ -859,7 +874,7 @@ type CampusRepo interface {
 	TrackEvents(ctx context.Context, events []*TrackCampusEventInput) error
 	GetAdminSummary(ctx context.Context) (*CampusAdminSummary, error)
 	ReconcileCampusStats(ctx context.Context) (*CampusStatsReconcileResult, error)
-	ListCampusUsers(ctx context.Context, keyword string, offset, limit int) ([]*CampusAdminUser, int64, error)
+	ListCampusUsers(ctx context.Context, keyword, role string, authStatus int32, offset, limit int) ([]*CampusAdminUser, int64, error)
 	GetCampusOperatorRole(ctx context.Context, userID string) (string, error)
 	UpsertCampusOperator(ctx context.Context, userID, role string) error
 	RemoveCampusOperator(ctx context.Context, userID string) error
@@ -2598,7 +2613,13 @@ func (uc *CampusUsecase) AdminListUsers(ctx context.Context, input *ListCampusAd
 		return nil, apperror.Forbidden("没有后台权限")
 	}
 	page, size := normalizePage(input.Page, input.Size)
-	users, total, err := uc.repo.ListCampusUsers(ctx, strings.TrimSpace(input.Keyword), int((page-1)*size), int(size))
+	role := strings.TrimSpace(strings.ToLower(input.Role))
+	switch role {
+	case "", "all", "user", "operator", "admin":
+	default:
+		return nil, apperror.InvalidArgument("角色筛选无效")
+	}
+	users, total, err := uc.repo.ListCampusUsers(ctx, strings.TrimSpace(input.Keyword), role, input.AuthStatus, int((page-1)*size), int(size))
 	if err != nil {
 		return nil, apperror.Internal(err, "获取用户列表失败")
 	}
