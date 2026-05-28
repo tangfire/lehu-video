@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS `campus_ai_reply_task` (
+  `id` BIGINT NOT NULL,
+  `post_id` BIGINT NOT NULL COMMENT '帖子ID',
+  `root_comment_id` BIGINT NOT NULL DEFAULT 0 COMMENT '一级评论ID',
+  `trigger_comment_id` BIGINT NOT NULL COMMENT '触发@e仔的评论ID',
+  `asker_id` BIGINT NOT NULL COMMENT '提问用户ID',
+  `bot_user_id` BIGINT NOT NULL COMMENT 'e仔官方账号用户ID',
+  `prompt` VARCHAR(600) NOT NULL DEFAULT '' COMMENT '去掉@后的问题文本',
+  `status` VARCHAR(24) NOT NULL DEFAULT 'pending' COMMENT 'pending/processing/done/failed',
+  `retry_count` INT NOT NULL DEFAULT 0,
+  `next_retry_at` DATETIME(3) DEFAULT NULL,
+  `locked_until` DATETIME(3) DEFAULT NULL,
+  `answer_comment_id` BIGINT NOT NULL DEFAULT 0 COMMENT '生成的e仔回复评论ID',
+  `last_error` VARCHAR(600) NOT NULL DEFAULT '',
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  `processed_at` DATETIME(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_campus_ai_reply_trigger_comment` (`trigger_comment_id`),
+  INDEX `idx_campus_ai_reply_status_next` (`status`, `next_retry_at`, `locked_until`, `id`),
+  INDEX `idx_campus_ai_reply_bot_processed` (`bot_user_id`, `status`, `processed_at`),
+  INDEX `idx_campus_ai_reply_post_created` (`post_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园e仔AI评论回复任务';

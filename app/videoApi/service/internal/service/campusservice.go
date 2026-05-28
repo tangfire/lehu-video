@@ -93,6 +93,9 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.DELETE("/v1/campus/admin/posts/{id}", s.wrap(s.authRequired(s.handleAdminDeletePost)))
 	r.GET("/v1/campus/admin/comments", s.wrap(s.authRequired(s.handleAdminListComments)))
 	r.DELETE("/v1/campus/admin/comments/{id}", s.wrap(s.authRequired(s.handleAdminDeleteComment)))
+	r.GET("/v1/campus/admin/ai-replies/summary", s.wrap(s.authRequired(s.handleAdminAIReplySummary)))
+	r.GET("/v1/campus/admin/ai-replies/tasks", s.wrap(s.authRequired(s.handleAdminListAIReplyTasks)))
+	r.POST("/v1/campus/admin/ai-replies/tasks/{id}/retry", s.wrap(s.authRequired(s.handleAdminRetryAIReplyTask)))
 	r.GET("/v1/campus/admin/reports", s.wrap(s.authRequired(s.handleAdminListReports)))
 	r.POST("/v1/campus/admin/reports/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewReport)))
 	r.GET("/v1/campus/admin/feedback", s.wrap(s.authRequired(s.handleAdminListFeedback)))
@@ -1403,6 +1406,55 @@ func (s *CampusService) handleAdminDeleteComment(w http.ResponseWriter, r *http.
 	writeJSON(w, r, map[string]interface{}{})
 }
 
+func (s *CampusService) handleAdminAIReplySummary(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	overview, err := s.uc.AdminAIReplyOverview(r.Context(), userID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"summary": aiReplyOverviewToMap(overview)})
+}
+
+func (s *CampusService) handleAdminListAIReplyTasks(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListAIReplyTasks(r.Context(), &biz.ListCampusAIReplyTasksInput{
+		UserID: userID,
+		Status: q.Get("status"),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	tasks := make([]map[string]interface{}, 0, len(out.Tasks))
+	for _, task := range out.Tasks {
+		tasks = append(tasks, aiReplyTaskToMap(task))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"tasks":      tasks,
+		"page_stats": map[string]interface{}{"total": out.Total},
+	})
+}
+
+func (s *CampusService) handleAdminRetryAIReplyTask(w http.ResponseWriter, r *http.Request) {
+	taskID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminRetryAIReplyTask(r.Context(), &biz.RetryCampusAIReplyTaskInput{
+		UserID: userID,
+		TaskID: taskID,
+	}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
 func (s *CampusService) handleAdminListReports(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
@@ -2097,6 +2149,56 @@ func statsReconcileResultToMap(result *biz.CampusStatsReconcileResult) map[strin
 	}
 }
 
+func aiReplyOverviewToMap(overview *biz.CampusAIReplyOverview) map[string]interface{} {
+	if overview == nil {
+		return nil
+	}
+	recent := make([]map[string]interface{}, 0, len(overview.Recent))
+	for _, task := range overview.Recent {
+		recent = append(recent, aiReplyTaskToMap(task))
+	}
+	return map[string]interface{}{
+		"enabled":     overview.Enabled,
+		"bot_user_id": overview.BotUserID,
+		"bot_ready":   overview.BotReady,
+		"bot_name":    overview.BotName,
+		"bot_avatar":  overview.BotAvatar,
+		"model":       overview.Model,
+		"base_url":    overview.BaseURL,
+		"daily_limit": overview.DailyLimit,
+		"today_used":  overview.TodayUsed,
+		"pending":     overview.Pending,
+		"processing":  overview.Processing,
+		"done":        overview.Done,
+		"failed":      overview.Failed,
+		"recent":      recent,
+	}
+}
+
+func aiReplyTaskToMap(task *biz.CampusAIReplyTask) map[string]interface{} {
+	if task == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":                 strconv.FormatInt(task.ID, 10),
+		"post_id":            strconv.FormatInt(task.PostID, 10),
+		"root_comment_id":    strconv.FormatInt(task.RootCommentID, 10),
+		"trigger_comment_id": strconv.FormatInt(task.TriggerCommentID, 10),
+		"asker_id":           task.AskerID,
+		"bot_user_id":        task.BotUserID,
+		"prompt":             task.Prompt,
+		"status":             task.Status,
+		"retry_count":        task.RetryCount,
+		"next_retry_at":      formatOptionalTime(task.NextRetryAt),
+		"locked_until":       formatOptionalTime(task.LockedUntil),
+		"answer_comment_id":  strconv.FormatInt(task.AnswerCommentID, 10),
+		"last_error":         task.LastError,
+		"created_at":         formatTime(task.CreatedAt),
+		"updated_at":         formatTime(task.UpdatedAt),
+		"processed_at":       formatOptionalTime(task.ProcessedAt),
+	}
+}
+
 func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {
 	if summary == nil {
 		return nil
@@ -2221,4 +2323,11 @@ func formatTime(t time.Time) string {
 		return ""
 	}
 	return t.Format(time.DateTime)
+}
+
+func formatOptionalTime(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return formatTime(*t)
 }

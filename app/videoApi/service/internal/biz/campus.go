@@ -1,6 +1,7 @@
 package biz
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,6 +69,13 @@ const (
 	CampusNotificationOutboxStatusFailed     = "failed"
 
 	campusNotificationOutboxMaxRetry = 5
+
+	CampusAIReplyTaskStatusPending    = "pending"
+	CampusAIReplyTaskStatusProcessing = "processing"
+	CampusAIReplyTaskStatusDone       = "done"
+	CampusAIReplyTaskStatusFailed     = "failed"
+
+	campusAIReplyTaskMaxRetry = 3
 )
 
 type CampusIDGenerator interface {
@@ -362,6 +371,42 @@ type CampusNotificationOutbox struct {
 	ProcessedAt *time.Time
 }
 
+type CampusAIReplyTask struct {
+	ID               int64
+	PostID           int64
+	RootCommentID    int64
+	TriggerCommentID int64
+	AskerID          string
+	BotUserID        string
+	Prompt           string
+	Status           string
+	RetryCount       int32
+	NextRetryAt      *time.Time
+	LockedUntil      *time.Time
+	AnswerCommentID  int64
+	LastError        string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	ProcessedAt      *time.Time
+}
+
+type CampusAIReplyOverview struct {
+	Enabled    bool
+	BotUserID  string
+	BotReady   bool
+	BotName    string
+	BotAvatar  string
+	Model      string
+	BaseURL    string
+	DailyLimit int64
+	TodayUsed  int64
+	Pending    int64
+	Processing int64
+	Done       int64
+	Failed     int64
+	Recent     []*CampusAIReplyTask
+}
+
 type CampusAccessLog struct {
 	ID          int64
 	UserID      string
@@ -642,6 +687,23 @@ type ListCampusAdminCommentsInput struct {
 	Size   int32
 }
 
+type ListCampusAIReplyTasksInput struct {
+	UserID string
+	Status string
+	Page   int32
+	Size   int32
+}
+
+type ListCampusAIReplyTasksOutput struct {
+	Tasks []*CampusAIReplyTask
+	Total int64
+}
+
+type RetryCampusAIReplyTaskInput struct {
+	UserID string
+	TaskID int64
+}
+
 type ListCampusReportsInput struct {
 	UserID string
 	Status int32
@@ -916,6 +978,14 @@ type CampusRepo interface {
 	ClaimNotificationOutbox(ctx context.Context, limit int, lockFor time.Duration) ([]*CampusNotificationOutbox, error)
 	MarkNotificationOutboxDone(ctx context.Context, id int64) error
 	MarkNotificationOutboxRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error
+	CreateAIReplyTask(ctx context.Context, task *CampusAIReplyTask) error
+	ClaimAIReplyTasks(ctx context.Context, limit int, lockFor time.Duration) ([]*CampusAIReplyTask, error)
+	MarkAIReplyTaskDone(ctx context.Context, id int64, answerCommentID int64) error
+	MarkAIReplyTaskRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error
+	CountAIRepliesToday(ctx context.Context, botUserID string) (int64, error)
+	GetAIReplyOverview(ctx context.Context, botUserID string, limit int) (*CampusAIReplyOverview, error)
+	ListAIReplyTasks(ctx context.Context, status string, offset, limit int) ([]*CampusAIReplyTask, int64, error)
+	ResetAIReplyTask(ctx context.Context, id int64) error
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
 	CountUnreadNotifications(ctx context.Context, userID string) (*CampusUnreadNotificationCount, error)
 	MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error
@@ -950,7 +1020,20 @@ type CampusUsecase struct {
 	recommendPool     *CampusRecommendPool
 	eventBatcher      *CampusBatchProcessor[*TrackCampusEventInput]
 	accessLogBatcher  *CampusBatchProcessor[*CampusAccessLog]
+	aiReplyConfig     CampusAIReplyConfig
 	log               *log.Helper
+}
+
+type CampusAIReplyConfig struct {
+	Enabled         bool
+	BotUserID       string
+	APIKey          string
+	BaseURL         string
+	Model           string
+	DailyLimit      int64
+	MaxOutputTokens int
+	Temperature     float64
+	Timeout         time.Duration
 }
 
 func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timetableProvider CampusTimetableProvider, idGen CampusIDGenerator, authSecret string, logger log.Logger) *CampusUsecase {
@@ -965,11 +1048,52 @@ func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timet
 		authSecret:        authSecret,
 		assembler:         assembler,
 		recommendPool:     recommendPool,
+		aiReplyConfig:     loadCampusAIReplyConfig(),
 		log:               log.NewHelper(logger),
 	}
 	uc.eventBatcher = NewCampusBatchProcessor("campus_event", 100, 2*time.Second, uc.persistCampusEvents, logger)
 	uc.accessLogBatcher = NewCampusBatchProcessor("campus_access_log", 100, 2*time.Second, uc.persistCampusAccessLogs, logger)
 	return uc
+}
+
+func loadCampusAIReplyConfig() CampusAIReplyConfig {
+	apiKey := firstNonEmpty(os.Getenv("CAMPUS_AI_API_KEY"), os.Getenv("DEEPSEEK_API_KEY"))
+	botUserID := firstNonEmpty(os.Getenv("CAMPUS_EZAI_BOT_USER_ID"), os.Getenv("CAMPUS_EZAI_USER_ID"))
+	baseURL := firstNonEmpty(os.Getenv("CAMPUS_AI_BASE_URL"), "https://api.deepseek.com/chat/completions")
+	model := firstNonEmpty(os.Getenv("CAMPUS_AI_MODEL"), "deepseek-chat")
+	enabled := strings.TrimSpace(apiKey) != "" && strings.TrimSpace(botUserID) != "" && !envBoolFalse(os.Getenv("CAMPUS_AI_EZAI_ENABLED"))
+	return CampusAIReplyConfig{
+		Enabled:         enabled,
+		BotUserID:       strings.TrimSpace(botUserID),
+		APIKey:          strings.TrimSpace(apiKey),
+		BaseURL:         strings.TrimSpace(baseURL),
+		Model:           strings.TrimSpace(model),
+		DailyLimit:      envInt64("CAMPUS_AI_DAILY_LIMIT", 200),
+		MaxOutputTokens: int(envInt64("CAMPUS_AI_MAX_OUTPUT_TOKENS", 220)),
+		Temperature:     0.35,
+		Timeout:         12 * time.Second,
+	}
+}
+
+func envBoolFalse(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "0", "false", "off", "no", "disabled":
+		return true
+	default:
+		return false
+	}
+}
+
+func envInt64(key string, fallback int64) int64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
 }
 
 func (uc *CampusUsecase) WechatLogin(ctx context.Context, input *WechatLoginInput) (*WechatLoginOutput, error) {
@@ -1702,6 +1826,7 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 	if err := uc.repo.CreateCommentWithOutbox(ctx, comment, uc.buildNotificationOutbox(notification, false)); err != nil {
 		return nil, apperror.Internal(err, "发表评论失败")
 	}
+	uc.enqueueEzaiReplyTask(ctx, comment)
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     input.UserID,
 		EventType:  "comment_create",
@@ -1711,6 +1836,49 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 	})
 	_ = uc.assembler.HydrateComments(ctx, []*CampusForumComment{comment}, input.UserID)
 	return comment, nil
+}
+
+func (uc *CampusUsecase) enqueueEzaiReplyTask(ctx context.Context, comment *CampusForumComment) {
+	if comment == nil || !uc.aiReplyConfig.Enabled {
+		return
+	}
+	if comment.AuthorID == uc.aiReplyConfig.BotUserID || !containsEzaiMention(comment.Content) {
+		return
+	}
+	prompt := stripEzaiMention(comment.Content)
+	if strings.TrimSpace(prompt) == "" {
+		prompt = comment.Content
+	}
+	rootCommentID := comment.ID
+	if comment.ParentID > 0 {
+		rootCommentID = comment.ParentID
+	}
+	task := &CampusAIReplyTask{
+		ID:               uc.idGen.NextID(),
+		PostID:           comment.PostID,
+		RootCommentID:    rootCommentID,
+		TriggerCommentID: comment.ID,
+		AskerID:          comment.AuthorID,
+		BotUserID:        uc.aiReplyConfig.BotUserID,
+		Prompt:           trimLimit(prompt, 500),
+		Status:           CampusAIReplyTaskStatusPending,
+	}
+	if err := uc.repo.CreateAIReplyTask(ctx, task); err != nil {
+		uc.log.WithContext(ctx).Warnf("queue ezai ai reply task failed: post_id=%d comment_id=%d err=%v", comment.PostID, comment.ID, err)
+	}
+}
+
+func containsEzaiMention(content string) bool {
+	text := strings.ToLower(strings.TrimSpace(content))
+	return strings.Contains(text, "@深汕e仔") ||
+		strings.Contains(text, "＠深汕e仔") ||
+		strings.Contains(text, "@e仔") ||
+		strings.Contains(text, "＠e仔")
+}
+
+func stripEzaiMention(content string) string {
+	replacer := strings.NewReplacer("@深汕e仔", "", "＠深汕e仔", "", "@e仔", "", "＠e仔", "")
+	return strings.TrimSpace(replacer.Replace(content))
 }
 
 func (uc *CampusUsecase) ListComments(ctx context.Context, input *ListCampusCommentsInput) (*ListCampusCommentsOutput, error) {
@@ -2226,6 +2394,188 @@ func campusNotificationOutboxBackoff(retryCount int32) time.Duration {
 	}
 }
 
+func (uc *CampusUsecase) ProcessPendingAIReplyTasks(ctx context.Context, limit int) error {
+	if !uc.aiReplyConfig.Enabled {
+		return nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	items, err := uc.repo.ClaimAIReplyTasks(ctx, limit, 45*time.Second)
+	if err != nil {
+		return apperror.Internal(err, "领取 e仔回复任务失败")
+	}
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		if err := uc.processAIReplyTask(ctx, item); err != nil {
+			uc.log.WithContext(ctx).Warnf("process ezai ai reply task failed: id=%d err=%v", item.ID, err)
+			uc.markAIReplyTaskRetry(ctx, item, err)
+		}
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) processAIReplyTask(ctx context.Context, task *CampusAIReplyTask) error {
+	if task == nil {
+		return nil
+	}
+	count, err := uc.repo.CountAIRepliesToday(ctx, uc.aiReplyConfig.BotUserID)
+	if err != nil {
+		return err
+	}
+	if count >= uc.aiReplyConfig.DailyLimit {
+		next := nextLocalDayStart(time.Now()).Add(5 * time.Minute)
+		return uc.repo.MarkAIReplyTaskRetry(ctx, task.ID, task.RetryCount, &next, "daily ai reply limit reached", false)
+	}
+	if ok, existing, err := uc.repo.GetAnyCommentByID(ctx, task.ID); err != nil {
+		return err
+	} else if ok && existing != nil {
+		return uc.repo.MarkAIReplyTaskDone(ctx, task.ID, existing.ID)
+	}
+	ok, post, err := uc.repo.GetPostByID(ctx, task.PostID)
+	if err != nil {
+		return err
+	}
+	if !ok || post == nil {
+		return fmt.Errorf("post not found")
+	}
+	ok, trigger, err := uc.repo.GetCommentByID(ctx, task.TriggerCommentID)
+	if err != nil {
+		return err
+	}
+	if !ok || trigger == nil || trigger.Status != CampusAuditStatusVisible {
+		return fmt.Errorf("trigger comment not visible")
+	}
+	answer, err := uc.generateEzaiAnswer(ctx, post, trigger, task.Prompt)
+	if err != nil {
+		return err
+	}
+	answer = sanitizeEzaiAnswer(answer)
+	if answer == "" {
+		answer = "这个问题 e仔暂时不能确定，建议先以学校官方渠道为准；如果你愿意，也可以在评论区补充更多信息。"
+	}
+	parentID := trigger.ID
+	if trigger.ParentID > 0 {
+		parentID = trigger.ParentID
+	}
+	comment := &CampusForumComment{
+		ID:               task.ID,
+		PostID:           task.PostID,
+		ParentID:         parentID,
+		ReplyToCommentID: trigger.ID,
+		ReplyToUserID:    task.AskerID,
+		AuthorID:         uc.aiReplyConfig.BotUserID,
+		Content:          answer,
+		Status:           CampusAuditStatusVisible,
+	}
+	notification := uc.buildNotificationOutbox(&CampusNotification{
+		RecipientID: task.AskerID,
+		ActorID:     uc.aiReplyConfig.BotUserID,
+		EventType:   CampusNotificationTypeReply,
+		TargetType:  "post",
+		TargetID:    task.PostID,
+		DedupeKey:   fmt.Sprintf("campus:ezai-reply:%d", task.ID),
+		Title:       "深汕e仔回复了你",
+		Content:     trimLimit(answer, 80),
+		LinkPage:    "post-detail",
+		LinkParams:  map[string]string{"id": fmt.Sprintf("%d", task.PostID)},
+	}, false)
+	if err := uc.repo.CreateCommentWithOutbox(ctx, comment, notification); err != nil {
+		return err
+	}
+	return uc.repo.MarkAIReplyTaskDone(ctx, task.ID, comment.ID)
+}
+
+func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, post *CampusForumPost, trigger *CampusForumComment, prompt string) (string, error) {
+	cfg := uc.aiReplyConfig
+	taskCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
+	defer cancel()
+	userPrompt := fmt.Sprintf("帖子标题：%s\n帖子正文：%s\n同学评论：%s\n需要回答的问题：%s",
+		trimLimit(post.Title, 80),
+		trimLimit(post.Content, 500),
+		trimLimit(trigger.Content, 500),
+		trimLimit(firstNonEmpty(prompt, trigger.Content), 500),
+	)
+	body, _ := json.Marshal(map[string]interface{}{
+		"model": cfg.Model,
+		"messages": []map[string]string{
+			{
+				"role":    "system",
+				"content": "你是“深汕e仔”，深汕校园e站的官方内容小伙伴。请用温和、简洁、像校园学长学姐一样的语气回复。只回答深圳职业技术大学深汕校区校园生活、报到、宿舍、交通、课表演示、平台使用、问答互助相关问题。不要冒充学校官方，不确定时明确说以学校官方渠道为准。不要输出联系方式、广告、敏感隐私，不要编造政策。回复控制在120字以内。",
+			},
+			{"role": "user", "content": userPrompt},
+		},
+		"max_tokens":  cfg.MaxOutputTokens,
+		"temperature": cfg.Temperature,
+	})
+	req, err := http.NewRequestWithContext(taskCtx, http.MethodPost, cfg.BaseURL, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("ai api status=%d body=%s", resp.StatusCode, trimLimit(string(raw), 300))
+	}
+	var out struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", err
+	}
+	if len(out.Choices) == 0 {
+		return "", fmt.Errorf("ai api returned empty choices")
+	}
+	return out.Choices[0].Message.Content, nil
+}
+
+func (uc *CampusUsecase) markAIReplyTaskRetry(ctx context.Context, item *CampusAIReplyTask, processErr error) {
+	retryCount := item.RetryCount + 1
+	final := retryCount >= campusAIReplyTaskMaxRetry
+	var nextRetryAt *time.Time
+	if !final {
+		next := time.Now().Add(time.Duration(retryCount*retryCount) * 5 * time.Second)
+		nextRetryAt = &next
+	}
+	if err := uc.repo.MarkAIReplyTaskRetry(ctx, item.ID, retryCount, nextRetryAt, trimLimit(processErr.Error(), 500), final); err != nil {
+		uc.log.WithContext(ctx).Warnf("mark ezai ai reply task retry failed: id=%d err=%v", item.ID, err)
+	}
+}
+
+func sanitizeEzaiAnswer(answer string) string {
+	text := strings.TrimSpace(answer)
+	text = strings.Trim(text, "\"'` \n\t")
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\n\n", "\n")
+	return trimLimit(text, 220)
+}
+
+func normalizeAIReplyTaskStatus(status string) string {
+	switch strings.TrimSpace(strings.ToLower(status)) {
+	case CampusAIReplyTaskStatusPending, CampusAIReplyTaskStatusProcessing, CampusAIReplyTaskStatusDone, CampusAIReplyTaskStatusFailed:
+		return strings.TrimSpace(strings.ToLower(status))
+	default:
+		return ""
+	}
+}
+
+func nextLocalDayStart(now time.Time) time.Time {
+	y, m, d := now.Local().Date()
+	return time.Date(y, m, d+1, 0, 0, 0, 0, now.Local().Location())
+}
+
 func (uc *CampusUsecase) ReportContent(ctx context.Context, input *ReportCampusContentInput) error {
 	if strings.TrimSpace(input.UserID) == "" {
 		return apperror.Unauthorized("请先登录")
@@ -2643,6 +2993,65 @@ func (uc *CampusUsecase) AdminListComments(ctx context.Context, input *ListCampu
 		uc.log.WithContext(ctx).Warnf("fill admin comment posts failed: %v", err)
 	}
 	return &ListCampusCommentsOutput{Comments: comments, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminAIReplyOverview(ctx context.Context, userID string) (*CampusAIReplyOverview, error) {
+	if !uc.isCampusOperator(ctx, userID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	overview, err := uc.repo.GetAIReplyOverview(ctx, uc.aiReplyConfig.BotUserID, 5)
+	if err != nil {
+		return nil, apperror.Internal(err, "获取 e仔回复状态失败")
+	}
+	if overview == nil {
+		overview = &CampusAIReplyOverview{}
+	}
+	overview.Enabled = uc.aiReplyConfig.Enabled
+	overview.BotUserID = uc.aiReplyConfig.BotUserID
+	overview.Model = uc.aiReplyConfig.Model
+	overview.BaseURL = uc.aiReplyConfig.BaseURL
+	overview.DailyLimit = uc.aiReplyConfig.DailyLimit
+	if uc.aiReplyConfig.BotUserID != "" {
+		if user, err := uc.core.GetUserBaseInfo(ctx, uc.aiReplyConfig.BotUserID, ""); err == nil && user != nil {
+			overview.BotReady = true
+			overview.BotName = firstNonEmpty(user.Nickname, user.Name, "深汕e仔")
+			overview.BotAvatar = user.Avatar
+		} else if err != nil {
+			uc.log.WithContext(ctx).Warnf("load ezai bot user failed: user_id=%s err=%v", uc.aiReplyConfig.BotUserID, err)
+		}
+		if used, err := uc.repo.CountAIRepliesToday(ctx, uc.aiReplyConfig.BotUserID); err == nil {
+			overview.TodayUsed = used
+		} else {
+			uc.log.WithContext(ctx).Warnf("count ezai replies today failed: %v", err)
+		}
+	}
+	return overview, nil
+}
+
+func (uc *CampusUsecase) AdminListAIReplyTasks(ctx context.Context, input *ListCampusAIReplyTasksInput) (*ListCampusAIReplyTasksOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	status := normalizeAIReplyTaskStatus(input.Status)
+	tasks, total, err := uc.repo.ListAIReplyTasks(ctx, status, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取 e仔回复任务失败")
+	}
+	return &ListCampusAIReplyTasksOutput{Tasks: tasks, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminRetryAIReplyTask(ctx context.Context, input *RetryCampusAIReplyTaskInput) error {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return apperror.Forbidden("没有后台权限")
+	}
+	if input.TaskID <= 0 {
+		return apperror.InvalidArgument("任务 ID 无效")
+	}
+	if err := uc.repo.ResetAIReplyTask(ctx, input.TaskID); err != nil {
+		return apperror.Internal(err, "重试 e仔回复任务失败")
+	}
+	return nil
 }
 
 func (uc *CampusUsecase) AdminDeleteComment(ctx context.Context, userID string, commentID int64) error {

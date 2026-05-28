@@ -285,6 +285,27 @@ type campusNotificationOutboxModel struct {
 
 func (campusNotificationOutboxModel) TableName() string { return "campus_notification_outbox" }
 
+type campusAIReplyTaskModel struct {
+	ID               int64      `gorm:"column:id"`
+	PostID           int64      `gorm:"column:post_id"`
+	RootCommentID    int64      `gorm:"column:root_comment_id"`
+	TriggerCommentID int64      `gorm:"column:trigger_comment_id"`
+	AskerID          int64      `gorm:"column:asker_id"`
+	BotUserID        int64      `gorm:"column:bot_user_id"`
+	Prompt           string     `gorm:"column:prompt"`
+	Status           string     `gorm:"column:status"`
+	RetryCount       int32      `gorm:"column:retry_count"`
+	NextRetryAt      *time.Time `gorm:"column:next_retry_at"`
+	LockedUntil      *time.Time `gorm:"column:locked_until"`
+	AnswerCommentID  int64      `gorm:"column:answer_comment_id"`
+	LastError        string     `gorm:"column:last_error"`
+	CreatedAt        time.Time  `gorm:"column:created_at"`
+	UpdatedAt        time.Time  `gorm:"column:updated_at"`
+	ProcessedAt      *time.Time `gorm:"column:processed_at"`
+}
+
+func (campusAIReplyTaskModel) TableName() string { return "campus_ai_reply_task" }
+
 type campusAccessLogModel struct {
 	ID          int64     `gorm:"column:id"`
 	UserID      int64     `gorm:"column:user_id"`
@@ -1639,6 +1660,186 @@ func (r *campusRepo) MarkNotificationOutboxRetry(ctx context.Context, id int64, 
 		Updates(values).Error
 }
 
+func (r *campusRepo) CreateAIReplyTask(ctx context.Context, task *biz.CampusAIReplyTask) error {
+	if task == nil {
+		return nil
+	}
+	row := toAIReplyTaskModel(task)
+	return r.data.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "trigger_comment_id"}},
+			DoNothing: true,
+		}).
+		Create(&row).Error
+}
+
+func (r *campusRepo) ClaimAIReplyTasks(ctx context.Context, limit int, lockFor time.Duration) ([]*biz.CampusAIReplyTask, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if lockFor <= 0 {
+		lockFor = 45 * time.Second
+	}
+	now := time.Now()
+	lockedUntil := now.Add(lockFor)
+	var rows []campusAIReplyTaskModel
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("((status = ? AND (next_retry_at IS NULL OR next_retry_at <= ?)) OR (status = ? AND (locked_until IS NULL OR locked_until < ?)))",
+				biz.CampusAIReplyTaskStatusPending, now, biz.CampusAIReplyTaskStatusProcessing, now).
+			Order("created_at ASC, id ASC").
+			Limit(limit).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		ids := make([]int64, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		return tx.Model(&campusAIReplyTaskModel{}).
+			Where("id IN ?", ids).
+			Updates(map[string]interface{}{
+				"status":       biz.CampusAIReplyTaskStatusProcessing,
+				"locked_until": lockedUntil,
+				"updated_at":   now,
+			}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*biz.CampusAIReplyTask, 0, len(rows))
+	for i := range rows {
+		rows[i].Status = biz.CampusAIReplyTaskStatusProcessing
+		rows[i].LockedUntil = &lockedUntil
+		out = append(out, toBizAIReplyTask(&rows[i]))
+	}
+	return out, nil
+}
+
+func (r *campusRepo) MarkAIReplyTaskDone(ctx context.Context, id int64, answerCommentID int64) error {
+	now := time.Now()
+	return r.data.db.WithContext(ctx).Model(&campusAIReplyTaskModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":            biz.CampusAIReplyTaskStatusDone,
+			"answer_comment_id": answerCommentID,
+			"locked_until":      nil,
+			"next_retry_at":     nil,
+			"last_error":        "",
+			"processed_at":      now,
+			"updated_at":        now,
+		}).Error
+}
+
+func (r *campusRepo) MarkAIReplyTaskRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error {
+	status := biz.CampusAIReplyTaskStatusPending
+	if final {
+		status = biz.CampusAIReplyTaskStatusFailed
+	}
+	return r.data.db.WithContext(ctx).Model(&campusAIReplyTaskModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":        status,
+			"retry_count":   retryCount,
+			"next_retry_at": nextRetryAt,
+			"locked_until":  nil,
+			"last_error":    trimLimitData(lastError, 600),
+			"updated_at":    time.Now(),
+		}).Error
+}
+
+func (r *campusRepo) CountAIRepliesToday(ctx context.Context, botUserID string) (int64, error) {
+	now := time.Now()
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	var count int64
+	err := r.data.db.WithContext(ctx).Model(&campusAIReplyTaskModel{}).
+		Where("bot_user_id = ? AND status = ? AND processed_at >= ?", parseID(botUserID), biz.CampusAIReplyTaskStatusDone, start).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *campusRepo) GetAIReplyOverview(ctx context.Context, botUserID string, limit int) (*biz.CampusAIReplyOverview, error) {
+	overview := &biz.CampusAIReplyOverview{}
+	db := r.data.db.WithContext(ctx).Model(&campusAIReplyTaskModel{})
+	if strings.TrimSpace(botUserID) != "" {
+		db = db.Where("bot_user_id = ?", parseID(botUserID))
+	}
+	var rows []struct {
+		Status string
+		Count  int64
+	}
+	if err := db.Select("status, COUNT(*) AS count").Group("status").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		switch row.Status {
+		case biz.CampusAIReplyTaskStatusPending:
+			overview.Pending = row.Count
+		case biz.CampusAIReplyTaskStatusProcessing:
+			overview.Processing = row.Count
+		case biz.CampusAIReplyTaskStatusDone:
+			overview.Done = row.Count
+		case biz.CampusAIReplyTaskStatusFailed:
+			overview.Failed = row.Count
+		}
+	}
+	if limit <= 0 {
+		limit = 5
+	}
+	var recent []campusAIReplyTaskModel
+	query := r.data.db.WithContext(ctx).Model(&campusAIReplyTaskModel{})
+	if strings.TrimSpace(botUserID) != "" {
+		query = query.Where("bot_user_id = ?", parseID(botUserID))
+	}
+	if err := query.Order("updated_at DESC, created_at DESC, id DESC").Limit(limit).Find(&recent).Error; err != nil {
+		return nil, err
+	}
+	overview.Recent = make([]*biz.CampusAIReplyTask, 0, len(recent))
+	for i := range recent {
+		overview.Recent = append(overview.Recent, toBizAIReplyTask(&recent[i]))
+	}
+	return overview, nil
+}
+
+func (r *campusRepo) ListAIReplyTasks(ctx context.Context, status string, offset, limit int) ([]*biz.CampusAIReplyTask, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	db := r.data.db.WithContext(ctx).Model(&campusAIReplyTaskModel{})
+	if strings.TrimSpace(status) != "" {
+		db = db.Where("status = ?", status)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusAIReplyTaskModel
+	if err := db.Order("updated_at DESC, created_at DESC, id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	tasks := make([]*biz.CampusAIReplyTask, 0, len(rows))
+	for i := range rows {
+		tasks = append(tasks, toBizAIReplyTask(&rows[i]))
+	}
+	return tasks, total, nil
+}
+
+func (r *campusRepo) ResetAIReplyTask(ctx context.Context, id int64) error {
+	return r.data.db.WithContext(ctx).Model(&campusAIReplyTaskModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":        biz.CampusAIReplyTaskStatusPending,
+			"retry_count":   0,
+			"next_retry_at": nil,
+			"locked_until":  nil,
+			"last_error":    "",
+			"updated_at":    time.Now(),
+		}).Error
+}
+
 func (r *campusRepo) ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*biz.CampusNotification, int64, error) {
 	db := r.data.db.WithContext(ctx).Model(&campusNotificationModel{}).
 		Where("recipient_id = ? AND is_deleted = ?", parseID(userID), false)
@@ -2534,6 +2735,56 @@ func toBizNotificationOutbox(row *campusNotificationOutboxModel) *biz.CampusNoti
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
 		ProcessedAt: row.ProcessedAt,
+	}
+}
+
+func toAIReplyTaskModel(in *biz.CampusAIReplyTask) campusAIReplyTaskModel {
+	now := time.Now()
+	status := in.Status
+	if status == "" {
+		status = biz.CampusAIReplyTaskStatusPending
+	}
+	return campusAIReplyTaskModel{
+		ID:               in.ID,
+		PostID:           in.PostID,
+		RootCommentID:    in.RootCommentID,
+		TriggerCommentID: in.TriggerCommentID,
+		AskerID:          parseID(in.AskerID),
+		BotUserID:        parseID(in.BotUserID),
+		Prompt:           in.Prompt,
+		Status:           status,
+		RetryCount:       in.RetryCount,
+		NextRetryAt:      in.NextRetryAt,
+		LockedUntil:      in.LockedUntil,
+		AnswerCommentID:  in.AnswerCommentID,
+		LastError:        in.LastError,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		ProcessedAt:      in.ProcessedAt,
+	}
+}
+
+func toBizAIReplyTask(row *campusAIReplyTaskModel) *biz.CampusAIReplyTask {
+	if row == nil {
+		return nil
+	}
+	return &biz.CampusAIReplyTask{
+		ID:               row.ID,
+		PostID:           row.PostID,
+		RootCommentID:    row.RootCommentID,
+		TriggerCommentID: row.TriggerCommentID,
+		AskerID:          fmt.Sprintf("%d", row.AskerID),
+		BotUserID:        fmt.Sprintf("%d", row.BotUserID),
+		Prompt:           row.Prompt,
+		Status:           row.Status,
+		RetryCount:       row.RetryCount,
+		NextRetryAt:      row.NextRetryAt,
+		LockedUntil:      row.LockedUntil,
+		AnswerCommentID:  row.AnswerCommentID,
+		LastError:        row.LastError,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+		ProcessedAt:      row.ProcessedAt,
 	}
 }
 

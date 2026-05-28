@@ -470,6 +470,39 @@ func TestAdminCreateSystemNotificationQueuesOutbox(t *testing.T) {
 	}
 }
 
+func TestCreateCommentMentionEzaiQueuesAIReplyTask(t *testing.T) {
+	t.Setenv("CAMPUS_AI_API_KEY", "test-key")
+	t.Setenv("CAMPUS_EZAI_BOT_USER_ID", "88")
+	repo := &campusRepoStub{
+		posts: map[int64]*CampusForumPost{
+			10: {
+				ID:       10,
+				AuthorID: "20",
+				Title:    "报到问题",
+				Content:  "报到攻略",
+				Status:   CampusAuditStatusVisible,
+			},
+		},
+	}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	_, err := uc.CreateComment(context.Background(), &CreateCampusCommentInput{
+		UserID:  "30",
+		PostID:  10,
+		Content: "@深汕e仔 宿舍需要带什么？",
+	})
+	if err != nil {
+		t.Fatalf("CreateComment() error = %v", err)
+	}
+	if len(repo.aiReplyTasks) != 1 {
+		t.Fatalf("ai reply task count = %d, want 1", len(repo.aiReplyTasks))
+	}
+	task := repo.aiReplyTasks[0]
+	if task.PostID != 10 || task.AskerID != "30" || task.BotUserID != "88" || task.Prompt != "宿舍需要带什么？" {
+		t.Fatalf("unexpected ai reply task: %#v", task)
+	}
+}
+
 func TestProcessNotificationOutboxDeliversSystemNotification(t *testing.T) {
 	repo := &campusRepoStub{
 		recipients: []string{"1", "2"},
@@ -522,6 +555,9 @@ type campusRepoStub struct {
 	notifications        []*CampusNotification
 	notificationOutboxes []*CampusNotificationOutbox
 	doneOutboxIDs        []int64
+	aiReplyTasks         []*CampusAIReplyTask
+	doneAIReplyTaskIDs   []int64
+	resetAIReplyTaskIDs  []int64
 }
 
 func (r *campusRepoStub) GetCategoryByCode(ctx context.Context, code string) (bool, *CampusForumCategory, error) {
@@ -621,8 +657,8 @@ func (r *campusRepoStub) ListTimetableCourses(context.Context, string, string) (
 func (r *campusRepoStub) ListCategories(context.Context) ([]*CampusForumCategory, error) {
 	return nil, nil
 }
-func (r *campusRepoStub) GetPostByID(context.Context, int64) (bool, *CampusForumPost, error) {
-	return false, nil, nil
+func (r *campusRepoStub) GetPostByID(ctx context.Context, postID int64) (bool, *CampusForumPost, error) {
+	return r.GetAnyPostByID(ctx, postID)
 }
 func (r *campusRepoStub) GetAnyPostByID(ctx context.Context, postID int64) (bool, *CampusForumPost, error) {
 	_ = ctx
@@ -737,6 +773,38 @@ func (r *campusRepoStub) MarkNotificationOutboxDone(_ context.Context, id int64)
 	return nil
 }
 func (r *campusRepoStub) MarkNotificationOutboxRetry(context.Context, int64, int32, *time.Time, string, bool) error {
+	return nil
+}
+func (r *campusRepoStub) CreateAIReplyTask(_ context.Context, task *CampusAIReplyTask) error {
+	if task != nil {
+		copyTask := *task
+		r.aiReplyTasks = append(r.aiReplyTasks, &copyTask)
+	}
+	return nil
+}
+func (r *campusRepoStub) ClaimAIReplyTasks(context.Context, int, time.Duration) ([]*CampusAIReplyTask, error) {
+	out := r.aiReplyTasks
+	r.aiReplyTasks = nil
+	return out, nil
+}
+func (r *campusRepoStub) MarkAIReplyTaskDone(_ context.Context, id int64, _ int64) error {
+	r.doneAIReplyTaskIDs = append(r.doneAIReplyTaskIDs, id)
+	return nil
+}
+func (r *campusRepoStub) MarkAIReplyTaskRetry(context.Context, int64, int32, *time.Time, string, bool) error {
+	return nil
+}
+func (r *campusRepoStub) CountAIRepliesToday(context.Context, string) (int64, error) {
+	return 0, nil
+}
+func (r *campusRepoStub) GetAIReplyOverview(context.Context, string, int) (*CampusAIReplyOverview, error) {
+	return &CampusAIReplyOverview{}, nil
+}
+func (r *campusRepoStub) ListAIReplyTasks(context.Context, string, int, int) ([]*CampusAIReplyTask, int64, error) {
+	return r.aiReplyTasks, int64(len(r.aiReplyTasks)), nil
+}
+func (r *campusRepoStub) ResetAIReplyTask(_ context.Context, id int64) error {
+	r.resetAIReplyTaskIDs = append(r.resetAIReplyTaskIDs, id)
 	return nil
 }
 func (r *campusRepoStub) ListNotifications(context.Context, string, string, int, int) ([]*CampusNotification, int64, error) {
