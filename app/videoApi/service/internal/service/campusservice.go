@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
 	"github.com/gorilla/mux"
 	"lehu-video/app/videoApi/service/internal/biz"
@@ -25,6 +27,7 @@ import (
 type CampusService struct {
 	uc         *biz.CampusUsecase
 	authSecret string
+	log        *log.Helper
 }
 
 const (
@@ -33,8 +36,8 @@ const (
 	campusMultipartExtraBytes = 1 << 20
 )
 
-func NewCampusService(uc *biz.CampusUsecase, authSecret string) *CampusService {
-	return &CampusService{uc: uc, authSecret: authSecret}
+func NewCampusService(uc *biz.CampusUsecase, authSecret string, logger log.Logger) *CampusService {
+	return &CampusService{uc: uc, authSecret: authSecret, log: log.NewHelper(logger)}
 }
 
 func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
@@ -112,6 +115,12 @@ func (s *CampusService) wrap(handler http.HandlerFunc) khttp.HandlerFunc {
 func (s *CampusService) secure(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		requestID := r.Header.Get("X-Request-ID")
+		if strings.TrimSpace(requestID) == "" {
+			requestID = fmt.Sprintf("%d", time.Now().UnixNano())
+			r.Header.Set("X-Request-ID", requestID)
+		}
+		w.Header().Set("X-Request-ID", requestID)
 		rw := &statusRecorder{ResponseWriter: w, statusCode: http.StatusOK}
 		ip := clientIP(r)
 		userID, _ := optionalUserIDFromRequest(r, s.authSecret)
@@ -133,6 +142,10 @@ func (s *CampusService) secure(next http.HandlerFunc) http.HandlerFunc {
 			next(rw, r)
 		}
 		statusCode := int32(rw.statusCode)
+		errorText := ""
+		if rw.statusCode >= http.StatusBadRequest {
+			errorText = http.StatusText(rw.statusCode)
+		}
 		s.uc.RecordAccessLog(r.Context(), &biz.CampusAccessLogInput{
 			UserID:      userID,
 			IP:          ip,
@@ -144,6 +157,21 @@ func (s *CampusService) secure(next http.HandlerFunc) http.HandlerFunc {
 			RateLimited: !allowed && !blocked,
 			Blocked:     blocked,
 		})
+		duration := time.Since(start)
+		s.log.WithContext(r.Context()).Infow(
+			"request_id", requestID,
+			"trace_id", tracing.TraceID()(r.Context()),
+			"span_id", tracing.SpanID()(r.Context()),
+			"user_id", userID,
+			"ip", ip,
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", statusCode,
+			"duration_ms", duration.Milliseconds(),
+			"error", errorText,
+			"rate_limited", !allowed && !blocked,
+			"blocked", blocked,
+		)
 	}
 }
 

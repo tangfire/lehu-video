@@ -54,6 +54,30 @@ type Data struct {
 	log *log.Helper
 }
 
+func (d *Data) PingMySQL(ctx context.Context) error {
+	if d == nil || d.db == nil {
+		return fmt.Errorf("mysql is not initialized")
+	}
+	sqlDB, err := d.db.DB()
+	if err != nil {
+		return fmt.Errorf("get mysql db: %w", err)
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return fmt.Errorf("ping mysql: %w", err)
+	}
+	return nil
+}
+
+func (d *Data) PingRedis(ctx context.Context) error {
+	if d == nil || d.rds == nil {
+		return fmt.Errorf("redis is not initialized")
+	}
+	if err := d.rds.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("ping redis: %w", err)
+	}
+	return nil
+}
+
 // NewData .
 func NewData(db *gorm.DB, rds *redis.Client, logger log.Logger) (*Data, func(), error) {
 	cleanup := func() {

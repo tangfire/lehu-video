@@ -30,6 +30,13 @@ func success(data interface{}) *Response {
 	}
 }
 
+func requestIDFromHeader(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	return r.Header.Get("X-Request-ID")
+}
+
 // 转换错误为统一格式
 func convertError(err error) *Response {
 	appErr := apperror.From(err)
@@ -64,6 +71,7 @@ func ResponseEncoder(w http.ResponseWriter, r *http.Request, v interface{}) erro
 
 	// 创建成功响应
 	resp := success(data)
+	resp.RequestID = requestIDFromHeader(r)
 	return json.NewEncoder(w).Encode(resp)
 }
 
@@ -216,6 +224,7 @@ func ErrorEncoder(w http.ResponseWriter, r *http.Request, err error) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	resp := convertError(err)
+	resp.RequestID = requestIDFromHeader(r)
 
 	w.WriteHeader(apperror.HTTPStatus(int32(resp.Code)))
 	json.NewEncoder(w).Encode(resp)

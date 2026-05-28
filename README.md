@@ -44,6 +44,69 @@ docker compose ps
 docker compose logs -f
 ```
 
+## 内测监控与健康检查
+
+后端提供轻量健康检查，适合 Uptime Kuma 和 Docker healthcheck：
+
+```text
+GET http://localhost:18080/healthz  # API 进程存活
+GET http://localhost:18080/readyz   # MySQL / Redis 依赖可用性
+```
+
+启动内测监控面板：
+
+```bash
+docker compose up -d uptime-kuma node-exporter dozzle
+```
+
+访问 Uptime Kuma：
+
+```text
+http://localhost:13001
+```
+
+访问 Dozzle 日志面板：
+
+```text
+http://localhost:13002
+```
+
+推荐在 Uptime Kuma 里先添加这些监控项：
+
+```text
+API 存活：http://api:8080/healthz
+API 依赖：http://api:8080/readyz
+MinIO 控制台：http://minio:9001
+Node Exporter：http://node-exporter:9100/metrics
+```
+
+本地开发环境常用访问地址：
+
+```text
+API 健康检查：http://localhost:18080/healthz
+API 依赖检查：http://localhost:18080/readyz
+Uptime Kuma：http://localhost:13001
+Dozzle 日志面板：http://localhost:13002
+MinIO 文件/API：http://localhost:19000
+MinIO 控制台：http://localhost:19001
+Node Exporter 指标：http://localhost:19100/metrics
+```
+
+MinIO 本地默认账号：
+
+```text
+账号：minioadmin
+密码：minioadmin
+```
+
+内测阶段先用 Uptime Kuma 面板观察服务状态；后续需要微信、企业微信或邮件提醒时，可在 Kuma 的「通知」里补 webhook。磁盘建议预警阈值先按 80% 设置，图片/视频上传变多后重点关注 MinIO 和 MySQL volume。
+
+Dozzle 用来在浏览器里看 Docker 容器日志。用户反馈请求失败时，优先在 Dozzle 里打开 `lehu-api`，搜索前端返回的 `request_id`，也可以搜索接口路径、`status`、`error`、`429`、`500` 等关键词。
+
+`node-exporter` 在本地 Docker Desktop 下以只读方式挂载主机根目录，主要用于快速查看 CPU、内存、磁盘等基础指标；正式服务器如需更完整的主机指标，再按 Linux 环境调整挂载参数。
+
+正式服务器不要把 Uptime Kuma 和 Dozzle 直接暴露给公网所有人，建议用防火墙限制访问 IP，或放到内网/VPN 后面。
+
 常用开发命令：
 
 ```bash

@@ -134,6 +134,12 @@ services:
     ports:
       - "18020:8020"
       - "19020:9020"
+    healthcheck:
+      test: [ "CMD", "/app/healthcheck", "http://127.0.0.1:8020/healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
 
   core:
     build:
@@ -157,6 +163,12 @@ services:
     ports:
       - "18030:8030"
       - "19030:9030"
+    healthcheck:
+      test: [ "CMD", "/app/healthcheck", "http://127.0.0.1:8030/healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
 
   chat:
     build:
@@ -180,6 +192,12 @@ services:
     ports:
       - "18040:8040"
       - "19040:9040"
+    healthcheck:
+      test: [ "CMD", "/app/healthcheck", "tcp://127.0.0.1:9040" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
 
   api:
     build:
@@ -211,9 +229,49 @@ services:
       - ./deploy/config/videoApi:/data/conf:ro
     ports:
       - "18080:8080"
+    healthcheck:
+      test: [ "CMD", "/app/healthcheck", "http://127.0.0.1:8080/healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: lehu-uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - lehu_uptime_kuma_data:/app/data
+    ports:
+      - "13001:3001"
+    depends_on:
+      api:
+        condition: service_started
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: lehu-node-exporter
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    pid: host
+    volumes:
+      - "/:/host:ro"
+    ports:
+      - "19100:9100"
+
+  dozzle:
+    image: amir20/dozzle:v8.9.1
+    container_name: lehu-dozzle
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "13002:8080"
 
 volumes:
   lehu_mysql_data:
   lehu_redis_data:
   lehu_kafka_data:
   lehu_minio_data:
+  lehu_uptime_kuma_data:

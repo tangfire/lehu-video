@@ -133,8 +133,8 @@ func wireApp(confServer *conf.Server, registry *conf.Registry, confData *conf.Da
 		return nil, nil, err
 	}
 	campusUsecase := biz.NewCampusUsecase(campusRepo, baseAdapter, coreAdapter, campusTimetableProvider, campusIDGenerator, string2, logger)
-	campusService := service.NewCampusService(campusUsecase, string2)
-	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, groupServiceService, messageServiceService, friendServiceService, webSocketService, campusService, logger)
+	campusService := service.NewCampusService(campusUsecase, string2, logger)
+	httpServer := server.NewHTTPServer(confServer, auth, userServiceService, fileServiceService, videoServiceService, commentServiceService, favoriteServiceService, followServiceService, collectionServiceService, groupServiceService, messageServiceService, friendServiceService, webSocketService, campusService, dataData, logger)
 	consumer := kafka.NewKafkaConsumer(confData)
 	manager := websocket.NewManager(logger, producer, client, chatAdapter, userServiceClient)
 	kafkaConsumerService := service.NewKafkaConsumerService(consumer, messageUsecase, manager, client, chatAdapter, logger)

@@ -42,3 +42,21 @@ func TestErrorEncoderHidesInternalErrorDetails(t *testing.T) {
 		t.Fatalf("message = %q", body.Message)
 	}
 }
+
+func TestResponseEncoderIncludesRequestID(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req.Header.Set("X-Request-ID", "req-test-1")
+
+	if err := ResponseEncoder(rec, req, map[string]string{"status": "ok"}); err != nil {
+		t.Fatalf("ResponseEncoder() error = %v", err)
+	}
+
+	var body Response
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.RequestID != "req-test-1" {
+		t.Fatalf("request_id = %q, want req-test-1", body.RequestID)
+	}
+}

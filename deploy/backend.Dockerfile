@@ -11,11 +11,13 @@ COPY . ./
 
 ARG SERVICE_PATH
 RUN go build -ldflags "-X main.Version=docker" -o /out/service ${SERVICE_PATH}
+RUN go build -o /out/healthcheck ./cmd/healthcheck
 
 FROM scratch
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /out/service /app/service
+COPY --from=builder /out/healthcheck /app/healthcheck
 
 WORKDIR /app
 

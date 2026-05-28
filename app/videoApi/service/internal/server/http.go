@@ -12,9 +12,11 @@ import (
 	"github.com/gorilla/handlers"
 	v1 "lehu-video/api/videoApi/service/v1"
 	"lehu-video/app/videoApi/service/internal/conf"
+	"lehu-video/app/videoApi/service/internal/data"
 	"lehu-video/app/videoApi/service/internal/pkg/resp"
 	"lehu-video/app/videoApi/service/internal/pkg/utils/claims"
 	"lehu-video/app/videoApi/service/internal/service"
+	"os"
 )
 
 func NewWhiteListMatcher() selector.MatchFunc {
@@ -31,6 +33,11 @@ func NewWhiteListMatcher() selector.MatchFunc {
 		"/v1/campus/forum/posts":                                    {},
 		"/v1/campus/forum/posts/{id}":                               {},
 		"/v1/campus/forum/posts/{id}/comments":                      {},
+		"/v1/campus/users/{id}":                                     {},
+		"/v1/campus/users/{id}/posts":                               {},
+		"/v1/campus/analytics/track":                                {},
+		"/healthz":                                                  {},
+		"/readyz":                                                   {},
 		"/ws":                                                       {},
 	}
 	return func(ctx context.Context, operation string) bool {
@@ -55,6 +62,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	friendService *service.FriendServiceService,
 	wsService *service.WebSocketService,
 	campusService *service.CampusService,
+	data *data.Data,
 	logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
@@ -74,7 +82,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 			handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization", "Origin"}),
 			handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"}),
 			handlers.AllowedOrigins([]string{"*"}),
-		)),
+		), accessLogFilter(logger)),
 		http.ResponseEncoder(resp.ResponseEncoder),
 		http.ErrorEncoder(resp.ErrorEncoder),
 	}
@@ -99,6 +107,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	v1.RegisterMessageServiceHTTPServer(srv, messageService)
 	v1.RegisterFriendServiceHTTPServer(srv, friendService)
 	campusService.RegisterRoutes(srv)
+	registerHealthRoutes(srv.HandleFunc, "lehu-video.api.service", serviceVersion(), data)
 
 	// 注册WebSocket路由 - 使用标准HTTP处理器
 	// 注意：WebSocket需要绕过Kratos的中间件，所以直接使用原始HTTP处理器
@@ -107,4 +116,11 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	})
 
 	return srv
+}
+
+func serviceVersion() string {
+	if version := os.Getenv("SERVICE_VERSION"); version != "" {
+		return version
+	}
+	return "docker"
 }

@@ -4,6 +4,7 @@ import (
 	v1 "lehu-video/api/videoCore/service/v1"
 	"lehu-video/app/videoCore/service/internal/conf"
 	"lehu-video/app/videoCore/service/internal/service"
+	"lehu-video/pkg/health"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -28,5 +29,6 @@ func NewHTTPServer(c *conf.Server, videoService *service.VideoServiceService, lo
 	}
 	srv := http.NewServer(opts...)
 	v1.RegisterVideoServiceHTTPServer(srv, videoService)
+	health.RegisterHealthz(srv.HandleFunc, "lehu-video.core.service", "docker")
 	return srv
 }
