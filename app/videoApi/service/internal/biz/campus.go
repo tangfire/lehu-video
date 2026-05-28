@@ -215,6 +215,25 @@ type CampusForumAuthor struct {
 	AuthStatus int32
 }
 
+type CampusPublicUserStats struct {
+	PostCount       int64
+	LikeCount       int64
+	CollectedCount  int64
+	HasOfficialPost bool
+}
+
+type CampusPublicUserProfile struct {
+	UserID     string
+	Name       string
+	Nickname   string
+	Avatar     string
+	SchoolName string
+	AuthStatus int32
+	IsOfficial bool
+	Bio        string
+	Stats      *CampusPublicUserStats
+}
+
 type CampusForumPost struct {
 	ID             int64
 	CategoryCode   string
@@ -413,6 +432,7 @@ type CreateCampusPostInput struct {
 
 type ListCampusPostsInput struct {
 	CurrentUserID string
+	AuthorID      string
 	CategoryCode  string
 	PostType      string
 	Sort          string
@@ -827,6 +847,7 @@ type CampusRepo interface {
 	GetCategoryByCode(ctx context.Context, code string) (bool, *CampusForumCategory, error)
 	CreatePost(ctx context.Context, post *CampusForumPost) error
 	ListPosts(ctx context.Context, query ListCampusPostQuery) ([]*CampusForumPost, int64, error)
+	GetPublicUserPostStats(ctx context.Context, userID string) (*CampusPublicUserStats, error)
 	ListPostsByIDs(ctx context.Context, postIDs []int64, statuses []int32) ([]*CampusForumPost, error)
 	GetPostByID(ctx context.Context, postID int64) (bool, *CampusForumPost, error)
 	GetAnyPostByID(ctx context.Context, postID int64) (bool, *CampusForumPost, error)
@@ -1443,6 +1464,77 @@ func (uc *CampusUsecase) ListMyCollections(ctx context.Context, input *ListCampu
 	}
 	if err := uc.assembler.HydratePosts(ctx, posts, input.CurrentUserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate collected campus posts failed: %v", err)
+	}
+	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
+}
+
+func (uc *CampusUsecase) GetPublicCampusUserProfile(ctx context.Context, userID string) (*CampusPublicUserProfile, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" || userID == "0" {
+		return nil, apperror.InvalidArgument("用户 ID 无效")
+	}
+	user, err := uc.core.GetUserBaseInfo(ctx, userID, "")
+	if err != nil {
+		return nil, apperror.Internal(err, "获取用户信息失败")
+	}
+	if user == nil || strings.TrimSpace(user.ID) == "" || strings.TrimSpace(user.ID) == "0" {
+		return nil, apperror.NotFound("用户不存在")
+	}
+	stats, err := uc.repo.GetPublicUserPostStats(ctx, userID)
+	if err != nil {
+		return nil, apperror.Internal(err, "获取用户统计失败")
+	}
+	if stats == nil {
+		stats = &CampusPublicUserStats{}
+	}
+	profile := &CampusPublicUserProfile{
+		UserID:     user.ID,
+		Name:       firstNonEmpty(user.Nickname, user.Name, "深汕同学"),
+		Nickname:   user.Nickname,
+		Avatar:     user.Avatar,
+		IsOfficial: stats.HasOfficialPost || uc.isCampusOperator(ctx, userID),
+		Stats:      stats,
+	}
+	if ok, campusProfile, err := uc.repo.GetProfileByUserID(ctx, userID); err == nil && ok {
+		profile.SchoolName = campusProfile.SchoolName
+		profile.AuthStatus = campusProfile.AuthStatus
+	} else if err != nil {
+		uc.log.WithContext(ctx).Warnf("load public campus profile failed: user_id=%s err=%v", userID, err)
+	}
+	if profile.IsOfficial {
+		profile.Bio = "深汕校园e站官方账号，整理报到攻略、校园问答和重要提醒。"
+	} else if profile.AuthStatus == CampusAuthStatusVerified {
+		profile.Bio = "已认证的深汕校园同学"
+	} else {
+		profile.Bio = "深汕校园社区同学"
+	}
+	return profile, nil
+}
+
+func (uc *CampusUsecase) ListPublicUserPosts(ctx context.Context, input *ListCampusPostsInput) (*ListCampusPostsOutput, error) {
+	authorID := strings.TrimSpace(input.AuthorID)
+	if authorID == "" || authorID == "0" {
+		return nil, apperror.InvalidArgument("用户 ID 无效")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	sort := normalizeCampusPostSort(input.Sort, CampusPostSortNew)
+	if sort == CampusPostSortRecommend {
+		sort = CampusPostSortNew
+	}
+	posts, total, err := uc.repo.ListPosts(ctx, ListCampusPostQuery{
+		PostType:       strings.TrimSpace(input.PostType),
+		Sort:           sort,
+		AuthorID:       authorID,
+		Statuses:       []int32{CampusAuditStatusVisible},
+		IncludeDeleted: false,
+		Offset:         int((page - 1) * size),
+		Limit:          int(size),
+	})
+	if err != nil {
+		return nil, apperror.Internal(err, "获取用户帖子失败")
+	}
+	if err := uc.assembler.HydratePosts(ctx, posts, input.CurrentUserID); err != nil {
+		uc.log.WithContext(ctx).Warnf("hydrate public user posts failed: %v", err)
 	}
 	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
 }

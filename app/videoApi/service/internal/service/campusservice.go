@@ -52,6 +52,8 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/upload/video", s.wrap(s.authRequired(s.handleUploadVideo)))
 	r.GET("/v1/campus/forum/categories", s.wrap(s.handleListCategories))
 	r.GET("/v1/campus/forum/posts", s.wrap(s.handleListPosts))
+	r.GET("/v1/campus/users/{id}", s.wrap(s.handleGetPublicUserProfile))
+	r.GET("/v1/campus/users/{id}/posts", s.wrap(s.handleListPublicUserPosts))
 	r.POST("/v1/campus/forum/posts", s.wrap(s.authRequired(s.handleCreatePost)))
 	r.GET("/v1/campus/forum/my-posts", s.wrap(s.authRequired(s.handleListMyPosts)))
 	r.GET("/v1/campus/forum/my-collections", s.wrap(s.authRequired(s.handleListMyCollections)))
@@ -546,6 +548,48 @@ func (s *CampusService) handleListPosts(w http.ResponseWriter, r *http.Request) 
 		"page_stats": map[string]interface{}{
 			"total": out.Total,
 		},
+	})
+}
+
+func (s *CampusService) handleGetPublicUserProfile(w http.ResponseWriter, r *http.Request) {
+	userID, ok := pathStringID(w, r)
+	if !ok {
+		return
+	}
+	profile, err := s.uc.GetPublicCampusUserProfile(r.Context(), userID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"user": publicUserProfileToMap(profile)})
+}
+
+func (s *CampusService) handleListPublicUserPosts(w http.ResponseWriter, r *http.Request) {
+	userID, ok := pathStringID(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	currentUserID, _ := optionalUserIDFromRequest(r, s.authSecret)
+	out, err := s.uc.ListPublicUserPosts(r.Context(), &biz.ListCampusPostsInput{
+		CurrentUserID: currentUserID,
+		AuthorID:      userID,
+		PostType:      q.Get("post_type"),
+		Sort:          q.Get("sort"),
+		Page:          int32(queryInt(q.Get("page"), 1)),
+		Size:          int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	posts := make([]map[string]interface{}, 0, len(out.Posts))
+	for _, post := range out.Posts {
+		posts = append(posts, postToMap(post))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"posts":      posts,
+		"page_stats": map[string]interface{}{"total": out.Total},
 	})
 }
 
@@ -1842,6 +1886,31 @@ func postToMap(post *biz.CampusForumPost) map[string]interface{} {
 		"is_collected":    post.IsCollected,
 		"created_at":      formatTime(post.CreatedAt),
 		"updated_at":      formatTime(post.UpdatedAt),
+	}
+}
+
+func publicUserProfileToMap(user *biz.CampusPublicUserProfile) map[string]interface{} {
+	if user == nil {
+		return nil
+	}
+	stats := user.Stats
+	if stats == nil {
+		stats = &biz.CampusPublicUserStats{}
+	}
+	return map[string]interface{}{
+		"user_id":     user.UserID,
+		"name":        user.Name,
+		"nickname":    user.Nickname,
+		"avatar":      user.Avatar,
+		"school_name": user.SchoolName,
+		"auth_status": user.AuthStatus,
+		"is_official": user.IsOfficial,
+		"bio":         user.Bio,
+		"stats": map[string]interface{}{
+			"post_count":      stats.PostCount,
+			"like_count":      stats.LikeCount,
+			"collected_count": stats.CollectedCount,
+		},
 	}
 }
 

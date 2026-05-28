@@ -2,10 +2,12 @@ package biz
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
 	core "lehu-video/api/videoCore/service/v1"
+	"lehu-video/pkg/apperror"
 
 	"github.com/go-kratos/kratos/v2/log"
 )
@@ -157,6 +159,101 @@ func TestListPostsDefaultsToRecommendSort(t *testing.T) {
 	}
 	if repo.lastListQuery.Sort != CampusPostSortRecommend {
 		t.Fatalf("Sort = %q, want %q", repo.lastListQuery.Sort, CampusPostSortRecommend)
+	}
+}
+
+func TestGetPublicCampusUserProfileHidesSensitiveProfileFields(t *testing.T) {
+	repo := &campusRepoStub{
+		roles: map[string]string{"10": "operator"},
+		profiles: map[string]*CampusProfile{
+			"10": {
+				UserID:       "10",
+				SchoolName:   "深圳职业技术大学",
+				StudentNo:    "20260001",
+				RealName:     "真实姓名",
+				ClassName:    "深汕一班",
+				DormBuilding: "A栋",
+				RoomNo:       "101",
+				Mobile:       "13800000000",
+				AuthStatus:   CampusAuthStatusVerified,
+			},
+		},
+		publicStats: &CampusPublicUserStats{
+			PostCount:      3,
+			LikeCount:      12,
+			CollectedCount: 5,
+		},
+	}
+	core := &campusCoreStub{users: map[string]*UserBaseInfo{
+		"10": {ID: "10", Name: "真实姓名", Nickname: "深汕e仔", Avatar: "https://example.com/avatar.png", Mobile: "13800000000"},
+	}}
+	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	profile, err := uc.GetPublicCampusUserProfile(context.Background(), "10")
+	if err != nil {
+		t.Fatalf("GetPublicCampusUserProfile() error = %v", err)
+	}
+	if profile.UserID != "10" || profile.Name != "深汕e仔" || profile.Nickname != "深汕e仔" {
+		t.Fatalf("public profile basic fields mismatch: %+v", profile)
+	}
+	if profile.SchoolName != "深圳职业技术大学" || profile.AuthStatus != CampusAuthStatusVerified {
+		t.Fatalf("campus public fields mismatch: %+v", profile)
+	}
+	if !profile.IsOfficial || profile.Bio == "" {
+		t.Fatalf("official profile not marked: %+v", profile)
+	}
+	if profile.Stats == nil || profile.Stats.PostCount != 3 || profile.Stats.LikeCount != 12 || profile.Stats.CollectedCount != 5 {
+		t.Fatalf("stats mismatch: %+v", profile.Stats)
+	}
+}
+
+func TestGetPublicCampusUserProfileReturnsNotFound(t *testing.T) {
+	repo := &campusRepoStub{roles: map[string]string{}}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{users: map[string]*UserBaseInfo{}}, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	_, err := uc.GetPublicCampusUserProfile(context.Background(), "404")
+	if err == nil {
+		t.Fatalf("GetPublicCampusUserProfile() expected error")
+	}
+	appErr := apperror.From(err)
+	if appErr.Code != apperror.CodeNotFound {
+		t.Fatalf("error code = %d, want not found", appErr.Code)
+	}
+}
+
+func TestListPublicUserPostsOnlyVisibleAuthorPosts(t *testing.T) {
+	repo := &campusRepoStub{
+		roles: map[string]string{},
+		posts: map[int64]*CampusForumPost{
+			1: {ID: 1, AuthorID: "10", Title: "可见帖子", Status: CampusAuditStatusVisible, CreatedAt: time.Now()},
+			2: {ID: 2, AuthorID: "10", Title: "待审核帖子", Status: CampusAuditStatusPending, CreatedAt: time.Now().Add(time.Second)},
+			3: {ID: 3, AuthorID: "11", Title: "别人帖子", Status: CampusAuditStatusVisible, CreatedAt: time.Now().Add(2 * time.Second)},
+		},
+	}
+	core := &campusCoreStub{users: map[string]*UserBaseInfo{"10": {ID: "10", Nickname: "同学"}}}
+	uc := NewCampusUsecase(repo, nil, core, nil, fixedCampusIDGenerator(1001), "secret", log.NewStdLogger(ioDiscard{}))
+
+	out, err := uc.ListPublicUserPosts(context.Background(), &ListCampusPostsInput{
+		CurrentUserID: "12",
+		AuthorID:      "10",
+		Sort:          CampusPostSortRecommend,
+		Page:          1,
+		Size:          20,
+	})
+	if err != nil {
+		t.Fatalf("ListPublicUserPosts() error = %v", err)
+	}
+	if repo.lastListQuery.AuthorID != "10" || repo.lastListQuery.IncludeDeleted {
+		t.Fatalf("query privacy filters mismatch: %+v", repo.lastListQuery)
+	}
+	if len(repo.lastListQuery.Statuses) != 1 || repo.lastListQuery.Statuses[0] != CampusAuditStatusVisible {
+		t.Fatalf("statuses = %+v, want visible only", repo.lastListQuery.Statuses)
+	}
+	if repo.lastListQuery.Sort != CampusPostSortNew {
+		t.Fatalf("sort = %q, want fallback new", repo.lastListQuery.Sort)
+	}
+	if out.Total != 1 || len(out.Posts) != 1 || out.Posts[0].ID != 1 {
+		t.Fatalf("posts = total %d %+v, want only visible author post", out.Total, out.Posts)
 	}
 }
 
@@ -356,6 +453,8 @@ type campusRepoStub struct {
 	category      *CampusForumCategory
 	roles         map[string]string
 	posts         map[int64]*CampusForumPost
+	profiles      map[string]*CampusProfile
+	publicStats   *CampusPublicUserStats
 	blockedIPs    map[string]bool
 	lastPost      *CampusForumPost
 	lastFeedback  *CampusFeedback
@@ -376,7 +475,51 @@ func (r *campusRepoStub) CreatePost(ctx context.Context, post *CampusForumPost) 
 
 func (r *campusRepoStub) ListPosts(ctx context.Context, query ListCampusPostQuery) ([]*CampusForumPost, int64, error) {
 	r.lastListQuery = query
-	return []*CampusForumPost{}, 0, nil
+	if len(r.posts) == 0 {
+		return []*CampusForumPost{}, 0, nil
+	}
+	statusSet := map[int32]bool{}
+	for _, status := range query.Statuses {
+		statusSet[status] = true
+	}
+	posts := make([]*CampusForumPost, 0, len(r.posts))
+	for _, post := range r.posts {
+		if post == nil {
+			continue
+		}
+		if query.AuthorID != "" && post.AuthorID != query.AuthorID {
+			continue
+		}
+		if query.PostType != "" && post.PostType != query.PostType {
+			continue
+		}
+		if query.CategoryCode != "" && post.CategoryCode != query.CategoryCode {
+			continue
+		}
+		if len(statusSet) > 0 && !statusSet[post.Status] {
+			continue
+		}
+		copyPost := *post
+		posts = append(posts, &copyPost)
+	}
+	sort.SliceStable(posts, func(i, j int) bool {
+		return posts[i].CreatedAt.After(posts[j].CreatedAt)
+	})
+	total := int64(len(posts))
+	if query.Offset >= len(posts) {
+		return []*CampusForumPost{}, total, nil
+	}
+	end := query.Offset + query.Limit
+	if query.Limit <= 0 || end > len(posts) {
+		end = len(posts)
+	}
+	return posts[query.Offset:end], total, nil
+}
+func (r *campusRepoStub) GetPublicUserPostStats(context.Context, string) (*CampusPublicUserStats, error) {
+	if r.publicStats != nil {
+		return r.publicStats, nil
+	}
+	return &CampusPublicUserStats{}, nil
 }
 func (r *campusRepoStub) ListPostsByIDs(context.Context, []int64, []int32) ([]*CampusForumPost, error) {
 	return []*CampusForumPost{}, nil
@@ -393,8 +536,16 @@ func (r *campusRepoStub) GetAccountIDByEmail(context.Context, string) (bool, str
 	return false, "", nil
 }
 func (r *campusRepoStub) SaveWechatIdentity(context.Context, *CampusWechatIdentity) error { return nil }
-func (r *campusRepoStub) GetProfileByUserID(context.Context, string) (bool, *CampusProfile, error) {
-	return false, nil, nil
+func (r *campusRepoStub) GetProfileByUserID(_ context.Context, userID string) (bool, *CampusProfile, error) {
+	if r.profiles == nil {
+		return false, nil, nil
+	}
+	profile := r.profiles[userID]
+	if profile == nil {
+		return false, nil, nil
+	}
+	copyProfile := *profile
+	return true, &copyProfile, nil
 }
 func (r *campusRepoStub) SaveProfile(context.Context, *CampusProfile) error   { return nil }
 func (r *campusRepoStub) UpdateProfile(context.Context, *CampusProfile) error { return nil }
@@ -547,7 +698,12 @@ type campusCoreStub struct {
 func (r *campusCoreStub) CreateUser(context.Context, string, string, string) (string, error) {
 	return "", nil
 }
-func (r *campusCoreStub) GetUserBaseInfo(context.Context, string, string) (*UserBaseInfo, error) {
+func (r *campusCoreStub) GetUserBaseInfo(ctx context.Context, userID, accountID string) (*UserBaseInfo, error) {
+	_ = ctx
+	_ = accountID
+	if r.users != nil {
+		return r.users[userID], nil
+	}
 	return nil, nil
 }
 func (r *campusCoreStub) BatchGetUserBaseInfo(ctx context.Context, userIDs []string) ([]*UserBaseInfo, error) {

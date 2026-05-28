@@ -621,6 +621,34 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 	return posts, total, nil
 }
 
+func (r *campusRepo) GetPublicUserPostStats(ctx context.Context, userID string) (*biz.CampusPublicUserStats, error) {
+	var row struct {
+		PostCount       int64
+		LikeCount       sql.NullInt64
+		CollectedCount  sql.NullInt64
+		OfficialPostCnt int64
+	}
+	err := r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
+		Select(`
+			COUNT(*) AS post_count,
+			COALESCE(SUM(like_count), 0) AS like_count,
+			COALESCE(SUM(collected_count), 0) AS collected_count,
+			COALESCE(SUM(CASE WHEN is_official THEN 1 ELSE 0 END), 0) AS official_post_cnt
+		`).
+		Where("author_id = ? AND is_deleted = ? AND status = ?", parseID(userID), false, biz.CampusAuditStatusVisible).
+		Scan(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	stats := &biz.CampusPublicUserStats{
+		PostCount:       row.PostCount,
+		LikeCount:       row.LikeCount.Int64,
+		CollectedCount:  row.CollectedCount.Int64,
+		HasOfficialPost: row.OfficialPostCnt > 0,
+	}
+	return stats, nil
+}
+
 func (r *campusRepo) ListPostsByIDs(ctx context.Context, postIDs []int64, statuses []int32) ([]*biz.CampusForumPost, error) {
 	if len(postIDs) == 0 {
 		return []*biz.CampusForumPost{}, nil
