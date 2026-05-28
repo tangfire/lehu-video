@@ -2680,9 +2680,9 @@ func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, task *CampusAIR
 	query := trimLimit(firstNonEmpty(prompt, trigger.Content), 500)
 	ragResp, ragDuration, ragErr := uc.queryKnowledgeForEzai(taskCtx, query)
 	knowledgeContext := buildEzaiKnowledgeContext(ragResp)
-	userPrompt := fmt.Sprintf("帖子标题：%s\n帖子正文：%s\n同学评论：%s\n需要回答的问题：%s",
-		trimLimit(post.Title, 80),
-		trimLimit(post.Content, 500),
+	postContext := buildEzaiPostContext(post)
+	userPrompt := fmt.Sprintf("帖子上下文：\n%s\n\n同学在评论区说：%s\n同学真正想问：%s",
+		postContext,
 		trimLimit(trigger.Content, 500),
 		query,
 	)
@@ -2691,7 +2691,7 @@ func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, task *CampusAIR
 	} else if ragResp != nil && ragResp.NeedKnowledge {
 		userPrompt += "\n\n知识库检索结果：当前资料里没有高置信度命中。若问题涉及报到、宿舍、交通、校园网、军训等学校事实，请不要编造。"
 	}
-	systemPrompt := "你是“深汕e仔”，深汕校园e站的官方内容小伙伴。请用温和、简洁、像校园学长学姐一样的语气回复。只回答深圳职业技术大学深汕校区校园生活、报到、宿舍、交通、课表演示、平台使用、问答互助相关问题。不要冒充学校官方，不确定时明确说以学校官方渠道为准。不要输出联系方式、广告、敏感隐私，不要编造政策。回复控制在120字以内。"
+	systemPrompt := "你是“深汕e仔”，深汕校园e站的官方内容小伙伴。用户是在某个帖子评论区 @ 你，所以很多问题里的“这个帖子、楼主、上面、图里、这是什么意思”都指向帖子上下文。请先读帖子标题和正文，能基于帖子解释、总结、提醒时，就直接围绕帖子回答；只有涉及报到、宿舍、交通、校园网、军训等学校事实时，才结合知识库资料。请用温和、简洁、像校园学长学姐一样的语气回复。不要冒充学校官方，不确定时明确说以学校官方渠道为准。不要输出联系方式、广告、敏感隐私，不要编造政策。回复控制在120字以内。"
 	if knowledgeContext != "" {
 		systemPrompt += " 若提供了校园资料，优先依据资料回答；可以自然提到“资料里写到/目前资料显示”，但不要生硬罗列引用。"
 	}
@@ -2738,6 +2738,39 @@ func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, task *CampusAIR
 	answer := out.Choices[0].Message.Content
 	uc.recordRAGQueryLog(ctx, task, post, query, ragResp, answer, ragDuration, ragErr)
 	return answer, nil
+}
+
+func buildEzaiPostContext(post *CampusForumPost) string {
+	if post == nil {
+		return "无帖子上下文"
+	}
+	var builder strings.Builder
+	title := trimLimit(strings.TrimSpace(post.Title), 120)
+	if title == "" {
+		title = "未填写标题"
+	}
+	builder.WriteString("标题：" + title)
+	postType := strings.TrimSpace(post.PostType)
+	if postType != "" {
+		builder.WriteString("\n类型：" + postType)
+	}
+	category := firstNonEmpty(strings.TrimSpace(post.CategoryName), strings.TrimSpace(post.CategoryCode))
+	if category != "" {
+		builder.WriteString("\n版块：" + category)
+	}
+	content := strings.TrimSpace(post.Content)
+	if content != "" {
+		builder.WriteString("\n正文：" + trimLimit(content, 900))
+	} else {
+		builder.WriteString("\n正文：无文字内容")
+	}
+	if len(post.Images) > 0 {
+		builder.WriteString(fmt.Sprintf("\n图片：%d 张。你不能直接看图片细节，只能根据标题和正文判断。", len(post.Images)))
+	}
+	if post.MediaType == CampusPostMediaVideo || strings.TrimSpace(post.VideoURL) != "" {
+		builder.WriteString("\n视频：有视频内容。你不能直接观看视频，只能根据标题和正文判断。")
+	}
+	return builder.String()
 }
 
 func (uc *CampusUsecase) queryKnowledgeForEzai(ctx context.Context, query string) (*CampusRAGQueryResponse, int64, error) {
