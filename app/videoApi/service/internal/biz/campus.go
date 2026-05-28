@@ -77,6 +77,21 @@ const (
 
 	campusAIReplyTaskMaxRetry = 3
 
+	CampusPostAuditModeOff    = "off"
+	CampusPostAuditModeManual = "manual"
+	CampusPostAuditModeAI     = "ai"
+
+	CampusAIContentAuditTaskStatusPending    = "pending"
+	CampusAIContentAuditTaskStatusProcessing = "processing"
+	CampusAIContentAuditTaskStatusDone       = "done"
+	CampusAIContentAuditTaskStatusFailed     = "failed"
+
+	CampusAIContentAuditDecisionPass   = "pass"
+	CampusAIContentAuditDecisionReview = "review"
+	CampusAIContentAuditDecisionReject = "reject"
+
+	campusAIContentAuditTaskMaxRetry = 3
+
 	CampusKnowledgeDocumentStatusDraft    = "draft"
 	CampusKnowledgeDocumentStatusIndexing = "indexing"
 	CampusKnowledgeDocumentStatusActive   = "active"
@@ -264,32 +279,37 @@ type CampusPublicUserProfile struct {
 }
 
 type CampusForumPost struct {
-	ID             int64
-	CategoryCode   string
-	CategoryName   string
-	AuthorID       string
-	Author         *CampusForumAuthor
-	Title          string
-	Content        string
-	Images         []string
-	MediaType      string
-	PostType       string
-	Extra          map[string]string
-	CoverURL       string
-	VideoURL       string
-	IsOfficial     bool
-	IsFeatured     bool
-	IsPinned       bool
-	SortWeight     int32
-	Status         int32
-	AuditReason    string
-	LikeCount      int64
-	CommentCount   int64
-	CollectedCount int64
-	IsLiked        bool
-	IsCollected    bool
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID              int64
+	CategoryCode    string
+	CategoryName    string
+	AuthorID        string
+	Author          *CampusForumAuthor
+	Title           string
+	Content         string
+	Images          []string
+	MediaType       string
+	PostType        string
+	Extra           map[string]string
+	CoverURL        string
+	VideoURL        string
+	IsOfficial      bool
+	IsFeatured      bool
+	IsPinned        bool
+	SortWeight      int32
+	Status          int32
+	AuditReason     string
+	AIAuditStatus   string
+	AIAuditRisk     string
+	AIAuditDecision string
+	AIAuditReason   string
+	AIAuditError    string
+	LikeCount       int64
+	CommentCount    int64
+	CollectedCount  int64
+	IsLiked         bool
+	IsCollected     bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type CampusForumComment struct {
@@ -401,6 +421,31 @@ type CampusAIReplyTask struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	ProcessedAt      *time.Time
+}
+
+type CampusOpsAuditSettings struct {
+	PostAuditMode string
+	AIEnabled     bool
+	UpdatedBy     string
+	UpdatedAt     time.Time
+}
+
+type CampusAIContentAuditTask struct {
+	ID          int64
+	TargetType  string
+	TargetID    int64
+	Status      string
+	RiskLevel   string
+	Decision    string
+	Reason      string
+	RawResult   string
+	RetryCount  int32
+	NextRetryAt *time.Time
+	LockedUntil *time.Time
+	LastError   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ProcessedAt *time.Time
 }
 
 type CampusAIReplyOverview struct {
@@ -687,6 +732,7 @@ type CampusAdminSummary struct {
 	PendingFeedback  int64
 	PendingPosts     int64
 	PendingComments  int64
+	PendingAIAudits  int64
 	FeaturedPosts    int64
 	OfficialPosts    int64
 	Trends           []*CampusAdminTrend
@@ -771,6 +817,15 @@ type ListCampusAIReplyTasksOutput struct {
 type RetryCampusAIReplyTaskInput struct {
 	UserID string
 	TaskID int64
+}
+
+type GetCampusAuditSettingsInput struct {
+	UserID string
+}
+
+type UpdateCampusAuditSettingsInput struct {
+	UserID        string
+	PostAuditMode string
 }
 
 type ListCampusKnowledgeDocumentsInput struct {
@@ -1124,6 +1179,15 @@ type CampusRepo interface {
 	GetAIReplyOverview(ctx context.Context, botUserID string, limit int) (*CampusAIReplyOverview, error)
 	ListAIReplyTasks(ctx context.Context, status string, offset, limit int) ([]*CampusAIReplyTask, int64, error)
 	ResetAIReplyTask(ctx context.Context, id int64) error
+	GetOpsSetting(ctx context.Context, key string) (bool, string, string, time.Time, error)
+	SetOpsSetting(ctx context.Context, key, value, updatedBy string) error
+	CreateAIContentAuditTask(ctx context.Context, task *CampusAIContentAuditTask) error
+	ClaimAIContentAuditTasks(ctx context.Context, limit int, lockFor time.Duration) ([]*CampusAIContentAuditTask, error)
+	MarkAIContentAuditTaskDone(ctx context.Context, id int64, decision, riskLevel, reason, rawResult string) error
+	MarkAIContentAuditTaskRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error
+	GetLatestAIContentAuditTask(ctx context.Context, targetType string, targetID int64) (bool, *CampusAIContentAuditTask, error)
+	GetLatestAIContentAuditTasks(ctx context.Context, targetType string, targetIDs []int64) (map[int64]*CampusAIContentAuditTask, error)
+	CountPendingAIContentAuditTasks(ctx context.Context) (int64, error)
 	CreateKnowledgeDocument(ctx context.Context, doc *CampusKnowledgeDocument) error
 	UpdateKnowledgeDocument(ctx context.Context, doc *CampusKnowledgeDocument) error
 	GetKnowledgeDocumentByID(ctx context.Context, id int64) (bool, *CampusKnowledgeDocument, error)
@@ -1167,6 +1231,7 @@ type CampusUsecase struct {
 	eventBatcher      *CampusBatchProcessor[*TrackCampusEventInput]
 	accessLogBatcher  *CampusBatchProcessor[*CampusAccessLog]
 	aiReplyConfig     CampusAIReplyConfig
+	aiAuditConfig     CampusAIContentAuditConfig
 	rag               CampusRAGClient
 	log               *log.Helper
 }
@@ -1178,6 +1243,16 @@ type CampusAIReplyConfig struct {
 	BaseURL         string
 	Model           string
 	DailyLimit      int64
+	MaxOutputTokens int
+	Temperature     float64
+	Timeout         time.Duration
+}
+
+type CampusAIContentAuditConfig struct {
+	Enabled         bool
+	APIKey          string
+	BaseURL         string
+	Model           string
 	MaxOutputTokens int
 	Temperature     float64
 	Timeout         time.Duration
@@ -1199,12 +1274,29 @@ func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timet
 		assembler:         assembler,
 		recommendPool:     recommendPool,
 		aiReplyConfig:     loadCampusAIReplyConfig(),
+		aiAuditConfig:     loadCampusAIContentAuditConfig(),
 		rag:               rag,
 		log:               log.NewHelper(logger),
 	}
 	uc.eventBatcher = NewCampusBatchProcessor("campus_event", 100, 2*time.Second, uc.persistCampusEvents, logger)
 	uc.accessLogBatcher = NewCampusBatchProcessor("campus_access_log", 100, 2*time.Second, uc.persistCampusAccessLogs, logger)
 	return uc
+}
+
+func loadCampusAIContentAuditConfig() CampusAIContentAuditConfig {
+	apiKey := firstNonEmpty(os.Getenv("CAMPUS_AI_AUDIT_API_KEY"), os.Getenv("CAMPUS_AI_API_KEY"), os.Getenv("DEEPSEEK_API_KEY"))
+	baseURL := firstNonEmpty(os.Getenv("CAMPUS_AI_AUDIT_BASE_URL"), os.Getenv("CAMPUS_AI_BASE_URL"), "https://api.deepseek.com/chat/completions")
+	model := firstNonEmpty(os.Getenv("CAMPUS_AI_AUDIT_MODEL"), os.Getenv("CAMPUS_AI_MODEL"), "deepseek-chat")
+	enabled := strings.TrimSpace(apiKey) != "" && !envBoolFalse(os.Getenv("CAMPUS_AI_AUDIT_ENABLED"))
+	return CampusAIContentAuditConfig{
+		Enabled:         enabled,
+		APIKey:          strings.TrimSpace(apiKey),
+		BaseURL:         strings.TrimSpace(baseURL),
+		Model:           strings.TrimSpace(model),
+		MaxOutputTokens: int(envInt64("CAMPUS_AI_AUDIT_MAX_OUTPUT_TOKENS", 180)),
+		Temperature:     0.1,
+		Timeout:         10 * time.Second,
+	}
 }
 
 func loadCampusAIReplyConfig() CampusAIReplyConfig {
@@ -1706,6 +1798,28 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 	if isOperator {
 		sortWeight = clampSortWeight(input.SortWeight)
 	}
+	status := CampusAuditStatusVisible
+	auditReason := ""
+	var auditSettings *CampusOpsAuditSettings
+	if !isOperator {
+		settings, err := uc.getCampusAuditSettings(ctx)
+		if err != nil {
+			return nil, err
+		}
+		auditSettings = settings
+		switch settings.PostAuditMode {
+		case CampusPostAuditModeManual:
+			status = CampusAuditStatusPending
+			auditReason = "等待人工审核"
+		case CampusPostAuditModeAI:
+			status = CampusAuditStatusPending
+			if uc.aiAuditConfig.Enabled {
+				auditReason = "等待 AI 审核"
+			} else {
+				auditReason = "AI 审核未启用，等待人工复核"
+			}
+		}
+	}
 	post := &CampusForumPost{
 		ID:           uc.idGen.NextID(),
 		CategoryCode: category.Code,
@@ -1723,10 +1837,18 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		IsFeatured:   isFeatured,
 		IsPinned:     isPinned,
 		SortWeight:   sortWeight,
-		Status:       CampusAuditStatusVisible,
+		Status:       status,
+		AuditReason:  auditReason,
 	}
 	if err := uc.repo.CreatePost(ctx, post); err != nil {
 		return nil, apperror.Internal(err, "发布帖子失败")
+	}
+	if !isOperator && status == CampusAuditStatusPending {
+		if auditSettings != nil && auditSettings.PostAuditMode == CampusPostAuditModeAI && uc.aiAuditConfig.Enabled {
+			if err := uc.enqueuePostAIContentAudit(ctx, post); err != nil {
+				uc.log.WithContext(ctx).Warnf("queue campus post ai audit failed: post_id=%d err=%v", post.ID, err)
+			}
+		}
 	}
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     input.UserID,
@@ -2602,6 +2724,239 @@ func (uc *CampusUsecase) ProcessPendingAIReplyTasks(ctx context.Context, limit i
 	return nil
 }
 
+func (uc *CampusUsecase) enqueuePostAIContentAudit(ctx context.Context, post *CampusForumPost) error {
+	if post == nil || post.ID <= 0 {
+		return nil
+	}
+	return uc.repo.CreateAIContentAuditTask(ctx, &CampusAIContentAuditTask{
+		ID:         uc.idGen.NextID(),
+		TargetType: "post",
+		TargetID:   post.ID,
+		Status:     CampusAIContentAuditTaskStatusPending,
+	})
+}
+
+func (uc *CampusUsecase) ProcessPendingAIContentAuditTasks(ctx context.Context, limit int) error {
+	if !uc.aiAuditConfig.Enabled {
+		return nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	tasks, err := uc.repo.ClaimAIContentAuditTasks(ctx, limit, 45*time.Second)
+	if err != nil {
+		return apperror.Internal(err, "领取 AI 审核任务失败")
+	}
+	var firstErr error
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		if err := uc.processAIContentAuditTask(ctx, task); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			uc.log.WithContext(ctx).Warnf("process campus ai audit task failed: id=%d err=%v", task.ID, err)
+			uc.markAIContentAuditTaskRetry(ctx, task, err)
+		}
+	}
+	return firstErr
+}
+
+func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *CampusAIContentAuditTask) error {
+	if task == nil {
+		return nil
+	}
+	if task.TargetType != "post" {
+		return fmt.Errorf("unsupported ai audit target type: %s", task.TargetType)
+	}
+	ok, post, err := uc.repo.GetAnyPostByID(ctx, task.TargetID)
+	if err != nil {
+		return err
+	}
+	if !ok || post == nil {
+		return fmt.Errorf("post not found")
+	}
+	if post.Status != CampusAuditStatusPending {
+		return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionReview, "none", "内容已不处于待审核状态", "")
+	}
+	result, raw, err := uc.auditPostWithAI(ctx, post)
+	if err != nil {
+		return err
+	}
+	decision := normalizeAIContentAuditDecision(result.Decision)
+	if decision == "" {
+		decision = CampusAIContentAuditDecisionReview
+	}
+	riskLevel := normalizeAIContentAuditRiskLevel(result.RiskLevel)
+	reason := trimLimit(firstNonEmpty(result.Reason, "AI 审核建议人工复核"), 240)
+	switch decision {
+	case CampusAIContentAuditDecisionPass:
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, "AI 审核通过"); err != nil {
+			return err
+		}
+		uc.notifyPostAuditResult(ctx, post, true, "你的帖子已通过审核")
+	case CampusAIContentAuditDecisionReject:
+		decision = CampusAIContentAuditDecisionReview
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusPending, reason); err != nil {
+			return err
+		}
+	default:
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusPending, reason); err != nil {
+			return err
+		}
+	}
+	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
+		ID:         uc.idGen.NextID(),
+		TargetType: "post",
+		TargetID:   post.ID,
+		UserID:     post.AuthorID,
+		Provider:   "ai",
+		Result:     decision,
+		Reason:     reason,
+	})
+	return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, decision, riskLevel, reason, raw)
+}
+
+type aiContentAuditResult struct {
+	Decision  string `json:"decision"`
+	RiskLevel string `json:"risk_level"`
+	Reason    string `json:"reason"`
+}
+
+func (uc *CampusUsecase) auditPostWithAI(ctx context.Context, post *CampusForumPost) (*aiContentAuditResult, string, error) {
+	cfg := uc.aiAuditConfig
+	taskCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
+	defer cancel()
+	systemPrompt := "你是校园社区内容安全审核员。请审核同学发布的帖子是否适合在校园社区展示。重点识别违法违规、辱骂人身攻击、隐私泄露、广告诈骗、色情暴力、代考代课、危险物品、骚扰引战和虚假信息。只输出 JSON，不要输出多余文字。decision 只能是 pass/review/reject；risk_level 只能是 low/medium/high；reason 用中文 40 字以内。低风险正常校园分享给 pass；不确定或可能违规给 review；明显严重违规才给 reject。"
+	userPrompt := fmt.Sprintf("帖子类型：%s\n标题：%s\n正文：%s\n图片数量：%d\n视频：%t",
+		post.PostType,
+		trimLimit(post.Title, 120),
+		trimLimit(post.Content, 1800),
+		len(post.Images),
+		strings.TrimSpace(post.VideoURL) != "",
+	)
+	body, _ := json.Marshal(map[string]interface{}{
+		"model": cfg.Model,
+		"messages": []map[string]string{
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": userPrompt},
+		},
+		"max_tokens":  cfg.MaxOutputTokens,
+		"temperature": cfg.Temperature,
+	})
+	req, err := http.NewRequestWithContext(taskCtx, http.MethodPost, cfg.BaseURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, string(raw), fmt.Errorf("ai audit api status=%d body=%s", resp.StatusCode, trimLimit(string(raw), 300))
+	}
+	var out struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, string(raw), err
+	}
+	if len(out.Choices) == 0 {
+		return nil, string(raw), fmt.Errorf("ai audit api returned empty choices")
+	}
+	content := strings.TrimSpace(out.Choices[0].Message.Content)
+	content = strings.TrimPrefix(content, "```json")
+	content = strings.TrimPrefix(content, "```")
+	content = strings.TrimSuffix(content, "```")
+	content = strings.TrimSpace(content)
+	var result aiContentAuditResult
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return &aiContentAuditResult{Decision: CampusAIContentAuditDecisionReview, RiskLevel: "medium", Reason: "AI 返回格式异常，需人工复核"}, string(raw), nil
+	}
+	return &result, string(raw), nil
+}
+
+func (uc *CampusUsecase) markAIContentAuditTaskRetry(ctx context.Context, item *CampusAIContentAuditTask, processErr error) {
+	if item == nil {
+		return
+	}
+	nextRetryCount := item.RetryCount + 1
+	final := nextRetryCount >= campusAIContentAuditTaskMaxRetry
+	var nextRetryAt *time.Time
+	if !final {
+		next := time.Now().Add(time.Duration(nextRetryCount*nextRetryCount) * time.Minute)
+		nextRetryAt = &next
+	}
+	if err := uc.repo.MarkAIContentAuditTaskRetry(ctx, item.ID, nextRetryCount, nextRetryAt, processErr.Error(), final); err != nil {
+		uc.log.WithContext(ctx).Warnf("mark campus ai audit task retry failed: id=%d err=%v", item.ID, err)
+	}
+	if final && item.TargetType == "post" {
+		_ = uc.repo.UpdatePostStatus(ctx, item.TargetID, CampusAuditStatusPending, "AI 审核失败，等待人工复核")
+	}
+}
+
+func normalizeAIContentAuditDecision(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case CampusAIContentAuditDecisionPass:
+		return CampusAIContentAuditDecisionPass
+	case CampusAIContentAuditDecisionReview:
+		return CampusAIContentAuditDecisionReview
+	case CampusAIContentAuditDecisionReject:
+		return CampusAIContentAuditDecisionReject
+	default:
+		return ""
+	}
+}
+
+func normalizeAIContentAuditRiskLevel(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "low", "medium", "high":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return "medium"
+	}
+}
+
+func (uc *CampusUsecase) notifyPostAuditResult(ctx context.Context, post *CampusForumPost, passed bool, title string) {
+	if post == nil || strings.TrimSpace(post.AuthorID) == "" {
+		return
+	}
+	content := "审核通过后，其他同学就能在首页和主页看到这条内容。"
+	linkPage := "post-detail"
+	linkParams := map[string]string{"id": fmt.Sprintf("%d", post.ID)}
+	if !passed {
+		content = firstNonEmpty(post.AuditReason, "你的帖子未通过审核，可以修改后重新发布。")
+		linkPage = "my-posts"
+		linkParams = map[string]string{}
+	}
+	outbox := &CampusNotificationOutbox{
+		ID:          uc.idGen.NextID(),
+		RecipientID: post.AuthorID,
+		ActorID:     "0",
+		EventType:   CampusNotificationTypeSystem,
+		TargetType:  "post",
+		TargetID:    post.ID,
+		DedupeKey:   fmt.Sprintf("campus:post-audit:%d:%t", post.ID, passed),
+		Title:       title,
+		Content:     trimLimit(content, 80),
+		LinkPage:    linkPage,
+		LinkParams:  linkParams,
+		Status:      CampusNotificationOutboxStatusPending,
+	}
+	if err := uc.repo.CreateNotificationOutbox(ctx, outbox); err != nil {
+		uc.log.WithContext(ctx).Warnf("queue post audit notification failed: post_id=%d err=%v", post.ID, err)
+	}
+}
+
 func (uc *CampusUsecase) processAIReplyTask(ctx context.Context, task *CampusAIReplyTask) error {
 	if task == nil {
 		return nil
@@ -3044,7 +3399,7 @@ func (uc *CampusUsecase) ReviewContent(ctx context.Context, input *ReviewCampusC
 	}
 	reason := strings.TrimSpace(input.Reason)
 	if targetType == "post" {
-		ok, _, err := uc.repo.GetAnyPostByID(ctx, input.TargetID)
+		ok, post, err := uc.repo.GetAnyPostByID(ctx, input.TargetID)
 		if err != nil {
 			return apperror.Internal(err, "查询帖子失败")
 		}
@@ -3053,6 +3408,15 @@ func (uc *CampusUsecase) ReviewContent(ctx context.Context, input *ReviewCampusC
 		}
 		if err := uc.repo.UpdatePostStatus(ctx, input.TargetID, status, reason); err != nil {
 			return apperror.Internal(err, "审核帖子失败")
+		}
+		if post != nil {
+			post.Status = status
+			post.AuditReason = reason
+			if status == CampusAuditStatusVisible {
+				uc.notifyPostAuditResult(ctx, post, true, "你的帖子已通过审核")
+			} else if status == CampusAuditStatusRejected {
+				uc.notifyPostAuditResult(ctx, post, false, "你的帖子未通过审核")
+			}
 		}
 	} else {
 		ok, _, err := uc.repo.GetAnyCommentByID(ctx, input.TargetID)
@@ -3086,7 +3450,64 @@ func (uc *CampusUsecase) AdminSummary(ctx context.Context, userID string) (*Camp
 	if err != nil {
 		return nil, apperror.Internal(err, "获取数据总览失败")
 	}
+	if pending, err := uc.repo.CountPendingAIContentAuditTasks(ctx); err == nil {
+		summary.PendingAIAudits = pending
+	}
 	return summary, nil
+}
+
+func (uc *CampusUsecase) AdminGetAuditSettings(ctx context.Context, input *GetCampusAuditSettingsInput) (*CampusOpsAuditSettings, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	return uc.getCampusAuditSettings(ctx)
+}
+
+func (uc *CampusUsecase) AdminUpdateAuditSettings(ctx context.Context, input *UpdateCampusAuditSettingsInput) (*CampusOpsAuditSettings, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	mode := normalizeCampusPostAuditMode(input.PostAuditMode)
+	if mode == "" {
+		return nil, apperror.InvalidArgument("审核模式无效")
+	}
+	if err := uc.repo.SetOpsSetting(ctx, "post_audit_mode", mode, input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存审核设置失败")
+	}
+	return uc.getCampusAuditSettings(ctx)
+}
+
+func (uc *CampusUsecase) getCampusAuditSettings(ctx context.Context) (*CampusOpsAuditSettings, error) {
+	ok, value, updatedBy, updatedAt, err := uc.repo.GetOpsSetting(ctx, "post_audit_mode")
+	if err != nil {
+		return nil, apperror.Internal(err, "读取审核设置失败")
+	}
+	mode := CampusPostAuditModeOff
+	if ok {
+		mode = normalizeCampusPostAuditMode(value)
+		if mode == "" {
+			mode = CampusPostAuditModeOff
+		}
+	}
+	return &CampusOpsAuditSettings{
+		PostAuditMode: mode,
+		AIEnabled:     uc.aiAuditConfig.Enabled,
+		UpdatedBy:     updatedBy,
+		UpdatedAt:     updatedAt,
+	}, nil
+}
+
+func normalizeCampusPostAuditMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", CampusPostAuditModeOff:
+		return CampusPostAuditModeOff
+	case CampusPostAuditModeManual:
+		return CampusPostAuditModeManual
+	case CampusPostAuditModeAI:
+		return CampusPostAuditModeAI
+	default:
+		return ""
+	}
 }
 
 func (uc *CampusUsecase) AdminReconcileCampusStats(ctx context.Context, userID string) (*CampusStatsReconcileResult, error) {
@@ -3147,7 +3568,42 @@ func (uc *CampusUsecase) AdminListPosts(ctx context.Context, input *ListCampusAd
 	if err := uc.assembler.HydratePosts(ctx, posts, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate admin posts failed: %v", err)
 	}
+	uc.attachLatestAIAuditTasks(ctx, posts)
 	return &ListCampusPostsOutput{Posts: posts, Total: total}, nil
+}
+
+func (uc *CampusUsecase) attachLatestAIAuditTasks(ctx context.Context, posts []*CampusForumPost) {
+	if len(posts) == 0 {
+		return
+	}
+	ids := make([]int64, 0, len(posts))
+	for _, post := range posts {
+		if post != nil && post.ID > 0 {
+			ids = append(ids, post.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	tasks, err := uc.repo.GetLatestAIContentAuditTasks(ctx, "post", ids)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("load latest ai content audit tasks failed: %v", err)
+		return
+	}
+	for _, post := range posts {
+		if post == nil {
+			continue
+		}
+		task := tasks[post.ID]
+		if task == nil {
+			continue
+		}
+		post.AIAuditStatus = task.Status
+		post.AIAuditRisk = task.RiskLevel
+		post.AIAuditDecision = task.Decision
+		post.AIAuditReason = task.Reason
+		post.AIAuditError = task.LastError
+	}
 }
 
 func (uc *CampusUsecase) AdminBatchPosts(ctx context.Context, input *BatchCampusAdminPostsInput) (*BatchCampusAdminPostsOutput, error) {
@@ -3213,6 +3669,9 @@ func (uc *CampusUsecase) AdminBatchPosts(ctx context.Context, input *BatchCampus
 		}
 		if err := uc.repo.UpdatePostByAdmin(ctx, &next); err != nil {
 			return nil, apperror.Internal(err, "批量更新内容失败")
+		}
+		if action == "visible" && existing.Status != CampusAuditStatusVisible {
+			uc.notifyPostAuditResult(ctx, &next, true, "你的帖子已通过审核")
 		}
 		updated++
 	}
@@ -3298,6 +3757,13 @@ func (uc *CampusUsecase) AdminUpdatePost(ctx context.Context, input *UpdateCampu
 	}
 	if err := uc.repo.UpdatePostByAdmin(ctx, post); err != nil {
 		return nil, apperror.Internal(err, "更新帖子失败")
+	}
+	if existing.Status != post.Status {
+		if post.Status == CampusAuditStatusVisible {
+			uc.notifyPostAuditResult(ctx, post, true, "你的帖子已通过审核")
+		} else if post.Status == CampusAuditStatusRejected {
+			uc.notifyPostAuditResult(ctx, post, false, "你的帖子未通过审核")
+		}
 	}
 	_ = uc.assembler.HydratePosts(ctx, []*CampusForumPost{post}, input.UserID)
 	return post, nil

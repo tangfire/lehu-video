@@ -63,16 +63,19 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 	s.safeRefreshRecommendPool(ctx)
 	s.safeProcessNotificationOutbox(ctx)
 	s.safeProcessAIReplyTasks(ctx)
+	s.safeProcessAIContentAuditTasks(ctx)
 	recommendTicker := time.NewTicker(5 * time.Minute)
 	reconcileTicker := time.NewTicker(1 * time.Hour)
 	flushTicker := time.NewTicker(10 * time.Second)
 	notificationTicker := time.NewTicker(2 * time.Second)
 	aiReplyTicker := time.NewTicker(5 * time.Second)
+	aiAuditTicker := time.NewTicker(5 * time.Second)
 	defer recommendTicker.Stop()
 	defer reconcileTicker.Stop()
 	defer flushTicker.Stop()
 	defer notificationTicker.Stop()
 	defer aiReplyTicker.Stop()
+	defer aiAuditTicker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -89,6 +92,8 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 			s.safeProcessNotificationOutbox(ctx)
 		case <-aiReplyTicker.C:
 			s.safeProcessAIReplyTasks(ctx)
+		case <-aiAuditTicker.C:
+			s.safeProcessAIContentAuditTasks(ctx)
 		}
 	}
 }
@@ -125,5 +130,13 @@ func (s *CampusTaskServer) safeProcessAIReplyTasks(ctx context.Context) {
 	defer cancel()
 	if err := s.uc.ProcessPendingAIReplyTasks(taskCtx, 10); err != nil {
 		s.log.Warnf("处理 e仔 AI 回复任务失败: %v", err)
+	}
+}
+
+func (s *CampusTaskServer) safeProcessAIContentAuditTasks(ctx context.Context) {
+	taskCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	if err := s.uc.ProcessPendingAIContentAuditTasks(taskCtx, 10); err != nil {
+		s.log.Warnf("处理校园 AI 内容审核任务失败: %v", err)
 	}
 }

@@ -86,6 +86,8 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/moderation/posts/{id}/review", s.wrap(s.authRequired(s.handleReviewPost)))
 	r.POST("/v1/campus/moderation/comments/{id}/review", s.wrap(s.authRequired(s.handleReviewComment)))
 	r.GET("/v1/campus/admin/summary", s.wrap(s.authRequired(s.handleAdminSummary)))
+	r.GET("/v1/campus/admin/settings/audit", s.wrap(s.authRequired(s.handleAdminGetAuditSettings)))
+	r.PUT("/v1/campus/admin/settings/audit", s.wrap(s.authRequired(s.handleAdminUpdateAuditSettings)))
 	r.POST("/v1/campus/admin/stats/reconcile", s.wrap(s.authRequired(s.handleAdminReconcileStats)))
 	r.GET("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminListPosts)))
 	r.POST("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminCreatePost)))
@@ -1327,6 +1329,37 @@ func (s *CampusService) handleAdminSummary(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, r, map[string]interface{}{"summary": adminSummaryToMap(summary)})
 }
 
+type auditSettingsRequest struct {
+	PostAuditMode string `json:"post_audit_mode"`
+}
+
+func (s *CampusService) handleAdminGetAuditSettings(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	settings, err := s.uc.AdminGetAuditSettings(r.Context(), &biz.GetCampusAuditSettingsInput{UserID: userID})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"settings": auditSettingsToMap(settings)})
+}
+
+func (s *CampusService) handleAdminUpdateAuditSettings(w http.ResponseWriter, r *http.Request) {
+	var req auditSettingsRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	settings, err := s.uc.AdminUpdateAuditSettings(r.Context(), &biz.UpdateCampusAuditSettingsInput{
+		UserID:        userID,
+		PostAuditMode: req.PostAuditMode,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"settings": auditSettingsToMap(settings)})
+}
+
 func (s *CampusService) handleAdminReconcileStats(w http.ResponseWriter, r *http.Request) {
 	userID, _ := s.userIDFromRequest(r)
 	result, err := s.uc.AdminReconcileCampusStats(r.Context(), userID)
@@ -2217,31 +2250,51 @@ func postToMap(post *biz.CampusForumPost) map[string]interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"id":              strconv.FormatInt(post.ID, 10),
-		"category_code":   post.CategoryCode,
-		"category_name":   post.CategoryName,
-		"author":          authorToMap(post.Author),
-		"title":           post.Title,
-		"content":         post.Content,
-		"images":          post.Images,
-		"media_type":      post.MediaType,
-		"post_type":       post.PostType,
-		"extra":           post.Extra,
-		"cover_url":       post.CoverURL,
-		"video_url":       post.VideoURL,
-		"is_official":     post.IsOfficial,
-		"is_featured":     post.IsFeatured,
-		"is_pinned":       post.IsPinned,
-		"sort_weight":     post.SortWeight,
-		"status":          post.Status,
-		"audit_reason":    post.AuditReason,
-		"like_count":      post.LikeCount,
-		"comment_count":   post.CommentCount,
-		"collected_count": post.CollectedCount,
-		"is_liked":        post.IsLiked,
-		"is_collected":    post.IsCollected,
-		"created_at":      formatTime(post.CreatedAt),
-		"updated_at":      formatTime(post.UpdatedAt),
+		"id":                strconv.FormatInt(post.ID, 10),
+		"category_code":     post.CategoryCode,
+		"category_name":     post.CategoryName,
+		"author":            authorToMap(post.Author),
+		"title":             post.Title,
+		"content":           post.Content,
+		"images":            post.Images,
+		"media_type":        post.MediaType,
+		"post_type":         post.PostType,
+		"extra":             post.Extra,
+		"cover_url":         post.CoverURL,
+		"video_url":         post.VideoURL,
+		"is_official":       post.IsOfficial,
+		"is_featured":       post.IsFeatured,
+		"is_pinned":         post.IsPinned,
+		"sort_weight":       post.SortWeight,
+		"status":            post.Status,
+		"audit_reason":      post.AuditReason,
+		"ai_audit_status":   post.AIAuditStatus,
+		"ai_audit_risk":     post.AIAuditRisk,
+		"ai_audit_decision": post.AIAuditDecision,
+		"ai_audit_reason":   post.AIAuditReason,
+		"ai_audit_error":    post.AIAuditError,
+		"like_count":        post.LikeCount,
+		"comment_count":     post.CommentCount,
+		"collected_count":   post.CollectedCount,
+		"is_liked":          post.IsLiked,
+		"is_collected":      post.IsCollected,
+		"created_at":        formatTime(post.CreatedAt),
+		"updated_at":        formatTime(post.UpdatedAt),
+	}
+}
+
+func auditSettingsToMap(settings *biz.CampusOpsAuditSettings) map[string]interface{} {
+	if settings == nil {
+		return map[string]interface{}{
+			"post_audit_mode": biz.CampusPostAuditModeOff,
+			"ai_enabled":      false,
+		}
+	}
+	return map[string]interface{}{
+		"post_audit_mode": settings.PostAuditMode,
+		"ai_enabled":      settings.AIEnabled,
+		"updated_by":      settings.UpdatedBy,
+		"updated_at":      formatTime(settings.UpdatedAt),
 	}
 }
 
@@ -2638,6 +2691,7 @@ func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {
 		"pending_feedback":   summary.PendingFeedback,
 		"pending_posts":      summary.PendingPosts,
 		"pending_comments":   summary.PendingComments,
+		"pending_ai_audits":  summary.PendingAIAudits,
 		"featured_posts":     summary.FeaturedPosts,
 		"official_posts":     summary.OfficialPosts,
 		"trends":             trends,

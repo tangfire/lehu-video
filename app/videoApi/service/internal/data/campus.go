@@ -306,6 +306,37 @@ type campusAIReplyTaskModel struct {
 
 func (campusAIReplyTaskModel) TableName() string { return "campus_ai_reply_task" }
 
+type campusOpsSettingModel struct {
+	ID        int64     `gorm:"column:id"`
+	Key       string    `gorm:"column:setting_key"`
+	Value     string    `gorm:"column:setting_value"`
+	UpdatedBy int64     `gorm:"column:updated_by"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (campusOpsSettingModel) TableName() string { return "campus_ops_setting" }
+
+type campusAIContentAuditTaskModel struct {
+	ID          int64      `gorm:"column:id"`
+	TargetType  string     `gorm:"column:target_type"`
+	TargetID    int64      `gorm:"column:target_id"`
+	Status      string     `gorm:"column:status"`
+	RiskLevel   string     `gorm:"column:risk_level"`
+	Decision    string     `gorm:"column:decision"`
+	Reason      string     `gorm:"column:reason"`
+	RawResult   string     `gorm:"column:raw_result"`
+	RetryCount  int32      `gorm:"column:retry_count"`
+	NextRetryAt *time.Time `gorm:"column:next_retry_at"`
+	LockedUntil *time.Time `gorm:"column:locked_until"`
+	LastError   string     `gorm:"column:last_error"`
+	CreatedAt   time.Time  `gorm:"column:created_at"`
+	UpdatedAt   time.Time  `gorm:"column:updated_at"`
+	ProcessedAt *time.Time `gorm:"column:processed_at"`
+}
+
+func (campusAIContentAuditTaskModel) TableName() string { return "campus_ai_audit_task" }
+
 type campusKnowledgeDocumentModel struct {
 	ID           int64      `gorm:"column:id"`
 	Title        string     `gorm:"column:title"`
@@ -1902,6 +1933,179 @@ func (r *campusRepo) ResetAIReplyTask(ctx context.Context, id int64) error {
 		}).Error
 }
 
+func (r *campusRepo) GetOpsSetting(ctx context.Context, key string) (bool, string, string, time.Time, error) {
+	var row campusOpsSettingModel
+	err := r.data.db.WithContext(ctx).Model(&campusOpsSettingModel{}).
+		Where("setting_key = ?", strings.TrimSpace(key)).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, "", "", time.Time{}, nil
+	}
+	if err != nil {
+		return false, "", "", time.Time{}, err
+	}
+	updatedBy := ""
+	if row.UpdatedBy > 0 {
+		updatedBy = fmt.Sprintf("%d", row.UpdatedBy)
+	}
+	return true, row.Value, updatedBy, row.UpdatedAt, nil
+}
+
+func (r *campusRepo) SetOpsSetting(ctx context.Context, key, value, updatedBy string) error {
+	now := time.Now()
+	row := campusOpsSettingModel{
+		Key:       strings.TrimSpace(key),
+		Value:     strings.TrimSpace(value),
+		UpdatedBy: parseID(updatedBy),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	return r.data.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "setting_key"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"setting_value": row.Value,
+			"updated_by":    row.UpdatedBy,
+			"updated_at":    now,
+		}),
+	}).Create(&row).Error
+}
+
+func (r *campusRepo) CreateAIContentAuditTask(ctx context.Context, task *biz.CampusAIContentAuditTask) error {
+	if task == nil {
+		return nil
+	}
+	row := toAIContentAuditTaskModel(task)
+	return r.data.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "target_type"}, {Name: "target_id"}},
+		DoNothing: true,
+	}).Create(&row).Error
+}
+
+func (r *campusRepo) ClaimAIContentAuditTasks(ctx context.Context, limit int, lockFor time.Duration) ([]*biz.CampusAIContentAuditTask, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if lockFor <= 0 {
+		lockFor = 45 * time.Second
+	}
+	now := time.Now()
+	lockedUntil := now.Add(lockFor)
+	var rows []campusAIContentAuditTaskModel
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("((status = ? AND (next_retry_at IS NULL OR next_retry_at <= ?)) OR (status = ? AND (locked_until IS NULL OR locked_until < ?)))",
+				biz.CampusAIContentAuditTaskStatusPending, now, biz.CampusAIContentAuditTaskStatusProcessing, now).
+			Order("created_at ASC, id ASC").
+			Limit(limit).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		ids := make([]int64, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		return tx.Model(&campusAIContentAuditTaskModel{}).
+			Where("id IN ?", ids).
+			Updates(map[string]interface{}{
+				"status":       biz.CampusAIContentAuditTaskStatusProcessing,
+				"locked_until": lockedUntil,
+				"updated_at":   now,
+			}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*biz.CampusAIContentAuditTask, 0, len(rows))
+	for i := range rows {
+		rows[i].Status = biz.CampusAIContentAuditTaskStatusProcessing
+		rows[i].LockedUntil = &lockedUntil
+		out = append(out, toBizAIContentAuditTask(&rows[i]))
+	}
+	return out, nil
+}
+
+func (r *campusRepo) MarkAIContentAuditTaskDone(ctx context.Context, id int64, decision, riskLevel, reason, rawResult string) error {
+	now := time.Now()
+	return r.data.db.WithContext(ctx).Model(&campusAIContentAuditTaskModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":        biz.CampusAIContentAuditTaskStatusDone,
+			"decision":      trimLimitData(decision, 24),
+			"risk_level":    trimLimitData(riskLevel, 24),
+			"reason":        trimLimitData(reason, 255),
+			"raw_result":    trimLimitData(rawResult, 4000),
+			"locked_until":  nil,
+			"next_retry_at": nil,
+			"last_error":    "",
+			"processed_at":  now,
+			"updated_at":    now,
+		}).Error
+}
+
+func (r *campusRepo) MarkAIContentAuditTaskRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error {
+	status := biz.CampusAIContentAuditTaskStatusPending
+	if final {
+		status = biz.CampusAIContentAuditTaskStatusFailed
+	}
+	return r.data.db.WithContext(ctx).Model(&campusAIContentAuditTaskModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":        status,
+			"retry_count":   retryCount,
+			"next_retry_at": nextRetryAt,
+			"locked_until":  nil,
+			"last_error":    trimLimitData(lastError, 600),
+			"updated_at":    time.Now(),
+		}).Error
+}
+
+func (r *campusRepo) GetLatestAIContentAuditTask(ctx context.Context, targetType string, targetID int64) (bool, *biz.CampusAIContentAuditTask, error) {
+	var row campusAIContentAuditTaskModel
+	err := r.data.db.WithContext(ctx).Model(&campusAIContentAuditTaskModel{}).
+		Where("target_type = ? AND target_id = ?", targetType, targetID).
+		Order("created_at DESC, id DESC").
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	return true, toBizAIContentAuditTask(&row), nil
+}
+
+func (r *campusRepo) GetLatestAIContentAuditTasks(ctx context.Context, targetType string, targetIDs []int64) (map[int64]*biz.CampusAIContentAuditTask, error) {
+	out := map[int64]*biz.CampusAIContentAuditTask{}
+	if len(targetIDs) == 0 {
+		return out, nil
+	}
+	var rows []campusAIContentAuditTaskModel
+	if err := r.data.db.WithContext(ctx).Model(&campusAIContentAuditTaskModel{}).
+		Where("target_type = ? AND target_id IN ?", targetType, targetIDs).
+		Order("created_at DESC, id DESC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		if _, exists := out[rows[i].TargetID]; exists {
+			continue
+		}
+		out[rows[i].TargetID] = toBizAIContentAuditTask(&rows[i])
+	}
+	return out, nil
+}
+
+func (r *campusRepo) CountPendingAIContentAuditTasks(ctx context.Context) (int64, error) {
+	var count int64
+	err := r.data.db.WithContext(ctx).Model(&campusAIContentAuditTaskModel{}).
+		Where("status IN ?", []string{biz.CampusAIContentAuditTaskStatusPending, biz.CampusAIContentAuditTaskStatusProcessing}).
+		Count(&count).Error
+	return count, err
+}
+
 func (r *campusRepo) CreateKnowledgeDocument(ctx context.Context, doc *biz.CampusKnowledgeDocument) error {
 	if doc == nil {
 		return nil
@@ -3151,6 +3355,54 @@ func toBizAIReplyTask(row *campusAIReplyTaskModel) *biz.CampusAIReplyTask {
 		CreatedAt:        row.CreatedAt,
 		UpdatedAt:        row.UpdatedAt,
 		ProcessedAt:      row.ProcessedAt,
+	}
+}
+
+func toAIContentAuditTaskModel(in *biz.CampusAIContentAuditTask) campusAIContentAuditTaskModel {
+	now := time.Now()
+	status := in.Status
+	if status == "" {
+		status = biz.CampusAIContentAuditTaskStatusPending
+	}
+	return campusAIContentAuditTaskModel{
+		ID:          in.ID,
+		TargetType:  in.TargetType,
+		TargetID:    in.TargetID,
+		Status:      status,
+		RiskLevel:   in.RiskLevel,
+		Decision:    in.Decision,
+		Reason:      in.Reason,
+		RawResult:   in.RawResult,
+		RetryCount:  in.RetryCount,
+		NextRetryAt: in.NextRetryAt,
+		LockedUntil: in.LockedUntil,
+		LastError:   in.LastError,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		ProcessedAt: in.ProcessedAt,
+	}
+}
+
+func toBizAIContentAuditTask(row *campusAIContentAuditTaskModel) *biz.CampusAIContentAuditTask {
+	if row == nil {
+		return nil
+	}
+	return &biz.CampusAIContentAuditTask{
+		ID:          row.ID,
+		TargetType:  row.TargetType,
+		TargetID:    row.TargetID,
+		Status:      row.Status,
+		RiskLevel:   row.RiskLevel,
+		Decision:    row.Decision,
+		Reason:      row.Reason,
+		RawResult:   row.RawResult,
+		RetryCount:  row.RetryCount,
+		NextRetryAt: row.NextRetryAt,
+		LockedUntil: row.LockedUntil,
+		LastError:   row.LastError,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+		ProcessedAt: row.ProcessedAt,
 	}
 }
 

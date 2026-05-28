@@ -138,6 +138,61 @@ func TestCreatePostAllowsOpsFlagsForOperator(t *testing.T) {
 	}
 }
 
+func TestCreatePostManualAuditModeCreatesPendingPost(t *testing.T) {
+	repo := &campusRepoStub{
+		category: &CampusForumCategory{Code: "guide", Name: "校园攻略"},
+		roles:    map[string]string{},
+		settings: map[string]string{"post_audit_mode": CampusPostAuditModeManual},
+	}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{users: map[string]*UserBaseInfo{"10": {ID: "10"}}}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
+
+	post, err := uc.CreatePost(context.Background(), &CreateCampusPostInput{
+		UserID:       "10",
+		CategoryCode: "guide",
+		Title:        "报到攻略",
+		Content:      "这里是报到攻略内容",
+		MediaType:    CampusPostMediaText,
+		PostType:     CampusPostTypeGuide,
+	})
+	if err != nil {
+		t.Fatalf("CreatePost() error = %v", err)
+	}
+	if post.Status != CampusAuditStatusPending || post.AuditReason == "" {
+		t.Fatalf("post status=%d reason=%q, want pending with reason", post.Status, post.AuditReason)
+	}
+	if len(repo.aiAuditTasks) != 0 {
+		t.Fatalf("manual audit should not queue ai tasks, got %d", len(repo.aiAuditTasks))
+	}
+}
+
+func TestCreatePostAIAuditModeQueuesTaskWhenEnabled(t *testing.T) {
+	t.Setenv("CAMPUS_AI_AUDIT_API_KEY", "test-key")
+	repo := &campusRepoStub{
+		category: &CampusForumCategory{Code: "guide", Name: "校园攻略"},
+		roles:    map[string]string{},
+		settings: map[string]string{"post_audit_mode": CampusPostAuditModeAI},
+	}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{users: map[string]*UserBaseInfo{"10": {ID: "10"}}}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
+
+	post, err := uc.CreatePost(context.Background(), &CreateCampusPostInput{
+		UserID:       "10",
+		CategoryCode: "guide",
+		Title:        "报到攻略",
+		Content:      "这里是报到攻略内容",
+		MediaType:    CampusPostMediaText,
+		PostType:     CampusPostTypeGuide,
+	})
+	if err != nil {
+		t.Fatalf("CreatePost() error = %v", err)
+	}
+	if post.Status != CampusAuditStatusPending {
+		t.Fatalf("post status=%d, want pending", post.Status)
+	}
+	if len(repo.aiAuditTasks) != 1 || repo.aiAuditTasks[0].TargetID != post.ID {
+		t.Fatalf("ai audit tasks=%v, want one task for post %d", repo.aiAuditTasks, post.ID)
+	}
+}
+
 func TestListPostsPassesPostTypeQuery(t *testing.T) {
 	repo := &campusRepoStub{roles: map[string]string{}}
 	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), nil, "secret", log.NewStdLogger(ioDiscard{}))
@@ -558,6 +613,8 @@ type campusRepoStub struct {
 	aiReplyTasks         []*CampusAIReplyTask
 	doneAIReplyTaskIDs   []int64
 	resetAIReplyTaskIDs  []int64
+	settings             map[string]string
+	aiAuditTasks         []*CampusAIContentAuditTask
 }
 
 func (r *campusRepoStub) GetCategoryByCode(ctx context.Context, code string) (bool, *CampusForumCategory, error) {
@@ -806,6 +863,50 @@ func (r *campusRepoStub) ListAIReplyTasks(context.Context, string, int, int) ([]
 func (r *campusRepoStub) ResetAIReplyTask(_ context.Context, id int64) error {
 	r.resetAIReplyTaskIDs = append(r.resetAIReplyTaskIDs, id)
 	return nil
+}
+func (r *campusRepoStub) GetOpsSetting(_ context.Context, key string) (bool, string, string, time.Time, error) {
+	if r.settings == nil {
+		return false, "", "", time.Time{}, nil
+	}
+	value, ok := r.settings[key]
+	if !ok {
+		return false, "", "", time.Time{}, nil
+	}
+	return true, value, "1", time.Now(), nil
+}
+func (r *campusRepoStub) SetOpsSetting(_ context.Context, key, value, _ string) error {
+	if r.settings == nil {
+		r.settings = map[string]string{}
+	}
+	r.settings[key] = value
+	return nil
+}
+func (r *campusRepoStub) CreateAIContentAuditTask(_ context.Context, task *CampusAIContentAuditTask) error {
+	if task != nil {
+		copyTask := *task
+		r.aiAuditTasks = append(r.aiAuditTasks, &copyTask)
+	}
+	return nil
+}
+func (r *campusRepoStub) ClaimAIContentAuditTasks(context.Context, int, time.Duration) ([]*CampusAIContentAuditTask, error) {
+	out := r.aiAuditTasks
+	r.aiAuditTasks = nil
+	return out, nil
+}
+func (r *campusRepoStub) MarkAIContentAuditTaskDone(context.Context, int64, string, string, string, string) error {
+	return nil
+}
+func (r *campusRepoStub) MarkAIContentAuditTaskRetry(context.Context, int64, int32, *time.Time, string, bool) error {
+	return nil
+}
+func (r *campusRepoStub) GetLatestAIContentAuditTask(context.Context, string, int64) (bool, *CampusAIContentAuditTask, error) {
+	return false, nil, nil
+}
+func (r *campusRepoStub) GetLatestAIContentAuditTasks(context.Context, string, []int64) (map[int64]*CampusAIContentAuditTask, error) {
+	return map[int64]*CampusAIContentAuditTask{}, nil
+}
+func (r *campusRepoStub) CountPendingAIContentAuditTasks(context.Context) (int64, error) {
+	return int64(len(r.aiAuditTasks)), nil
 }
 func (r *campusRepoStub) CreateKnowledgeDocument(context.Context, *CampusKnowledgeDocument) error {
 	return nil
