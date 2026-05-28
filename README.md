@@ -26,6 +26,32 @@ docker compose up -d
 http://localhost:18080
 ```
 
+### 校园 e站最小启动
+
+如果只上线/内测校园 e站，不需要启动短视频和聊天相关容器。推荐最小启动：
+
+```bash
+export LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS=true
+export LEHU_DISABLE_API_KAFKA_CONSUMER=true
+docker compose up -d mysql redis minio minio-init consul base core qdrant campus-rag api uptime-kuma dozzle
+```
+
+这套最小启动不包含 `kafka / kafka-init / chat`。如果要同时体验短视频 Feed 写扩散或聊天消息链路，再启动完整 `docker compose up -d`，并把上面两个禁用 Kafka 消费者的环境变量取消。
+
+后台权限默认不会放开。正式环境请至少配置一个管理员：
+
+```bash
+export LEHU_CAMPUS_ADMIN_USER_IDS=你的用户ID
+```
+
+本地临时调试后台时，才使用：
+
+```bash
+export LEHU_CAMPUS_ADMIN_ALLOW_ALL=true
+```
+
+正式/体验服务器不要开启 `LEHU_CAMPUS_ADMIN_ALLOW_ALL=true`。
+
 如果修改了后端代码或 Docker 配置，需要重新构建：
 
 ```bash

@@ -2682,6 +2682,7 @@ func commentToMap(comment *biz.CampusForumComment) map[string]interface{} {
 		"post":                postToMap(comment.Post),
 		"parent_id":           strconv.FormatInt(comment.ParentID, 10),
 		"reply_to_comment_id": strconv.FormatInt(comment.ReplyToCommentID, 10),
+		"reply_to_user_id":    comment.ReplyToUserID,
 		"reply_to_user":       authorToMap(comment.ReplyToUser),
 		"author":              authorToMap(comment.Author),
 		"content":             comment.Content,

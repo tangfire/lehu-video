@@ -3,6 +3,9 @@ package server
 
 import (
 	"context"
+	"os"
+	"strings"
+
 	"lehu-video/app/videoCore/service/internal/biz"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -21,6 +24,10 @@ func NewFavoriteKafkaConsumerServer(consumer *biz.FavoriteConsumer, logger log.L
 }
 
 func (s *FavoriteKafkaConsumerServer) Start(ctx context.Context) error {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS")), "true") {
+		s.log.Info("Favorite Kafka 消费者已关闭")
+		return nil
+	}
 	s.log.Info("启动 Favorite Kafka 消费者服务")
 	s.consumer.Start() // 直接调用 Start，内部已启动 goroutine
 	return nil

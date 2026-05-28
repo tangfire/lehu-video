@@ -3,6 +3,9 @@ package server
 
 import (
 	"context"
+	"os"
+	"strings"
+
 	"lehu-video/app/videoCore/service/internal/biz"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -22,6 +25,10 @@ func NewVideoKafkaConsumerServer(consumer *biz.KafkaConsumer, logger log.Logger)
 
 // Start 启动消费者服务，实现 kratos.Service 接口
 func (s *VideoKafkaConsumerServer) Start(ctx context.Context) error {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS")), "true") {
+		s.log.Info("Video Kafka 消费者已关闭")
+		return nil
+	}
 	s.log.Info("启动 Kafka 消费者服务")
 	go func() {
 		if err := s.consumer.Run(ctx); err != nil {

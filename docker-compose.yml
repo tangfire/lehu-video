@@ -190,6 +190,8 @@ services:
       args:
         SERVICE_PATH: ./app/videoCore/service/cmd/service
     container_name: lehu-core
+    environment:
+      LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS: ${LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS:-false}
     depends_on:
       mysql:
         condition: service_healthy
@@ -197,8 +199,6 @@ services:
         condition: service_healthy
       consul:
         condition: service_started
-      kafka-init:
-        condition: service_completed_successfully
     command: ["-conf", "/data/conf"]
     volumes:
       - ./deploy/config/videoCore:/data/conf:ro
@@ -250,7 +250,10 @@ services:
     container_name: lehu-api
     environment:
       LEHU_DEV_VERIFICATION_CODE: "888888"
-      LEHU_CAMPUS_ADMIN_ALLOW_ALL: "true"
+      LEHU_CAMPUS_ADMIN_ALLOW_ALL: ${LEHU_CAMPUS_ADMIN_ALLOW_ALL:-false}
+      LEHU_CAMPUS_ADMIN_USER_IDS: ${LEHU_CAMPUS_ADMIN_USER_IDS:-}
+      LEHU_CAMPUS_OPERATOR_USER_IDS: ${LEHU_CAMPUS_OPERATOR_USER_IDS:-}
+      LEHU_DISABLE_API_KAFKA_CONSUMER: ${LEHU_DISABLE_API_KAFKA_CONSUMER:-false}
       CAMPUS_RAG_BASE_URL: http://campus-rag:8090
     depends_on:
       mysql:
@@ -259,13 +262,9 @@ services:
         condition: service_healthy
       consul:
         condition: service_started
-      kafka-init:
-        condition: service_completed_successfully
       base:
         condition: service_started
       core:
-        condition: service_started
-      chat:
         condition: service_started
       campus-rag:
         condition: service_started
