@@ -764,6 +764,7 @@ type CampusRepo interface {
 	ListComments(ctx context.Context, query ListCampusCommentQuery) ([]*CampusForumComment, int64, error)
 	FillCommentPosts(ctx context.Context, comments []*CampusForumComment) error
 	GetCommentByID(ctx context.Context, commentID int64) (bool, *CampusForumComment, error)
+	GetAnyCommentByID(ctx context.Context, commentID int64) (bool, *CampusForumComment, error)
 	DeleteComment(ctx context.Context, commentID int64) error
 	UpdateCommentStatus(ctx context.Context, commentID int64, status int32, reason string) error
 	GetCommentLikeStatus(ctx context.Context, userID string, commentIDs []int64) (map[int64]bool, error)
@@ -1827,7 +1828,7 @@ func (uc *CampusUsecase) ReviewContent(ctx context.Context, input *ReviewCampusC
 			return apperror.Internal(err, "审核帖子失败")
 		}
 	} else {
-		ok, _, err := uc.repo.GetCommentByID(ctx, input.TargetID)
+		ok, _, err := uc.repo.GetAnyCommentByID(ctx, input.TargetID)
 		if err != nil {
 			return apperror.Internal(err, "查询评论失败")
 		}

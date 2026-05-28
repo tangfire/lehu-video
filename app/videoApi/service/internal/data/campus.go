@@ -553,7 +553,11 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 	}
 	if query.Keyword != "" {
 		keyword := "%" + query.Keyword + "%"
-		db = db.Where("(campus_forum_post.title LIKE ? OR campus_forum_post.content LIKE ?)", keyword, keyword)
+		if postID, err := strconv.ParseInt(strings.TrimSpace(query.Keyword), 10, 64); err == nil && postID > 0 {
+			db = db.Where("(campus_forum_post.id = ? OR campus_forum_post.title LIKE ? OR campus_forum_post.content LIKE ?)", postID, keyword, keyword)
+		} else {
+			db = db.Where("(campus_forum_post.title LIKE ? OR campus_forum_post.content LIKE ?)", keyword, keyword)
+		}
 	}
 	if query.OnlyOfficial != nil {
 		db = db.Where("campus_forum_post.is_official = ?", *query.OnlyOfficial)
@@ -940,6 +944,20 @@ func (r *campusRepo) GetCommentByID(ctx context.Context, commentID int64) (bool,
 	var row campusForumCommentModel
 	err := r.data.db.WithContext(ctx).
 		Where("id = ? AND is_deleted = ?", commentID, false).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	return true, toBizComment(&row), nil
+}
+
+func (r *campusRepo) GetAnyCommentByID(ctx context.Context, commentID int64) (bool, *biz.CampusForumComment, error) {
+	var row campusForumCommentModel
+	err := r.data.db.WithContext(ctx).
+		Where("id = ?", commentID).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil, nil

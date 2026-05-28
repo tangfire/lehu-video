@@ -442,6 +442,9 @@ func (r *campusRepoStub) FillCommentPosts(context.Context, []*CampusForumComment
 func (r *campusRepoStub) GetCommentByID(context.Context, int64) (bool, *CampusForumComment, error) {
 	return false, nil, nil
 }
+func (r *campusRepoStub) GetAnyCommentByID(context.Context, int64) (bool, *CampusForumComment, error) {
+	return false, nil, nil
+}
 func (r *campusRepoStub) DeleteComment(context.Context, int64) error { return nil }
 func (r *campusRepoStub) UpdateCommentStatus(context.Context, int64, int32, string) error {
 	return nil
