@@ -26,6 +26,7 @@ HOST_REWRITE = os.getenv("MINIO_PUBLIC_HOST_REWRITE", "localhost:19000=minio:900
 CHUNK_SIZE = int(os.getenv("CAMPUS_RAG_CHUNK_SIZE", "800"))
 CHUNK_OVERLAP = int(os.getenv("CAMPUS_RAG_CHUNK_OVERLAP", "120"))
 QUERY_TIMEOUT = float(os.getenv("CAMPUS_RAG_HTTP_TIMEOUT", "20"))
+MIN_CHUNK_CONFIDENCE = float(os.getenv("CAMPUS_RAG_MIN_CHUNK_CONFIDENCE", "0.48"))
 
 app = FastAPI(title="campus-rag", version="1.0.0")
 qdrant = QdrantClient(url=QDRANT_URL, timeout=QUERY_TIMEOUT)
@@ -92,20 +93,107 @@ def parse_file(file_url: str, file_type: str) -> str:
     raise HTTPException(status_code=400, detail="unsupported file_type")
 
 
+def is_heading(line: str) -> bool:
+    value = line.strip()
+    if not value or len(value) > 64:
+        return False
+    if re.match(r"^(#{1,6}\s*)?([一二三四五六七八九十]+[、.．]|第[一二三四五六七八九十0-9]+[章节条]|[0-9]+[、.．)]|[（(][一二三四五六七八九十0-9]+[）)])", value):
+        return True
+    if re.match(r"^【[^】]{2,30}】$", value):
+        return True
+    heading_words = ("须知", "指南", "流程", "安排", "说明", "时间", "地点", "材料", "路线", "FAQ", "问答", "政策", "规则", "入口")
+    if any(value.endswith(word) for word in heading_words):
+        return True
+    return False
+
+
+def split_long_block(text: str, limit: int) -> List[str]:
+    text = text.strip()
+    if len(text) <= limit:
+        return [text] if text else []
+    sentences = [item.strip() for item in re.split(r"(?<=[。！？!?；;])", text) if item.strip()]
+    if len(sentences) <= 1:
+        chunks: List[str] = []
+        start = 0
+        while start < len(text):
+            end = min(len(text), start + limit)
+            chunk = text[start:end].strip()
+            if chunk:
+                chunks.append(chunk)
+            if end >= len(text):
+                break
+            start = max(end - CHUNK_OVERLAP, start + 1)
+        return chunks
+    chunks = []
+    current = ""
+    for sentence in sentences:
+        if current and len(current) + len(sentence) + 1 > limit:
+            chunks.append(current.strip())
+            overlap = current[-CHUNK_OVERLAP:].strip() if CHUNK_OVERLAP > 0 else ""
+            current = overlap + ("\n" if overlap else "") + sentence
+        else:
+            current = (current + sentence) if current else sentence
+    if current.strip():
+        chunks.append(current.strip())
+    return chunks
+
+
+def build_text_blocks(text: str) -> List[str]:
+    lines = [line.strip() for line in normalize_text(text).split("\n")]
+    blocks: List[str] = []
+    current: List[str] = []
+    section_title = ""
+
+    def flush_current() -> None:
+        nonlocal current
+        if not current:
+            return
+        block = "\n".join(current).strip()
+        if block:
+            blocks.append(block)
+        current = []
+
+    for line in lines:
+        if not line:
+            flush_current()
+            continue
+        if is_heading(line):
+            flush_current()
+            section_title = line
+            current = [line]
+            continue
+        if section_title and not current:
+            current.append(section_title)
+        current.append(line)
+    flush_current()
+    return blocks
+
+
 def chunk_text(text: str) -> List[str]:
     text = normalize_text(text)
     if not text:
         return []
+    blocks = build_text_blocks(text)
+    if not blocks:
+        return []
     chunks: List[str] = []
-    start = 0
-    while start < len(text):
-        end = min(len(text), start + CHUNK_SIZE)
-        chunk = text[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-        if end >= len(text):
-            break
-        start = max(end - CHUNK_OVERLAP, start + 1)
+    current = ""
+    for block in blocks:
+        if len(block) > CHUNK_SIZE:
+            if current.strip():
+                chunks.append(current.strip())
+                current = ""
+            chunks.extend(split_long_block(block, CHUNK_SIZE))
+            continue
+        candidate = f"{current}\n\n{block}".strip() if current else block
+        if len(candidate) <= CHUNK_SIZE:
+            current = candidate
+            continue
+        if current.strip():
+            chunks.append(current.strip())
+        current = block
+    if current.strip():
+        chunks.append(current.strip())
     return chunks
 
 
@@ -119,10 +207,17 @@ def need_knowledge(query: str) -> bool:
     q = query.strip()
     if len(q) <= 4:
         return False
+    casual_patterns = ["谢谢", "感谢", "哈哈", "你好", "在吗", "收到", "可以", "好的", "没事"]
+    if len(q) <= 12 and any(item == q or item in q for item in casual_patterns):
+        return False
     keywords = [
         "报到", "宿舍", "校区", "校园网", "军训", "快递", "交通", "路线", "教务", "课表",
         "选课", "学费", "缴费", "深圳职业技术大学", "深汕", "社团", "新生", "学院", "通知",
         "什么时候", "在哪里", "怎么去", "怎么办", "要求", "规定", "政策",
+        "食堂", "饭堂", "餐厅", "校车", "公交", "地铁", "图书馆", "医保", "银行卡", "校园卡",
+        "一卡通", "宿舍电费", "电费", "水电", "门禁", "洗衣", "热水", "饮水", "空调", "宽带",
+        "体检", "体测", "入学教育", "辅导员", "班级群", "快递点", "取件", "打印", "复印",
+        "奖学金", "助学金", "贷款", "请假", "假条", "校历", "考试", "成绩", "补考",
     ]
     return any(k in q for k in keywords)
 
@@ -159,9 +254,14 @@ def point_id(document_id: int, chunk_index: int) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"campus-knowledge:{document_id}:{chunk_index}"))
 
 
-def payload_to_chunk(point: Any, score: float = 0.0) -> Dict[str, Any]:
+def collection_exists() -> bool:
+    collections = qdrant.get_collections().collections
+    return any(item.name == QDRANT_COLLECTION for item in collections)
+
+
+def payload_to_chunk(point: Any, score: float = 0.0, score_key: str = "_dense_score") -> Dict[str, Any]:
     payload = point.payload or {}
-    return {
+    item = {
         "chunk_id": str(payload.get("chunk_id") or point.id),
         "document_id": str(payload.get("document_id") or ""),
         "title": payload.get("title") or "",
@@ -170,9 +270,13 @@ def payload_to_chunk(point: Any, score: float = 0.0) -> Dict[str, Any]:
         "source": payload.get("source") or "",
         "score": round(float(score), 4),
     }
+    item[score_key] = float(score or 0)
+    return item
 
 
 def scroll_active(categories: Optional[List[str]] = None, limit: int = 1000) -> List[Any]:
+    if not collection_exists():
+        return []
     conditions = [models.FieldCondition(key="status", match=models.MatchValue(value="active"))]
     if categories:
         conditions.append(models.FieldCondition(key="category", match=models.MatchAny(any=categories)))
@@ -186,25 +290,79 @@ def scroll_active(categories: Optional[List[str]] = None, limit: int = 1000) -> 
     return points
 
 
-def rrf_fuse(dense: List[Dict[str, Any]], sparse: List[Dict[str, Any]], top_k: int) -> List[Dict[str, Any]]:
+def meaningful_terms(text: str) -> set:
+    stopwords = {
+        "的", "了", "呢", "吗", "啊", "呀", "和", "与", "以及", "一个", "一下", "怎么", "什么", "哪里",
+        "什么时候", "怎么办", "可以", "需要", "有没有", "是不是", "我们", "你们", "学校", "校园",
+    }
+    terms = set()
+    for word in tokenize(text):
+        value = word.strip().lower()
+        if not value or value in stopwords:
+            continue
+        if len(value) == 1 and not re.match(r"[a-zA-Z0-9]", value):
+            continue
+        terms.add(value)
+    return terms
+
+
+def overlap_score(query: str, content: str) -> float:
+    query_terms = meaningful_terms(query)
+    if not query_terms:
+        return 0.0
+    content_terms = meaningful_terms(content)
+    if not content_terms:
+        return 0.0
+    matched = len(query_terms & content_terms)
+    return min(1.0, matched / max(1, min(len(query_terms), 5)))
+
+
+def clamp01(value: float) -> float:
+    return max(0.0, min(1.0, float(value or 0)))
+
+
+def chunk_confidence(item: Dict[str, Any], query: str) -> float:
+    dense_score = clamp01(item.get("_dense_score", 0.0))
+    sparse_score = clamp01(item.get("_sparse_score", 0.0))
+    lexical_score = overlap_score(query, item.get("content") or "")
+    if dense_score and sparse_score:
+        confidence = dense_score * 0.58 + sparse_score * 0.25 + lexical_score * 0.17
+    elif dense_score:
+        confidence = dense_score * 0.72 + lexical_score * 0.18
+    elif sparse_score:
+        confidence = sparse_score * 0.65 + lexical_score * 0.2
+    else:
+        confidence = lexical_score * 0.4
+    if lexical_score == 0 and sparse_score == 0:
+        confidence *= 0.78
+    return clamp01(confidence)
+
+
+def rrf_fuse(dense: List[Dict[str, Any]], sparse: List[Dict[str, Any]], top_k: int, query_text: str) -> List[Dict[str, Any]]:
     scores: Dict[str, float] = {}
     payloads: Dict[str, Dict[str, Any]] = {}
     for rank, item in enumerate(dense):
         key = item["chunk_id"]
         scores[key] = scores.get(key, 0.0) + 1.0 / (60 + rank + 1)
-        payloads[key] = item
+        payloads[key] = {**payloads.get(key, {}), **item}
     for rank, item in enumerate(sparse):
         key = item["chunk_id"]
         scores[key] = scores.get(key, 0.0) + 1.0 / (60 + rank + 1)
-        payloads[key] = item
+        payloads[key] = {**payloads.get(key, {}), **item}
     fused = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
     if not fused:
         return []
-    max_score = fused[0][1] or 1
     out = []
     for key, score in fused[:top_k]:
         item = dict(payloads[key])
-        item["score"] = round(score / max_score, 4)
+        item["_rrf_score"] = score
+        confidence = chunk_confidence(item, query_text)
+        if confidence < MIN_CHUNK_CONFIDENCE:
+            continue
+        item["score"] = round(confidence, 4)
+        item.pop("_dense_score", None)
+        item.pop("_sparse_score", None)
+        item.pop("_rrf_score", None)
         out.append(item)
     return out
 
@@ -302,6 +460,8 @@ def index_content(req: IndexRequest, text: str) -> Dict[str, Any]:
 
 @app.post("/internal/rag/delete-document")
 def delete_document(req: DeleteRequest) -> Dict[str, Any]:
+    if not collection_exists():
+        return {"deleted": True}
     try:
         qdrant.delete(
             collection_name=QDRANT_COLLECTION,
@@ -317,8 +477,8 @@ def delete_document(req: DeleteRequest) -> Dict[str, Any]:
             ),
             wait=True,
         )
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"delete document failed: {exc}") from exc
     return {"deleted": True}
 
 
@@ -329,6 +489,8 @@ def query(req: QueryRequest) -> Dict[str, Any]:
     should_search = need_knowledge(query_text)
     if not should_search:
         return {"need_knowledge": False, "confidence": 0, "chunks": []}
+    if not collection_exists():
+        return {"need_knowledge": True, "confidence": 0, "chunks": []}
     try:
         query_vector = embed_texts([query_text])[0]
         conditions = [models.FieldCondition(key="status", match=models.MatchValue(value="active"))]
@@ -341,7 +503,7 @@ def query(req: QueryRequest) -> Dict[str, Any]:
             limit=top_k * 2,
             with_payload=True,
         )
-        dense = [payload_to_chunk(point, point.score) for point in dense_points]
+        dense = [payload_to_chunk(point, point.score, "_dense_score") for point in dense_points]
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"vector search failed: {exc}") from exc
 
@@ -358,8 +520,8 @@ def query(req: QueryRequest) -> Dict[str, Any]:
             for index, score in ranked:
                 if score <= 0:
                     continue
-                sparse.append(payload_to_chunk(points[index], score / max_score))
-    fused = rrf_fuse(dense, sparse, top_k)
+                sparse.append(payload_to_chunk(points[index], score / max_score, "_sparse_score"))
+    fused = rrf_fuse(dense, sparse, top_k, query_text)
     confidence = fused[0]["score"] if fused else 0
     return {
         "need_knowledge": True,
