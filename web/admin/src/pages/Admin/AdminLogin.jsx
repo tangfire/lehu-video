@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { userApi, identifyInputType, saveUserData } from '../../api/user';
+import { userApi, identifyInputType, saveUserData, clearUserData } from '../../api/user';
 import { campusAdminApi } from '../../api/admin';
 import './Admin.css';
 
@@ -41,6 +41,7 @@ const AdminLogin = () => {
             await campusAdminApi.summary();
             navigate(from, { replace: true });
         } catch (err) {
+            clearUserData();
             setError(err.message || '登录失败或没有后台权限');
         } finally {
             setLoading(false);

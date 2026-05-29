@@ -29,6 +29,11 @@ const withRequestIdMessage = (message, requestId) => {
     return `${message}\n请求编号：${requestId}`;
 };
 
+const isLoginRequest = (config = {}) => {
+    const url = String(config.url || '');
+    return url.endsWith('/user/login') || url.endsWith('/v1/user/login');
+};
+
 // 生成请求唯一标识
 const generateRequestKey = (config) => {
     const url = config.url || '';
@@ -145,7 +150,7 @@ request.interceptors.response.use(
     (error) => {
         cleanupRequest(error.config);
 
-        if (error.response?.status === 401) {
+        if (error.response?.status === 401 && !isLoginRequest(error.config)) {
             clearUserData();
             setTimeout(() => {
                 window.location.href = '/admin/login';
