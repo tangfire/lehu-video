@@ -744,8 +744,8 @@ type batchPostsRequest struct {
 }
 
 type createMomentsPackageRequest struct {
-	Date    string  `json:"date"`
-	PostIDs []int64 `json:"post_ids"`
+	Date    string            `json:"date"`
+	PostIDs []json.RawMessage `json:"post_ids"`
 }
 
 type feedbackRequest struct {
@@ -1485,10 +1485,15 @@ func (s *CampusService) handleAdminCreateMomentsPackage(w http.ResponseWriter, r
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	postIDs, err := parseRawInt64List(req.PostIDs)
+	if err != nil {
+		writeError(w, r, apperror.InvalidArgument("帖子 ID 无效"))
+		return
+	}
 	out, err := s.uc.AdminCreateMomentsPackage(r.Context(), &biz.CreateCampusMomentsPackageInput{
 		UserID:    userID,
 		Date:      req.Date,
-		PostIDs:   req.PostIDs,
+		PostIDs:   postIDs,
 		RequestID: r.Header.Get("X-Request-ID"),
 	})
 	if err != nil {
@@ -2147,6 +2152,40 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, out interface{}) bool {
 		return false
 	}
 	return true
+}
+
+func parseRawInt64List(values []json.RawMessage) ([]int64, error) {
+	out := make([]int64, 0, len(values))
+	seen := make(map[int64]struct{}, len(values))
+	for _, raw := range values {
+		text := strings.TrimSpace(string(raw))
+		if text == "" || text == "null" {
+			continue
+		}
+		if strings.HasPrefix(text, "\"") {
+			var value string
+			if err := json.Unmarshal(raw, &value); err != nil {
+				return nil, err
+			}
+			text = strings.TrimSpace(value)
+		}
+		if text == "" {
+			continue
+		}
+		if strings.ContainsAny(text, ".eE") {
+			return nil, fmt.Errorf("invalid int64 value: %s", text)
+		}
+		id, err := strconv.ParseInt(text, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("invalid int64 value: %s", text)
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out, nil
 }
 
 func writeJSON(w http.ResponseWriter, r *http.Request, data interface{}) {

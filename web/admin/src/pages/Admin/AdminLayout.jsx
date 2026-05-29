@@ -64,6 +64,12 @@ const subtitleMap = {
     '/admin/permissions': '集中分配运营和管理员权限，避免在用户管理里误操作。',
 };
 
+const displayOperatorName = (user) => {
+    const value = (user?.nickname || user?.name || '').trim();
+    if (!value) return '运营同学';
+    return /[ÃÂÆæÅåÇç]/.test(value) ? 'Admin' : value;
+};
+
 const AdminLayout = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -132,7 +138,7 @@ const AdminLayout = () => {
                             <p>{subtitleMap[location.pathname] || '深汕e仔官方内容、社区秩序和增长数据都在这里处理。'}</p>
                         </div>
                         <div className="admin-user">
-                            <span>{user?.nickname || user?.name || '运营同学'}</span>
+                            <span>{displayOperatorName(user)}</span>
                             <button className="admin-button" onClick={logout}>退出</button>
                         </div>
                     </header>

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 )
@@ -57,5 +58,29 @@ func TestClientIPHandlesIPv6RemoteAddr(t *testing.T) {
 
 	if got := clientIP(req); got != "2001:db8::1" {
 		t.Fatalf("clientIP() = %q, want IPv6 remote address", got)
+	}
+}
+
+func TestParseRawInt64ListKeepsSnowflakePrecision(t *testing.T) {
+	values := []json.RawMessage{
+		json.RawMessage(`"2060350884549840896"`),
+		json.RawMessage(`2060350884549840896`),
+		json.RawMessage(`"2060350884549840896"`),
+	}
+
+	got, err := parseRawInt64List(values)
+	if err != nil {
+		t.Fatalf("parseRawInt64List() error = %v", err)
+	}
+	if len(got) != 1 || got[0] != 2060350884549840896 {
+		t.Fatalf("parseRawInt64List() = %#v, want deduped exact snowflake id", got)
+	}
+}
+
+func TestParseRawInt64ListRejectsUnsafeNumberForms(t *testing.T) {
+	values := []json.RawMessage{json.RawMessage(`2.0603508845498409e18`)}
+
+	if _, err := parseRawInt64List(values); err == nil {
+		t.Fatalf("parseRawInt64List() error = nil, want error for exponent notation")
 	}
 }

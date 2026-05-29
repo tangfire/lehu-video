@@ -1511,6 +1511,16 @@
     background: #fff7f8;
 }
 
+.admin-moments-candidate.disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.admin-moments-candidate.disabled:hover {
+    border-color: var(--admin-line);
+    background: #fff;
+}
+
 .admin-moments-candidate-cover {
     position: relative;
     width: 64px;

@@ -18,6 +18,8 @@ const revokePreviews = (items) => {
     });
 };
 
+const isGeneratablePost = (post) => post?.media_type === 'image' && !!postCover(post);
+
 const AdminMoments = () => {
     const [date, setDate] = useState(today());
     const [packageData, setPackageData] = useState(null);
@@ -41,8 +43,9 @@ const AdminMoments = () => {
                 const data = await campusAdminApi.listMomentsCandidates({ date });
                 if (!active) return;
                 const posts = data.posts || [];
+                const readyPosts = posts.filter(isGeneratablePost);
                 setCandidates(posts);
-                setSelectedIds(posts.slice(0, 9).map((post) => String(post.id)));
+                setSelectedIds(readyPosts.slice(0, 9).map((post) => String(post.id)));
                 setPackageData(null);
                 setPreviews((old) => {
                     revokePreviews(old);
@@ -91,9 +94,17 @@ const AdminMoments = () => {
         setError('');
         setMessage('');
         try {
+            const readySelectedIds = selectedIds.filter((id) => {
+                const post = candidates.find((item) => String(item.id) === id);
+                return !post || isGeneratablePost(post);
+            });
+            if (selectedIds.length > 0 && readySelectedIds.length === 0) {
+                setError('请选择至少 1 条带图片的帖子');
+                return;
+            }
             const payload = {
                 date,
-                ...(selectedIds.length > 0 ? { post_ids: selectedIds.map((id) => Number(id)).filter(Boolean) } : {}),
+                ...(readySelectedIds.length > 0 ? { post_ids: readySelectedIds } : {}),
             };
             const data = await campusAdminApi.createMomentsPackage(payload);
             const pkg = data.package;
@@ -119,14 +130,25 @@ const AdminMoments = () => {
                 setError('最多选择 9 个帖子');
                 return current;
             }
+            const post = candidates.find((item) => String(item.id) === id);
+            if (post && !isGeneratablePost(post)) {
+                setError('只能选择带图片的帖子');
+                return current;
+            }
             return [...current, id];
         });
     };
 
     const useTopNine = () => {
-        setSelectedIds(candidates.slice(0, 9).map((post) => String(post.id)));
-        setMessage('已按热度选择前 9 个帖子');
-        setError('');
+        const readyPosts = candidates.filter(isGeneratablePost);
+        setSelectedIds(readyPosts.slice(0, 9).map((post) => String(post.id)));
+        setMessage(readyPosts.length > 0 ? '已按热度选择前 9 个图片帖' : '');
+        if (readyPosts.length === 0) {
+            setError('当天还没有可生成素材的图片帖');
+        }
+        if (readyPosts.length > 0) {
+            setError('');
+        }
     };
 
     const refreshCandidates = async () => {
@@ -136,7 +158,7 @@ const AdminMoments = () => {
             const data = await campusAdminApi.listMomentsCandidates({ date });
             const posts = data.posts || [];
             setCandidates(posts);
-            setSelectedIds((current) => current.filter((id) => posts.some((post) => String(post.id) === id)).slice(0, 9));
+            setSelectedIds((current) => current.filter((id) => posts.some((post) => String(post.id) === id && isGeneratablePost(post))).slice(0, 9));
             setMessage('候选列表已刷新');
         } catch (err) {
             setError(err.message || '刷新候选失败');
@@ -206,7 +228,7 @@ const AdminMoments = () => {
                 <div className="admin-panel-head">
                     <div>
                         <h2>选择帖子</h2>
-                        <p>{candidateLoading ? '正在加载候选' : `候选 ${candidates.length} 条，已选 ${selectedIds.length} 条`}</p>
+                        <p>{candidateLoading ? '正在加载候选' : `可生成 ${candidates.filter(isGeneratablePost).length} 条，已选 ${selectedIds.length} 条`}</p>
                     </div>
                     <div className="admin-head-actions">
                         <button className="admin-button" type="button" onClick={useTopNine} disabled={candidateLoading || candidates.length === 0}>
@@ -228,12 +250,14 @@ const AdminMoments = () => {
                             const id = String(post.id);
                             const selected = selectedSet.has(id);
                             const order = selected ? selectedIds.indexOf(id) + 1 : 0;
+                            const generatable = isGeneratablePost(post);
                             return (
                                 <button
-                                    className={`admin-moments-candidate ${selected ? 'selected' : ''}`}
+                                    className={`admin-moments-candidate ${selected ? 'selected' : ''} ${generatable ? '' : 'disabled'}`}
                                     type="button"
                                     key={id}
                                     onClick={() => toggleCandidate(id)}
+                                    disabled={!generatable}
                                 >
                                     <div className="admin-moments-candidate-cover">
                                         {postCover(post) ? <img src={postCover(post)} alt="" /> : <FiGrid />}
@@ -242,7 +266,7 @@ const AdminMoments = () => {
                                     <div className="admin-moments-candidate-body">
                                         <strong>{post.title || excerpt(post.content, 24) || '校园热帖'}</strong>
                                         <small>{excerpt(post.content, 42) || post.category_name || '图文笔记'}</small>
-                                        <em>{compactNumber(post.like_count)} 赞 · {compactNumber(post.comment_count)} 评 · {compactNumber(post.collected_count)} 藏</em>
+                                        <em>{generatable ? `${compactNumber(post.like_count)} 赞 · ${compactNumber(post.comment_count)} 评 · ${compactNumber(post.collected_count)} 藏` : '无图片，不能生成'}</em>
                                     </div>
                                     {selected ? <FiCheckSquare /> : <FiSquare />}
                                 </button>

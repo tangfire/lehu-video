@@ -141,7 +141,7 @@ func (uc *CampusUsecase) AdminCreateMomentsPackage(ctx context.Context, input *C
 		cover, err := fetchMomentsSourceImage(ctx, coverURL)
 		if err != nil {
 			uc.log.WithContext(ctx).Warnf("skip moments post image: request_id=%s package_id=%s post_id=%d object=cover err=%v", input.RequestID, packageID, post.ID, err)
-			output.Warnings = append(output.Warnings, fmt.Sprintf("帖子 %d 的封面图下载失败，已跳过", post.ID))
+			output.Warnings = append(output.Warnings, fmt.Sprintf("帖子 %d 的封面图不可用，已跳过", post.ID))
 			continue
 		}
 		qrBytes, err := getMomentsPostQRCode(ctx, post.ID)
@@ -165,6 +165,9 @@ func (uc *CampusUsecase) AdminCreateMomentsPackage(ctx context.Context, input *C
 
 	if len(output.Posts) == 0 {
 		_ = os.RemoveAll(packageDir)
+		if len(output.Warnings) > 0 {
+			return nil, apperror.InvalidArgument("已选图片帖的封面图不可用，请换图或重新上传图片")
+		}
 		return nil, apperror.InvalidArgument("今天还没有可生成朋友圈素材的图片帖")
 	}
 	if len(output.Posts) < momentsPackageMaxPosts {
