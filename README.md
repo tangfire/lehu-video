@@ -28,6 +28,7 @@ health-exporter / prometheus / loki / alloy / grafana
 
 ```bash
 export LEHU_STORAGE_PROVIDER=minio
+export LEHU_ENABLE_LEGACY_UPLOAD=false
 ```
 
 本地地址：
@@ -97,11 +98,16 @@ export COS_PUBLIC_CDN_BASE_URL=https://cdn.example.com
 
 `/v1/campus/upload/presign` 仍返回预签名 PUT 地址，前端直传后调用 `/v1/campus/upload/complete`。生产环境下公开访问 URL 会返回 CDN 域名，不再占用轻量服务器出网带宽。
 
+生产默认关闭 `/v1/campus/upload/image` 图片中转上传，避免 COS/CDN 故障时退回轻量服务器出网。只有本地调试需要兼容旧客户端时，才临时设置：
+
+```bash
+export LEHU_ENABLE_LEGACY_UPLOAD=true
+```
+
 微信公众平台需要配置：
 
 ```text
-request 合法域名：API 域名
-uploadFile 合法域名：COS 上传域名，例如 https://campus-1250000000.cos.ap-guangzhou.myqcloud.com
+request 合法域名：API 域名、COS 上传域名，例如 https://campus-1250000000.cos.ap-guangzhou.myqcloud.com
 downloadFile 合法域名：CDN 下载域名，例如 https://cdn.example.com
 ```
 
@@ -132,6 +138,14 @@ CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
 未配置 API Key 时，e仔/RAG 会降级，不影响社区主链路。
 
 ## 监控与日志
+
+API 限流会使用真实客户端 IP。后端只在请求来自可信代理网段时读取 `X-Forwarded-For` / `X-Real-IP`，默认可信代理包含 loopback、Docker/内网网段。生产有独立反代或负载均衡时可显式配置：
+
+```bash
+export LEHU_TRUSTED_PROXY_CIDRS=127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+```
+
+Docker 本地日志已限制为每个容器 `20m * 3`，避免本地 json log 无限增长；Grafana/Loki 仍按 Loki 留存配置查询近期日志。
 
 健康检查：
 

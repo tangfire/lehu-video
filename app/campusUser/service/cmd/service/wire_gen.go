@@ -28,18 +28,13 @@ func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry
 	if err != nil {
 		return nil, nil, err
 	}
-	client, err := data.NewRedis(confData)
-	if err != nil {
-		return nil, nil, err
-	}
-	dataData, cleanup, err := data.NewData(db, client, logger)
+	dataData, cleanup, err := data.NewData(db, logger)
 	if err != nil {
 		return nil, nil, err
 	}
 	userRepo := data.NewUserRepo(dataData, logger)
-	userCounterRepo := data.NewUserCounterRepo(client, logger)
 	generator := data.NewIdGenerator(idgen)
-	userUsecase := biz.NewUserUsecase(userRepo, userCounterRepo, generator, logger)
+	userUsecase := biz.NewUserUsecase(userRepo, generator, logger)
 	userServiceService := service.NewUserServiceService(userUsecase)
 	grpcServer := server.NewGRPCServer(confServer, userServiceService, logger)
 	httpServer := server.NewHTTPServer(confServer, logger)

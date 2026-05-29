@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,6 +36,7 @@ const (
 	campusMaxImageBytes       = 5 << 20
 	campusMaxKnowledgeBytes   = 20 << 20
 	campusMultipartExtraBytes = 1 << 20
+	defaultTrustedProxyCIDRs  = "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 )
 
 func NewCampusService(uc *biz.CampusUsecase, authSecret string, logger log.Logger) *CampusService {
@@ -367,6 +369,10 @@ func (s *CampusService) handleImportTimetable(w http.ResponseWriter, r *http.Req
 }
 
 func (s *CampusService) handleUploadImage(w http.ResponseWriter, r *http.Request) {
+	if !legacyUploadEnabled() {
+		writeError(w, r, apperror.InvalidArgument("图片中转上传已关闭，请使用直传"))
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, campusMaxImageBytes+campusMultipartExtraBytes)
 	if err := r.ParseMultipartForm(campusMaxImageBytes); err != nil {
 		writeError(w, r, apperror.InvalidArgument("图片上传请求无效"))
@@ -1926,18 +1932,89 @@ func optionalUserIDFromRequest(r *http.Request, secret string) (string, error) {
 }
 
 func clientIP(r *http.Request) string {
-	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" {
-		parts := strings.Split(forwarded, ",")
-		return strings.TrimSpace(parts[0])
+	remoteHost := remoteAddrHost(r.RemoteAddr)
+	if isTrustedProxy(remoteHost) {
+		if forwarded := firstForwardedIP(r.Header.Get("X-Forwarded-For")); forwarded != "" {
+			return forwarded
+		}
+		if realIP := cleanIPHeader(r.Header.Get("X-Real-IP")); realIP != "" {
+			return realIP
+		}
 	}
-	if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
-		return realIP
+	if ip := cleanIPHeader(remoteHost); ip != "" {
+		return ip
 	}
-	host := r.RemoteAddr
-	if idx := strings.LastIndex(host, ":"); idx > -1 {
-		return host[:idx]
+	return strings.TrimSpace(remoteHost)
+}
+
+func remoteAddrHost(remoteAddr string) string {
+	remoteAddr = strings.TrimSpace(remoteAddr)
+	if remoteAddr == "" {
+		return ""
 	}
-	return host
+	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		return strings.Trim(host, "[]")
+	}
+	if strings.Count(remoteAddr, ":") == 1 {
+		if idx := strings.LastIndex(remoteAddr, ":"); idx > -1 {
+			return remoteAddr[:idx]
+		}
+	}
+	return strings.Trim(remoteAddr, "[]")
+}
+
+func firstForwardedIP(header string) string {
+	for _, part := range strings.Split(header, ",") {
+		if ip := cleanIPHeader(part); ip != "" {
+			return ip
+		}
+	}
+	return ""
+}
+
+func cleanIPHeader(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if host, _, err := net.SplitHostPort(value); err == nil {
+		value = host
+	}
+	value = strings.Trim(value, "[]")
+	ip := net.ParseIP(value)
+	if ip == nil {
+		return ""
+	}
+	return ip.String()
+}
+
+func isTrustedProxy(host string) bool {
+	ip := net.ParseIP(strings.Trim(strings.TrimSpace(host), "[]"))
+	if ip == nil {
+		return false
+	}
+	cidrs := strings.TrimSpace(os.Getenv("LEHU_TRUSTED_PROXY_CIDRS"))
+	if cidrs == "" {
+		cidrs = defaultTrustedProxyCIDRs
+	}
+	for _, item := range strings.Split(cidrs, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		_, network, err := net.ParseCIDR(item)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func legacyUploadEnabled() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("LEHU_ENABLE_LEGACY_UPLOAD")), "true")
 }
 
 func campusRequestCategory(r *http.Request) string {
