@@ -1,20 +1,29 @@
 groups:
   - name: campus-health
     rules:
-      - alert: CampusProbeDown
-        expr: campus_probe_success == 0
-        for: 1m
+      - alert: CampusCriticalTargetDown
+        expr: campus_probe_success{name=~"api_health|api_ready|mysql_tcp|redis_tcp"} == 0
+        for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "Campus e站 target down: {{ $labels.name }}"
-          description: "{{ $labels.target }} has failed health probing for more than 1 minute."
+          summary: "校园 e站核心目标不可用：{{ $labels.name }}"
+          description: "{{ $labels.target }} 已连续 2 分钟健康检查失败。"
 
-      - alert: CampusExporterDown
-        expr: up{job=~"prometheus|campus-health"} == 0
-        for: 1m
+      - alert: CampusDependencyTargetDown
+        expr: campus_probe_success{name=~"base_health|campus_user_health|campus_rag_health|minio_health|qdrant_tcp|consul_tcp"} == 0
+        for: 3m
         labels:
           severity: warning
         annotations:
-          summary: "Campus e站 exporter down: {{ $labels.instance }}"
-          description: "{{ $labels.job }} target {{ $labels.instance }} is not scrapeable."
+          summary: "校园 e站依赖目标不可用：{{ $labels.name }}"
+          description: "{{ $labels.target }} 已连续 3 分钟健康检查失败。"
+
+      - alert: CampusHealthExporterDown
+        expr: up{job="campus-health"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "校园 e站健康采集器不可用：{{ $labels.instance }}"
+          description: "Prometheus 无法抓取 campus-health exporter，健康面板和告警可能失真。"

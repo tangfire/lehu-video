@@ -268,6 +268,30 @@ services:
     expose:
       - "9115"
 
+  alert-webhook:
+    image: python:3.12-alpine
+    container_name: campus-alert-webhook
+    logging: *default-logging
+    restart: unless-stopped
+    command: ["python", "/app/alert_webhook.py"]
+    environment:
+      LEHU_ALERT_LISTEN: 0.0.0.0:9120
+      LEHU_ALERT_ENV: ${LEHU_ALERT_ENV:-local}
+      LEHU_ALERT_WEBHOOK_TOKEN: ${LEHU_ALERT_WEBHOOK_TOKEN:-local-alert-token}
+      LEHU_ALERT_FEISHU_WEBHOOK: ${LEHU_ALERT_FEISHU_WEBHOOK:-}
+      LEHU_ALERT_FEISHU_SECRET: ${LEHU_ALERT_FEISHU_SECRET:-}
+      GRAFANA_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:13002}
+    volumes:
+      - ./deploy/observability/alert-webhook/alert_webhook.py:/app/alert_webhook.py:ro
+    expose:
+      - "9120"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:9120/healthz', timeout=3).read()\""]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
   prometheus:
     image: prom/prometheus:v2.55.1
     container_name: campus-prometheus
@@ -331,12 +355,14 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      LEHU_ALERT_WEBHOOK_TOKEN: ${LEHU_ALERT_WEBHOOK_TOKEN:-local-alert-token}
     volumes:
       - campus_grafana_data:/var/lib/grafana
       - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
       - "13002:3000"
     depends_on:
+      - alert-webhook
       - loki
       - prometheus
 

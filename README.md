@@ -21,7 +21,7 @@ docker compose -p campus-estation-backend down
 ```text
 mysql / redis / consul / minio / qdrant / campus-rag
 base / campus-user / api / admin-web
-health-exporter / prometheus / loki / alloy / grafana
+health-exporter / alert-webhook / prometheus / loki / alloy / grafana
 ```
 
 默认关键环境变量：
@@ -207,6 +207,51 @@ make logs-request RID=用户提供的请求编号 SINCE=30m
 make logs-trace TID=trace_id SINCE=30m
 make logs-search Q="/v1/campus/forum/posts" SINCE=2h
 ```
+
+### 飞书告警
+
+第一版告警链路是 `Grafana Alerting -> alert-webhook -> 飞书群机器人`。`alert-webhook` 只暴露在 Docker 内网，不映射宿主机端口；本地没有配置飞书 webhook 时只打印日志，不影响 Grafana 启动。
+
+生产环境在 `.env.production` 配置：
+
+```bash
+LEHU_ALERT_ENV=prod
+LEHU_ALERT_WEBHOOK_TOKEN=一段随机长token
+LEHU_ALERT_FEISHU_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+LEHU_ALERT_FEISHU_SECRET=飞书机器人签名密钥
+GRAFANA_ROOT_URL=https://grafana.example.com
+```
+
+飞书群里创建“自定义机器人”，复制 webhook；建议开启“签名校验”，把签名密钥填到 `LEHU_ALERT_FEISHU_SECRET`。当前只报 P0/P1：API/ready、MySQL、Redis、health-exporter 连续 2 分钟不可用发 critical；base、campus-user、RAG、MinIO、Qdrant、Consul 连续 3 分钟不可用发 warning。
+
+本地模拟一条 Grafana webhook：
+
+```bash
+docker compose up -d alert-webhook
+docker compose exec -T alert-webhook python - <<'PY'
+import json
+import urllib.request
+
+payload = {
+    "status": "firing",
+    "commonLabels": {"alertname": "CampusCriticalTargetDown", "severity": "critical"},
+    "alerts": [{
+        "labels": {"name": "api_ready", "target": "http://api:8080/readyz"},
+        "annotations": {"summary": "校园 e站核心目标不可用：api_ready"},
+        "startsAt": "2026-05-29T00:00:00Z"
+    }]
+}
+req = urllib.request.Request(
+    "http://127.0.0.1:9120/grafana?token=local-alert-token",
+    data=json.dumps(payload).encode(),
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+print(urllib.request.urlopen(req, timeout=5).read().decode())
+PY
+```
+
+收到飞书告警后的处理顺序：先看飞书里的目标名，再进 Grafana 健康面板确认哪块不可用，最后按服务名、接口路径或 request_id 到日志搜索定位原因。
 
 ## 冒烟测试
 
