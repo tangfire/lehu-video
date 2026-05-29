@@ -2,6 +2,67 @@
 
 校园 e站后端以小程序社区、课表、运营后台、e仔 AI/RAG 和浏览器内排障为主。旧项目栈已经从当前项目移除。
 
+## 架构与设计
+
+校园 e站第一阶段按“小团队可运维、低成本首发、浏览器内排障”设计。当前项目只服务校园社区，不再包含旧短视频、IM chat、Kafka、WebSocket 运行栈。
+
+```mermaid
+flowchart LR
+    MiniProgram[微信小程序] --> API[校园 API]
+    Admin[运营后台] --> API
+    API --> Base[base 账号/文件]
+    API --> User[campus-user 用户资料]
+    API --> MySQL[(MySQL)]
+    API --> Redis[(Redis)]
+    API --> Rag[campus-rag]
+    Rag --> Qdrant[(Qdrant)]
+    Base --> MinIO[(MinIO 本地开发)]
+    Base --> COS[腾讯云 COS]
+    COS --> CDN[CDN 公开访问]
+    DockerLogs[Docker 容器日志] --> Alloy[Alloy 日志采集]
+    Alloy --> Loki[(Loki 日志存储)]
+    Grafana[Grafana] -->|查询日志| Loki
+    Health[health-exporter] --> Prometheus[(Prometheus 指标存储)]
+    Grafana -->|查询指标| Prometheus
+    Grafana --> Alert[alert-webhook]
+    Alert --> Feishu[飞书群机器人]
+```
+
+核心服务职责：
+
+- `api`：统一 HTTP 入口，承载小程序接口、运营后台接口、审核、通知、e仔任务编排和健康检查。
+- `base`：账号、验证码、文件预签名上传、对象存储确认。本地用 MinIO，生产公开媒体用 COS + CDN。
+- `campus-user`：用户资料、搜索、统计和在线时间。
+- `campus-rag`：知识库文档解析、切片、embedding 和 Qdrant 检索。
+- `admin-web`：运营后台，随主项目一起构建和部署。
+- `grafana / loki / alloy / prometheus / health-exporter / alert-webhook`：日志搜索、健康监控和飞书告警。
+
+关键链路：
+
+- 发帖链路：小程序/后台调用 API；文字/图片帖写 MySQL；图片先走 `/v1/campus/upload/presign` 直传对象存储，再 `/complete` 确认；后端固定拒绝视频。
+- 媒体链路：生产公开图片不走服务器出网，`base` 返回 COS 上传地址和 CDN 访问地址，避免轻量服务器带宽被图片占满。
+- e仔链路：评论区 `@e仔` 先落任务；需要校园事实时查 RAG；命中资料后再生成官方账号回复；未配置模型时降级，不影响社区主链路。
+- 排障链路：用户拿到 `request_id` 后，在 Grafana 日志搜索定位入口日志；健康面板用于判断 API、MySQL、Redis、RAG 等组件是否可用。
+
+图里的监控链路可以这样理解：
+
+- `MinIO`：本地开发默认对象存储。生产公开图片走腾讯云 COS + CDN，MinIO 不再承载用户公开图片流量。
+- `Alloy`：采集 Docker 容器日志，送到 `Loki`。
+- `Loki`：存日志。Grafana 通过 Loki 查 `request_id`、接口路径、错误日志。
+- `health-exporter`：主动探测 API、MySQL、Redis、RAG、Qdrant 等目标是否可用，并把结果变成指标。
+- `Prometheus`：定时抓取并保存这些健康指标，例如某个目标当前是 up 还是 down、连续 down 了多久。
+- `Grafana`：同时查询 Loki 和 Prometheus；Loki 用来看“为什么报错”，Prometheus 用来看“哪里挂了”和触发告警。
+
+设计取舍：
+
+- 首发只支持文字/图片校园社区，视频能力不对外开放，降低带宽、审核和恶意刷流量风险。
+- 公开媒体用 COS + CDN，数据库和 Go 服务仍跑在轻量服务器，控制首发成本。
+- Redis 保留给登录态辅助、限流、缓存和短期任务状态；用户计数不再做复杂 dirty set 同步，优先让系统简单可控。
+- 监控采用 Grafana + Loki + Prometheus + Alloy，尽量在浏览器内完成查日志、看健康和收告警。
+- 运行中数据库不自动 drop 历史表；新库初始化以 `sql/campus.sql` 为准。
+
+更细的服务说明见 [docs/architecture.md](docs/architecture.md)。
+
 ## 本地 Docker 启动
 
 ```bash

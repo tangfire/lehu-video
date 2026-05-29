@@ -2,6 +2,14 @@
 
 校园 e站当前只保留校园业务需要的 Kratos 服务和观测链路，旧项目栈已经从默认项目中移除。
 
+## Design Goals
+
+- 低成本首发：适配轻量服务器，公开图片走 COS + CDN，避免服务器小带宽成为瓶颈。
+- 运维简单：服务数量控制在校园业务必要范围内，后台、API、监控都随同一个项目部署。
+- 浏览器内排障：健康面板定位组件状态，Grafana/Loki 按 `request_id` 查入口和下游日志。
+- 渐进增强：首发只做文字/图片社区；视频、私有文件 COS、业务指标告警后续再按真实流量增加。
+- 数据安全：运行中数据库不自动 drop 历史表，新环境只按 `sql/campus.sql` 初始化干净校园表。
+
 ## Services
 
 - `api`: 校园 e站 HTTP 入口，负责 JWT、运营后台、小程序接口、e仔任务编排和健康检查。
@@ -10,6 +18,29 @@
 - `campus-rag`: 知识库解析、切片、embedding、Qdrant 检索。
 - `mysql / redis / minio / qdrant / consul`: 校园业务基础依赖。MinIO 主要用于本地开发和低频内部文件过渡。
 - `grafana / loki / alloy / prometheus / health-exporter`: 浏览器内日志搜索和健康监控。
+
+## Runtime Topology
+
+```mermaid
+flowchart LR
+    MiniProgram[微信小程序] --> API[api]
+    Admin[admin-web] --> API
+    API --> Base[base]
+    API --> User[campus-user]
+    API --> MySQL[(MySQL)]
+    API --> Redis[(Redis)]
+    API --> Rag[campus-rag]
+    Rag --> Qdrant[(Qdrant)]
+    Base --> MinIO[(MinIO local)]
+    Base --> COS[COS]
+    COS --> CDN[CDN]
+    DockerLogs[Docker logs] --> Alloy[Alloy]
+    Alloy --> Loki[(Loki)]
+    Grafana[Grafana] -->|query logs| Loki
+    Health[health-exporter] --> Prometheus[(Prometheus)]
+    Grafana -->|query metrics| Prometheus
+    Grafana --> Alert[alert-webhook]
+```
 
 ## Data
 
@@ -24,3 +55,49 @@
 ## Operations
 
 健康状态先看 Grafana 的「校园 e站健康监控」；请求排障先用用户给的 `request_id` 在「校园 e站日志搜索」里查入口日志，再用同条日志里的 `trace_id` 搜下游调用。
+
+监控组件分工：
+
+- `Alloy` 只负责采集容器日志并发送给 `Loki`。
+- `Loki` 只负责存日志和提供日志查询。
+- `health-exporter` 负责探测目标健康状态，包括 HTTP 健康接口和 TCP 依赖。
+- `Prometheus` 负责定时抓取并保存 `health-exporter` 暴露出来的健康指标。
+- `Grafana` 同时把 `Loki` 和 `Prometheus` 当作数据源：日志搜索查 Loki，健康面板和告警规则查 Prometheus。
+
+所以 Prometheus 不是用来查 request_id 的；查 request_id 用 Loki。Prometheus 主要回答“哪个服务现在 up/down、持续多久、是否应该告警”。
+
+## Core Flows
+
+### Post Publishing
+
+1. 小程序或运营后台提交帖子。
+2. 图片先调用 `/v1/campus/upload/presign` 获取上传地址。
+3. 客户端直传 MinIO 或 COS。
+4. 客户端调用 `/v1/campus/upload/complete` 确认文件。
+5. API 写入校园帖子、审核状态和通知相关数据。
+
+### e仔 Reply
+
+1. 用户在评论区 `@e仔`。
+2. API 落自动回复任务。
+3. 后台任务判断是否需要知识库。
+4. 需要校园事实时调用 `campus-rag`，由 Qdrant 返回候选片段。
+5. 配合 e仔人设和默认回复策略生成官方账号回复。
+6. 模型或 RAG 不可用时降级为默认回复，不阻塞社区主链路。
+
+### Troubleshooting
+
+1. 用户报错时复制 `request_id`。
+2. Grafana 日志搜索按 `request_id` 找到入口日志。
+3. 如有 `trace_id`，继续搜索同一请求的下游日志。
+4. Grafana 健康监控确认 API、MySQL、Redis、RAG、Qdrant 等目标状态。
+5. 关键目标 down 时由 Grafana Alerting 经过 `alert-webhook` 推送飞书群。
+
+## Production Defaults
+
+- 默认使用 `docker-compose.yml + docker-compose.prod.yml`。
+- 生产只暴露 API、运营后台、Grafana 到宿主机 loopback，外部流量通过反向代理接入 HTTPS。
+- MySQL、Redis、Consul、MinIO、Qdrant、Prometheus、base、campus-user 不直接暴露公网。
+- `LEHU_ENABLE_LEGACY_UPLOAD=false`，禁止图片上传退回 API 中转。
+- `LEHU_ACCESS_LOG_RETENTION_DAYS=15`，避免 `campus_access_log` 无限增长。
+- Docker json log 使用大小和份数限制；长期排障以 Loki 留存为准。
