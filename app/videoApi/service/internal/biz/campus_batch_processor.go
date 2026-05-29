@@ -12,6 +12,7 @@ type CampusBatchProcessor[T any] struct {
 	name      string
 	size      int
 	interval  time.Duration
+	timeout   time.Duration
 	processor func(context.Context, []T) error
 	log       *log.Helper
 
@@ -32,6 +33,7 @@ func NewCampusBatchProcessor[T any](name string, size int, interval time.Duratio
 		name:      name,
 		size:      size,
 		interval:  interval,
+		timeout:   5 * time.Second,
 		processor: processor,
 		log:       log.NewHelper(logger),
 		items:     make([]T, 0, size),
@@ -89,7 +91,11 @@ func (b *CampusBatchProcessor[T]) Stop(ctx context.Context) error {
 }
 
 func (b *CampusBatchProcessor[T]) flushOnTimer() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeout := b.timeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := b.Flush(ctx); err != nil {
 		b.log.Warnf("flush campus batch failed: name=%s err=%v", b.name, err)

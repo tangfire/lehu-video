@@ -1,9 +1,11 @@
 import io
 import os
 import re
+import threading
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse, urlunparse
 
 import jieba
@@ -27,6 +29,9 @@ CHUNK_SIZE = int(os.getenv("CAMPUS_RAG_CHUNK_SIZE", "800"))
 CHUNK_OVERLAP = int(os.getenv("CAMPUS_RAG_CHUNK_OVERLAP", "120"))
 QUERY_TIMEOUT = float(os.getenv("CAMPUS_RAG_HTTP_TIMEOUT", "20"))
 MIN_CHUNK_CONFIDENCE = float(os.getenv("CAMPUS_RAG_MIN_CHUNK_CONFIDENCE", "0.48"))
+BM25_CACHE_TTL = float(os.getenv("CAMPUS_RAG_BM25_CACHE_TTL", "60"))
+BM25_MAX_POINTS = int(os.getenv("CAMPUS_RAG_BM25_MAX_POINTS", "5000"))
+NO_EXPIRY_MS = 4102444800000  # 2100-01-01T00:00:00Z
 
 app = FastAPI(title="campus-rag", version="1.0.0")
 qdrant = QdrantClient(url=QDRANT_URL, timeout=QUERY_TIMEOUT)
@@ -40,6 +45,8 @@ class IndexRequest(BaseModel):
     file_url: str = ""
     file_type: str = ""
     content: str = ""
+    effective_at: str = ""
+    expired_at: str = ""
     metadata: Dict[str, str] = Field(default_factory=dict)
 
 
@@ -51,10 +58,52 @@ class QueryRequest(BaseModel):
     query: str
     top_k: int = 5
     categories: List[str] = Field(default_factory=list)
+    context: str = ""
+
+
+bm25_cache_lock = threading.Lock()
+bm25_cache_version = 0
+bm25_cache: Dict[str, Any] = {
+    "version": -1,
+    "built_at": 0.0,
+    "points": [],
+    "corpus": [],
+    "bm25": None,
+}
 
 
 def now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def parse_time_ms(value: str, fallback: int) -> int:
+    raw = str(value or "").strip()
+    if not raw:
+        return fallback
+    if re.fullmatch(r"\d{10,13}", raw):
+        parsed = int(raw)
+        return parsed if parsed > 10_000_000_000 else parsed * 1000
+    normalized = raw.replace("Z", "+00:00")
+    for layout in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(raw, layout).replace(tzinfo=timezone.utc)
+            return int(parsed.timestamp() * 1000)
+        except ValueError:
+            pass
+    try:
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return int(parsed.timestamp() * 1000)
+    except ValueError:
+        return fallback
+
+
+def request_time_ms(req: IndexRequest, field: str, fallback: int) -> int:
+    value = getattr(req, field, "") or ""
+    if not value and req.metadata:
+        value = req.metadata.get(field, "")
+    return parse_time_ms(value, fallback)
 
 
 def rewrite_url(raw_url: str) -> str:
@@ -203,13 +252,32 @@ def tokenize(text: str) -> List[str]:
     return words + [g.lower() for g in grams]
 
 
+def compact_query_context(text: str) -> str:
+    value = normalize_text(text)
+    if not value:
+        return ""
+    value = re.sub(r"(标题|正文|版块|类型|图片|视频)：", " ", value)
+    value = re.sub(r"\s+", " ", value)
+    return value[:600]
+
+
+def search_text(query: str, context: str = "") -> str:
+    parts = [normalize_text(query)]
+    ctx = compact_query_context(context)
+    if ctx:
+        parts.append(ctx)
+    return "\n".join(part for part in parts if part).strip()
+
+
 def need_knowledge(query: str) -> bool:
     q = query.strip()
     if len(q) <= 4:
         return False
-    casual_patterns = ["谢谢", "感谢", "哈哈", "你好", "在吗", "收到", "可以", "好的", "没事"]
+    casual_patterns = ["谢谢", "感谢", "哈哈", "你好", "在吗", "收到", "好的", "没事", "辛苦"]
     if len(q) <= 12 and any(item == q or item in q for item in casual_patterns):
         return False
+    if len(q) <= 8 and q in {"可以吗", "行不行", "对吗", "真的吗", "咋办", "怎么说"}:
+        return True
     keywords = [
         "报到", "宿舍", "校区", "校园网", "军训", "快递", "交通", "路线", "教务", "课表",
         "选课", "学费", "缴费", "深圳职业技术大学", "深汕", "社团", "新生", "学院", "通知",
@@ -218,8 +286,24 @@ def need_knowledge(query: str) -> bool:
         "一卡通", "宿舍电费", "电费", "水电", "门禁", "洗衣", "热水", "饮水", "空调", "宽带",
         "体检", "体测", "入学教育", "辅导员", "班级群", "快递点", "取件", "打印", "复印",
         "奖学金", "助学金", "贷款", "请假", "假条", "校历", "考试", "成绩", "补考",
+        "寝室", "几人间", "床位", "床帘", "被子", "行李", "材料", "证件", "录取通知书", "身份证",
+        "户口", "档案", "团组织", "党组织", "转接", "照片", "寸照", "报销", "充值", "缴费入口",
+        "澡堂", "浴室", "插座", "断电", "熄灯", "门禁时间", "自习室", "实验室", "教学楼",
+        "在哪里办", "去哪办", "去哪儿办", "能不能", "可不可以", "要不要", "要带", "带什么",
+        "准备什么", "怎么申请", "怎么绑定", "怎么开通", "怎么预约", "截止", "开学", "放假",
     ]
-    return any(k in q for k in keywords)
+    if any(k in q for k in keywords):
+        return True
+    question_markers = ("吗", "么", "嘛", "？", "?", "怎么", "咋", "哪里", "哪儿", "几点", "多久", "多少")
+    campus_markers = (
+        "校", "院", "宿", "课", "费", "证", "卡", "网", "餐", "饭", "车", "楼", "寝", "办",
+        "带", "交", "缴", "群", "表", "水", "电", "假", "考", "训", "快递",
+    )
+    if any(marker in q for marker in question_markers) and any(marker in q for marker in campus_markers):
+        return True
+    if re.search(r"(要|能|可不可以|能不能|需要).{0,8}(带|交|办|申请|准备|缴|预约|绑定)", q):
+        return True
+    return False
 
 
 def embed_texts(texts: List[str]) -> List[List[float]]:
@@ -259,6 +343,29 @@ def collection_exists() -> bool:
     return any(item.name == QDRANT_COLLECTION for item in collections)
 
 
+def invalidate_bm25_cache() -> None:
+    global bm25_cache_version
+    with bm25_cache_lock:
+        bm25_cache_version += 1
+        bm25_cache.update({"version": -1, "built_at": 0.0, "points": [], "corpus": [], "bm25": None})
+
+
+def active_filter(categories: Optional[List[str]] = None) -> models.Filter:
+    conditions = [
+        models.FieldCondition(key="status", match=models.MatchValue(value="active")),
+    ]
+    if categories:
+        conditions.append(models.FieldCondition(key="category", match=models.MatchAny(any=categories)))
+    return models.Filter(must=conditions)
+
+
+def payload_is_effective(payload: Dict[str, Any]) -> bool:
+    now = now_ms()
+    effective_at = int(payload.get("effective_at_ms") or 0)
+    expired_at = int(payload.get("expired_at_ms") or NO_EXPIRY_MS)
+    return effective_at <= now < expired_at
+
+
 def payload_to_chunk(point: Any, score: float = 0.0, score_key: str = "_dense_score") -> Dict[str, Any]:
     payload = point.payload or {}
     item = {
@@ -277,17 +384,39 @@ def payload_to_chunk(point: Any, score: float = 0.0, score_key: str = "_dense_sc
 def scroll_active(categories: Optional[List[str]] = None, limit: int = 1000) -> List[Any]:
     if not collection_exists():
         return []
-    conditions = [models.FieldCondition(key="status", match=models.MatchValue(value="active"))]
-    if categories:
-        conditions.append(models.FieldCondition(key="category", match=models.MatchAny(any=categories)))
     points, _ = qdrant.scroll(
         collection_name=QDRANT_COLLECTION,
-        scroll_filter=models.Filter(must=conditions),
+        scroll_filter=active_filter(categories),
         limit=limit,
         with_payload=True,
         with_vectors=False,
     )
-    return points
+    return [point for point in points if payload_is_effective(point.payload or {})]
+
+
+def cached_bm25_index() -> Tuple[List[Any], List[List[str]], Optional[BM25Okapi]]:
+    if not collection_exists():
+        return [], [], None
+    now = time.time()
+    with bm25_cache_lock:
+        if (
+            bm25_cache["bm25"] is not None
+            and bm25_cache["version"] == bm25_cache_version
+            and now - float(bm25_cache["built_at"]) <= BM25_CACHE_TTL
+        ):
+            return bm25_cache["points"], bm25_cache["corpus"], bm25_cache["bm25"]
+    points = scroll_active(None, limit=BM25_MAX_POINTS)
+    corpus = [tokenize((p.payload or {}).get("content", "")) for p in points]
+    bm25 = BM25Okapi(corpus) if points and any(corpus) else None
+    with bm25_cache_lock:
+        bm25_cache.update({
+            "version": bm25_cache_version,
+            "built_at": now,
+            "points": points,
+            "corpus": corpus,
+            "bm25": bm25,
+        })
+    return points, corpus, bm25
 
 
 def meaningful_terms(text: str) -> set:
@@ -420,6 +549,8 @@ def index_content(req: IndexRequest, text: str) -> Dict[str, Any]:
     delete_document(DeleteRequest(document_id=req.document_id))
     points = []
     response_chunks = []
+    effective_at_ms = request_time_ms(req, "effective_at", 0)
+    expired_at_ms = request_time_ms(req, "expired_at", NO_EXPIRY_MS)
     for idx, (chunk, vector) in enumerate(zip(chunks, vectors)):
         pid = point_id(req.document_id, idx)
         keywords = tokenize(chunk)[:16]
@@ -436,6 +567,8 @@ def index_content(req: IndexRequest, text: str) -> Dict[str, Any]:
             "status": "active",
             "qdrant_point_id": pid,
             "embedding_status": "done",
+            "effective_at_ms": effective_at_ms,
+            "expired_at_ms": expired_at_ms,
             "metadata": req.metadata or {},
             "updated_at": now_ms(),
         }
@@ -455,6 +588,7 @@ def index_content(req: IndexRequest, text: str) -> Dict[str, Any]:
             }
         )
     qdrant.upsert(collection_name=QDRANT_COLLECTION, points=points, wait=True)
+    invalidate_bm25_cache()
     return {"chunks": response_chunks}
 
 
@@ -479,49 +613,57 @@ def delete_document(req: DeleteRequest) -> Dict[str, Any]:
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"delete document failed: {exc}") from exc
+    invalidate_bm25_cache()
     return {"deleted": True}
 
 
 @app.post("/internal/rag/query")
 def query(req: QueryRequest) -> Dict[str, Any]:
     query_text = normalize_text(req.query)
+    expanded_text = search_text(query_text, req.context)
     top_k = min(max(req.top_k or 5, 1), 10)
-    should_search = need_knowledge(query_text)
+    should_search = need_knowledge(query_text) or need_knowledge(expanded_text)
     if not should_search:
         return {"need_knowledge": False, "confidence": 0, "chunks": []}
     if not collection_exists():
         return {"need_knowledge": True, "confidence": 0, "chunks": []}
     try:
-        query_vector = embed_texts([query_text])[0]
-        conditions = [models.FieldCondition(key="status", match=models.MatchValue(value="active"))]
-        if req.categories:
-            conditions.append(models.FieldCondition(key="category", match=models.MatchAny(any=req.categories)))
+        query_vector = embed_texts([expanded_text or query_text])[0]
         dense_points = qdrant.search(
             collection_name=QDRANT_COLLECTION,
             query_vector=query_vector,
-            query_filter=models.Filter(must=conditions),
-            limit=top_k * 2,
+            query_filter=active_filter(req.categories),
+            limit=top_k * 8,
             with_payload=True,
         )
-        dense = [payload_to_chunk(point, point.score, "_dense_score") for point in dense_points]
+        dense = [
+            payload_to_chunk(point, point.score, "_dense_score")
+            for point in dense_points
+            if payload_is_effective(point.payload or {})
+        ][: top_k * 2]
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"vector search failed: {exc}") from exc
 
     sparse: List[Dict[str, Any]] = []
-    points = scroll_active(req.categories, limit=1000)
-    if points:
-        corpus = [tokenize((p.payload or {}).get("content", "")) for p in points]
-        tokenized_query = tokenize(query_text)
-        if tokenized_query and any(corpus):
-            bm25 = BM25Okapi(corpus)
-            scores = bm25.get_scores(tokenized_query)
-            ranked = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)[: top_k * 2]
-            max_score = max((score for _, score in ranked), default=0) or 1
-            for index, score in ranked:
-                if score <= 0:
-                    continue
-                sparse.append(payload_to_chunk(points[index], score / max_score, "_sparse_score"))
-    fused = rrf_fuse(dense, sparse, top_k, query_text)
+    points, _, bm25 = cached_bm25_index()
+    tokenized_query = tokenize(expanded_text or query_text)
+    if points and bm25 is not None and tokenized_query:
+        scores = bm25.get_scores(tokenized_query)
+        ranked = sorted(enumerate(scores), key=lambda item: item[1], reverse=True)[: top_k * 4]
+        max_score = max((score for _, score in ranked), default=0) or 1
+        allowed_categories = set(req.categories or [])
+        for index, score in ranked:
+            if score <= 0:
+                continue
+            payload = points[index].payload or {}
+            if allowed_categories and payload.get("category") not in allowed_categories:
+                continue
+            if not payload_is_effective(payload):
+                continue
+            sparse.append(payload_to_chunk(points[index], score / max_score, "_sparse_score"))
+            if len(sparse) >= top_k * 2:
+                break
+    fused = rrf_fuse(dense, sparse, top_k, expanded_text or query_text)
     confidence = fused[0]["score"] if fused else 0
     return {
         "need_knowledge": True,

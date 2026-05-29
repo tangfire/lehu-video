@@ -814,6 +814,8 @@ type knowledgeDocumentRequest struct {
 	FileType    string `json:"file_type"`
 	RawContent  string `json:"raw_content"`
 	Status      string `json:"status"`
+	EffectiveAt string `json:"effective_at"`
+	ExpiredAt   string `json:"expired_at"`
 }
 
 type knowledgeTestQueryRequest struct {
@@ -1624,6 +1626,8 @@ func (s *CampusService) handleAdminCreateKnowledgeDocument(w http.ResponseWriter
 		FileType:    req.FileType,
 		RawContent:  req.RawContent,
 		Status:      req.Status,
+		EffectiveAt: parseOptionalRequestTime(req.EffectiveAt),
+		ExpiredAt:   parseOptionalRequestTime(req.ExpiredAt),
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -1643,12 +1647,14 @@ func (s *CampusService) handleAdminUpdateKnowledgeDocument(w http.ResponseWriter
 	}
 	userID, _ := s.userIDFromRequest(r)
 	doc, err := s.uc.AdminUpdateKnowledgeDocument(r.Context(), &biz.UpdateCampusKnowledgeDocumentInput{
-		UserID:     userID,
-		DocumentID: documentID,
-		Title:      req.Title,
-		Source:     req.Source,
-		Category:   req.Category,
-		Status:     req.Status,
+		UserID:      userID,
+		DocumentID:  documentID,
+		Title:       req.Title,
+		Source:      req.Source,
+		Category:    req.Category,
+		Status:      req.Status,
+		EffectiveAt: parseOptionalRequestTime(req.EffectiveAt),
+		ExpiredAt:   parseOptionalRequestTime(req.ExpiredAt),
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -2778,4 +2784,22 @@ func formatOptionalTime(t *time.Time) string {
 		return ""
 	}
 	return formatTime(*t)
+}
+
+func parseOptionalRequestTime(value string) *time.Time {
+	raw := strings.TrimSpace(value)
+	if raw == "" {
+		return nil
+	}
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		return &parsed
+	}
+	layouts := []string{time.DateTime, "2006-01-02T15:04", "2006-01-02 15:04", time.DateOnly}
+	for _, layout := range layouts {
+		parsed, err := time.ParseInLocation(layout, raw, time.Local)
+		if err == nil {
+			return &parsed
+		}
+	}
+	return nil
 }

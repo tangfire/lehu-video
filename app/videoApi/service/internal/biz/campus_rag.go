@@ -37,14 +37,16 @@ type CampusRAGHealth struct {
 }
 
 type CampusRAGIndexRequest struct {
-	DocumentID int64             `json:"document_id"`
-	Title      string            `json:"title"`
-	Category   string            `json:"category"`
-	Source     string            `json:"source"`
-	FileURL    string            `json:"file_url,omitempty"`
-	FileType   string            `json:"file_type,omitempty"`
-	Content    string            `json:"content,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
+	DocumentID  int64             `json:"document_id"`
+	Title       string            `json:"title"`
+	Category    string            `json:"category"`
+	Source      string            `json:"source"`
+	FileURL     string            `json:"file_url,omitempty"`
+	FileType    string            `json:"file_type,omitempty"`
+	Content     string            `json:"content,omitempty"`
+	EffectiveAt string            `json:"effective_at,omitempty"`
+	ExpiredAt   string            `json:"expired_at,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
 type CampusRAGIndexResponse struct {
@@ -55,6 +57,7 @@ type CampusRAGQueryRequest struct {
 	Query      string   `json:"query"`
 	TopK       int      `json:"top_k"`
 	Categories []string `json:"categories,omitempty"`
+	Context    string   `json:"context,omitempty"`
 }
 
 type CampusRAGQueryResponse struct {

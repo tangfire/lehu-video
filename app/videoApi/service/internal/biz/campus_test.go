@@ -585,6 +585,66 @@ func TestCreateCommentMentionEzaiQueuesAIReplyTask(t *testing.T) {
 	}
 }
 
+type campusRAGCapture struct {
+	lastQuery *CampusRAGQueryRequest
+	lastIndex *CampusRAGIndexRequest
+}
+
+func (c *campusRAGCapture) Health(context.Context) (*CampusRAGHealth, error) {
+	return &CampusRAGHealth{Status: "ok", Qdrant: "ok"}, nil
+}
+func (c *campusRAGCapture) IndexDocument(_ context.Context, req *CampusRAGIndexRequest) (*CampusRAGIndexResponse, error) {
+	c.lastIndex = req
+	return &CampusRAGIndexResponse{Chunks: []*CampusKnowledgeChunk{{Content: "chunk"}}}, nil
+}
+func (c *campusRAGCapture) IndexText(_ context.Context, req *CampusRAGIndexRequest) (*CampusRAGIndexResponse, error) {
+	c.lastIndex = req
+	return &CampusRAGIndexResponse{Chunks: []*CampusKnowledgeChunk{{Content: "chunk"}}}, nil
+}
+func (c *campusRAGCapture) DeleteDocument(context.Context, int64) error { return nil }
+func (c *campusRAGCapture) Query(_ context.Context, req *CampusRAGQueryRequest) (*CampusRAGQueryResponse, error) {
+	c.lastQuery = req
+	return &CampusRAGQueryResponse{NeedKnowledge: false}, nil
+}
+
+func TestQueryKnowledgeForEzaiPassesPostContext(t *testing.T) {
+	rag := &campusRAGCapture{}
+	uc := NewCampusUsecase(&campusRepoStub{}, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), rag, "secret", log.NewStdLogger(ioDiscard{}))
+	if _, _, err := uc.queryKnowledgeForEzai(context.Background(), "这个在哪里办", "标题：校园卡办理\n正文：新生校园卡领取地点说明"); err != nil {
+		t.Fatalf("queryKnowledgeForEzai() error = %v", err)
+	}
+	if rag.lastQuery == nil || !strings.Contains(rag.lastQuery.Context, "校园卡办理") {
+		t.Fatalf("rag context = %#v, want post context", rag.lastQuery)
+	}
+}
+
+func TestIndexKnowledgeDocumentPassesEffectiveWindow(t *testing.T) {
+	rag := &campusRAGCapture{}
+	repo := &campusRepoStub{}
+	uc := NewCampusUsecase(repo, nil, &campusCoreStub{}, nil, fixedCampusIDGenerator(1001), rag, "secret", log.NewStdLogger(ioDiscard{}))
+	start := time.Date(2026, 8, 20, 8, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	doc := &CampusKnowledgeDocument{
+		ID:          42,
+		Title:       "新生报到时间",
+		Category:    "registration",
+		ContentType: CampusKnowledgeContentTypeText,
+		RawContent:  "新生报到时间为 8 月 20 日。",
+		EffectiveAt: &start,
+		ExpiredAt:   &end,
+		Status:      CampusKnowledgeDocumentStatusIndexing,
+	}
+	if err := uc.indexKnowledgeDocument(context.Background(), doc); err != nil {
+		t.Fatalf("indexKnowledgeDocument() error = %v", err)
+	}
+	if rag.lastIndex == nil || rag.lastIndex.EffectiveAt == "" || rag.lastIndex.ExpiredAt == "" {
+		t.Fatalf("rag index request = %#v, want effective window", rag.lastIndex)
+	}
+	if doc.Status != CampusKnowledgeDocumentStatusActive || doc.ParseStatus != "done" {
+		t.Fatalf("doc status = %s/%s, want active/done", doc.Status, doc.ParseStatus)
+	}
+}
+
 func TestProcessNotificationOutboxDeliversSystemNotification(t *testing.T) {
 	repo := &campusRepoStub{
 		recipients: []string{"1", "2"},
@@ -624,24 +684,26 @@ type ioDiscard struct{}
 func (ioDiscard) Write(p []byte) (int, error) { return len(p), nil }
 
 type campusRepoStub struct {
-	category             *CampusForumCategory
-	roles                map[string]string
-	posts                map[int64]*CampusForumPost
-	profiles             map[string]*CampusProfile
-	publicStats          *CampusPublicUserStats
-	blockedIPs           map[string]bool
-	lastPost             *CampusForumPost
-	lastFeedback         *CampusFeedback
-	lastListQuery        ListCampusPostQuery
-	recipients           []string
-	notifications        []*CampusNotification
-	notificationOutboxes []*CampusNotificationOutbox
-	doneOutboxIDs        []int64
-	aiReplyTasks         []*CampusAIReplyTask
-	doneAIReplyTaskIDs   []int64
-	resetAIReplyTaskIDs  []int64
-	settings             map[string]string
-	aiAuditTasks         []*CampusAIContentAuditTask
+	category              *CampusForumCategory
+	roles                 map[string]string
+	posts                 map[int64]*CampusForumPost
+	profiles              map[string]*CampusProfile
+	publicStats           *CampusPublicUserStats
+	blockedIPs            map[string]bool
+	lastPost              *CampusForumPost
+	lastFeedback          *CampusFeedback
+	lastListQuery         ListCampusPostQuery
+	recipients            []string
+	notifications         []*CampusNotification
+	notificationOutboxes  []*CampusNotificationOutbox
+	doneOutboxIDs         []int64
+	aiReplyTasks          []*CampusAIReplyTask
+	doneAIReplyTaskIDs    []int64
+	resetAIReplyTaskIDs   []int64
+	lastKnowledgeDocument *CampusKnowledgeDocument
+	lastKnowledgeChunks   []*CampusKnowledgeChunk
+	settings              map[string]string
+	aiAuditTasks          []*CampusAIContentAuditTask
 }
 
 func (r *campusRepoStub) GetCategoryByCode(ctx context.Context, code string) (bool, *CampusForumCategory, error) {
@@ -938,7 +1000,11 @@ func (r *campusRepoStub) CountPendingAIContentAuditTasks(context.Context) (int64
 func (r *campusRepoStub) CreateKnowledgeDocument(context.Context, *CampusKnowledgeDocument) error {
 	return nil
 }
-func (r *campusRepoStub) UpdateKnowledgeDocument(context.Context, *CampusKnowledgeDocument) error {
+func (r *campusRepoStub) UpdateKnowledgeDocument(_ context.Context, doc *CampusKnowledgeDocument) error {
+	if doc != nil {
+		copyDoc := *doc
+		r.lastKnowledgeDocument = &copyDoc
+	}
 	return nil
 }
 func (r *campusRepoStub) GetKnowledgeDocumentByID(context.Context, int64) (bool, *CampusKnowledgeDocument, error) {
@@ -947,7 +1013,8 @@ func (r *campusRepoStub) GetKnowledgeDocumentByID(context.Context, int64) (bool,
 func (r *campusRepoStub) ListKnowledgeDocuments(context.Context, string, string, string, int, int) ([]*CampusKnowledgeDocument, int64, error) {
 	return nil, 0, nil
 }
-func (r *campusRepoStub) ReplaceKnowledgeChunks(context.Context, int64, []*CampusKnowledgeChunk) error {
+func (r *campusRepoStub) ReplaceKnowledgeChunks(_ context.Context, _ int64, chunks []*CampusKnowledgeChunk) error {
+	r.lastKnowledgeChunks = append([]*CampusKnowledgeChunk(nil), chunks...)
 	return nil
 }
 func (r *campusRepoStub) ListKnowledgeChunks(context.Context, int64, int, int) ([]*CampusKnowledgeChunk, int64, error) {

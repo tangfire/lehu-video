@@ -1230,6 +1230,7 @@ type CampusUsecase struct {
 	recommendPool     *CampusRecommendPool
 	eventBatcher      *CampusBatchProcessor[*TrackCampusEventInput]
 	accessLogBatcher  *CampusBatchProcessor[*CampusAccessLog]
+	knowledgeIndexer  *CampusBatchProcessor[*CampusKnowledgeDocument]
 	aiReplyConfig     CampusAIReplyConfig
 	aiAuditConfig     CampusAIContentAuditConfig
 	rag               CampusRAGClient
@@ -1280,6 +1281,8 @@ func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timet
 	}
 	uc.eventBatcher = NewCampusBatchProcessor("campus_event", 100, 2*time.Second, uc.persistCampusEvents, logger)
 	uc.accessLogBatcher = NewCampusBatchProcessor("campus_access_log", 100, 2*time.Second, uc.persistCampusAccessLogs, logger)
+	uc.knowledgeIndexer = NewCampusBatchProcessor("campus_knowledge_index", 100, time.Second, uc.processKnowledgeIndexBatch, logger)
+	uc.knowledgeIndexer.timeout = 90 * time.Second
 	return uc
 }
 
@@ -3033,9 +3036,9 @@ func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, task *CampusAIR
 	taskCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 	query := trimLimit(firstNonEmpty(prompt, trigger.Content), 500)
-	ragResp, ragDuration, ragErr := uc.queryKnowledgeForEzai(taskCtx, query)
-	knowledgeContext := buildEzaiKnowledgeContext(ragResp)
 	postContext := buildEzaiPostContext(post)
+	ragResp, ragDuration, ragErr := uc.queryKnowledgeForEzai(taskCtx, query, postContext)
+	knowledgeContext := buildEzaiKnowledgeContext(ragResp)
 	userPrompt := fmt.Sprintf("帖子上下文：\n%s\n\n同学在评论区说：%s\n同学真正想问：%s",
 		postContext,
 		trimLimit(trigger.Content, 500),
@@ -3128,12 +3131,16 @@ func buildEzaiPostContext(post *CampusForumPost) string {
 	return builder.String()
 }
 
-func (uc *CampusUsecase) queryKnowledgeForEzai(ctx context.Context, query string) (*CampusRAGQueryResponse, int64, error) {
+func (uc *CampusUsecase) queryKnowledgeForEzai(ctx context.Context, query, postContext string) (*CampusRAGQueryResponse, int64, error) {
 	if uc.rag == nil || strings.TrimSpace(query) == "" {
 		return nil, 0, nil
 	}
 	start := time.Now()
-	resp, err := uc.rag.Query(ctx, &CampusRAGQueryRequest{Query: query, TopK: 5})
+	resp, err := uc.rag.Query(ctx, &CampusRAGQueryRequest{
+		Query:   query,
+		Context: trimLimit(postContext, 1000),
+		TopK:    5,
+	})
 	duration := time.Since(start).Milliseconds()
 	if err != nil {
 		uc.log.WithContext(ctx).Warnf("ezai rag query failed: %v", err)
@@ -3237,6 +3244,23 @@ func normalizeKnowledgeDocumentStatus(status string) string {
 	default:
 		return ""
 	}
+}
+
+func formatRAGTime(t *time.Time) string {
+	if t == nil || t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+func sameOptionalTime(a, b *time.Time) bool {
+	if a == nil || a.IsZero() {
+		return b == nil || b.IsZero()
+	}
+	if b == nil || b.IsZero() {
+		return false
+	}
+	return a.Equal(*b)
 }
 
 func normalizeKnowledgeContentType(contentType string) string {
@@ -3934,9 +3958,7 @@ func (uc *CampusUsecase) AdminCreateKnowledgeDocument(ctx context.Context, input
 		return nil, apperror.Internal(err, "创建知识库文档失败")
 	}
 	if doc.Status != CampusKnowledgeDocumentStatusDraft {
-		if err := uc.indexKnowledgeDocument(ctx, doc); err != nil {
-			return doc, err
-		}
+		uc.enqueueKnowledgeIndex(ctx, doc)
 	}
 	return doc, nil
 }
@@ -3952,14 +3974,34 @@ func (uc *CampusUsecase) AdminUpdateKnowledgeDocument(ctx context.Context, input
 	if !ok || doc == nil {
 		return nil, apperror.NotFound("知识库文档不存在")
 	}
+	wasActive := doc.Status == CampusKnowledgeDocumentStatusActive
+	needsReindex := false
 	if strings.TrimSpace(input.Title) != "" {
-		doc.Title = trimLimit(input.Title, 120)
+		next := trimLimit(input.Title, 120)
+		if next != doc.Title {
+			doc.Title = next
+			needsReindex = true
+		}
 	}
 	if strings.TrimSpace(input.Source) != "" {
-		doc.Source = trimLimit(input.Source, 120)
+		next := trimLimit(input.Source, 120)
+		if next != doc.Source {
+			doc.Source = next
+			needsReindex = true
+		}
 	}
 	if strings.TrimSpace(input.Category) != "" {
-		doc.Category = normalizeKnowledgeCategory(input.Category)
+		next := normalizeKnowledgeCategory(input.Category)
+		if next != doc.Category {
+			doc.Category = next
+			needsReindex = true
+		}
+	}
+	if !sameOptionalTime(doc.EffectiveAt, input.EffectiveAt) {
+		needsReindex = true
+	}
+	if !sameOptionalTime(doc.ExpiredAt, input.ExpiredAt) {
+		needsReindex = true
 	}
 	doc.EffectiveAt = input.EffectiveAt
 	doc.ExpiredAt = input.ExpiredAt
@@ -3973,9 +4015,7 @@ func (uc *CampusUsecase) AdminUpdateKnowledgeDocument(ctx context.Context, input
 			if err := uc.repo.UpdateKnowledgeDocument(ctx, doc); err != nil {
 				return nil, apperror.Internal(err, "更新知识库文档失败")
 			}
-			if err := uc.indexKnowledgeDocument(ctx, doc); err != nil {
-				return doc, err
-			}
+			uc.enqueueKnowledgeIndex(ctx, doc)
 			return doc, nil
 		case CampusKnowledgeDocumentStatusDisabled:
 			doc.Status = CampusKnowledgeDocumentStatusDisabled
@@ -3989,9 +4029,24 @@ func (uc *CampusUsecase) AdminUpdateKnowledgeDocument(ctx context.Context, input
 		case CampusKnowledgeDocumentStatusDraft:
 			doc.Status = CampusKnowledgeDocumentStatusDraft
 			doc.ParseStatus = "draft"
+			doc.ErrorMessage = ""
+			doc.ChunkCount = 0
+			_ = uc.rag.DeleteDocument(ctx, doc.ID)
+			if err := uc.repo.ReplaceKnowledgeChunks(ctx, doc.ID, nil); err != nil {
+				return nil, apperror.Internal(err, "下架知识片段失败")
+			}
 		default:
 			return nil, apperror.InvalidArgument("知识库文档状态无效")
 		}
+	} else if wasActive && needsReindex {
+		doc.Status = CampusKnowledgeDocumentStatusIndexing
+		doc.ParseStatus = "indexing"
+		doc.ErrorMessage = ""
+		if err := uc.repo.UpdateKnowledgeDocument(ctx, doc); err != nil {
+			return nil, apperror.Internal(err, "更新知识库文档失败")
+		}
+		uc.enqueueKnowledgeIndex(ctx, doc)
+		return doc, nil
 	}
 	if err := uc.repo.UpdateKnowledgeDocument(ctx, doc); err != nil {
 		return nil, apperror.Internal(err, "更新知识库文档失败")
@@ -4016,9 +4071,7 @@ func (uc *CampusUsecase) AdminReindexKnowledgeDocument(ctx context.Context, user
 	if err := uc.repo.UpdateKnowledgeDocument(ctx, doc); err != nil {
 		return nil, apperror.Internal(err, "更新知识库文档状态失败")
 	}
-	if err := uc.indexKnowledgeDocument(ctx, doc); err != nil {
-		return doc, err
-	}
+	uc.enqueueKnowledgeIndex(ctx, doc)
 	return doc, nil
 }
 
@@ -4068,19 +4121,60 @@ func (uc *CampusUsecase) AdminListRAGQueryLogs(ctx context.Context, input *ListC
 	return &ListCampusRAGQueryLogsOutput{Logs: logs, Total: total}, nil
 }
 
+func (uc *CampusUsecase) enqueueKnowledgeIndex(ctx context.Context, doc *CampusKnowledgeDocument) {
+	if doc == nil {
+		return
+	}
+	copyDoc := *doc
+	if uc.knowledgeIndexer != nil {
+		if err := uc.knowledgeIndexer.Add(ctx, &copyDoc); err == nil {
+			return
+		}
+		uc.log.WithContext(ctx).Warnf("queue knowledge index failed: document_id=%d", doc.ID)
+	}
+	go func() {
+		taskCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if err := uc.indexKnowledgeDocument(taskCtx, &copyDoc); err != nil {
+			uc.log.WithContext(taskCtx).Warnf("async knowledge index failed: document_id=%d err=%v", copyDoc.ID, err)
+		}
+	}()
+}
+
+func (uc *CampusUsecase) processKnowledgeIndexBatch(ctx context.Context, docs []*CampusKnowledgeDocument) error {
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		if err := uc.indexKnowledgeDocument(ctx, doc); err != nil {
+			uc.log.WithContext(ctx).Warnf("knowledge index failed: document_id=%d err=%v", doc.ID, err)
+		}
+	}
+	return nil
+}
+
 func (uc *CampusUsecase) indexKnowledgeDocument(ctx context.Context, doc *CampusKnowledgeDocument) error {
 	if doc == nil {
 		return nil
 	}
+	effectiveAt := formatRAGTime(doc.EffectiveAt)
+	expiredAt := formatRAGTime(doc.ExpiredAt)
 	req := &CampusRAGIndexRequest{
-		DocumentID: doc.ID,
-		Title:      doc.Title,
-		Category:   doc.Category,
-		Source:     doc.Source,
-		FileURL:    doc.FileURL,
-		FileType:   doc.FileType,
-		Content:    doc.RawContent,
-		Metadata:   map[string]string{"content_type": doc.ContentType, "file_id": doc.FileID},
+		DocumentID:  doc.ID,
+		Title:       doc.Title,
+		Category:    doc.Category,
+		Source:      doc.Source,
+		FileURL:     doc.FileURL,
+		FileType:    doc.FileType,
+		Content:     doc.RawContent,
+		EffectiveAt: effectiveAt,
+		ExpiredAt:   expiredAt,
+		Metadata: map[string]string{
+			"content_type": doc.ContentType,
+			"file_id":      doc.FileID,
+			"effective_at": effectiveAt,
+			"expired_at":   expiredAt,
+		},
 	}
 	var resp *CampusRAGIndexResponse
 	var err error
@@ -4865,6 +4959,11 @@ func (uc *CampusUsecase) FlushCampusBatches(ctx context.Context) error {
 			firstErr = err
 		}
 	}
+	if uc.knowledgeIndexer != nil {
+		if err := uc.knowledgeIndexer.Flush(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
 	return firstErr
 }
 
@@ -4877,6 +4976,11 @@ func (uc *CampusUsecase) StopCampusBatches(ctx context.Context) error {
 	}
 	if uc.accessLogBatcher != nil {
 		if err := uc.accessLogBatcher.Stop(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if uc.knowledgeIndexer != nil {
+		if err := uc.knowledgeIndexer.Stop(ctx); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
