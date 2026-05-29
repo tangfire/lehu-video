@@ -88,11 +88,10 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
             {toast && <div className="admin-toast success">{toast}</div>}
 
             {mode === 'full' && (
-                <section className="admin-simple-head ai">
+                <section className="admin-ops-toolbar">
                     <div>
-                        <span className="admin-kicker">评论区小彩蛋</span>
-                        <h2>@深汕e仔 自动回复</h2>
-                        <p>这里不配置模型密钥，只看链路状态、失败原因，并把失败任务重新加入队列。</p>
+                        <span className="admin-kicker">@深汕e仔</span>
+                        <strong>回复状态 · 失败任务 · 手动重试</strong>
                     </div>
                     <button className="admin-button" type="button" onClick={() => load(page, status)} disabled={loading}>
                         <FiRefreshCw className={loading ? 'spin' : ''} />
@@ -115,7 +114,7 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
                 </div>
                 <div className="admin-ai-note">
                     <FiCpu />
-                    <span>用户评论里 @深汕e仔 后，后端会落任务表；需要校园事实时会先查 e仔知识库，再生成官方账号回复。</span>
+                    <span>@e仔 评论触发，必要时先查知识库。</span>
                 </div>
                 <div className={`admin-ai-status ${summary?.rag_health?.status === 'ok' ? 'ok' : 'off'}`}>
                     {summary?.rag_health?.status === 'ok' ? <FiCheckCircle /> : <FiAlertCircle />}
@@ -143,7 +142,7 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
                 <div className="admin-panel-head">
                     <div>
                         <h2>回复任务</h2>
-                        <p>默认看失败任务，排查最省时间。</p>
+                        <p>失败优先。</p>
                     </div>
                     <div className="admin-segment">
                         {['failed', 'pending', 'processing', 'done', ''].map((item) => (

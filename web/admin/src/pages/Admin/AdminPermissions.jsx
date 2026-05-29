@@ -99,7 +99,7 @@ const AdminPermissions = () => {
                 <div>
                     <span className="admin-kicker">ACCESS CONTROL</span>
                     <h2>权限管理</h2>
-                    <p>只在这里分配运营和管理员权限。用户画像、活跃和内容贡献请回到用户管理查看。</p>
+                    <p>运营 / 管理员权限。</p>
                 </div>
                 <button className="admin-button" onClick={() => load(page)} disabled={loading}>
                     <FiRefreshCw className={loading ? 'spin' : ''} /> 刷新
@@ -221,7 +221,7 @@ const RoleConfirmModal = ({ item, role, loading, onCancel, onConfirm }) => {
                 <div className="admin-modal-icon"><FiShield /></div>
                 <h3>确认调整权限？</h3>
                 <p>将「{displayName(item)}」更新为「{roleText(role)}」。{action ? action[2] : ''}</p>
-                {isAdmin && <p className="admin-confirm-warning">管理员权限很高，建议只给核心成员和技术负责人。</p>}
+                {isAdmin && <p className="admin-confirm-warning">管理员权限较高，请确认对象无误。</p>}
                 <div className="admin-modal-actions">
                     <button className="admin-button" disabled={loading} onClick={onCancel}>取消</button>
                     <button className={`admin-button ${role === 'user' ? 'danger' : 'primary'}`} disabled={loading} onClick={onConfirm}>

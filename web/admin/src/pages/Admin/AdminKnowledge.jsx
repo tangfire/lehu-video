@@ -235,7 +235,7 @@ const AdminKnowledge = ({ mode = 'full' }) => {
 
     const runTestQuery = async () => {
         if (!testQuery.trim()) {
-            setError('请输入测试问题');
+            setError('请输入要检索的问题');
             return;
         }
         setWorking('test');
@@ -245,7 +245,7 @@ const AdminKnowledge = ({ mode = 'full' }) => {
             setTestResult(data.result || {});
             await loadLogs();
         } catch (err) {
-            setError(err.message || '测试提问失败');
+            setError(err.message || '知识库测试失败');
         } finally {
             setWorking('');
         }
@@ -257,11 +257,10 @@ const AdminKnowledge = ({ mode = 'full' }) => {
             {error && <div className="admin-error">{error}</div>}
 
             {mode === 'full' && (
-                <section className="admin-simple-head knowledge">
+                <section className="admin-ops-toolbar">
                     <div>
-                        <span className="admin-kicker">RAG Knowledge Base</span>
-                        <h2>让 e仔有资料可查</h2>
-                        <p>上传学校官方资料或录入已确认信息，e仔被 @ 时会先判断是否需要查库，再基于命中的资料自然回复。</p>
+                        <span className="admin-kicker">知识库</span>
+                        <strong>文档 {compactNumber(total)} · 片段 {compactNumber(ragHealth?.chunk_count || 0)} · {ragHealth?.status || '未知'}</strong>
                     </div>
                     <button className="admin-button" type="button" onClick={() => { loadDocuments(page); loadLogs(); loadRagHealth(); }} disabled={loading}>
                         <FiRefreshCw className={loading ? 'spin' : ''} />
@@ -279,27 +278,27 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                 <div className="admin-key-stat knowledge-health">
                     <span>活跃片段</span>
                     <strong>{compactNumber(ragHealth?.chunk_count || 0)}</strong>
-                    <em>真实参与 e仔检索</em>
+                    <em>参与检索</em>
                 </div>
                 <div className="admin-key-stat">
                     <span>当前文档</span>
                     <strong>{compactNumber(total)}</strong>
-                    <em>包含草稿、启用、失败</em>
+                    <em>全部状态</em>
                 </div>
                 <div className="admin-key-stat">
                     <span>本页启用</span>
                     <strong>{compactNumber(activeCount)}</strong>
-                    <em>只有启用片段参与回复</em>
+                    <em>参与回复</em>
                 </div>
                 <div className="admin-key-stat">
                     <span>本页失败</span>
                     <strong>{compactNumber(failedCount)}</strong>
-                    <em>需要重新索引或检查文件</em>
+                    <em>需处理</em>
                 </div>
                 <div className="admin-key-stat">
                     <span>最近查询</span>
                     <strong>{compactNumber(logs.length)}</strong>
-                    <em>用于追溯 e仔回答依据</em>
+                    <em>查库记录</em>
                 </div>
             </section>}
             {ragHealth?.last_error && <div className="admin-rag-health-error">RAG 最近错误：{ragHealth.last_error}</div>}
@@ -309,7 +308,7 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                     <div className="admin-panel-head">
                         <div>
                             <h2>知识文档</h2>
-                            <p>建议只放已确认资料，不把用户帖子自动入库。</p>
+                            <p>只放已确认资料。</p>
                         </div>
                     </div>
                     <div className="admin-toolbar knowledge">
@@ -374,7 +373,7 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                         <div className="admin-panel-head">
                             <div>
                                 <h2>上传文档</h2>
-                                <p>支持 PDF / DOCX / TXT / MD，v1 不做 OCR。</p>
+                                <p>PDF / DOCX / TXT / MD</p>
                             </div>
                         </div>
                         <div className="admin-form simple-compose">
@@ -399,7 +398,7 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                         <div className="admin-panel-head">
                             <div>
                                 <h2>手动录入</h2>
-                                <p>适合报到时间、快递点、平台规则这类短资料。</p>
+                                <p>短资料快速入库。</p>
                             </div>
                         </div>
                         <div className="admin-form simple-compose">
@@ -429,7 +428,7 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                     <div className="admin-panel-head">
                         <div>
                             <h2>片段预览</h2>
-                            <p>{selectedDoc ? selectedDoc.title : '点击左侧文档查看切片内容。'}</p>
+                            <p>{selectedDoc ? selectedDoc.title : '选择文档查看片段。'}</p>
                         </div>
                         {selectedDoc && (
                             <button className="admin-button subtle" type="button" onClick={refreshSelectedDoc} disabled={!!working}>
@@ -453,12 +452,12 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                 <section className="admin-panel">
                     <div className="admin-panel-head">
                         <div>
-                            <h2>测试提问</h2>
-                            <p>运营可以先问一遍，确认 e仔能不能命中正确资料。</p>
+                            <h2>知识库测试</h2>
+                            <p>命中和置信度。</p>
                         </div>
                         <button className="admin-button primary" type="button" onClick={runTestQuery} disabled={working === 'test'}>
                             <FiZap />
-                            测试
+                            查资料
                         </button>
                     </div>
                     <div className="admin-test-query-row">
@@ -487,7 +486,7 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                 <div className="admin-panel-head">
                     <div>
                         <h2>最近 RAG 查询</h2>
-                        <p>用于追溯 e仔回答有没有查库、命中了哪些资料。</p>
+                        <p>查库记录。</p>
                     </div>
                 </div>
                 <div className="admin-table-wrap">

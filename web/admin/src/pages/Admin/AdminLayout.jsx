@@ -46,22 +46,22 @@ const titleMap = {
 };
 
 const subtitleMap = {
-    '/admin': '先看待办、流量、互动和风险，再决定今天要发什么内容。',
-    '/admin/posts': '管理首页内容流，处理置顶、精选、下架和内容状态。',
-    '/admin/compose': '用深汕e仔发布官方攻略、问答和新生内容。',
-    '/admin/moments': '把今日图片热帖生成 e仔官方朋友圈九图素材包。',
-    '/admin/moderation': '集中处理举报、用户反馈和评论状态，先清待办再看历史。',
-    '/admin/audit': '设置普通用户发帖后是否直接展示、进入人工审核或交给 AI 初审。',
-    '/admin/assistant': '维护 e仔资料、查看自动回复状态，并测试知识库命中效果。',
-    '/admin/notifications': '给小程序消息中心发送内测公告、维护提醒和活动通知。',
-    '/admin/ai-replies': '查看 @深汕e仔 自动回复链路是否启用、是否失败，并手动重试。',
-    '/admin/knowledge': '维护 e仔回答校园问题时可引用的资料，上传文档、录入信息并测试命中效果。',
-    '/admin/comments': '处理评论可见性，查看评论来源和关联原帖。',
-    '/admin/reports': '按举报对象处理内容风险，必要时下架帖子或评论。',
-    '/admin/feedback': '收集用户建议和问题反馈，标记跟进状态。',
-    '/admin/security': '查看请求、限流、异常 IP 和接口访问情况。',
-    '/admin/users': '查看用户画像、活跃、内容贡献和风险记录。',
-    '/admin/permissions': '集中分配运营和管理员权限，避免在用户管理里误操作。',
+    '/admin': '待办、流量、互动、风险。',
+    '/admin/posts': '置顶、精选、审核、下架。',
+    '/admin/compose': '官方攻略、问答和公告。',
+    '/admin/moments': '今日热帖九图素材。',
+    '/admin/moderation': '举报、反馈、评论。',
+    '/admin/audit': '不审、人工审、AI 初审。',
+    '/admin/assistant': '人设、知识库、回复任务。',
+    '/admin/notifications': '内测公告、维护提醒。',
+    '/admin/ai-replies': '@e仔 回复任务。',
+    '/admin/knowledge': '资料、片段、命中测试。',
+    '/admin/comments': '评论可见性和来源。',
+    '/admin/reports': '举报对象和处理状态。',
+    '/admin/feedback': '用户问题和跟进状态。',
+    '/admin/security': '请求、限流、异常 IP。',
+    '/admin/users': '用户画像和风险记录。',
+    '/admin/permissions': '后台角色和权限。',
 };
 
 const displayOperatorName = (user) => {

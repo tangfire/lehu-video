@@ -86,7 +86,7 @@ const AdminUsers = () => {
                 <div>
                     <span className="admin-kicker">USER OPS</span>
                     <h2>用户工作台</h2>
-                    <p>用来识别活跃同学、内容贡献和需要跟进的反馈/举报用户。角色调整请去权限管理。</p>
+                    <p>活跃、内容、反馈/举报。</p>
                 </div>
                 <div className="admin-head-actions">
                     <Link className="admin-button" to="/admin/permissions">
@@ -210,7 +210,7 @@ const UserCard = ({ item }) => {
                 </div>
                 <div className="admin-user-note">
                     <FiShield />
-                    <span>当前角色：{roleText(role)}。权限分配已移到独立模块，避免在用户查看时误操作。</span>
+                    <span>角色：{roleText(role)}。权限在独立模块调整。</span>
                 </div>
             </div>
         </article>

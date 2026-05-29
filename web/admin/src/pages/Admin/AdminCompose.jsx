@@ -370,7 +370,7 @@ const AdminCompose = () => {
                     <div className="admin-panel-head">
                         <div>
                             <h2>发一篇深汕e仔官方帖</h2>
-                            <p>先选模板，再改标题正文，配图后直接发布。</p>
+                            <p>模板、正文、配图。</p>
                         </div>
                         <button className="admin-button primary" type="button" disabled={loading || uploading} onClick={submit}>
                             <FiSend />
@@ -405,7 +405,7 @@ const AdminCompose = () => {
                         <div className="admin-upload-head">
                             <div>
                                 <h3>3. 配图</h3>
-                                <p>第一张会自动成为首页封面，没有图也可以发布文字笔记。</p>
+                                <p>首图默认封面。</p>
                             </div>
                             <button className="admin-button" type="button" disabled={uploading || images.length >= 9} onClick={() => fileInputRef.current?.click()}>
                                 <FiUploadCloud />
@@ -484,7 +484,7 @@ const AdminCompose = () => {
                             <button className={form.is_featured ? 'admin-pill active' : 'admin-pill'} type="button" onClick={() => update('is_featured', !form.is_featured)}>精选</button>
                             <button className={form.is_pinned ? 'admin-pill active' : 'admin-pill'} type="button" onClick={() => update('is_pinned', !form.is_pinned)}>置顶</button>
                         </div>
-                        <p className="admin-muted">默认三项都开，适合开学前官方攻略。普通公告可以关掉置顶。</p>
+                        <p className="admin-muted">攻略可置顶，公告可关闭。</p>
                     </section>
 
                     <section className="admin-preview-panel">

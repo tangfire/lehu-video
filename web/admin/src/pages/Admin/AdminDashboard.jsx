@@ -73,6 +73,14 @@ const AdminDashboard = () => {
         return items.length > 0 ? items : [{ icon: <FiStar />, title: '今天状态不错', detail: '没有紧急待办，可以继续准备种子内容', to: '/admin/compose' }];
     }, [summary, aiSummary]);
 
+    const opsSummary = useMemo(() => {
+        if (!summary) return null;
+        const pending = Number(summary.pending_reports || 0) + Number(summary.pending_posts || 0) + Number(summary.pending_comments || 0) + Number(summary.pending_feedback || 0);
+        const interaction = Number(summary.today_comments || 0) + Number(summary.today_likes || 0) + Number(summary.today_collections || 0);
+        const risk = Number(summary.pending_reports || 0) + Number(aiSummary?.failed || 0) + Number(summary.pending_ai_audits || 0);
+        return { pending, interaction, risk };
+    }, [summary, aiSummary]);
+
     const handleReconcileStats = async () => {
         if (reconcileLoading) return;
         setReconcileLoading(true);
@@ -94,18 +102,15 @@ const AdminDashboard = () => {
 
     return (
         <div className="admin-dashboard simple">
-            <section className="admin-simple-head">
+            <section className="admin-ops-toolbar">
                 <div>
                     <span className="admin-kicker">今日运营</span>
-                    <h2>先看待办，再发内容</h2>
-                    <p>开学前后台只需要盯住内容供给、互动和审核风险。</p>
+                    <strong>待办 {compactNumber(opsSummary?.pending || 0)} · 互动 {compactNumber(opsSummary?.interaction || 0)} · 风险 {compactNumber(opsSummary?.risk || 0)}</strong>
                 </div>
-                <div className="admin-head-actions">
-                    <Link className="admin-button primary" to="/admin/compose">
-                        <FiEdit3 />
-                        发官方帖
-                    </Link>
-                </div>
+                <Link className="admin-button primary" to="/admin/compose">
+                    <FiEdit3 />
+                    发官方帖
+                </Link>
             </section>
 
             <section className="admin-key-grid daily">
@@ -200,7 +205,7 @@ const AdminDashboard = () => {
                             {compactNumber(reconcileResult.updated_comments || 0)} 条评论
                         </em>
                     ) : (
-                        <em>建议发布高峰后手动跑一次。</em>
+                        <em>发布高峰后可手动跑一次。</em>
                     )}
                     <button className="admin-button" type="button" onClick={handleReconcileStats} disabled={reconcileLoading}>
                         <FiRefreshCw className={reconcileLoading ? 'spin' : ''} />

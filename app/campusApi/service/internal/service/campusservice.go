@@ -89,6 +89,9 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/summary", s.wrap(s.authRequired(s.handleAdminSummary)))
 	r.GET("/v1/campus/admin/settings/audit", s.wrap(s.authRequired(s.handleAdminGetAuditSettings)))
 	r.PUT("/v1/campus/admin/settings/audit", s.wrap(s.authRequired(s.handleAdminUpdateAuditSettings)))
+	r.GET("/v1/campus/admin/ezai/persona", s.wrap(s.authRequired(s.handleAdminGetEzaiPersona)))
+	r.PUT("/v1/campus/admin/ezai/persona", s.wrap(s.authRequired(s.handleAdminUpdateEzaiPersona)))
+	r.POST("/v1/campus/admin/ezai/persona/preview", s.wrap(s.authRequired(s.handleAdminPreviewEzaiPersona)))
 	r.POST("/v1/campus/admin/stats/reconcile", s.wrap(s.authRequired(s.handleAdminReconcileStats)))
 	r.GET("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminListPosts)))
 	r.POST("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminCreatePost)))
@@ -1298,6 +1301,27 @@ type auditSettingsRequest struct {
 	PostAuditMode string `json:"post_audit_mode"`
 }
 
+type ezaiPersonaRequest struct {
+	Name             string `json:"name"`
+	Role             string `json:"role"`
+	Personality      string `json:"personality"`
+	Tone             string `json:"tone"`
+	StyleRules       string `json:"style_rules"`
+	SafetyRules      string `json:"safety_rules"`
+	NoKnowledgeReply string `json:"no_knowledge_reply"`
+	FallbackReply    string `json:"fallback_reply"`
+	MaxReplyChars    int    `json:"max_reply_chars"`
+	PromptVersion    string `json:"prompt_version"`
+}
+
+type ezaiPersonaPreviewRequest struct {
+	Question     string `json:"question"`
+	PostTitle    string `json:"post_title"`
+	PostContent  string `json:"post_content"`
+	UseKnowledge bool   `json:"use_knowledge"`
+	RunModel     bool   `json:"run_model"`
+}
+
 func (s *CampusService) handleAdminGetAuditSettings(w http.ResponseWriter, r *http.Request) {
 	userID, _ := s.userIDFromRequest(r)
 	settings, err := s.uc.AdminGetAuditSettings(r.Context(), &biz.GetCampusAuditSettingsInput{UserID: userID})
@@ -1323,6 +1347,66 @@ func (s *CampusService) handleAdminUpdateAuditSettings(w http.ResponseWriter, r 
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"settings": auditSettingsToMap(settings)})
+}
+
+func (s *CampusService) handleAdminGetEzaiPersona(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	persona, err := s.uc.AdminGetEzaiPersona(r.Context(), &biz.GetCampusEzaiPersonaInput{UserID: userID})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"persona":         ezaiPersonaToMap(persona),
+		"default_persona": ezaiPersonaToMap(biz.DefaultCampusEzaiPersonaConfig()),
+	})
+}
+
+func (s *CampusService) handleAdminUpdateEzaiPersona(w http.ResponseWriter, r *http.Request) {
+	var req ezaiPersonaRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	persona, err := s.uc.AdminUpdateEzaiPersona(r.Context(), &biz.UpdateCampusEzaiPersonaInput{
+		UserID:           userID,
+		Name:             req.Name,
+		Role:             req.Role,
+		Personality:      req.Personality,
+		Tone:             req.Tone,
+		StyleRules:       req.StyleRules,
+		SafetyRules:      req.SafetyRules,
+		NoKnowledgeReply: req.NoKnowledgeReply,
+		FallbackReply:    req.FallbackReply,
+		MaxReplyChars:    req.MaxReplyChars,
+		PromptVersion:    req.PromptVersion,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"persona": ezaiPersonaToMap(persona)})
+}
+
+func (s *CampusService) handleAdminPreviewEzaiPersona(w http.ResponseWriter, r *http.Request) {
+	var req ezaiPersonaPreviewRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	preview, err := s.uc.AdminPreviewEzaiPersona(r.Context(), &biz.PreviewCampusEzaiPersonaInput{
+		UserID:       userID,
+		Question:     req.Question,
+		PostTitle:    req.PostTitle,
+		PostContent:  req.PostContent,
+		UseKnowledge: req.UseKnowledge,
+		RunModel:     req.RunModel,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"preview": ezaiPersonaPreviewToMap(preview)})
 }
 
 func (s *CampusService) handleAdminReconcileStats(w http.ResponseWriter, r *http.Request) {
@@ -2660,6 +2744,43 @@ func ragHealthToMap(health *biz.CampusRAGHealth) map[string]interface{} {
 		"chunk_count":  health.ChunkCount,
 		"failed_count": health.FailedCount,
 		"last_error":   health.LastError,
+	}
+}
+
+func ezaiPersonaToMap(persona *biz.CampusEzaiPersonaConfig) map[string]interface{} {
+	if persona == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"name":               persona.Name,
+		"role":               persona.Role,
+		"personality":        persona.Personality,
+		"tone":               persona.Tone,
+		"style_rules":        persona.StyleRules,
+		"safety_rules":       persona.SafetyRules,
+		"no_knowledge_reply": persona.NoKnowledgeReply,
+		"fallback_reply":     persona.FallbackReply,
+		"max_reply_chars":    persona.MaxReplyChars,
+		"prompt_version":     persona.PromptVersion,
+		"updated_by":         persona.UpdatedBy,
+		"updated_at":         formatTime(persona.UpdatedAt),
+	}
+}
+
+func ezaiPersonaPreviewToMap(preview *biz.CampusEzaiPersonaPreview) map[string]interface{} {
+	if preview == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"persona":           ezaiPersonaToMap(preview.Persona),
+		"ai_enabled":        preview.AIEnabled,
+		"used_model":        preview.UsedModel,
+		"fallback_reason":   preview.FallbackReason,
+		"system_prompt":     preview.SystemPrompt,
+		"user_prompt":       preview.UserPrompt,
+		"reply":             preview.Reply,
+		"knowledge":         ragQueryResponseToMap(preview.Knowledge),
+		"knowledge_context": preview.KnowledgeContext,
 	}
 }
 

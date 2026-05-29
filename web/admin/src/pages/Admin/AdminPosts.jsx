@@ -208,8 +208,8 @@ const AdminPosts = () => {
             <section className="admin-panel admin-filter-panel">
                 <div className="admin-panel-head">
                     <div>
-                        <h2>内容工作台</h2>
-                        <p>默认只处理最常用的搜索、审核、置顶和精选；高级筛选需要时再展开。</p>
+                        <h2>筛选</h2>
+                        <p>搜索、审核、置顶、精选。</p>
                     </div>
                     <button className="admin-button primary" onClick={() => load(1)} disabled={loading}>
                         <FiSearch />

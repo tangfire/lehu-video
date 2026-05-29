@@ -120,7 +120,7 @@ const AdminNotifications = () => {
                     <div className="admin-panel-head">
                         <div>
                             <h2>发布系统通知</h2>
-                            <p>用于内测公告、维护提醒、活动提醒，会出现在小程序“我的 - 消息中心”。</p>
+                            <p>消息中心通知。</p>
                         </div>
                         <button className="admin-button primary" type="button" disabled={loading} onClick={openConfirm}>
                             <FiSend />
@@ -169,7 +169,7 @@ const AdminNotifications = () => {
                 <aside className="admin-compose-aside">
                     <section className="admin-panel admin-notice-panel">
                         <h2>发送规则</h2>
-                        <p className="admin-muted">当前 v1 只支持发送给全部用户，适合内测规模。后续用户量变大后，再增加分组发送和历史通知列表。</p>
+                        <p className="admin-muted">当前发送给全部用户。</p>
                         <div className="admin-simple-switch-row">
                             <button className="admin-pill active" type="button">全部用户</button>
                             <button className="admin-pill" type="button" disabled>分组发送</button>

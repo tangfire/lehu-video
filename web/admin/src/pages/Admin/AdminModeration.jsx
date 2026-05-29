@@ -33,14 +33,6 @@ const AdminModeration = () => {
 
     return (
         <div className="admin-merged-page">
-            <section className="admin-simple-head compact">
-                <div>
-                    <span className="admin-kicker">MODERATION</span>
-                    <h2>先处理待办，再看历史</h2>
-                    <p>举报、反馈和评论管理集中在一个页面，减少来回找入口。</p>
-                </div>
-            </section>
-
             <div className="admin-page-tabs">
                 {tabs.map((item) => (
                     <button
