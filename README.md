@@ -30,6 +30,7 @@ export LEHU_CAMPUS_ONLY=true
 export LEHU_CAMPUS_ENABLE_VIDEO_POSTS=false
 export LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS=true
 export LEHU_DISABLE_API_KAFKA_CONSUMER=true
+export LEHU_STORAGE_PROVIDER=minio
 ```
 
 本地地址：
@@ -84,6 +85,29 @@ lehu_campus_db
 ```text
 campus
 ```
+
+生产公开媒体不再建议走服务器本机 MinIO。帖子图片、头像、反馈图片、运营发帖图片使用腾讯云 COS + CDN：
+
+```bash
+export LEHU_STORAGE_PROVIDER=cos
+export COS_SECRET_ID=腾讯云SecretId
+export COS_SECRET_KEY=腾讯云SecretKey
+export COS_REGION=ap-guangzhou
+export COS_BUCKET=campus-1250000000
+export COS_PUBLIC_CDN_BASE_URL=https://cdn.example.com
+```
+
+`/v1/campus/upload/presign` 仍返回预签名 PUT 地址，前端直传后调用 `/v1/campus/upload/complete`。生产环境下公开访问 URL 会返回 CDN 域名，不再占用轻量服务器出网带宽。
+
+微信公众平台需要配置：
+
+```text
+request 合法域名：API 域名
+uploadFile 合法域名：COS 上传域名，例如 https://campus-1250000000.cos.ap-guangzhou.myqcloud.com
+downloadFile 合法域名：CDN 下载域名，例如 https://cdn.example.com
+```
+
+腾讯云控制台需要配置 COS CORS、CDN 回源、图片缓存规则和基础防盗刷策略。MinIO 只作为本地开发和低频内部文件过渡；知识库/RAG 文件暂不在这一阶段做公开 CDN 化，后续可单独迁到私有 COS。
 
 `sql/video.sql`、`sql/legacy/` 和 `docker-compose.legacy.yml` 仅保留历史短视频/chat 栈，不再作为校园 e站默认入口。
 

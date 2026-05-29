@@ -47,8 +47,11 @@ func wireApp(confServer *conf.Server, idgen *conf.Idgen, registry *conf.Registry
 	fileShardingConfig := data.NewFileShardingConfig(dataSetting)
 	dataFileRepo := data.NewFileRepo(dataData, logger)
 	fileRepoHelper := data.NewFileRepoHelper(fileShardingConfig, dataFileRepo)
-	core := data.NewMinioCore(confData)
-	minioRepo := data.NewMinioRepo(confData, core)
+	minioRepo, err := data.NewObjectStorageRepo(confData, logger)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
 	fileUsecase := biz.NewFileUsecase(fileRepo, logger, fileRepoHelper, minioRepo, generator)
 	fileServiceService := service.NewFileServiceService(fileUsecase)
 	grpcServer := server.NewGRPCServer(confServer, accountServiceService, authServiceService, fileServiceService, logger)

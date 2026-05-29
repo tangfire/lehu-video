@@ -460,6 +460,10 @@ func (s *CampusService) handleUploadPresign(w http.ResponseWriter, r *http.Reque
 		Size:      req.Size,
 	})
 	if err != nil {
+		s.log.WithContext(r.Context()).Errorf(
+			"campus upload presign failed: storage_provider=%s media_type=%s file_type=%s filename=%s size=%d err=%v",
+			campusStorageProvider(), req.MediaType, req.FileType, req.Filename, req.Size, err,
+		)
 		writeError(w, r, err)
 		return
 	}
@@ -482,9 +486,17 @@ func (s *CampusService) handleUploadComplete(w http.ResponseWriter, r *http.Requ
 		FileID:    req.FileID,
 	})
 	if err != nil {
+		s.log.WithContext(r.Context()).Errorf(
+			"campus upload complete failed: storage_provider=%s media_type=%s file_id=%s err=%v",
+			campusStorageProvider(), req.MediaType, req.FileID, err,
+		)
 		writeError(w, r, err)
 		return
 	}
+	s.log.WithContext(r.Context()).Infof(
+		"campus upload complete: storage_provider=%s media_type=%s file_id=%s object_key=%s",
+		campusStorageProvider(), req.MediaType, out.FileID, out.ObjectName,
+	)
 	writeJSON(w, r, map[string]interface{}{
 		"file_id":     out.FileID,
 		"url":         out.URL,
@@ -2181,6 +2193,9 @@ func rewritePresignedURLForServerUpload(rawURL string) (string, string) {
 	if err != nil {
 		return rawURL, ""
 	}
+	if isCOSUploadHost(parsed.Hostname()) {
+		return rawURL, ""
+	}
 	signedHost := parsed.Host
 	internalEndpoint := strings.TrimSpace(os.Getenv("LEHU_INTERNAL_MINIO_ENDPOINT"))
 	if internalEndpoint == "" {
@@ -2188,6 +2203,19 @@ func rewritePresignedURLForServerUpload(rawURL string) (string, string) {
 	}
 	parsed.Host = internalEndpoint
 	return parsed.String(), signedHost
+}
+
+func isCOSUploadHost(host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	return strings.Contains(host, ".cos.") && strings.HasSuffix(host, ".myqcloud.com")
+}
+
+func campusStorageProvider() string {
+	provider := strings.TrimSpace(strings.ToLower(os.Getenv("LEHU_STORAGE_PROVIDER")))
+	if provider == "" {
+		return "minio"
+	}
+	return provider
 }
 
 func categoryToMap(category *biz.CampusForumCategory) map[string]interface{} {
