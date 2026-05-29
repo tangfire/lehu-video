@@ -738,9 +738,9 @@ type postRequest struct {
 }
 
 type batchPostsRequest struct {
-	IDs        []int64 `json:"ids"`
-	Action     string  `json:"action"`
-	SortWeight int32   `json:"sort_weight"`
+	IDs        []json.RawMessage `json:"ids"`
+	Action     string            `json:"action"`
+	SortWeight int32             `json:"sort_weight"`
 }
 
 type createMomentsPackageRequest struct {
@@ -1396,10 +1396,15 @@ func (s *CampusService) handleAdminBatchPosts(w http.ResponseWriter, r *http.Req
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	postIDs, err := parseRawInt64List(req.IDs)
+	if err != nil {
+		writeError(w, r, apperror.InvalidArgument("帖子 ID 无效"))
+		return
+	}
 	userID, _ := s.userIDFromRequest(r)
 	out, err := s.uc.AdminBatchPosts(r.Context(), &biz.BatchCampusAdminPostsInput{
 		UserID:     userID,
-		PostIDs:    req.IDs,
+		PostIDs:    postIDs,
 		Action:     req.Action,
 		SortWeight: req.SortWeight,
 	})

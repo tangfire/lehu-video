@@ -168,7 +168,7 @@ const AdminPosts = () => {
         setError('');
         try {
             const data = await campusAdminApi.batchPosts({
-                ids: selectedIds.map((id) => Number(id)),
+                ids: selectedIds,
                 action,
                 ...extra,
             });
