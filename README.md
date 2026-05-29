@@ -31,6 +31,22 @@ export LEHU_STORAGE_PROVIDER=minio
 export LEHU_ENABLE_LEGACY_UPLOAD=false
 ```
 
+## 生产 Docker 启动
+
+生产使用 `docker-compose.prod.yml` 作为覆盖文件，本地开发方式不变。先复制示例环境变量并替换所有占位值：
+
+```bash
+cp .env.production.example .env.production
+```
+
+启动：
+
+```bash
+docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+生产覆盖文件会收紧端口：MySQL、Redis、Consul、MinIO、Qdrant、Prometheus、base、campus-user 不再暴露到宿主机；API、运营后台、Grafana 只绑定 `127.0.0.1`，建议由 Caddy/Nginx 反向代理统一暴露 HTTPS。
+
 本地地址：
 
 ```text
@@ -146,6 +162,12 @@ export LEHU_TRUSTED_PROXY_CIDRS=127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0
 ```
 
 Docker 本地日志已限制为每个容器 `20m * 3`，避免本地 json log 无限增长；Grafana/Loki 仍按 Loki 留存配置查询近期日志。
+
+MySQL 内的 `campus_access_log` 会由 API 后台任务按保留期自动清理，默认保留 15 天。生产可按磁盘预算调整：
+
+```bash
+export LEHU_ACCESS_LOG_RETENTION_DAYS=15
+```
 
 健康检查：
 

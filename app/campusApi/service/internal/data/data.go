@@ -3,6 +3,9 @@ package data
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/go-kratos/kratos/contrib/registry/consul/v2"
 	"github.com/go-kratos/kratos/v2/log"
@@ -81,10 +84,18 @@ func NewData(db *gorm.DB, rds *redis.Client, logger log.Logger) (*Data, func(), 
 }
 
 func NewRedis(c *conf.Data) (*redis.Client, error) {
+	db := int(c.Redis.Db)
+	if value := strings.TrimSpace(os.Getenv("LEHU_REDIS_DB")); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid LEHU_REDIS_DB: %w", err)
+		}
+		db = parsed
+	}
 	rds := redis.NewClient(&redis.Options{
-		Addr:     c.Redis.Addr,
-		Password: c.Redis.Password,
-		DB:       int(c.Redis.Db),
+		Addr:     firstEnv("LEHU_REDIS_ADDR", c.Redis.Addr),
+		Password: firstEnv("LEHU_REDIS_PASSWORD", c.Redis.Password),
+		DB:       db,
 	})
 	if err := rds.Ping(context.Background()).Err(); err != nil {
 		return nil, fmt.Errorf("connect redis: %w", err)
@@ -93,7 +104,8 @@ func NewRedis(c *conf.Data) (*redis.Client, error) {
 }
 
 func NewDB(c *conf.Data, logger log.Logger) (*gorm.DB, error) {
-	db, err := gorm.Open(mysql.Open(c.Database.Source), &gorm.Config{})
+	source := firstEnv("LEHU_MYSQL_DSN", c.Database.Source)
+	db, err := gorm.Open(mysql.Open(source), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
@@ -105,6 +117,13 @@ func NewDB(c *conf.Data, logger log.Logger) (*gorm.DB, error) {
 		return nil, fmt.Errorf("ping mysql: %w", err)
 	}
 	return db, nil
+}
+
+func firstEnv(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
 }
 
 func NewDiscovery(conf *conf.Registry) (registry.Discovery, error) {

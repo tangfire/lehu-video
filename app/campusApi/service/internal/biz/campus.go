@@ -1201,6 +1201,7 @@ type CampusRepo interface {
 	AllowCampusRequest(ctx context.Context, key string, limit int64, window time.Duration) (bool, error)
 	CreateAccessLog(ctx context.Context, log *CampusAccessLog) error
 	CreateAccessLogs(ctx context.Context, logs []*CampusAccessLog) error
+	DeleteAccessLogsBefore(ctx context.Context, before time.Time) (int64, error)
 	GetSecurityOverview(ctx context.Context) (*CampusSecurityOverview, error)
 	BlockIP(ctx context.Context, block *CampusIPBlock) error
 	UnblockIP(ctx context.Context, ip string) error
@@ -4948,6 +4949,22 @@ func (uc *CampusUsecase) persistCampusAccessLogs(ctx context.Context, logs []*Ca
 		return err
 	}
 	return nil
+}
+
+func (uc *CampusUsecase) CleanupExpiredAccessLogs(ctx context.Context) (int64, error) {
+	days := envInt64("LEHU_ACCESS_LOG_RETENTION_DAYS", 15)
+	if days <= 0 {
+		return 0, nil
+	}
+	if days > 365 {
+		days = 365
+	}
+	cutoff := time.Now().AddDate(0, 0, -int(days))
+	deleted, err := uc.repo.DeleteAccessLogsBefore(ctx, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return deleted, nil
 }
 
 func (uc *CampusUsecase) trackEvent(ctx context.Context, input *TrackCampusEventInput) {

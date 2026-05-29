@@ -64,6 +64,7 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 	s.safeProcessNotificationOutbox(ctx)
 	s.safeProcessAIReplyTasks(ctx)
 	s.safeProcessAIContentAuditTasks(ctx)
+	s.safeCleanupAccessLogs(ctx)
 	recommendTicker := time.NewTicker(5 * time.Minute)
 	reconcileTicker := time.NewTicker(1 * time.Hour)
 	flushTicker := time.NewTicker(10 * time.Second)
@@ -84,6 +85,7 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 			s.safeRefreshRecommendPool(ctx)
 		case <-reconcileTicker.C:
 			s.safeReconcile(ctx)
+			s.safeCleanupAccessLogs(ctx)
 		case <-flushTicker.C:
 			if err := s.uc.FlushCampusBatches(ctx); err != nil {
 				s.log.Warnf("flush campus batches failed: %v", err)
@@ -115,6 +117,19 @@ func (s *CampusTaskServer) safeReconcile(ctx context.Context) {
 		return
 	}
 	s.log.Infof("校园计数对账完成: updated_posts=%d updated_comments=%d", result.UpdatedPosts, result.UpdatedComments)
+}
+
+func (s *CampusTaskServer) safeCleanupAccessLogs(ctx context.Context) {
+	taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	deleted, err := s.uc.CleanupExpiredAccessLogs(taskCtx)
+	if err != nil {
+		s.log.Warnf("清理校园访问日志失败: %v", err)
+		return
+	}
+	if deleted > 0 {
+		s.log.Infof("清理校园访问日志完成: deleted=%d", deleted)
+	}
 }
 
 func (s *CampusTaskServer) safeProcessNotificationOutbox(ctx context.Context) {

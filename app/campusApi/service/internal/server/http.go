@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
@@ -53,6 +54,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	campusService *service.CampusService,
 	data *data.Data,
 	logger log.Logger) *http.Server {
+	authSecret := resolveAuthSecret(ac)
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -60,7 +62,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 			ratelimit.Server(),
 			selector.Server(
 				jwt.Server(func(token *jwt2.Token) (interface{}, error) {
-					return []byte(ac.ApiKey), nil
+					return []byte(authSecret), nil
 				}, jwt.WithSigningMethod(jwt2.SigningMethodHS256), jwt.WithClaims(func() jwt2.Claims {
 					return &claims.Claims{}
 				})),
@@ -92,6 +94,19 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	campusService.RegisterRoutes(srv)
 	registerHealthRoutes(srv.HandleFunc, "campus-estation.api.service", serviceVersion(), data)
 	return srv
+}
+
+func resolveAuthSecret(auth *conf.Auth) string {
+	if value := strings.TrimSpace(os.Getenv("LEHU_JWT_SECRET")); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(os.Getenv("LEHU_AUTH_API_KEY")); value != "" {
+		return value
+	}
+	if auth == nil || strings.TrimSpace(auth.ApiKey) == "" {
+		return "fireshine"
+	}
+	return auth.ApiKey
 }
 
 func serviceVersion() string {

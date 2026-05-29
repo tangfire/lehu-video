@@ -2422,6 +2422,16 @@ func (r *campusRepo) CreateAccessLogs(ctx context.Context, logs []*biz.CampusAcc
 	return r.data.db.WithContext(ctx).CreateInBatches(rows, 100).Error
 }
 
+func (r *campusRepo) DeleteAccessLogsBefore(ctx context.Context, before time.Time) (int64, error) {
+	if before.IsZero() {
+		return 0, nil
+	}
+	result := r.data.db.WithContext(ctx).
+		Where("created_at < ?", before).
+		Delete(&campusAccessLogModel{})
+	return result.RowsAffected, result.Error
+}
+
 func (r *campusRepo) GetSecurityOverview(ctx context.Context) (*biz.CampusSecurityOverview, error) {
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())

@@ -3,6 +3,8 @@ package data
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
@@ -55,7 +57,8 @@ func NewIdGenerator(c *conf.Idgen) idgen.Generator {
 }
 
 func NewDB(c *conf.Data, logger log.Logger) (*gorm.DB, error) {
-	db, err := gorm.Open(mysql.Open(c.Database.Source), &gorm.Config{})
+	source := firstEnv("LEHU_MYSQL_DSN", c.Database.Source)
+	db, err := gorm.Open(mysql.Open(source), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
@@ -67,4 +70,11 @@ func NewDB(c *conf.Data, logger log.Logger) (*gorm.DB, error) {
 		return nil, fmt.Errorf("ping mysql: %w", err)
 	}
 	return db, nil
+}
+
+func firstEnv(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
 }
