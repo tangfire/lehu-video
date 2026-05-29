@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/go-kratos/kratos/v2/middleware/circuitbreaker"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
+	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	"github.com/go-kratos/kratos/v2/registry"
 	kgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
 	grpc "google.golang.org/grpc"
@@ -39,6 +40,7 @@ func dialService(r registry.Discovery, endpoint string) (*grpc.ClientConn, error
 		kgrpc.WithDiscovery(r),
 		kgrpc.WithMiddleware(
 			recovery.Recovery(),
+			tracing.Client(),
 			circuitbreaker.Client(), // 添加熔断器
 		),
 	)

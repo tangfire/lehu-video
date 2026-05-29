@@ -1,0 +1,20 @@
+groups:
+  - name: lehu-health
+    rules:
+      - alert: LehuProbeDown
+        expr: lehu_probe_success == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Lehu target down: {{ $labels.name }}"
+          description: "{{ $labels.target }} has failed health probing for more than 1 minute."
+
+      - alert: LehuExporterDown
+        expr: up{job=~"prometheus|lehu-health"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lehu exporter down: {{ $labels.instance }}"
+          description: "{{ $labels.job }} target {{ $labels.instance }} is not scrapeable."

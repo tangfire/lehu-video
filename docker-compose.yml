@@ -291,38 +291,84 @@ services:
       retries: 12
       start_period: 20s
 
-  uptime-kuma:
-    image: louislam/uptime-kuma:1
-    container_name: lehu-uptime-kuma
+  health-exporter:
+    image: lehu-video-backend-campus-rag
+    container_name: lehu-health-exporter
     restart: unless-stopped
+    command: ["python", "/app/health_exporter.py", "--config", "/etc/health-exporter/targets.json", "--listen", "0.0.0.0:9115"]
     volumes:
-      - lehu_uptime_kuma_data:/app/data
-    ports:
-      - "13001:3001"
-    depends_on:
-      api:
-        condition: service_started
+      - ./deploy/observability/health-exporter/health_exporter.py:/app/health_exporter.py:ro
+      - ./deploy/observability/health-exporter/targets.json:/etc/health-exporter/targets.json:ro
+    expose:
+      - "9115"
 
-  node-exporter:
-    image: prom/node-exporter:v1.8.2
-    container_name: lehu-node-exporter
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: lehu-prometheus
     restart: unless-stopped
     command:
-      - "--path.rootfs=/host"
-    pid: host
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
     volumes:
-      - "/:/host:ro"
+      - ./deploy/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - lehu_prometheus_data:/prometheus
     ports:
-      - "19100:9100"
+      - "19090:9090"
+    depends_on:
+      - health-exporter
 
-  dozzle:
-    image: amir20/dozzle:v8.9.1
-    container_name: lehu-dozzle
+  loki:
+    image: grafana/loki:3.7.2
+    container_name: lehu-loki
     restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./deploy/observability/loki/config.yaml:/etc/loki/config.yaml:ro
+      - lehu_loki_data:/loki
+    expose:
+      - "3100"
+
+  alloy:
+    image: grafana/alloy:v1.16.0
+    container_name: lehu-alloy
+    restart: unless-stopped
+    user: "0:0"
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./deploy/observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - lehu_alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.6.1
+    container_name: lehu-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:13002}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    volumes:
+      - lehu_grafana_data:/var/lib/grafana
+      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
-      - "13002:8080"
+      - "13002:3000"
+    depends_on:
+      - loki
+      - prometheus
 
 volumes:
   lehu_mysql_data:
@@ -330,4 +376,7 @@ volumes:
   lehu_kafka_data:
   lehu_minio_data:
   lehu_qdrant_data:
-  lehu_uptime_kuma_data:
+  lehu_prometheus_data:
+  lehu_loki_data:
+  lehu_alloy_data:
+  lehu_grafana_data:

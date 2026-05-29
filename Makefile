@@ -65,6 +65,24 @@ docker-up:
 docker-down:
 	docker compose down
 
+.PHONY: logs-request
+# search all lehu Docker logs by request_id
+logs-request:
+	@test -n "$(RID)" || (echo "Usage: make logs-request RID=<request_id> [SINCE=24h] [TAIL=50000] [CONTEXT=2]" && exit 1)
+	bash scripts/find-request-logs.sh "$(RID)" --since "$(or $(SINCE),24h)" --tail "$(or $(TAIL),50000)" --context "$(or $(CONTEXT),2)"
+
+.PHONY: logs-trace
+# search all lehu Docker logs by trace_id
+logs-trace:
+	@test -n "$(TID)" || (echo "Usage: make logs-trace TID=<trace_id> [SINCE=24h] [TAIL=50000] [CONTEXT=2]" && exit 1)
+	bash scripts/find-request-logs.sh "$(TID)" --since "$(or $(SINCE),24h)" --tail "$(or $(TAIL),50000)" --context "$(or $(CONTEXT),2)"
+
+.PHONY: logs-search
+# search all lehu Docker logs by keyword
+logs-search:
+	@test -n "$(Q)" || (echo "Usage: make logs-search Q=<keyword> [SINCE=24h] [TAIL=50000] [CONTEXT=2]" && exit 1)
+	bash scripts/find-request-logs.sh "$(Q)" --since "$(or $(SINCE),24h)" --tail "$(or $(TAIL),50000)" --context "$(or $(CONTEXT),2)"
+
 .PHONY: smoke
 # run local backend smoke checks
 smoke:

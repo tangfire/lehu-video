@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-kratos/kratos/contrib/registry/consul/v2"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
+	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	"github.com/go-kratos/kratos/v2/registry"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 	consulAPI "github.com/hashicorp/consul/api"
@@ -68,6 +69,7 @@ func NewUserServiceClient(r registry.Discovery) (core.UserServiceClient, error) 
 		grpc.WithDiscovery(r),
 		grpc.WithMiddleware(
 			recovery.Recovery(),
+			tracing.Client(),
 		),
 	)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"github.com/go-kratos/kratos/v2/registry"
 	logger2 "lehu-video/app/videoApi/service/internal/pkg/logger"
 	"lehu-video/app/videoApi/service/internal/server"
+	"lehu-video/pkg/observability"
 	"math/rand"
 	"os"
 	"time"
@@ -69,6 +70,8 @@ func newApp(logger log.Logger, rr registry.Registrar, hs *http.Server, kcs *serv
 
 func main() {
 	flag.Parse()
+	shutdownTracing := observability.InitTracing()
+	defer shutdownTracing()
 
 	zapLogger := logger2.NewZapLogger("debug")
 	defer zapLogger.Sync()

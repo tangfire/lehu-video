@@ -9,6 +9,8 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type loggingResponseWriter struct {
@@ -31,6 +33,14 @@ func accessLogFilter(logger log.Logger) khttp.FilterFunc {
 			}
 
 			start := time.Now()
+			traceCtx, span := otel.Tracer("lehu-video.api.access").Start(
+				r.Context(),
+				r.Method+" "+r.URL.Path,
+				trace.WithSpanKind(trace.SpanKindServer),
+			)
+			defer span.End()
+			r = r.WithContext(traceCtx)
+
 			requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
 			if requestID == "" {
 				requestID = fmt.Sprintf("%d", time.Now().UnixNano())

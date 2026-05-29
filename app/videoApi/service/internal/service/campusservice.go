@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
@@ -121,8 +122,13 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 
 func (s *CampusService) wrap(handler http.HandlerFunc) khttp.HandlerFunc {
 	return func(ctx khttp.Context) error {
-		s.secure(handler)(ctx.Response(), ctx.Request())
-		return nil
+		h := tracing.Server()(func(traceCtx context.Context, _ interface{}) (interface{}, error) {
+			req := ctx.Request().WithContext(traceCtx)
+			s.secure(handler)(ctx.Response(), req)
+			return nil, nil
+		})
+		_, err := h(ctx.Request().Context(), nil)
+		return err
 	}
 }
 

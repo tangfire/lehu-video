@@ -33,7 +33,7 @@ http://localhost:18080
 ```bash
 export LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS=true
 export LEHU_DISABLE_API_KAFKA_CONSUMER=true
-docker compose up -d mysql redis minio minio-init consul base core qdrant campus-rag api uptime-kuma dozzle
+docker compose up -d mysql redis minio minio-init consul base core qdrant campus-rag api health-exporter prometheus loki alloy grafana
 ```
 
 这套最小启动不包含 `kafka / kafka-init / chat`。如果要同时体验短视频 Feed 写扩散或聊天消息链路，再启动完整 `docker compose up -d`，并把上面两个禁用 Kafka 消费者的环境变量取消。
@@ -86,7 +86,7 @@ docker compose logs -f
 
 ## 内测监控与健康检查
 
-后端提供轻量健康检查，适合 Uptime Kuma 和 Docker healthcheck：
+后端提供轻量健康检查，适合 Docker healthcheck、Prometheus 和 Grafana 告警：
 
 ```text
 GET http://localhost:18080/healthz  # API 进程存活
@@ -96,28 +96,39 @@ GET http://localhost:18080/readyz   # MySQL / Redis 依赖可用性
 启动内测监控面板：
 
 ```bash
-docker compose up -d uptime-kuma node-exporter dozzle
+docker compose up -d health-exporter prometheus loki alloy grafana
 ```
 
-访问 Uptime Kuma：
-
-```text
-http://localhost:13001
-```
-
-访问 Dozzle 日志面板：
+访问 Grafana：
 
 ```text
 http://localhost:13002
 ```
 
-推荐在 Uptime Kuma 里先添加这些监控项：
+Prometheus 本地调试入口：
 
 ```text
-API 存活：http://api:8080/healthz
-API 依赖：http://api:8080/readyz
-MinIO 控制台：http://minio:9001
-Node Exporter：http://node-exporter:9100/metrics
+http://localhost:19090
+```
+
+本地默认账号：
+
+```text
+账号：admin
+密码：admin
+```
+
+正式/体验服务器建议设置：
+
+```bash
+export GRAFANA_ADMIN_PASSWORD=换成强密码
+```
+
+Grafana 里已经预置两个面板：
+
+```text
+Dashboards -> Lehu -> 乐乎日志搜索
+Dashboards -> Lehu -> 乐乎健康监控
 ```
 
 本地开发环境常用访问地址：
@@ -125,11 +136,10 @@ Node Exporter：http://node-exporter:9100/metrics
 ```text
 API 健康检查：http://localhost:18080/healthz
 API 依赖检查：http://localhost:18080/readyz
-Uptime Kuma：http://localhost:13001
-Dozzle 日志面板：http://localhost:13002
+Grafana 监控面板：http://localhost:13002
+Prometheus 调试入口：http://localhost:19090
 MinIO 文件/API：http://localhost:19000
 MinIO 控制台：http://localhost:19001
-Node Exporter 指标：http://localhost:19100/metrics
 ```
 
 MinIO 本地默认账号：
@@ -139,20 +149,40 @@ MinIO 本地默认账号：
 密码：minioadmin
 ```
 
-内测阶段先用 Uptime Kuma 面板观察服务状态；后续需要微信、企业微信或邮件提醒时，可在 Kuma 的「通知」里补 webhook。磁盘建议预警阈值先按 80% 设置，图片/视频上传变多后重点关注 MinIO 和 MySQL volume。
+`health-exporter` 会在 Docker 内网探测 API、Base、Core、RAG、MinIO、MySQL、Redis、Consul、Qdrant，并把结果暴露给 Prometheus。Grafana 的「乐乎健康监控」面板会直接显示失败目标和耗时；Prometheus / Grafana 里也已经有 `LehuProbeDown` 这类基础告警规则。
 
-Dozzle 用来在浏览器里看 Docker 容器日志。用户反馈请求失败时，优先在 Dozzle 里打开 `lehu-api`，搜索前端返回的 `request_id`，也可以搜索接口路径、`status`、`error`、`429`、`500` 等关键词。
+需要企业微信、邮件或 webhook 推送时，在 Grafana 里进入 `Alerting -> Contact points` 添加通知方式，再到 `Notification policies` 绑定默认策略。通知地址、邮箱账号这类敏感配置不要写进仓库；正式服务器建议用环境变量或 Grafana UI 保存。
+
+Grafana + Loki 用来在浏览器里集中查看 Docker 容器日志，不需要进入服务器挨个容器搜。打开 `http://localhost:13002`，进入 `Dashboards -> Lehu -> 乐乎日志搜索`，选择容器或 All，再输入用户给的 `request_id`、`trace_id`、接口路径或错误关键词即可搜索全容器日志。
+
+如果需要临时写更细的 LogQL，可以进入 Explore，数据源选择 Loki，常用查询：
+
+```logql
+{job="docker"} |= "用户提供的请求编号"
+{job="docker", container="lehu-api"} |= "/v1/campus/forum/posts"
+{job="docker"} |~ "status(=|\":) ?500"
+{job="docker"} |= "trace_id"
+```
+
+首次接入时 Alloy 只回灌最近 30 分钟的 Docker 历史日志，避免把旧日志刷爆 Loki；后续正常运行产生的日志会按 Loki 本地 7 天留存。
+
+定位具体请求时，先用用户反馈的 `request_id` 搜入口日志；如果日志里有 `trace_id`，再用同一个 `trace_id` 搜全容器，就能看到 `api / base / core / chat` 的同一次调用链。如果 Grafana/Loki 本身不可用，保留命令行兜底查询：
+
+```bash
+make logs-request RID=用户提供的请求编号 SINCE=30m
+make logs-trace TID=上一条命令提示的trace_id SINCE=30m
+make logs-search Q="/v1/campus/forum/posts" SINCE=2h
+make logs-search Q="status=500" SINCE=2h
+```
 
 `request_id` 是每次接口请求的排障编号：
 
 - 小程序接口失败时，错误弹窗会显示“请求编号”，用户可以截图或点“复制编号”发给你。
 - 运营后台接口失败时，浏览器控制台会打印 `[request failed]`，里面有 `request_id`。
-- 后端日志每条请求都会带同一个 `request_id`，在 Dozzle 搜这个编号即可定位对应接口、状态码、耗时和错误。
+- 后端入口日志每条请求都会带同一个 `request_id`，同时带 `trace_id`。`request_id` 用来找到入口请求，`trace_id` 用来跨容器追踪这次请求触发的下游调用。
 - 如果用户没有提供编号，也可以按大概时间、接口路径、用户 ID、IP、`status=500/429/403` 搜。
 
-`node-exporter` 在本地 Docker Desktop 下以只读方式挂载主机根目录，主要用于快速查看 CPU、内存、磁盘等基础指标；正式服务器如需更完整的主机指标，再按 Linux 环境调整挂载参数。
-
-正式服务器不要把 Uptime Kuma 和 Dozzle 直接暴露给公网所有人，建议用防火墙限制访问 IP，或放到内网/VPN 后面。
+正式服务器不要把 Grafana 和 Prometheus 直接暴露给公网所有人，建议用防火墙限制访问 IP，或放到内网/VPN 后面。
 
 ## 深汕e仔 AI 回复
 
@@ -168,7 +198,7 @@ CAMPUS_AI_MODEL=deepseek-chat           # 默认 deepseek-chat
 CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
 ```
 
-生产环境建议先把每日上限设低一点，观察 Dozzle 日志里的 `e仔 AI 回复任务`错误和 DeepSeek 控制台用量后再逐步调高。大模型回复只作为校园生活问答参考，不替代学校官方通知。
+生产环境建议先把每日上限设低一点，观察 Grafana 日志里的 `e仔 AI 回复任务`错误和 DeepSeek 控制台用量后再逐步调高。大模型回复只作为校园生活问答参考，不替代学校官方通知。
 
 ## e仔知识库 RAG
 

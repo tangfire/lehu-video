@@ -7,6 +7,7 @@ import (
 	"github.com/go-kratos/kratos/v2/middleware/ratelimit"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/middleware/selector"
+	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	"github.com/go-kratos/kratos/v2/transport/http"
 	jwt2 "github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/handlers"
@@ -67,6 +68,7 @@ func NewHTTPServer(c *conf.Server, ac *conf.Auth,
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
+			tracing.Server(),
 			ratelimit.Server(), // 添加限流器
 			selector.Server(
 				jwt.Server(func(token *jwt2.Token) (interface{}, error) {

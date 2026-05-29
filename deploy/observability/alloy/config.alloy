@@ -1,0 +1,64 @@
+discovery.docker "lehu" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "lehu_logs" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "service_name"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+
+  rule {
+    source_labels = ["container"]
+    regex         = "lehu-(alloy|loki|grafana)"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["container"]
+    regex         = "lehu-.*"
+    action        = "keep"
+  }
+}
+
+loki.source.docker "lehu" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.lehu.targets
+  labels        = {job = "docker"}
+  relabel_rules = discovery.relabel.lehu_logs.rules
+  forward_to     = [loki.process.lehu.receiver]
+}
+
+loki.process "lehu" {
+  forward_to = [loki.write.lehu.receiver]
+
+  stage.drop {
+    older_than          = "30m"
+    drop_counter_reason = "old_docker_backfill"
+  }
+}
+
+loki.write "lehu" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

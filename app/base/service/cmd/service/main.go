@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/go-kratos/kratos/v2/registry"
+	"lehu-video/pkg/observability"
 	"math/rand"
 	"os"
 	"time"
@@ -67,6 +68,9 @@ func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, rr registry.Reg
 
 func main() {
 	flag.Parse()
+	shutdownTracing := observability.InitTracing()
+	defer shutdownTracing()
+
 	logger := log.With(log.NewStdLogger(os.Stdout),
 		"ts", log.DefaultTimestamp,
 		"caller", log.DefaultCaller,
