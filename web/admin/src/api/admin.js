@@ -109,6 +109,7 @@ export const campusAdminApi = {
     updatePost: (id, data) => request.put(`/campus/admin/posts/${id}`, data),
     deletePost: (id) => request.delete(`/campus/admin/posts/${id}`),
     batchPosts: (data) => request.post('/campus/admin/posts/batch', data),
+    listMomentsCandidates: (params) => request.get('/campus/admin/moments/candidates', { params }),
     createMomentsPackage: (data) => request.post('/campus/admin/moments/packages', data),
     downloadMomentsImage: (packageId, slot) => protectedBlobRequest(`/campus/admin/moments/packages/${packageId}/images/${slot}.png`),
     downloadMomentsZip: (packageId) => protectedBlobRequest(`/campus/admin/moments/packages/${packageId}/download.zip`),

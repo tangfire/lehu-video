@@ -45,7 +45,13 @@ const (
 type CreateCampusMomentsPackageInput struct {
 	UserID    string
 	Date      string
+	PostIDs   []int64
 	RequestID string
+}
+
+type ListCampusMomentsCandidatesInput struct {
+	UserID string
+	Date   string
 }
 
 type CampusMomentsPackageOutput struct {
@@ -99,9 +105,9 @@ func (uc *CampusUsecase) AdminCreateMomentsPackage(ctx context.Context, input *C
 	if err := ensureMomentsImageHostConfigured(); err != nil {
 		return nil, err
 	}
-	posts, err := uc.repo.ListTopImagePostsByDate(ctx, start, end, momentsCandidateLimit)
+	posts, err := uc.momentsPackagePosts(ctx, input, start, end)
 	if err != nil {
-		return nil, apperror.Internal(err, "获取今日热帖失败")
+		return nil, err
 	}
 	if err := uc.assembler.HydratePosts(ctx, posts, input.UserID); err != nil {
 		uc.log.WithContext(ctx).Warnf("hydrate moments posts failed: request_id=%s err=%v", input.RequestID, err)
@@ -172,6 +178,57 @@ func (uc *CampusUsecase) AdminCreateMomentsPackage(ctx context.Context, input *C
 		return nil, apperror.Internal(err, "打包朋友圈素材失败")
 	}
 	return output, nil
+}
+
+func (uc *CampusUsecase) AdminListMomentsCandidates(ctx context.Context, input *ListCampusMomentsCandidatesInput) ([]*CampusForumPost, error) {
+	if input == nil {
+		input = &ListCampusMomentsCandidatesInput{}
+	}
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	_, start, end, err := parseMomentsDate(input.Date)
+	if err != nil {
+		return nil, err
+	}
+	posts, err := uc.repo.ListTopImagePostsByDate(ctx, start, end, momentsCandidateLimit)
+	if err != nil {
+		return nil, apperror.Internal(err, "获取朋友圈候选帖子失败")
+	}
+	if err := uc.assembler.HydratePosts(ctx, posts, input.UserID); err != nil {
+		uc.log.WithContext(ctx).Warnf("hydrate moments candidates failed: err=%v", err)
+	}
+	return posts, nil
+}
+
+func (uc *CampusUsecase) momentsPackagePosts(ctx context.Context, input *CreateCampusMomentsPackageInput, start, end time.Time) ([]*CampusForumPost, error) {
+	selectedIDs := normalizeMomentsSelectedPostIDs(input.PostIDs)
+	if len(selectedIDs) == 0 {
+		posts, err := uc.repo.ListTopImagePostsByDate(ctx, start, end, momentsCandidateLimit)
+		if err != nil {
+			return nil, apperror.Internal(err, "获取今日热帖失败")
+		}
+		return posts, nil
+	}
+	posts, err := uc.repo.ListPostsByIDs(ctx, selectedIDs, []int32{CampusAuditStatusVisible})
+	if err != nil {
+		return nil, apperror.Internal(err, "获取已选帖子失败")
+	}
+	out := make([]*CampusForumPost, 0, len(posts))
+	for _, post := range posts {
+		if post == nil || post.MediaType != CampusPostMediaImage || momentsPostCover(post) == "" {
+			continue
+		}
+		out = append(out, post)
+	}
+	if len(out) == 0 {
+		return nil, apperror.InvalidArgument("已选帖子里没有可生成素材的图片帖")
+	}
+	if len(out) < len(selectedIDs) {
+		missing := len(selectedIDs) - len(out)
+		return out, apperror.InvalidArgument(fmt.Sprintf("有 %d 个已选帖子不可用，请只选择正常展示的图片帖", missing))
+	}
+	return out, nil
 }
 
 func (uc *CampusUsecase) AdminGetMomentsImageFile(ctx context.Context, userID, packageID string, slot int) (*CampusMomentsPackageFile, error) {
@@ -303,6 +360,22 @@ func momentsPostCover(post *CampusForumPost) string {
 		}
 	}
 	return ""
+}
+
+func normalizeMomentsSelectedPostIDs(ids []int64) []int64 {
+	seen := make(map[int64]bool, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+		if len(out) >= momentsPackageMaxPosts {
+			break
+		}
+	}
+	return out
 }
 
 func momentsPackagePostFromPost(post *CampusForumPost, slot int, coverURL, packageID string) *CampusMomentsPackagePost {

@@ -95,6 +95,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/admin/posts/batch", s.wrap(s.authRequired(s.handleAdminBatchPosts)))
 	r.PUT("/v1/campus/admin/posts/{id}", s.wrap(s.authRequired(s.handleAdminUpdatePost)))
 	r.DELETE("/v1/campus/admin/posts/{id}", s.wrap(s.authRequired(s.handleAdminDeletePost)))
+	r.GET("/v1/campus/admin/moments/candidates", s.wrap(s.authRequired(s.handleAdminListMomentsCandidates)))
 	r.POST("/v1/campus/admin/moments/packages", s.wrap(s.authRequired(s.handleAdminCreateMomentsPackage)))
 	r.GET("/v1/campus/admin/moments/packages/{id}/images/{slot}.png", s.wrap(s.authRequired(s.handleAdminGetMomentsImage)))
 	r.GET("/v1/campus/admin/moments/packages/{id}/download.zip", s.wrap(s.authRequired(s.handleAdminDownloadMomentsPackage)))
@@ -743,7 +744,8 @@ type batchPostsRequest struct {
 }
 
 type createMomentsPackageRequest struct {
-	Date string `json:"date"`
+	Date    string  `json:"date"`
+	PostIDs []int64 `json:"post_ids"`
 }
 
 type feedbackRequest struct {
@@ -1460,6 +1462,23 @@ func (s *CampusService) handleAdminDeletePost(w http.ResponseWriter, r *http.Req
 	writeJSON(w, r, map[string]interface{}{})
 }
 
+func (s *CampusService) handleAdminListMomentsCandidates(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	posts, err := s.uc.AdminListMomentsCandidates(r.Context(), &biz.ListCampusMomentsCandidatesInput{
+		UserID: userID,
+		Date:   r.URL.Query().Get("date"),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(posts))
+	for _, post := range posts {
+		items = append(items, postToMap(post))
+	}
+	writeJSON(w, r, map[string]interface{}{"posts": items})
+}
+
 func (s *CampusService) handleAdminCreateMomentsPackage(w http.ResponseWriter, r *http.Request) {
 	userID, _ := s.userIDFromRequest(r)
 	var req createMomentsPackageRequest
@@ -1469,6 +1488,7 @@ func (s *CampusService) handleAdminCreateMomentsPackage(w http.ResponseWriter, r
 	out, err := s.uc.AdminCreateMomentsPackage(r.Context(), &biz.CreateCampusMomentsPackageInput{
 		UserID:    userID,
 		Date:      req.Date,
+		PostIDs:   req.PostIDs,
 		RequestID: r.Header.Get("X-Request-ID"),
 	})
 	if err != nil {

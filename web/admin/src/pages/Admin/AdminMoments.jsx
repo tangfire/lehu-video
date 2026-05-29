@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FiAlertCircle, FiCalendar, FiCheckCircle, FiCopy, FiDownload, FiGrid, FiRefreshCw } from 'react-icons/fi';
+import { FiAlertCircle, FiCalendar, FiCheckCircle, FiCheckSquare, FiCopy, FiDownload, FiGrid, FiRefreshCw, FiSquare } from 'react-icons/fi';
 import { campusAdminApi, downloadBlob } from '../../api/admin';
-import { compactNumber } from './adminUtils';
+import { compactNumber, excerpt, postCover } from './adminUtils';
 import './Admin.css';
 
 const today = () => {
@@ -21,13 +21,49 @@ const revokePreviews = (items) => {
 const AdminMoments = () => {
     const [date, setDate] = useState(today());
     const [packageData, setPackageData] = useState(null);
+    const [candidates, setCandidates] = useState([]);
+    const [selectedIds, setSelectedIds] = useState([]);
     const [previews, setPreviews] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [candidateLoading, setCandidateLoading] = useState(false);
     const [downloadLoading, setDownloadLoading] = useState('');
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
 
     useEffect(() => () => revokePreviews(previews), [previews]);
+
+    useEffect(() => {
+        let active = true;
+        const load = async () => {
+            setCandidateLoading(true);
+            setError('');
+            try {
+                const data = await campusAdminApi.listMomentsCandidates({ date });
+                if (!active) return;
+                const posts = data.posts || [];
+                setCandidates(posts);
+                setSelectedIds(posts.slice(0, 9).map((post) => String(post.id)));
+                setPackageData(null);
+                setPreviews((old) => {
+                    revokePreviews(old);
+                    return [];
+                });
+            } catch (err) {
+                if (!active) return;
+                setCandidates([]);
+                setSelectedIds([]);
+                setError(err.message || '获取朋友圈候选失败');
+            } finally {
+                if (active) setCandidateLoading(false);
+            }
+        };
+        load();
+        return () => {
+            active = false;
+        };
+    }, [date]);
+
+    const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
     const statsText = useMemo(() => {
         if (!packageData) return '等待生成';
@@ -55,7 +91,11 @@ const AdminMoments = () => {
         setError('');
         setMessage('');
         try {
-            const data = await campusAdminApi.createMomentsPackage({ date });
+            const payload = {
+                date,
+                ...(selectedIds.length > 0 ? { post_ids: selectedIds.map((id) => Number(id)).filter(Boolean) } : {}),
+            };
+            const data = await campusAdminApi.createMomentsPackage(payload);
             const pkg = data.package;
             setPackageData(pkg);
             await loadPreviewImages(pkg);
@@ -65,6 +105,43 @@ const AdminMoments = () => {
             setError(err.message || '生成朋友圈素材失败');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const toggleCandidate = (postId) => {
+        const id = String(postId);
+        setError('');
+        setSelectedIds((current) => {
+            if (current.includes(id)) {
+                return current.filter((item) => item !== id);
+            }
+            if (current.length >= 9) {
+                setError('最多选择 9 个帖子');
+                return current;
+            }
+            return [...current, id];
+        });
+    };
+
+    const useTopNine = () => {
+        setSelectedIds(candidates.slice(0, 9).map((post) => String(post.id)));
+        setMessage('已按热度选择前 9 个帖子');
+        setError('');
+    };
+
+    const refreshCandidates = async () => {
+        setCandidateLoading(true);
+        setError('');
+        try {
+            const data = await campusAdminApi.listMomentsCandidates({ date });
+            const posts = data.posts || [];
+            setCandidates(posts);
+            setSelectedIds((current) => current.filter((id) => posts.some((post) => String(post.id) === id)).slice(0, 9));
+            setMessage('候选列表已刷新');
+        } catch (err) {
+            setError(err.message || '刷新候选失败');
+        } finally {
+            setCandidateLoading(false);
         }
     };
 
@@ -106,7 +183,7 @@ const AdminMoments = () => {
                     </div>
                     <div>
                         <strong>朋友圈九图包</strong>
-                        <span>{statsText}</span>
+                        <span>{packageData ? statsText : `${selectedIds.length}/9 已选`}</span>
                     </div>
                 </div>
                 <div className="admin-moments-actions">
@@ -116,13 +193,63 @@ const AdminMoments = () => {
                     </label>
                     <button className="admin-button primary" type="button" onClick={handleGenerate} disabled={loading}>
                         <FiRefreshCw className={loading ? 'spin' : ''} />
-                        {loading ? '生成中' : '生成素材'}
+                        {loading ? '生成中' : '生成已选素材'}
                     </button>
                     <button className="admin-button" type="button" onClick={handleDownloadZip} disabled={!packageData || downloadLoading === 'zip'}>
                         <FiDownload />
                         下载 ZIP
                     </button>
                 </div>
+            </section>
+
+            <section className="admin-panel admin-moments-picker">
+                <div className="admin-panel-head">
+                    <div>
+                        <h2>选择帖子</h2>
+                        <p>{candidateLoading ? '正在加载候选' : `候选 ${candidates.length} 条，已选 ${selectedIds.length} 条`}</p>
+                    </div>
+                    <div className="admin-head-actions">
+                        <button className="admin-button" type="button" onClick={useTopNine} disabled={candidateLoading || candidates.length === 0}>
+                            <FiCheckSquare />
+                            热度前 9
+                        </button>
+                        <button className="admin-button" type="button" onClick={refreshCandidates} disabled={candidateLoading}>
+                            <FiRefreshCw className={candidateLoading ? 'spin' : ''} />
+                            刷新候选
+                        </button>
+                    </div>
+                </div>
+                {candidates.length === 0 && (
+                    <div className="admin-empty compact">当天还没有可用于朋友圈的图片帖。</div>
+                )}
+                {candidates.length > 0 && (
+                    <div className="admin-moments-candidates">
+                        {candidates.map((post) => {
+                            const id = String(post.id);
+                            const selected = selectedSet.has(id);
+                            const order = selected ? selectedIds.indexOf(id) + 1 : 0;
+                            return (
+                                <button
+                                    className={`admin-moments-candidate ${selected ? 'selected' : ''}`}
+                                    type="button"
+                                    key={id}
+                                    onClick={() => toggleCandidate(id)}
+                                >
+                                    <div className="admin-moments-candidate-cover">
+                                        {postCover(post) ? <img src={postCover(post)} alt="" /> : <FiGrid />}
+                                        {selected && <span>{order}</span>}
+                                    </div>
+                                    <div className="admin-moments-candidate-body">
+                                        <strong>{post.title || excerpt(post.content, 24) || '校园热帖'}</strong>
+                                        <small>{excerpt(post.content, 42) || post.category_name || '图文笔记'}</small>
+                                        <em>{compactNumber(post.like_count)} 赞 · {compactNumber(post.comment_count)} 评 · {compactNumber(post.collected_count)} 藏</em>
+                                    </div>
+                                    {selected ? <FiCheckSquare /> : <FiSquare />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </section>
 
             {message && (
