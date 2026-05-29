@@ -1,58 +1,140 @@
-# Lehu Video Backend
+# lehu-campus 校园 e站
 
-## 项目亮点
+校园 e站后端以小程序社区、课表、运营后台、e仔 AI/RAG 和浏览器内排障为主。旧项目栈已经从当前项目移除。
 
-- Kratos 微服务结构：`videoApi / base / videoCore / videoChat`
-- Docker Compose 一键启动 MySQL、Redis、Kafka、MinIO、Consul 和后端服务
-- 统一 HTTP 响应与业务错误码
-- JWT 登录态，HTTP 与 WebSocket 共用 token 校验
-- Argon2id 密码存储，并兼容旧 MD5+salt 账号自动迁移
-- Feed、点赞、评论、收藏、播放量使用 Redis counter + 异步落库 + 对账思路
+## 架构与设计
 
-架构说明见：[docs/architecture.md](docs/architecture.md)
+校园 e站第一阶段按“小团队可运维、低成本首发、浏览器内排障”设计。当前项目只服务校园社区，不再包含旧短视频、IM chat、Kafka、WebSocket 运行栈。
+
+```mermaid
+flowchart LR
+    MiniProgram[微信小程序] --> API[校园 API]
+    Admin[运营后台] --> API
+    API --> Base[base 账号/文件]
+    API --> User[campus-user 用户资料]
+    API --> MySQL[(MySQL)]
+    API --> Redis[(Redis)]
+    API --> Rag[campus-rag]
+    Rag --> Qdrant[(Qdrant)]
+    Base --> MinIO[(MinIO 本地开发)]
+    Base --> COS[腾讯云 COS]
+    COS --> CDN[CDN 公开访问]
+    DockerLogs[Docker 容器日志] --> Alloy[Alloy 日志采集]
+    Alloy --> Loki[(Loki 日志存储)]
+    Grafana[Grafana] -->|查询日志| Loki
+    Health[health-exporter] --> Prometheus[(Prometheus 指标存储)]
+    Grafana -->|查询指标| Prometheus
+    Grafana --> Alert[alert-webhook]
+    Alert --> Feishu[飞书群机器人]
+```
+
+核心服务职责：
+
+- `api`：统一 HTTP 入口，承载小程序接口、运营后台接口、审核、通知、e仔任务编排和健康检查。
+- `base`：账号、验证码、文件预签名上传、对象存储确认。本地用 MinIO，生产公开媒体用 COS + CDN。
+- `campus-user`：用户资料、搜索、统计和在线时间。
+- `campus-rag`：知识库文档解析、切片、embedding 和 Qdrant 检索。
+- `admin-web`：运营后台，随主项目一起构建和部署。
+- `grafana / loki / alloy / prometheus / health-exporter / alert-webhook`：日志搜索、健康监控和飞书告警。
+
+关键链路：
+
+- 发帖链路：小程序/后台调用 API；文字/图片帖写 MySQL；图片先走 `/v1/campus/upload/presign` 直传对象存储，再 `/complete` 确认；后端固定拒绝视频。
+- 媒体链路：生产公开图片不走服务器出网，`base` 返回 COS 上传地址和 CDN 访问地址，避免轻量服务器带宽被图片占满。
+- e仔链路：评论区 `@e仔` 先落任务；需要校园事实时查 RAG；命中资料后再生成官方账号回复；未配置模型时降级，不影响社区主链路。
+- 排障链路：用户拿到 `request_id` 后，在 Grafana 日志搜索定位入口日志；健康面板用于判断 API、MySQL、Redis、RAG 等组件是否可用。
+
+图里的监控链路可以这样理解：
+
+- `MinIO`：本地开发默认对象存储。生产公开图片走腾讯云 COS + CDN，MinIO 不再承载用户公开图片流量。
+- `Alloy`：采集 Docker 容器日志，送到 `Loki`。
+- `Loki`：存日志。Grafana 通过 Loki 查 `request_id`、接口路径、错误日志。
+- `health-exporter`：主动探测 API、MySQL、Redis、RAG、Qdrant 等目标是否可用，并把结果变成指标。
+- `Prometheus`：定时抓取并保存这些健康指标，例如某个目标当前是 up 还是 down、连续 down 了多久。
+- `Grafana`：同时查询 Loki 和 Prometheus；Loki 用来看“为什么报错”，Prometheus 用来看“哪里挂了”和触发告警。
+
+设计取舍：
+
+- 首发只支持文字/图片校园社区，视频能力不对外开放，降低带宽、审核和恶意刷流量风险。
+- 公开媒体用 COS + CDN，数据库和 Go 服务仍跑在轻量服务器，控制首发成本。
+- Redis 保留给登录态辅助、限流、缓存和短期任务状态；用户计数不再做复杂 dirty set 同步，优先让系统简单可控。
+- 监控采用 Grafana + Loki + Prometheus + Alloy，尽量在浏览器内完成查日志、看健康和收告警。
+- 运行中数据库不自动 drop 历史表；新库初始化以 `sql/campus.sql` 为准。
+
+更细的服务说明见 [docs/architecture.md](docs/architecture.md)。
 
 ## 本地 Docker 启动
 
-启动前先打开 Docker Desktop。
-
 ```bash
-cd /Users/firetang/Documents/lehu/lehu-video
-docker compose up -d
+cd /Users/firetang/Documents/lehu/lehu-campus
+docker compose up -d --build
 ```
 
-后端默认访问地址：
+如果本机之前用旧 Compose 项目名启动过，第一次切换到 `lehu-campus` 前先停旧 stack，避免端口或容器名冲突：
+
+```bash
+docker compose -p lehu-video-backend down
+docker compose -p campus-estation-backend down
+```
+
+默认启动的校园 e站服务：
 
 ```text
-http://localhost:18080
+mysql / redis / consul / minio / qdrant / campus-rag
+base / campus-user / api / admin-web
+health-exporter / alert-webhook / prometheus / loki / alloy / grafana
 ```
 
-### 校园 e站最小启动
-
-如果只上线/内测校园 e站，不需要启动短视频和聊天相关容器。推荐最小启动：
+默认关键环境变量：
 
 ```bash
-export LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS=true
-export LEHU_DISABLE_API_KAFKA_CONSUMER=true
-docker compose up -d mysql redis minio minio-init consul base core qdrant campus-rag api health-exporter prometheus loki alloy grafana
+export LEHU_STORAGE_PROVIDER=minio
+export LEHU_ENABLE_LEGACY_UPLOAD=false
 ```
 
-这套最小启动不包含 `kafka / kafka-init / chat`。如果要同时体验短视频 Feed 写扩散或聊天消息链路，再启动完整 `docker compose up -d`，并把上面两个禁用 Kafka 消费者的环境变量取消。
+## 生产 Docker 启动
 
-后台权限默认不会放开。正式环境请至少配置一个管理员：
+生产使用 `docker-compose.prod.yml` 作为覆盖文件，本地开发方式不变。先复制示例环境变量并替换所有占位值：
+
+```bash
+cp .env.production.example .env.production
+```
+
+启动：
+
+```bash
+docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+生产覆盖文件会收紧端口：MySQL、Redis、Consul、MinIO、Qdrant、Prometheus、base、campus-user 不再暴露到宿主机；API、运营后台、Grafana 只绑定 `127.0.0.1`，建议由 Caddy/Nginx 反向代理统一暴露 HTTPS。
+
+本地地址：
+
+```text
+API：http://localhost:18080
+运营后台：http://localhost:15173/admin
+Grafana：http://localhost:13002
+Prometheus：http://localhost:19090
+MinIO API：http://localhost:19000
+MinIO 控制台：http://localhost:19001
+```
+
+## 生产必配
+
+正式/体验服务器至少配置一个管理员：
 
 ```bash
 export LEHU_CAMPUS_ADMIN_USER_IDS=你的用户ID
 ```
 
-本地临时调试后台时，才使用：
+正式环境不要开启：
 
 ```bash
 export LEHU_CAMPUS_ADMIN_ALLOW_ALL=true
+export LEHU_WECHAT_MOCK_LOGIN=true
 ```
 
-正式/体验服务器不要开启 `LEHU_CAMPUS_ADMIN_ALLOW_ALL=true`。
-
-小程序体验版/正式版需要真实微信登录配置。正式服务器不要依赖 mock code：
+小程序正式登录需要：
 
 ```bash
 export WECHAT_APP_ID=你的小程序AppID
@@ -60,261 +142,192 @@ export WECHAT_APP_SECRET=你的小程序AppSecret
 export LEHU_WECHAT_MOCK_LOGIN=false
 ```
 
-只有本地联调才可以临时开启：
+## 数据库与文件
 
-```bash
-export LEHU_WECHAT_MOCK_LOGIN=true
-```
-
-如果修改了后端代码或 Docker 配置，需要重新构建：
-
-```bash
-docker compose up -d --build
-```
-
-查看容器状态：
-
-```bash
-docker compose ps
-```
-
-查看日志：
-
-```bash
-docker compose logs -f
-```
-
-## 内测监控与健康检查
-
-后端提供轻量健康检查，适合 Docker healthcheck、Prometheus 和 Grafana 告警：
+默认初始化脚本：
 
 ```text
-GET http://localhost:18080/healthz  # API 进程存活
-GET http://localhost:18080/readyz   # MySQL / Redis 依赖可用性
+sql/campus.sql
 ```
 
-启动内测监控面板：
+默认数据库名：
+
+```text
+lehu_campus_db
+```
+
+默认 MinIO bucket / 文件域：
+
+```text
+campus
+```
+
+生产公开媒体不再建议走服务器本机 MinIO。帖子图片、头像、反馈图片、运营发帖图片使用腾讯云 COS + CDN：
 
 ```bash
-docker compose up -d health-exporter prometheus loki alloy grafana
+export LEHU_STORAGE_PROVIDER=cos
+export COS_SECRET_ID=腾讯云SecretId
+export COS_SECRET_KEY=腾讯云SecretKey
+export COS_REGION=ap-guangzhou
+export COS_BUCKET=campus-1250000000
+export COS_PUBLIC_CDN_BASE_URL=https://cdn.example.com
 ```
 
-访问 Grafana：
+`/v1/campus/upload/presign` 仍返回预签名 PUT 地址，前端直传后调用 `/v1/campus/upload/complete`。生产环境下公开访问 URL 会返回 CDN 域名，不再占用轻量服务器出网带宽。
+
+生产默认关闭 `/v1/campus/upload/image` 图片中转上传，避免 COS/CDN 故障时退回轻量服务器出网。只有本地调试需要兼容旧客户端时，才临时设置：
+
+```bash
+export LEHU_ENABLE_LEGACY_UPLOAD=true
+```
+
+微信公众平台需要配置：
+
+```text
+request 合法域名：API 域名、COS 上传域名，例如 https://campus-1250000000.cos.ap-guangzhou.myqcloud.com
+downloadFile 合法域名：CDN 下载域名，例如 https://cdn.example.com
+```
+
+腾讯云控制台需要配置 COS CORS、CDN 回源、图片缓存规则和基础防盗刷策略。MinIO 只作为本地开发和低频内部文件过渡；知识库/RAG 文件暂不在这一阶段做公开 CDN 化，后续可单独迁到私有 COS。
+
+帖子只支持文字和图片，后端固定拒绝视频上传和视频帖。
+
+## e仔与 RAG
+
+Go 后端负责任务、权限、e仔回复编排；`campus-rag` 只在 Docker 内网提供解析、切片、embedding、Qdrant 检索。
+
+```text
+CAMPUS_RAG_BASE_URL=http://campus-rag:8090
+CAMPUS_RAG_EMBEDDING_MODEL=BAAI/bge-m3
+SILICONFLOW_API_KEY=sk-xxx
+```
+
+e仔 AI 回复：
+
+```text
+DEEPSEEK_API_KEY=sk-xxx
+CAMPUS_EZAI_BOT_USER_ID=123
+CAMPUS_AI_DAILY_LIMIT=200
+CAMPUS_AI_MODEL=deepseek-chat
+CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
+```
+
+未配置 API Key 时，e仔/RAG 会降级，不影响社区主链路。
+
+## 监控与日志
+
+API 限流会使用真实客户端 IP。后端只在请求来自可信代理网段时读取 `X-Forwarded-For` / `X-Real-IP`，默认可信代理包含 loopback、Docker/内网网段。生产有独立反代或负载均衡时可显式配置：
+
+```bash
+export LEHU_TRUSTED_PROXY_CIDRS=127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+```
+
+Docker 本地日志已限制为每个容器 `20m * 3`，避免本地 json log 无限增长；Grafana/Loki 仍按 Loki 留存配置查询近期日志。
+
+MySQL 内的 `campus_access_log` 会由 API 后台任务按保留期自动清理，默认保留 15 天。生产可按磁盘预算调整：
+
+```bash
+export LEHU_ACCESS_LOG_RETENTION_DAYS=15
+```
+
+健康检查：
+
+```text
+GET http://localhost:18080/healthz
+GET http://localhost:18080/readyz
+```
+
+Grafana：
 
 ```text
 http://localhost:13002
-```
-
-Prometheus 本地调试入口：
-
-```text
-http://localhost:19090
-```
-
-本地默认账号：
-
-```text
 账号：admin
 密码：admin
 ```
 
-正式/体验服务器建议设置：
-
-```bash
-export GRAFANA_ADMIN_PASSWORD=换成强密码
-```
-
-Grafana 里已经预置两个面板：
+预置面板：
 
 ```text
-Dashboards -> Lehu -> 乐乎日志搜索
-Dashboards -> Lehu -> 乐乎健康监控
+Dashboards -> Campus e站 -> 校园 e站日志搜索
+Dashboards -> Campus e站 -> 校园 e站健康监控
 ```
 
-本地开发环境常用访问地址：
-
-```text
-API 健康检查：http://localhost:18080/healthz
-API 依赖检查：http://localhost:18080/readyz
-Grafana 监控面板：http://localhost:13002
-Prometheus 调试入口：http://localhost:19090
-MinIO 文件/API：http://localhost:19000
-MinIO 控制台：http://localhost:19001
-```
-
-MinIO 本地默认账号：
-
-```text
-账号：minioadmin
-密码：minioadmin
-```
-
-`health-exporter` 会在 Docker 内网探测 API、Base、Core、RAG、MinIO、MySQL、Redis、Consul、Qdrant，并把结果暴露给 Prometheus。Grafana 的「乐乎健康监控」面板会直接显示失败目标和耗时；Prometheus / Grafana 里也已经有 `LehuProbeDown` 这类基础告警规则。
-
-需要企业微信、邮件或 webhook 推送时，在 Grafana 里进入 `Alerting -> Contact points` 添加通知方式，再到 `Notification policies` 绑定默认策略。通知地址、邮箱账号这类敏感配置不要写进仓库；正式服务器建议用环境变量或 Grafana UI 保存。
-
-Grafana + Loki 用来在浏览器里集中查看 Docker 容器日志，不需要进入服务器挨个容器搜。打开 `http://localhost:13002`，进入 `Dashboards -> Lehu -> 乐乎日志搜索`，选择容器或 All，再输入用户给的 `request_id`、`trace_id`、接口路径或错误关键词即可搜索全容器日志。
-
-如果需要临时写更细的 LogQL，可以进入 Explore，数据源选择 Loki，常用查询：
+常用 LogQL：
 
 ```logql
 {job="docker"} |= "用户提供的请求编号"
-{job="docker", container="lehu-api"} |= "/v1/campus/forum/posts"
+{job="docker", container="campus-api"} |= "/v1/campus/forum/posts"
 {job="docker"} |~ "status(=|\":) ?500"
 {job="docker"} |= "trace_id"
 ```
 
-首次接入时 Alloy 只回灌最近 30 分钟的 Docker 历史日志，避免把旧日志刷爆 Loki；后续正常运行产生的日志会按 Loki 本地 7 天留存。
-
-定位具体请求时，先用用户反馈的 `request_id` 搜入口日志；如果日志里有 `trace_id`，再用同一个 `trace_id` 搜全容器，就能看到 `api / base / core / chat` 的同一次调用链。如果 Grafana/Loki 本身不可用，保留命令行兜底查询：
+命令行兜底：
 
 ```bash
 make logs-request RID=用户提供的请求编号 SINCE=30m
-make logs-trace TID=上一条命令提示的trace_id SINCE=30m
+make logs-trace TID=trace_id SINCE=30m
 make logs-search Q="/v1/campus/forum/posts" SINCE=2h
-make logs-search Q="status=500" SINCE=2h
 ```
 
-`request_id` 是每次接口请求的排障编号：
+### 飞书告警
 
-- 小程序接口失败时，错误弹窗会显示“请求编号”，用户可以截图或点“复制编号”发给你。
-- 运营后台接口失败时，浏览器控制台会打印 `[request failed]`，里面有 `request_id`。
-- 后端入口日志每条请求都会带同一个 `request_id`，同时带 `trace_id`。`request_id` 用来找到入口请求，`trace_id` 用来跨容器追踪这次请求触发的下游调用。
-- 如果用户没有提供编号，也可以按大概时间、接口路径、用户 ID、IP、`status=500/429/403` 搜。
+第一版告警链路是 `Grafana Alerting -> alert-webhook -> 飞书群机器人`。`alert-webhook` 只暴露在 Docker 内网，不映射宿主机端口；本地没有配置飞书 webhook 时只打印日志，不影响 Grafana 启动。
 
-正式服务器不要把 Grafana 和 Prometheus 直接暴露给公网所有人，建议用防火墙限制访问 IP，或放到内网/VPN 后面。
+生产环境在 `.env.production` 配置：
 
-## 深汕e仔 AI 回复
+```bash
+LEHU_ALERT_ENV=prod
+LEHU_ALERT_WEBHOOK_TOKEN=一段随机长token
+LEHU_ALERT_FEISHU_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+LEHU_ALERT_FEISHU_SECRET=飞书机器人签名密钥
+GRAFANA_ROOT_URL=https://grafana.example.com
+```
 
-评论区支持用户通过 `@深汕e仔` 或 `@e仔` 召唤官方 AI 回复。用户评论会先正常发布，后台任务再异步调用大模型生成 e仔回复；未配置 API Key 时功能自动关闭，不影响普通评论。
+飞书群里创建“自定义机器人”，复制 webhook；建议开启“签名校验”，把签名密钥填到 `LEHU_ALERT_FEISHU_SECRET`。当前只报 P0/P1：API/ready、MySQL、Redis、health-exporter 连续 2 分钟不可用发 critical；base、campus-user、RAG、MinIO、Qdrant、Consul 连续 3 分钟不可用发 warning。
 
-需要配置：
+本地模拟一条 Grafana webhook：
+
+```bash
+docker compose up -d alert-webhook
+docker compose exec -T alert-webhook python - <<'PY'
+import json
+import urllib.request
+
+payload = {
+    "status": "firing",
+    "commonLabels": {"alertname": "CampusCriticalTargetDown", "severity": "critical"},
+    "alerts": [{
+        "labels": {"name": "api_ready", "target": "http://api:8080/readyz"},
+        "annotations": {"summary": "校园 e站核心目标不可用：api_ready"},
+        "startsAt": "2026-05-29T00:00:00Z"
+    }]
+}
+req = urllib.request.Request(
+    "http://127.0.0.1:9120/grafana?token=local-alert-token",
+    data=json.dumps(payload).encode(),
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+print(urllib.request.urlopen(req, timeout=5).read().decode())
+PY
+```
+
+收到飞书告警后的处理顺序：先看飞书里的目标名，再进 Grafana 健康面板确认哪块不可用，最后按服务名、接口路径或 request_id 到日志搜索定位原因。
+
+## 冒烟测试
+
+```bash
+API_BASE=http://127.0.0.1:18080/v1 ./scripts/smoke.sh
+```
+
+该脚本会注册测试用户、登录、读取校园版块并发布一条文字 smoke 帖。
+
+## 成本建议
+
+首发 400 人、关闭视频帖、公开媒体走 COS + CDN、图片压缩的前提下，建议：
 
 ```text
-DEEPSEEK_API_KEY=sk-xxx                 # 或 CAMPUS_AI_API_KEY
-CAMPUS_EZAI_BOT_USER_ID=123             # 深汕e仔官方账号 user_id
-CAMPUS_AI_DAILY_LIMIT=200               # e仔每日总回复上限，默认 200
-CAMPUS_AI_MODEL=deepseek-chat           # 默认 deepseek-chat
-CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
+2核4G / 100GB / 7Mbps / 1000GB/月
 ```
 
-生产环境建议先把每日上限设低一点，观察 Grafana 日志里的 `e仔 AI 回复任务`错误和 DeepSeek 控制台用量后再逐步调高。大模型回复只作为校园生活问答参考，不替代学校官方通知。
-
-## e仔知识库 RAG
-
-后台新增「e仔知识库」，运营可以上传 PDF/DOCX/TXT/MD 或手动录入学校资料。Go 后端负责权限、任务和 e仔回复编排，`campus-rag` 只在 Docker 内网提供解析、切片、embedding、Qdrant 检索能力。
-
-本地启动知识库依赖：
-
-```bash
-docker compose up -d qdrant campus-rag
-```
-
-API 容器会通过内网访问：
-
-```text
-CAMPUS_RAG_BASE_URL=http://campus-rag:8090
-```
-
-需要配置低成本 embedding：
-
-```text
-SILICONFLOW_API_KEY=sk-xxx
-SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
-CAMPUS_RAG_EMBEDDING_MODEL=BAAI/bge-m3
-```
-
-本地调试地址：
-
-```text
-Qdrant：http://localhost:16333
-RAG 健康检查：docker compose exec campus-rag python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8090/healthz').read().decode())"
-```
-
-如果生产环境已有旧数据库，需要先执行：
-
-```bash
-mysql -h <host> -u <user> -p lehu_video_db < sql/20260529_campus_knowledge_rag.sql
-```
-
-RAG 服务没有公网端口，正式部署时保持内网访问即可。未配置 `CAMPUS_RAG_BASE_URL` 时，Go 后端会自动降级为普通 e仔回复；未配置 `SILICONFLOW_API_KEY` 时，知识库索引和测试提问会返回可读错误，不影响小程序主链路。
-
-常用开发命令：
-
-```bash
-make test        # 运行后端测试
-make docker-up   # 重新构建并启动后端 Docker 服务
-make docker-down # 停止后端 Docker 服务
-make smoke       # 运行本地核心链路 smoke 检查
-make proto       # 生成 protobuf 代码
-```
-
-停止后端：
-
-```bash
-docker compose down
-```
-
-建议先启动后端，再到前端项目目录启动前端：
-
-```bash
-cd /Users/firetang/Documents/lehu/lehu-video-frontend
-docker compose up -d
-```
-
-前端默认访问地址：
-
-```text
-http://localhost:15173
-```
-
-## Kratos Project Template
-
-## Install Kratos
-```
-go install github.com/go-kratos/kratos/cmd/kratos/v2@latest
-```
-## Create a service
-```
-# Create a template project
-kratos new server
-
-cd server
-# Add a proto template
-kratos proto add api/server/server.proto
-# Generate the proto code
-kratos proto client api/server/server.proto
-# Generate the source code of service by proto file
-kratos proto server api/server/server.proto -t internal/service
-
-go generate ./...
-go build -o ./bin/ ./...
-./bin/server -conf ./configs
-```
-## Generate other auxiliary files by Makefile
-```
-# Download and update dependencies
-make init
-# Generate API files (include: pb.go, http, grpc, validate, swagger) by proto file
-make api
-# Generate all files
-make all
-```
-## Automated Initialization (wire)
-```
-# install wire
-go get github.com/google/wire/cmd/wire
-
-# generate wire
-cd cmd/server
-wire
-```
-
-## Docker
-```bash
-# build
-docker build -t <your-docker-image-name> .
-
-# run
-docker run --rm -p 8000:8000 -p 9000:9000 -v </path/to/your/configs>:/data/conf <your-docker-image-name>
-```
+不要降到 2G 内存。后续如果图片量、同时在线或活动峰值明显升高，再升级到 4核8G/更高带宽。

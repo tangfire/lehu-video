@@ -1,10 +1,10 @@
-USE lehu_video_db;
+USE lehu_campus_db;
 
 SET @db_name = DATABASE();
 
 SET @sql = (
   SELECT IF(COUNT(*) = 0,
-    'ALTER TABLE `campus_forum_post` ADD COLUMN `is_official` BOOLEAN NOT NULL DEFAULT FALSE COMMENT ''官方/运营内容'' AFTER `video_url`',
+    'ALTER TABLE `campus_forum_post` ADD COLUMN `is_official` BOOLEAN NOT NULL DEFAULT FALSE COMMENT ''官方/运营内容'' AFTER `cover_url`',
     'SELECT 1'
   )
   FROM information_schema.columns

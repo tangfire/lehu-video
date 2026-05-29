@@ -174,8 +174,8 @@ class Handler(BaseHTTPRequestHandler):
             last_probe_duration = self.last_probe_duration
 
         lines = [
-            "# HELP lehu_probe_success Whether a configured Lehu health probe succeeded.",
-            "# TYPE lehu_probe_success gauge",
+            "# HELP campus_probe_success Whether a configured Campus health probe succeeded.",
+            "# TYPE campus_probe_success gauge",
         ]
         for result in results:
             target = result["target"]
@@ -185,17 +185,17 @@ class Handler(BaseHTTPRequestHandler):
                 "target": target["target"],
                 "error": result["error"],
             }
-            lines.append(metric("lehu_probe_success", labels, result["success"]))
-            lines.append(metric("lehu_probe_duration_seconds", labels, f'{result["duration"]:.6f}'))
-            lines.append(metric("lehu_probe_status_code", labels, result["status"]))
-            lines.append(metric("lehu_probe_last_checked_timestamp_seconds", labels, f'{result.get("checked_at", 0):.3f}'))
+            lines.append(metric("campus_probe_success", labels, result["success"]))
+            lines.append(metric("campus_probe_duration_seconds", labels, f'{result["duration"]:.6f}'))
+            lines.append(metric("campus_probe_status_code", labels, result["status"]))
+            lines.append(metric("campus_probe_last_checked_timestamp_seconds", labels, f'{result.get("checked_at", 0):.3f}'))
         lines.extend([
-            "# HELP lehu_health_exporter_scrape_duration_seconds Time spent rendering cached metrics.",
-            "# TYPE lehu_health_exporter_scrape_duration_seconds gauge",
-            f"lehu_health_exporter_scrape_duration_seconds {time.monotonic() - started:.6f}",
-            "# HELP lehu_health_exporter_last_probe_duration_seconds Time spent checking all targets in the last background probe.",
-            "# TYPE lehu_health_exporter_last_probe_duration_seconds gauge",
-            f"lehu_health_exporter_last_probe_duration_seconds {last_probe_duration:.6f}",
+            "# HELP campus_health_exporter_scrape_duration_seconds Time spent rendering cached metrics.",
+            "# TYPE campus_health_exporter_scrape_duration_seconds gauge",
+            f"campus_health_exporter_scrape_duration_seconds {time.monotonic() - started:.6f}",
+            "# HELP campus_health_exporter_last_probe_duration_seconds Time spent checking all targets in the last background probe.",
+            "# TYPE campus_health_exporter_last_probe_duration_seconds gauge",
+            f"campus_health_exporter_last_probe_duration_seconds {last_probe_duration:.6f}",
         ])
 
         body = ("\n".join(lines) + "\n").encode("utf-8")

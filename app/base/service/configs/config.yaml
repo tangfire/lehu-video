@@ -8,7 +8,7 @@ server:
 data:
   database:
     driver: mysql
-    source: root:8888.216@tcp(127.0.0.1:3306)/lehu_video_db?parseTime=True&loc=Local
+    source: root:8888.216@tcp(127.0.0.1:3306)/lehu_campus_db?parseTime=True&loc=Local
   redis:
     addr: 127.0.0.1:6379
     read_timeout: 20s
@@ -26,17 +26,17 @@ idgen:
 
 data_setting:
   db_sharding_config:
-    file_shortvideo_short_video:
-      sharding: file_shortvideo_short_video
+    file_campus_post_media:
+      sharding: file_campus_post_media
       sharding_number: 5
-    file_shortvideo_public:
-      sharding: file_shortvideo_public
+    file_campus_public:
+      sharding: file_campus_public
       sharding_number: 5
   db_sharding_tables:
     file:
-      domain_name: shortvideo
+      domain_name: campus
       biz_sharding_field_config:
-        short_video:
+        post_media:
           fields:
             - id
             - hash

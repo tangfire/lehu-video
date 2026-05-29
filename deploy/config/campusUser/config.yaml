@@ -1,0 +1,15 @@
+server:
+  http:
+    addr: 0.0.0.0:8030
+    timeout: 100s
+  grpc:
+    addr: 0.0.0.0:9030
+    timeout: 100s
+data:
+  database:
+    driver: mysql
+    source: root:8888.216@tcp(mysql:3306)/lehu_campus_db?parseTime=True&loc=Local
+  local_cache:
+    size: 104857600
+idgen:
+  worker_id: 1

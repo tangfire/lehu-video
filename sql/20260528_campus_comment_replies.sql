@@ -1,3 +1,5 @@
+USE lehu_campus_db;
+
 SET @schema_name = DATABASE();
 
 SET @sql = (

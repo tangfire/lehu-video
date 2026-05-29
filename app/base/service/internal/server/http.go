@@ -27,6 +27,6 @@ func NewHTTPServer(c *conf.Server, accountService *service.AccountServiceService
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
-	health.RegisterHealthz(srv.HandleFunc, "lehu-video.base.service", "docker")
+	health.RegisterHealthz(srv.HandleFunc, "campus-estation.base.service", "docker")
 	return srv
 }

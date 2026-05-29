@@ -70,7 +70,7 @@
   "refresh": "10s",
   "schemaVersion": 41,
   "tags": [
-    "lehu",
+    "campus",
     "logs"
   ],
   "templating": {
@@ -122,8 +122,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "乐乎日志搜索",
-  "uid": "lehu-logs",
+  "title": "校园 e站日志搜索",
+  "uid": "campus-logs",
   "version": 1,
   "weekStart": ""
 }

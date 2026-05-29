@@ -1,13 +1,39 @@
 apiVersion: 1
 
+deleteRules:
+  - orgId: 1
+    uid: campus-probe-down
+
+contactPoints:
+  - orgId: 1
+    name: feishu-alert-webhook
+    receivers:
+      - uid: feishu-alert-webhook
+        type: webhook
+        disableResolveMessage: false
+        settings:
+          url: http://alert-webhook:9120/grafana?token=$LEHU_ALERT_WEBHOOK_TOKEN
+          httpMethod: POST
+
+policies:
+  - orgId: 1
+    receiver: feishu-alert-webhook
+    group_by:
+      - grafana_folder
+      - alertname
+      - name
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+
 groups:
   - orgId: 1
-    name: lehu-health
-    folder: Lehu
+    name: campus-health
+    folder: Campus e站
     interval: 1m
     rules:
-      - uid: lehu-probe-down
-        title: Lehu service probe down
+      - uid: campus-critical-target-down
+        title: CampusCriticalTargetDown
         condition: C
         data:
           - refId: A
@@ -20,7 +46,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: sum(1 - lehu_probe_success)
+              expr: 1 - campus_probe_success{name=~"api_health|api_ready|mysql_tcp|redis_tcp"}
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -81,12 +107,182 @@ groups:
               maxDataPoints: 43200
               refId: C
               type: threshold
-        noDataState: Alerting
+        noDataState: OK
         execErrState: Error
-        for: 1m
+        for: 2m
         annotations:
-          summary: "Service probe failed"
-          description: "One or more Lehu health probes are failing. Open the Lehu health dashboard or Prometheus alerts for target details."
+          summary: "校园 e站核心目标不可用：{{ $labels.name }}"
+          description: "{{ $labels.target }} 已连续 2 分钟健康检查失败。先看健康面板，再按服务名查 Grafana 日志。"
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: campus-dependency-target-down
+        title: CampusDependencyTargetDown
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: 1 - campus_probe_success{name=~"base_health|campus_user_health|campus_rag_health|minio_health|qdrant_tcp|consul_tcp"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - B
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 3m
+        annotations:
+          summary: "校园 e站依赖目标不可用：{{ $labels.name }}"
+          description: "{{ $labels.target }} 已连续 3 分钟健康检查失败。先看健康面板，再按服务名查 Grafana 日志。"
+        labels:
+          severity: warning
+        isPaused: false
+
+      - uid: campus-health-exporter-down
+        title: CampusHealthExporterDown
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: 1 - up{job="campus-health"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - B
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "校园 e站健康采集器不可用：{{ $labels.instance }}"
+          description: "Prometheus 无法抓取 campus-health exporter，健康面板和告警可能失真。"
         labels:
           severity: critical
         isPaused: false

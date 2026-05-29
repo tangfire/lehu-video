@@ -1,0 +1,12 @@
+name: lehu-campus-admin
+
+services:
+  web:
+    build:
+      context: .
+      args:
+        VITE_API_BASE_URL: http://localhost:18080/v1
+        VITE_JWT_SECRET: fireshine
+    container_name: campus-admin
+    ports:
+      - "15173:80"

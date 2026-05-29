@@ -1,3 +1,5 @@
+USE lehu_campus_db;
+
 CREATE TABLE IF NOT EXISTS `campus_ops_setting` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `setting_key` VARCHAR(64) NOT NULL,

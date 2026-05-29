@@ -1,4 +1,4 @@
-USE lehu_video_db;
+USE lehu_campus_db;
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `campus_wechat_identity` (
@@ -75,11 +75,10 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   `title` VARCHAR(120) NOT NULL,
   `content` TEXT NOT NULL,
   `images` JSON DEFAULT NULL,
-  `media_type` VARCHAR(16) NOT NULL DEFAULT 'text' COMMENT 'text/image/video',
+  `media_type` VARCHAR(16) NOT NULL DEFAULT 'text' COMMENT 'text/image',
   `post_type` VARCHAR(24) NOT NULL DEFAULT 'note' COMMENT 'note/lost/question/guide/club',
   `extra` JSON DEFAULT NULL,
   `cover_url` VARCHAR(1024) NOT NULL DEFAULT '',
-  `video_url` VARCHAR(1024) NOT NULL DEFAULT '',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '0=待审核 1=可见 2=拒绝 3=删除',
   `audit_reason` VARCHAR(255) NOT NULL DEFAULT '',
   `like_count` BIGINT NOT NULL DEFAULT 0,

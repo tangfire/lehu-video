@@ -17,7 +17,7 @@ Options:
   --since <duration>       Docker log time window, default: 24h
   --tail <lines>           Max lines read per container, default: 50000
   --context, -C <lines>    Lines before/after each match, default: 2
-  --all-containers         Search every Docker container, not only lehu/compose containers
+  --all-containers         Search every Docker container, not only campus/compose containers
   --stopped                Include stopped containers
   -h, --help               Show this help
 EOF
@@ -114,7 +114,7 @@ docker_container_names() {
       docker inspect --format '{{.Name}}' "$container_id" 2>/dev/null | sed 's#^/##'
     done
 
-    docker "${docker_ps_args[@]}" 2>/dev/null | grep -E '^lehu-' || true
+    docker "${docker_ps_args[@]}" 2>/dev/null | grep -E '^(campus-|lehu-)' || true
   } | awk 'NF && !seen[$0]++'
 }
 
@@ -125,7 +125,7 @@ while IFS= read -r container_name; do
 done < <(docker_container_names)
 
 if [[ ${#containers[@]} -eq 0 ]]; then
-  echo "No lehu/compose containers found. Try --all-containers if the service name is not prefixed with lehu-."
+  echo "No campus/compose containers found. Try --all-containers if the service name is not prefixed with campus-."
   exit 1
 fi
 
@@ -158,7 +158,7 @@ done
 
 if [[ "$matches" -eq 0 ]]; then
   echo "No matches found."
-  echo "Tip: request_id usually appears in lehu-api. For downstream base/core/chat logs, search the trace_id from the matched API log line."
+  echo "Tip: request_id usually appears in campus-api. For downstream base/core/RAG logs, search the trace_id from the matched API log line."
   exit 1
 fi
 
