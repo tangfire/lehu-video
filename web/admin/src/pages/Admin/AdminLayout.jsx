@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { FiBarChart2, FiBell, FiChevronDown, FiCpu, FiEdit3, FiFileText, FiKey, FiShield, FiUsers } from 'react-icons/fi';
+import { FiBarChart2, FiBell, FiChevronDown, FiCpu, FiEdit3, FiFileText, FiGrid, FiKey, FiShield, FiUsers } from 'react-icons/fi';
 import { clearUserData, getCurrentUser, isLoggedIn } from '../../api/user';
 import './Admin.css';
 
@@ -8,6 +8,7 @@ const navItems = [
     { to: '/admin', label: '数据总览', end: true, icon: <FiBarChart2 /> },
     { to: '/admin/posts', label: '内容工作台', icon: <FiFileText /> },
     { to: '/admin/compose', label: '运营发帖', icon: <FiEdit3 /> },
+    { to: '/admin/moments', label: '朋友圈素材', icon: <FiGrid /> },
     { to: '/admin/moderation', label: '反馈与举报', icon: <FiBell /> },
     { to: '/admin/audit', label: '审核设置', icon: <FiShield /> },
     { to: '/admin/assistant', label: 'e仔助手', icon: <FiCpu /> },
@@ -29,6 +30,7 @@ const titleMap = {
     '/admin': '数据总览',
     '/admin/posts': '内容工作台',
     '/admin/compose': '运营发帖',
+    '/admin/moments': '朋友圈素材',
     '/admin/moderation': '反馈与举报',
     '/admin/audit': '审核设置',
     '/admin/assistant': 'e仔助手',
@@ -47,6 +49,7 @@ const subtitleMap = {
     '/admin': '先看待办、流量、互动和风险，再决定今天要发什么内容。',
     '/admin/posts': '管理首页内容流，处理置顶、精选、下架和内容状态。',
     '/admin/compose': '用深汕e仔发布官方攻略、问答和新生内容。',
+    '/admin/moments': '把今日图片热帖生成 e仔官方朋友圈九图素材包。',
     '/admin/moderation': '集中处理举报、用户反馈和评论状态，先清待办再看历史。',
     '/admin/audit': '设置普通用户发帖后是否直接展示、进入人工审核或交给 AI 初审。',
     '/admin/assistant': '维护 e仔资料、查看自动回复状态，并测试知识库命中效果。',

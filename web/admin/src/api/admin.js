@@ -22,6 +22,46 @@ const hashFile = async (file) => {
     return SparkMD5.ArrayBuffer.hash(buffer);
 };
 
+const apiBaseURL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:18080/v1').replace(/\/$/, '');
+
+const createRequestId = () => {
+    const random = Math.random().toString(16).slice(2, 10);
+    return `web-${Date.now()}-${random}`;
+};
+
+const protectedBlobRequest = async (path) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${apiBaseURL}${path}`, {
+        headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            'X-Request-ID': createRequestId(),
+        },
+    });
+    if (!response.ok) {
+        let message = `下载失败（${response.status}）`;
+        try {
+            const data = await response.json();
+            if (data?.message) message = data.message;
+            if (data?.request_id) message = `${message}\n请求编号：${data.request_id}`;
+        } catch {
+            // ignore non-json download errors
+        }
+        throw new Error(message);
+    }
+    return response.blob();
+};
+
+export const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+};
+
 const uploadPublicImage = async (file) => {
     const fileType = getImageFileType(file);
     if (!fileType) {
@@ -69,6 +109,9 @@ export const campusAdminApi = {
     updatePost: (id, data) => request.put(`/campus/admin/posts/${id}`, data),
     deletePost: (id) => request.delete(`/campus/admin/posts/${id}`),
     batchPosts: (data) => request.post('/campus/admin/posts/batch', data),
+    createMomentsPackage: (data) => request.post('/campus/admin/moments/packages', data),
+    downloadMomentsImage: (packageId, slot) => protectedBlobRequest(`/campus/admin/moments/packages/${packageId}/images/${slot}.png`),
+    downloadMomentsZip: (packageId) => protectedBlobRequest(`/campus/admin/moments/packages/${packageId}/download.zip`),
     uploadImage: uploadPublicImage,
     listComments: (params) => request.get('/campus/admin/comments', { params }),
     deleteComment: (id) => request.delete(`/campus/admin/comments/${id}`),

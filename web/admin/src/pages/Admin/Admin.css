@@ -1359,6 +1359,172 @@
     padding: 18px;
 }
 
+.admin-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 12px 14px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #fff;
+    color: #475569;
+    font-weight: 800;
+    white-space: pre-line;
+}
+
+.admin-alert svg {
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+
+.admin-alert.success {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.admin-alert.danger {
+    border-color: #fecaca;
+    background: #fff7f7;
+    color: #b91c1c;
+}
+
+.admin-moments-page {
+    display: grid;
+    gap: 14px;
+}
+
+.admin-moments-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.admin-moments-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.admin-moments-status-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: var(--admin-soft);
+    color: var(--admin-primary);
+    font-size: 20px;
+}
+
+.admin-moments-status strong,
+.admin-moments-caption strong,
+.admin-moments-card-body strong {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-moments-status span,
+.admin-moments-caption span,
+.admin-moments-card-body span,
+.admin-moments-card-body small {
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.admin-moments-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-date-control {
+    min-height: 38px;
+    padding: 0 10px;
+    border: 1px solid #ded8d2;
+    border-radius: 6px;
+    background: #fff;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #64748b;
+}
+
+.admin-date-control input {
+    min-width: 142px;
+    border: 0;
+    outline: 0;
+    color: var(--admin-text);
+    font: inherit;
+    font-weight: 850;
+}
+
+.admin-moments-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.admin-moments-caption > div {
+    min-width: 0;
+}
+
+.admin-moments-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.admin-moments-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.admin-moments-preview {
+    aspect-ratio: 1;
+    background: #f1f5f9;
+}
+
+.admin-moments-preview img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+.admin-moments-card-body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px;
+}
+
+.admin-moments-card-body > div {
+    min-width: 0;
+}
+
+.admin-moments-card-body strong {
+    margin: 2px 0 4px;
+    font-size: 14px;
+}
+
+.admin-moments-empty {
+    grid-column: 1 / -1;
+}
+
 .admin-pagination {
     display: flex;
     align-items: center;
@@ -2721,6 +2887,10 @@
     .admin-template-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+
+    .admin-moments-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 980px) {
@@ -2830,6 +3000,8 @@
     .admin-hero,
     .admin-simple-head,
     .admin-batch-bar,
+    .admin-moments-toolbar,
+    .admin-moments-caption,
     .admin-panel-head,
     .admin-upload-head {
         align-items: stretch;
@@ -2848,9 +3020,19 @@
     }
 
     .admin-head-actions,
+    .admin-moments-actions,
     .admin-advanced-strip {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .admin-date-control,
+    .admin-date-control input {
+        width: 100%;
+    }
+
+    .admin-moments-grid {
+        grid-template-columns: 1fr;
     }
 
     .admin-post-card {

@@ -1128,6 +1128,7 @@ type CampusRepo interface {
 	GetCategoryByCode(ctx context.Context, code string) (bool, *CampusForumCategory, error)
 	CreatePost(ctx context.Context, post *CampusForumPost) error
 	ListPosts(ctx context.Context, query ListCampusPostQuery) ([]*CampusForumPost, int64, error)
+	ListTopImagePostsByDate(ctx context.Context, start, end time.Time, limit int) ([]*CampusForumPost, error)
 	GetPublicUserPostStats(ctx context.Context, userID string) (*CampusPublicUserStats, error)
 	ListPostsByIDs(ctx context.Context, postIDs []int64, statuses []int32) ([]*CampusForumPost, error)
 	GetPostByID(ctx context.Context, postID int64) (bool, *CampusForumPost, error)

@@ -758,6 +758,34 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 	return posts, total, nil
 }
 
+func (r *campusRepo) ListTopImagePostsByDate(ctx context.Context, start, end time.Time, limit int) ([]*biz.CampusForumPost, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	order := campusPostOrder(biz.CampusPostSortHot, false)
+	var rows []campusForumPostModel
+	err := r.data.db.WithContext(ctx).
+		Model(&campusForumPostModel{}).
+		Where("campus_forum_post.status = ? AND campus_forum_post.is_deleted = ?", biz.CampusAuditStatusVisible, false).
+		Where("campus_forum_post.media_type = ?", biz.CampusPostMediaImage).
+		Where("campus_forum_post.created_at >= ? AND campus_forum_post.created_at < ?", start, end).
+		Where("(campus_forum_post.cover_url <> '' OR JSON_LENGTH(campus_forum_post.images) > 0)").
+		Order(order).
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	posts := make([]*biz.CampusForumPost, 0, len(rows))
+	for i := range rows {
+		posts = append(posts, toBizPost(&rows[i]))
+	}
+	if err := r.fillPostCategoryNames(ctx, posts); err != nil {
+		return nil, err
+	}
+	return posts, nil
+}
+
 func (r *campusRepo) GetPublicUserPostStats(ctx context.Context, userID string) (*biz.CampusPublicUserStats, error) {
 	var row struct {
 		PostCount       int64

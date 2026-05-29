@@ -95,6 +95,9 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/admin/posts/batch", s.wrap(s.authRequired(s.handleAdminBatchPosts)))
 	r.PUT("/v1/campus/admin/posts/{id}", s.wrap(s.authRequired(s.handleAdminUpdatePost)))
 	r.DELETE("/v1/campus/admin/posts/{id}", s.wrap(s.authRequired(s.handleAdminDeletePost)))
+	r.POST("/v1/campus/admin/moments/packages", s.wrap(s.authRequired(s.handleAdminCreateMomentsPackage)))
+	r.GET("/v1/campus/admin/moments/packages/{id}/images/{slot}.png", s.wrap(s.authRequired(s.handleAdminGetMomentsImage)))
+	r.GET("/v1/campus/admin/moments/packages/{id}/download.zip", s.wrap(s.authRequired(s.handleAdminDownloadMomentsPackage)))
 	r.GET("/v1/campus/admin/comments", s.wrap(s.authRequired(s.handleAdminListComments)))
 	r.DELETE("/v1/campus/admin/comments/{id}", s.wrap(s.authRequired(s.handleAdminDeleteComment)))
 	r.GET("/v1/campus/admin/ai-replies/summary", s.wrap(s.authRequired(s.handleAdminAIReplySummary)))
@@ -737,6 +740,10 @@ type batchPostsRequest struct {
 	IDs        []int64 `json:"ids"`
 	Action     string  `json:"action"`
 	SortWeight int32   `json:"sort_weight"`
+}
+
+type createMomentsPackageRequest struct {
+	Date string `json:"date"`
 }
 
 type feedbackRequest struct {
@@ -1453,6 +1460,51 @@ func (s *CampusService) handleAdminDeletePost(w http.ResponseWriter, r *http.Req
 	writeJSON(w, r, map[string]interface{}{})
 }
 
+func (s *CampusService) handleAdminCreateMomentsPackage(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	var req createMomentsPackageRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	out, err := s.uc.AdminCreateMomentsPackage(r.Context(), &biz.CreateCampusMomentsPackageInput{
+		UserID:    userID,
+		Date:      req.Date,
+		RequestID: r.Header.Get("X-Request-ID"),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"package": out})
+}
+
+func (s *CampusService) handleAdminGetMomentsImage(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	packageID := strings.TrimSpace(mux.Vars(r)["id"])
+	slot, err := strconv.Atoi(strings.TrimSpace(mux.Vars(r)["slot"]))
+	if err != nil {
+		writeError(w, r, apperror.InvalidArgument("素材图片参数无效"))
+		return
+	}
+	file, err := s.uc.AdminGetMomentsImageFile(r.Context(), userID, packageID, slot)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	serveDownloadFile(w, r, file, false)
+}
+
+func (s *CampusService) handleAdminDownloadMomentsPackage(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	packageID := strings.TrimSpace(mux.Vars(r)["id"])
+	file, err := s.uc.AdminGetMomentsZipFile(r.Context(), userID, packageID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	serveDownloadFile(w, r, file, true)
+}
+
 func (s *CampusService) handleAdminListComments(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
@@ -2083,6 +2135,22 @@ func writeJSON(w http.ResponseWriter, r *http.Request, data interface{}) {
 
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	resp.ErrorEncoder(w, r, err)
+}
+
+func serveDownloadFile(w http.ResponseWriter, r *http.Request, file *biz.CampusMomentsPackageFile, attachment bool) {
+	if file == nil || strings.TrimSpace(file.Path) == "" {
+		writeError(w, r, apperror.NotFound("文件不存在"))
+		return
+	}
+	if file.MimeType != "" {
+		w.Header().Set("Content-Type", file.MimeType)
+	}
+	disposition := "inline"
+	if attachment {
+		disposition = "attachment"
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, strings.ReplaceAll(file.Name, `"`, "")))
+	http.ServeFile(w, r, file.Path)
 }
 
 func queryInt(value string, fallback int) int {

@@ -11,6 +11,7 @@ import AdminNotifications from './pages/Admin/AdminNotifications.jsx';
 import AdminModeration from './pages/Admin/AdminModeration.jsx';
 import AdminAssistant from './pages/Admin/AdminAssistant.jsx';
 import AdminAuditSettings from './pages/Admin/AdminAuditSettings.jsx';
+import AdminMoments from './pages/Admin/AdminMoments.jsx';
 import './App.css';
 
 function AdminLegacyRedirect({ to, tab }) {
@@ -30,6 +31,7 @@ function App() {
                     <Route index element={<AdminDashboard />} />
                     <Route path="posts" element={<AdminPosts />} />
                     <Route path="compose" element={<AdminCompose />} />
+                    <Route path="moments" element={<AdminMoments />} />
                     <Route path="moderation" element={<AdminModeration />} />
                     <Route path="audit" element={<AdminAuditSettings />} />
                     <Route path="assistant" element={<AdminAssistant />} />
