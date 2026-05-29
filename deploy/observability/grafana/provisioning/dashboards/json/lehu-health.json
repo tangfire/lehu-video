@@ -76,7 +76,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "min(lehu_probe_success)",
+          "expr": "min(campus_probe_success)",
           "instant": true,
           "legendFormat": "health",
           "range": false,
@@ -125,7 +125,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lehu_probe_duration_seconds",
+          "expr": "campus_probe_duration_seconds",
           "legendFormat": "{{name}}",
           "range": true,
           "refId": "A"
@@ -176,7 +176,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lehu_probe_success",
+          "expr": "campus_probe_success",
           "format": "table",
           "instant": true,
           "legendFormat": "{{instance}}",
@@ -190,7 +190,7 @@
   "refresh": "15s",
   "schemaVersion": 41,
   "tags": [
-    "lehu",
+    "campus",
     "health"
   ],
   "templating": {
@@ -202,8 +202,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "乐乎健康监控",
-  "uid": "lehu-health",
+  "title": "校园 e站健康监控",
+  "uid": "campus-health",
   "version": 1,
   "weekStart": ""
 }

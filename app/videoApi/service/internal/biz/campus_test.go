@@ -15,15 +15,16 @@ import (
 
 func TestNormalizeCampusPostMedia(t *testing.T) {
 	tests := []struct {
-		name      string
-		mediaType string
-		images    []string
-		coverURL  string
-		videoURL  string
-		wantType  string
-		wantCover string
-		wantVideo string
-		wantErr   bool
+		name        string
+		mediaType   string
+		images      []string
+		coverURL    string
+		videoURL    string
+		wantType    string
+		wantCover   string
+		wantVideo   string
+		wantErr     bool
+		enableVideo bool
 	}{
 		{
 			name:     "default text",
@@ -37,13 +38,21 @@ func TestNormalizeCampusPostMedia(t *testing.T) {
 			wantCover: "https://example.com/1.jpg",
 		},
 		{
-			name:      "video requires cover and url",
+			name:      "video disabled by default",
 			mediaType: CampusPostMediaVideo,
 			coverURL:  "https://example.com/cover.jpg",
 			videoURL:  "https://example.com/video.mp4",
-			wantType:  CampusPostMediaVideo,
-			wantCover: "https://example.com/cover.jpg",
-			wantVideo: "https://example.com/video.mp4",
+			wantErr:   true,
+		},
+		{
+			name:        "video requires cover and url when enabled",
+			mediaType:   CampusPostMediaVideo,
+			coverURL:    "https://example.com/cover.jpg",
+			videoURL:    "https://example.com/video.mp4",
+			wantType:    CampusPostMediaVideo,
+			wantCover:   "https://example.com/cover.jpg",
+			wantVideo:   "https://example.com/video.mp4",
+			enableVideo: true,
 		},
 		{
 			name:      "image requires images",
@@ -64,6 +73,11 @@ func TestNormalizeCampusPostMedia(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.enableVideo {
+				t.Setenv("LEHU_CAMPUS_ENABLE_VIDEO_POSTS", "true")
+			} else {
+				t.Setenv("LEHU_CAMPUS_ENABLE_VIDEO_POSTS", "false")
+			}
 			gotType, gotCover, gotVideo, err := normalizeCampusPostMedia(tt.mediaType, tt.images, tt.coverURL, tt.videoURL)
 			if tt.wantErr {
 				if err == nil {

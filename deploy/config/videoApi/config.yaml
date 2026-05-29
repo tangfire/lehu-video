@@ -8,7 +8,7 @@ server:
 data:
   database:
     driver: mysql
-    source: root:8888.216@tcp(mysql:3306)/lehu_video_db?parseTime=True&loc=Local
+    source: root:8888.216@tcp(mysql:3306)/lehu_campus_db?parseTime=True&loc=Local
   redis:
     addr: redis:6379
     read_timeout: 20s
@@ -18,8 +18,8 @@ data:
   kafka:
     brokers:
       - kafka:9092
-    producer_topic: "lehu-video.chat.message"
-    consumer_topic: "lehu-video.chat.message"
-    consumer_group: "video-api-message-consumer"
+    producer_topic: "campus.legacy.chat.message"
+    consumer_topic: "campus.legacy.chat.message"
+    consumer_group: "campus-api-message-consumer"
 auth:
   api_key: fireshine

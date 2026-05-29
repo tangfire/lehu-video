@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	DomainName = "shortvideo"
-	BizName    = "short_video"
+	DomainName = "campus"
+	BizName    = "post_media"
 	Public     = "public"
 )
 

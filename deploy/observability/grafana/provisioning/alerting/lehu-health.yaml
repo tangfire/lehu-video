@@ -2,12 +2,12 @@ apiVersion: 1
 
 groups:
   - orgId: 1
-    name: lehu-health
-    folder: Lehu
+    name: campus-health
+    folder: Campus e站
     interval: 1m
     rules:
-      - uid: lehu-probe-down
-        title: Lehu service probe down
+      - uid: campus-probe-down
+        title: Campus service probe down
         condition: C
         data:
           - refId: A
@@ -20,7 +20,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: sum(1 - lehu_probe_success)
+              expr: sum(1 - campus_probe_success)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -86,7 +86,7 @@ groups:
         for: 1m
         annotations:
           summary: "Service probe failed"
-          description: "One or more Lehu health probes are failing. Open the Lehu health dashboard or Prometheus alerts for target details."
+          description: "One or more Campus health probes are failing. Open the Campus health dashboard or Prometheus alerts for target details."
         labels:
           severity: critical
         isPaused: false

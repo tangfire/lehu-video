@@ -1,48 +1,28 @@
-# Lehu Video Backend Architecture
+# 校园 e站 Backend Architecture
 
-## Overview
+校园 e站当前采用低风险收口方式：保留既有 Kratos 微服务骨架，但生产默认只运行校园业务需要的链路。
 
-Lehu Video keeps the existing Kratos microservice layout:
+## Services
 
-- `videoApi`: public HTTP API gateway, JWT validation, response encoding, WebSocket entry.
-- `base`: account, verification code, file metadata, MinIO presigned upload.
-- `videoCore`: video, feed, favorite, collection, comment, follow, counters.
-- `videoChat`: friend, group, conversation, message persistence.
+- `api`: 校园 e站 HTTP 入口，负责 JWT、运营后台、小程序接口、e仔任务编排和健康检查。
+- `base`: 账号、验证码、文件签名上传和 MinIO 文件确认。
+- `core`: 首发阶段作为用户资料服务使用，保留旧 user gRPC 能力。
+- `campus-rag`: 知识库解析、切片、embedding、Qdrant 检索。
+- `mysql / redis / minio / qdrant / consul`: 校园业务基础依赖。
+- `grafana / loki / alloy / prometheus / health-exporter`: 浏览器内日志搜索和健康监控。
 
-The refactor direction is to keep the service split, but make boundaries explicit: API gateway performs protocol adaptation, core services own business rules, repositories own persistence, and shared packages provide cross-service concerns such as errors, JWT and password hashing.
+## Campus-Only Mode
 
-## Core Flows
+默认 `LEHU_CAMPUS_ONLY=true`。API 在该模式下只注册用户、文件、校园接口和健康检查，不构造 chat gRPC、WebSocket、Kafka producer/consumer，也不注册旧视频/chat HTTP 路由。
 
-### Auth
+旧短视频、IM chat、Kafka 链路保留在 `docker-compose.legacy.yml`、`sql/video.sql` 和 `sql/legacy/`，不进入默认启动。
 
-Registration validates a verification code, creates an account in `base`, then creates the user profile in `videoCore`. Login validates credentials in `base`, fetches the user profile in `videoCore`, and issues a JWT from the configured API secret. HTTP and WebSocket token parsing share the same claims implementation.
+## Data
 
-Passwords are stored with Argon2id for new accounts. Legacy MD5+salt hashes are still accepted and are upgraded after a successful login.
+默认数据库为 `lehu_campus_db`，初始化脚本为 `sql/campus.sql`。该脚本只包含账号、用户、文件、校园社区、通知、审核、安全、e仔/RAG 表。
 
-### Video Upload And Publish
+媒体文件首发使用本机 MinIO，bucket 和文件域为 `campus`。首发默认 `LEHU_CAMPUS_ENABLE_VIDEO_POSTS=false`，只允许文字和图片帖子。
 
-The client asks `videoApi` for a presigned upload URL. `base` records file metadata and signs a MinIO URL. After upload completion, `videoApi` confirms the file and asks `videoCore` to create the video record. Cover URL is optional; frontend can render a fallback cover.
+## Operations
 
-### Feed
-
-`videoApi` uses `videoCore.FeedService.GetFeed` as the single feed entrypoint. Feed types are:
-
-- `0`: following
-- `1`: recommended
-- `2`: hot
-- `3`: mixed
-
-Guests requesting following feed are downgraded to recommended feed. If the hot pool is empty, feed falls back to latest videos.
-
-### Counters And Consistency
-
-Video view, favorite, collection and comment counts use Redis counters for hot reads and asynchronous persistence for write pressure. Reconcile jobs periodically repair drift between Redis counters and MySQL source data. Counter failures should delay statistics, not fail core user actions when the database write path has succeeded.
-
-## Engineering Notes
-
-- Public HTTP responses keep `code`, `message`, `data`, `timestamp`, and `request_id`.
-- Shared business errors live in `pkg/apperror`; service metadata and HTTP errors are derived from those codes.
-- Shared JWT helpers live in `pkg/auth`.
-- Shared password hashing helpers live in `pkg/password`.
-- Service startup should fail fast if MySQL, Redis, Consul or gRPC clients cannot initialize.
-
+健康状态先看 Grafana 的「校园 e站健康监控」；请求排障先用用户给的 `request_id` 在「校园 e站日志搜索」里查入口日志，再用同条日志里的 `trace_id` 搜下游调用。

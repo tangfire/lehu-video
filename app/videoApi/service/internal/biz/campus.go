@@ -1330,6 +1330,15 @@ func envBoolFalse(value string) bool {
 	}
 }
 
+func campusVideoPostsEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LEHU_CAMPUS_ENABLE_VIDEO_POSTS"))) {
+	case "1", "true", "on", "yes", "enabled":
+		return true
+	default:
+		return false
+	}
+}
+
 func envInt64(key string, fallback int64) int64 {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -1600,6 +1609,9 @@ func (uc *CampusUsecase) PreSignPublicImage(ctx context.Context, hash, fileType,
 }
 
 func (uc *CampusUsecase) PreSignPublicVideo(ctx context.Context, hash, fileType, filename string, size int64) (string, string, error) {
+	if !campusVideoPostsEnabled() {
+		return "", "", apperror.InvalidArgument("首发暂不支持视频发布")
+	}
 	hash = strings.TrimSpace(hash)
 	fileType = strings.Trim(strings.ToLower(strings.TrimSpace(fileType)), ".")
 	filename = strings.TrimSpace(filename)
@@ -1652,6 +1664,9 @@ func (uc *CampusUsecase) PreSignCampusUpload(ctx context.Context, input *CampusU
 	case CampusPostMediaImage:
 		fileID, uploadURL, err = uc.PreSignPublicImage(ctx, input.Hash, input.FileType, input.Filename, input.Size)
 	case CampusPostMediaVideo:
+		if !campusVideoPostsEnabled() {
+			return nil, apperror.InvalidArgument("首发暂不支持视频发布")
+		}
 		fileID, uploadURL, err = uc.PreSignPublicVideo(ctx, input.Hash, input.FileType, input.Filename, input.Size)
 	default:
 		return nil, apperror.InvalidArgument("上传类型无效")
@@ -1683,6 +1698,9 @@ func (uc *CampusUsecase) CompleteCampusUpload(ctx context.Context, input *Campus
 	case CampusPostMediaImage:
 		finalURL, err = uc.ReportPublicImageUploaded(ctx, fileID)
 	case CampusPostMediaVideo:
+		if !campusVideoPostsEnabled() {
+			return nil, apperror.InvalidArgument("首发暂不支持视频发布")
+		}
 		finalURL, err = uc.ReportPublicVideoUploaded(ctx, fileID)
 	default:
 		return nil, apperror.InvalidArgument("上传类型无效")
@@ -1749,6 +1767,9 @@ func (uc *CampusUsecase) ReportPublicKnowledgeFileUploaded(ctx context.Context, 
 }
 
 func (uc *CampusUsecase) ReportPublicVideoUploaded(ctx context.Context, fileID string) (string, error) {
+	if !campusVideoPostsEnabled() {
+		return "", apperror.InvalidArgument("首发暂不支持视频发布")
+	}
 	fileID = strings.TrimSpace(fileID)
 	if fileID == "" || fileID == "0" {
 		return "", apperror.InvalidArgument("视频 file_id 无效")
@@ -4689,6 +4710,9 @@ func normalizeCampusPostMedia(mediaType string, images []string, coverURL, video
 		}
 		return mediaType, coverURL, "", nil
 	case CampusPostMediaVideo:
+		if !campusVideoPostsEnabled() {
+			return "", "", "", apperror.InvalidArgument("首发暂不支持视频发布")
+		}
 		if videoURL == "" {
 			return "", "", "", apperror.InvalidArgument("视频笔记需要上传视频")
 		}

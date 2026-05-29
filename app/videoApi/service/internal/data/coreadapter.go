@@ -40,6 +40,13 @@ func NewCoreAdapter(
 	}
 }
 
+func NewCampusCoreAdapter(user core.UserServiceClient, logger log.Logger) biz.CoreAdapter {
+	return &CoreAdapterImpl{
+		user: user,
+		log:  log.NewHelper(logger),
+	}
+}
+
 func NewUserServiceClient(r registry.Discovery) (core.UserServiceClient, error) {
 	conn, err := dialService(r, "discovery:///lehu-video.core.service")
 	if err != nil {

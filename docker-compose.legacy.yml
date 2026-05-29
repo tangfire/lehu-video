@@ -1,9 +1,9 @@
-name: campus-estation-backend
+name: lehu-video-backend
 
 services:
   mysql:
     image: mysql:8.0
-    container_name: campus-mysql
+    container_name: lehu-mysql
     command:
       - --default-authentication-plugin=mysql_native_password
       - --character-set-server=utf8mb4
@@ -14,8 +14,8 @@ services:
     ports:
       - "13307:3306"
     volumes:
-      - campus_mysql_data:/var/lib/mysql
-      - ./sql/campus.sql:/docker-entrypoint-initdb.d/01-campus.sql:ro
+      - lehu_mysql_data:/var/lib/mysql
+      - ./sql/video.sql:/docker-entrypoint-initdb.d/01-video.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
       interval: 5s
@@ -24,12 +24,12 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: campus-redis
+    container_name: lehu-redis
     command: ["redis-server", "--requirepass", "8888.216", "--appendonly", "yes"]
     ports:
       - "16379:6379"
     volumes:
-      - campus_redis_data:/data
+      - lehu_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "8888.216", "ping"]
       interval: 5s
@@ -38,14 +38,52 @@ services:
 
   consul:
     image: hashicorp/consul:1.20
-    container_name: campus-consul
+    container_name: lehu-consul
     command: ["agent", "-dev", "-client=0.0.0.0"]
     ports:
       - "18500:8500"
 
+  kafka:
+    image: apache/kafka:4.0.2
+    container_name: lehu-kafka
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: CONTROLLER://localhost:9091,DOCKER://0.0.0.0:9092,HOST://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: DOCKER://kafka:9092,HOST://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    ports:
+      - "19092:19092"
+    volumes:
+      - lehu_kafka_data:/tmp/kraft-combined-logs
+
+  kafka-init:
+    image: apache/kafka:4.0.2
+    container_name: lehu-kafka-init
+    depends_on:
+      - kafka
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null 2>&1; do
+          sleep 2
+        done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic video_publish_topic --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic favorite_topic --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic campus.legacy.chat.message --partitions 1 --replication-factor 1
+
   minio:
     image: minio/minio:latest
-    container_name: campus-minio
+    container_name: lehu-minio
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -54,11 +92,11 @@ services:
       - "19000:9000"
       - "19001:9001"
     volumes:
-      - campus_minio_data:/data
+      - lehu_minio_data:/data
 
   minio-init:
     image: minio/mc:latest
-    container_name: campus-minio-init
+    container_name: lehu-minio-init
     depends_on:
       - minio
     entrypoint:
@@ -69,15 +107,15 @@ services:
         until mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null 2>&1; do
           sleep 2
         done
-        mc mb -p local/campus || true
-        mc anonymous set download local/campus || true
+        mc mb -p local/shortvideo || true
+        mc anonymous set download local/shortvideo || true
 
   qdrant:
     image: qdrant/qdrant:v1.12.5
-    container_name: campus-qdrant
+    container_name: lehu-qdrant
     restart: unless-stopped
     volumes:
-      - campus_qdrant_data:/qdrant/storage
+      - lehu_qdrant_data:/qdrant/storage
     ports:
       - "16333:6333"
     healthcheck:
@@ -88,11 +126,10 @@ services:
       start_period: 15s
 
   campus-rag:
-    image: campus-estation-rag
     build:
       context: .
       dockerfile: campus-rag/Dockerfile
-    container_name: campus-rag
+    container_name: lehu-campus-rag
     restart: unless-stopped
     environment:
       QDRANT_URL: http://qdrant:6333
@@ -121,7 +158,7 @@ services:
       dockerfile: deploy/backend.Dockerfile
       args:
         SERVICE_PATH: ./app/base/service/cmd/service
-    container_name: campus-base
+    container_name: lehu-base
     environment:
       LEHU_PUBLIC_MINIO_ENDPOINT: localhost:19000
     depends_on:
@@ -152,9 +189,9 @@ services:
       dockerfile: deploy/backend.Dockerfile
       args:
         SERVICE_PATH: ./app/videoCore/service/cmd/service
-    container_name: campus-core
+    container_name: lehu-core
     environment:
-      LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS: ${LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS:-true}
+      LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS: ${LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS:-false}
     depends_on:
       mysql:
         condition: service_healthy
@@ -175,21 +212,50 @@ services:
       retries: 12
       start_period: 20s
 
+  chat:
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+      args:
+        SERVICE_PATH: ./app/videoChat/service/cmd/service
+    container_name: lehu-chat
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_started
+      core:
+        condition: service_started
+    command: ["-conf", "/data/conf"]
+    volumes:
+      - ./deploy/config/videoChat:/data/conf:ro
+    ports:
+      - "18040:8040"
+      - "19040:9040"
+    healthcheck:
+      test: [ "CMD", "/app/healthcheck", "tcp://127.0.0.1:9040" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
   api:
     build:
       context: .
       dockerfile: deploy/backend.Dockerfile
       args:
         SERVICE_PATH: ./app/videoApi/service/cmd/service
-    container_name: campus-api
+    container_name: lehu-api
     environment:
       LEHU_DEV_VERIFICATION_CODE: "888888"
       LEHU_CAMPUS_ADMIN_ALLOW_ALL: ${LEHU_CAMPUS_ADMIN_ALLOW_ALL:-false}
       LEHU_CAMPUS_ADMIN_USER_IDS: ${LEHU_CAMPUS_ADMIN_USER_IDS:-}
       LEHU_CAMPUS_OPERATOR_USER_IDS: ${LEHU_CAMPUS_OPERATOR_USER_IDS:-}
-      LEHU_CAMPUS_ONLY: ${LEHU_CAMPUS_ONLY:-true}
-      LEHU_CAMPUS_ENABLE_VIDEO_POSTS: ${LEHU_CAMPUS_ENABLE_VIDEO_POSTS:-false}
-      LEHU_DISABLE_API_KAFKA_CONSUMER: ${LEHU_DISABLE_API_KAFKA_CONSUMER:-true}
+      LEHU_CAMPUS_ONLY: "false"
+      LEHU_CAMPUS_ENABLE_VIDEO_POSTS: "true"
+      LEHU_DISABLE_API_KAFKA_CONSUMER: ${LEHU_DISABLE_API_KAFKA_CONSUMER:-false}
       LEHU_WECHAT_MOCK_LOGIN: ${LEHU_WECHAT_MOCK_LOGIN:-false}
       LEHU_WECHAT_DEV_OPENID: ${LEHU_WECHAT_DEV_OPENID:-}
       WECHAT_APP_ID: ${WECHAT_APP_ID:-}
@@ -228,8 +294,8 @@ services:
       start_period: 20s
 
   health-exporter:
-    image: campus-estation-rag
-    container_name: campus-health-exporter
+    image: lehu-video-backend-campus-rag
+    container_name: lehu-health-exporter
     restart: unless-stopped
     command: ["python", "/app/health_exporter.py", "--config", "/etc/health-exporter/targets.json", "--listen", "0.0.0.0:9115"]
     volumes:
@@ -240,7 +306,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.55.1
-    container_name: campus-prometheus
+    container_name: lehu-prometheus
     restart: unless-stopped
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -250,7 +316,7 @@ services:
     volumes:
       - ./deploy/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./deploy/observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - campus_prometheus_data:/prometheus
+      - lehu_prometheus_data:/prometheus
     ports:
       - "19090:9090"
     depends_on:
@@ -258,18 +324,18 @@ services:
 
   loki:
     image: grafana/loki:3.7.2
-    container_name: campus-loki
+    container_name: lehu-loki
     restart: unless-stopped
     command: ["-config.file=/etc/loki/config.yaml"]
     volumes:
       - ./deploy/observability/loki/config.yaml:/etc/loki/config.yaml:ro
-      - campus_loki_data:/loki
+      - lehu_loki_data:/loki
     expose:
       - "3100"
 
   alloy:
     image: grafana/alloy:v1.16.0
-    container_name: campus-alloy
+    container_name: lehu-alloy
     restart: unless-stopped
     user: "0:0"
     command:
@@ -280,13 +346,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./deploy/observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
-      - campus_alloy_data:/var/lib/alloy/data
+      - lehu_alloy_data:/var/lib/alloy/data
     depends_on:
       - loki
 
   grafana:
     image: grafana/grafana:11.6.1
-    container_name: campus-grafana
+    container_name: lehu-grafana
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
@@ -298,7 +364,7 @@ services:
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
     volumes:
-      - campus_grafana_data:/var/lib/grafana
+      - lehu_grafana_data:/var/lib/grafana
       - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
       - "13002:3000"
@@ -307,11 +373,12 @@ services:
       - prometheus
 
 volumes:
-  campus_mysql_data:
-  campus_redis_data:
-  campus_minio_data:
-  campus_qdrant_data:
-  campus_prometheus_data:
-  campus_loki_data:
-  campus_alloy_data:
-  campus_grafana_data:
+  lehu_mysql_data:
+  lehu_redis_data:
+  lehu_kafka_data:
+  lehu_minio_data:
+  lehu_qdrant_data:
+  lehu_prometheus_data:
+  lehu_loki_data:
+  lehu_alloy_data:
+  lehu_grafana_data:

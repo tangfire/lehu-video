@@ -1,3 +1,5 @@
+USE lehu_campus_db;
+
 CREATE TABLE IF NOT EXISTS `campus_ai_reply_task` (
   `id` BIGINT NOT NULL,
   `post_id` BIGINT NOT NULL COMMENT '帖子ID',

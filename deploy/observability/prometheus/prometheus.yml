@@ -11,7 +11,7 @@ scrape_configs:
       - targets:
           - prometheus:9090
 
-  - job_name: lehu-health
+  - job_name: campus-health
     scrape_timeout: 10s
     static_configs:
       - targets:

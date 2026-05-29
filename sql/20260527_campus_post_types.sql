@@ -1,4 +1,4 @@
-USE `lehu_video_db`;
+USE `lehu_campus_db`;
 
 SET @column_exists := (
   SELECT COUNT(1)

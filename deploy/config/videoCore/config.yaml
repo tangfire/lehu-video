@@ -8,7 +8,7 @@ server:
 data:
   database:
     driver: mysql
-    source: root:8888.216@tcp(mysql:3306)/lehu_video_db?parseTime=True&loc=Local
+    source: root:8888.216@tcp(mysql:3306)/lehu_campus_db?parseTime=True&loc=Local
   redis:
     addr: redis:6379
     password: "8888.216"

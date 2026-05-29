@@ -1,4 +1,4 @@
-USE lehu_video_db;
+USE lehu_campus_db;
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `campus_forum_report` (

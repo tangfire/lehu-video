@@ -1,4 +1,4 @@
-USE lehu_video_db;
+USE lehu_campus_db;
 
 SET @db_name = DATABASE();
 

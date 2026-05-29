@@ -1,4 +1,4 @@
-USE lehu_video_db;
+USE lehu_campus_db;
 
 CREATE TABLE IF NOT EXISTS `campus_notification` (
   `id` BIGINT NOT NULL,

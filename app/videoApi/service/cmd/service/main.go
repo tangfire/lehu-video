@@ -68,6 +68,30 @@ func newApp(logger log.Logger, rr registry.Registrar, hs *http.Server, kcs *serv
 	)
 }
 
+func newCampusApp(logger log.Logger, rr registry.Registrar, hs *http.Server, cts *server.CampusTaskServer) *kratos.App {
+	return kratos.New(
+		kratos.ID(id),
+		kratos.Name(Name),
+		kratos.Version(Version),
+		kratos.Metadata(map[string]string{"mode": "campus-only"}),
+		kratos.Logger(logger),
+		kratos.Server(
+			hs,
+			cts,
+		),
+		kratos.Registrar(rr),
+	)
+}
+
+func campusOnlyMode() bool {
+	switch os.Getenv("LEHU_CAMPUS_ONLY") {
+	case "", "1", "true", "TRUE", "True", "yes", "YES", "on", "ON":
+		return true
+	default:
+		return false
+	}
+}
+
 func main() {
 	flag.Parse()
 	shutdownTracing := observability.InitTracing()
@@ -106,7 +130,14 @@ func main() {
 		panic(err)
 	}
 
-	app, cleanup, err := wireApp(bc.Server, &rc, bc.Data, bc.Auth, logger)
+	var app *kratos.App
+	var cleanup func()
+	var err error
+	if campusOnlyMode() {
+		app, cleanup, err = wireCampusApp(bc.Server, &rc, bc.Data, bc.Auth, logger)
+	} else {
+		app, cleanup, err = wireApp(bc.Server, &rc, bc.Data, bc.Auth, logger)
+	}
 	if err != nil {
 		panic(err)
 	}

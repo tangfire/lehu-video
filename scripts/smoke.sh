@@ -3,7 +3,7 @@ set -euo pipefail
 
 API_BASE="${API_BASE:-http://127.0.0.1:18080/v1}"
 MOBILE="${SMOKE_MOBILE:-1390000$(date +%H%M%S)}"
-EMAIL="${SMOKE_EMAIL:-smoke$(date +%H%M%S)@lehu.local}"
+EMAIL="${SMOKE_EMAIL:-smoke$(date +%H%M%S)@campus.local}"
 PASSWORD="${SMOKE_PASSWORD:-12345678}"
 
 echo "Smoke target: ${API_BASE}"
@@ -43,10 +43,16 @@ if [ -z "${TOKEN}" ]; then
   exit 1
 fi
 
-feed_resp="$(json_post /video/feed '{"feed_num":"5","feed_type":1}')"
-if ! printf '%s' "${feed_resp}" | grep -q '"code":0'; then
-  echo "Feed failed: ${feed_resp}" >&2
+categories_resp="$(json_get /campus/forum/categories)"
+if ! printf '%s' "${categories_resp}" | grep -q '"code":0'; then
+  echo "Campus categories failed: ${categories_resp}" >&2
   exit 1
 fi
 
-echo "Smoke passed: registered ${MOBILE}, login token received, feed reachable."
+post_resp="$(json_post /campus/forum/posts '{"category_code":"study","title":"校园 e站 smoke","content":"这是一条校园 e站自动冒烟测试。","media_type":"text","post_type":"note"}')"
+if ! printf '%s' "${post_resp}" | grep -q '"code":0'; then
+  echo "Campus post failed: ${post_resp}" >&2
+  exit 1
+fi
+
+echo "Smoke passed: registered ${MOBILE}, login token received, campus categories and text post reachable."

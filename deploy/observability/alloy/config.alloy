@@ -1,8 +1,8 @@
-discovery.docker "lehu" {
+discovery.docker "campus" {
   host = "unix:///var/run/docker.sock"
 }
 
-discovery.relabel "lehu_logs" {
+discovery.relabel "campus_logs" {
   targets = []
 
   rule {
@@ -29,27 +29,27 @@ discovery.relabel "lehu_logs" {
 
   rule {
     source_labels = ["container"]
-    regex         = "lehu-(alloy|loki|grafana)"
+    regex         = "campus-(alloy|loki|grafana)"
     action        = "drop"
   }
 
   rule {
     source_labels = ["container"]
-    regex         = "lehu-.*"
+    regex         = "campus-.*"
     action        = "keep"
   }
 }
 
-loki.source.docker "lehu" {
+loki.source.docker "campus" {
   host          = "unix:///var/run/docker.sock"
-  targets       = discovery.docker.lehu.targets
+  targets       = discovery.docker.campus.targets
   labels        = {job = "docker"}
-  relabel_rules = discovery.relabel.lehu_logs.rules
-  forward_to     = [loki.process.lehu.receiver]
+  relabel_rules = discovery.relabel.campus_logs.rules
+  forward_to     = [loki.process.campus.receiver]
 }
 
-loki.process "lehu" {
-  forward_to = [loki.write.lehu.receiver]
+loki.process "campus" {
+  forward_to = [loki.write.campus.receiver]
 
   stage.drop {
     older_than          = "30m"
@@ -57,7 +57,7 @@ loki.process "lehu" {
   }
 }
 
-loki.write "lehu" {
+loki.write "campus" {
   endpoint {
     url = "http://loki:3100/loki/api/v1/push"
   }
