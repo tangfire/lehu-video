@@ -24,7 +24,7 @@ services:
       - campus_mysql_data:/var/lib/mysql
       - ./sql/campus.sql:/docker-entrypoint-initdb.d/01-campus.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 -P3306 -uroot -p$${MYSQL_ROOT_PASSWORD} --protocol=tcp -e 'SELECT 1' >/dev/null 2>&1"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -136,6 +136,7 @@ services:
         SERVICE_PATH: ./app/base/service/cmd/service
     container_name: campus-base
     logging: *default-logging
+    restart: unless-stopped
     environment:
       LEHU_PUBLIC_MINIO_ENDPOINT: localhost:19000
       LEHU_STORAGE_PROVIDER: ${LEHU_STORAGE_PROVIDER:-minio}
@@ -174,6 +175,7 @@ services:
         SERVICE_PATH: ./app/campusUser/service/cmd/service
     container_name: campus-user
     logging: *default-logging
+    restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
@@ -200,6 +202,7 @@ services:
         SERVICE_PATH: ./app/campusApi/service/cmd/service
     container_name: campus-api
     logging: *default-logging
+    restart: unless-stopped
     environment:
       LEHU_DEV_VERIFICATION_CODE: "888888"
       LEHU_CAMPUS_ADMIN_ALLOW_ALL: ${LEHU_CAMPUS_ADMIN_ALLOW_ALL:-false}
