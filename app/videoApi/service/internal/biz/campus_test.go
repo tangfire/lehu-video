@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -190,6 +191,32 @@ func TestCreatePostAIAuditModeQueuesTaskWhenEnabled(t *testing.T) {
 	}
 	if len(repo.aiAuditTasks) != 1 || repo.aiAuditTasks[0].TargetID != post.ID {
 		t.Fatalf("ai audit tasks=%v, want one task for post %d", repo.aiAuditTasks, post.ID)
+	}
+}
+
+func TestResolveWechatSessionRejectsMockCodeUnlessEnabled(t *testing.T) {
+	t.Setenv("LEHU_WECHAT_MOCK_LOGIN", "")
+	t.Setenv("LEHU_WECHAT_DEV_OPENID", "")
+	t.Setenv("WECHAT_APP_ID", "")
+	t.Setenv("WECHAT_APP_SECRET", "")
+
+	if session, err := resolveWechatSession(context.Background(), "mock-campus"); err == nil || session != nil {
+		t.Fatalf("resolveWechatSession mock without flag = %#v, %v; want error", session, err)
+	}
+}
+
+func TestResolveWechatSessionAllowsMockCodeWhenEnabled(t *testing.T) {
+	t.Setenv("LEHU_WECHAT_MOCK_LOGIN", "true")
+	t.Setenv("LEHU_WECHAT_DEV_OPENID", "")
+	t.Setenv("WECHAT_APP_ID", "")
+	t.Setenv("WECHAT_APP_SECRET", "")
+
+	session, err := resolveWechatSession(context.Background(), "mock-campus")
+	if err != nil {
+		t.Fatalf("resolveWechatSession() error = %v", err)
+	}
+	if session == nil || !strings.HasPrefix(session.OpenID, "mock_") {
+		t.Fatalf("mock session = %#v, want mock openid", session)
 	}
 }
 

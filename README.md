@@ -52,6 +52,20 @@ export LEHU_CAMPUS_ADMIN_ALLOW_ALL=true
 
 正式/体验服务器不要开启 `LEHU_CAMPUS_ADMIN_ALLOW_ALL=true`。
 
+小程序体验版/正式版需要真实微信登录配置。正式服务器不要依赖 mock code：
+
+```bash
+export WECHAT_APP_ID=你的小程序AppID
+export WECHAT_APP_SECRET=你的小程序AppSecret
+export LEHU_WECHAT_MOCK_LOGIN=false
+```
+
+只有本地联调才可以临时开启：
+
+```bash
+export LEHU_WECHAT_MOCK_LOGIN=true
+```
+
 如果修改了后端代码或 Docker 配置，需要重新构建：
 
 ```bash

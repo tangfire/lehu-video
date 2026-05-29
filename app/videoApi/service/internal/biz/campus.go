@@ -4447,7 +4447,7 @@ type wechatSession struct {
 }
 
 func resolveWechatSession(ctx context.Context, code string) (*wechatSession, error) {
-	if strings.HasPrefix(code, "mock-") {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LEHU_WECHAT_MOCK_LOGIN")), "true") && strings.HasPrefix(code, "mock-") {
 		return &wechatSession{OpenID: "mock_" + strings.TrimPrefix(code, "mock-")}, nil
 	}
 	if openID := strings.TrimSpace(os.Getenv("LEHU_WECHAT_DEV_OPENID")); openID != "" {
@@ -4456,7 +4456,7 @@ func resolveWechatSession(ctx context.Context, code string) (*wechatSession, err
 	appID := strings.TrimSpace(os.Getenv("WECHAT_APP_ID"))
 	secret := strings.TrimSpace(os.Getenv("WECHAT_APP_SECRET"))
 	if appID == "" || secret == "" {
-		return &wechatSession{OpenID: "dev_" + shortHash(code, 32)}, nil
+		return nil, apperror.Internal(fmt.Errorf("wechat app credentials missing"), "微信登录未配置")
 	}
 	endpoint := "https://api.weixin.qq.com/sns/jscode2session"
 	reqURL := endpoint + "?appid=" + url.QueryEscape(appID) +
