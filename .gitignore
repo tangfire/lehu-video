@@ -25,6 +25,8 @@ go.work
 # OS General
 Thumbs.db
 .DS_Store
+__pycache__/
+*.py[cod]
 
 # project
 *.cert

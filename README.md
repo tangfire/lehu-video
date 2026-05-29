@@ -61,7 +61,7 @@ flowchart LR
 - 监控采用 Grafana + Loki + Prometheus + Alloy，尽量在浏览器内完成查日志、看健康和收告警。
 - 运行中数据库不自动 drop 历史表；新库初始化以 `sql/campus.sql` 为准。
 
-更细的服务说明见 [docs/architecture.md](docs/architecture.md)。
+第一次接手项目建议先读 [docs/README.md](docs/README.md) 和 [docs/developer-guide.md](docs/developer-guide.md)，更细的服务拓扑见 [docs/architecture.md](docs/architecture.md)。
 
 ## 本地 Docker 启动
 
@@ -194,6 +194,8 @@ downloadFile 合法域名：CDN 下载域名，例如 https://cdn.example.com
 
 ## e仔与 RAG
 
+完整设计见 [docs/ai-rag.md](docs/ai-rag.md)，里面写了 e仔人设、自动回复、本地知识库、RAG 检索、后台测试和降级策略。
+
 Go 后端负责任务、权限、e仔回复编排；`campus-rag` 只在 Docker 内网提供解析、切片、embedding、Qdrant 检索。
 
 ```text
@@ -215,6 +217,8 @@ CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
 未配置 API Key 时，e仔/RAG 会降级，不影响社区主链路。
 
 ## 监控与日志
+
+完整说明见 [docs/observability-alerting.md](docs/observability-alerting.md)，里面写了 Grafana、Loki、Alloy、Prometheus、health-exporter 和飞书告警的职责、查询方式、告警规则和处理流程。
 
 API 限流会使用真实客户端 IP。后端只在请求来自可信代理网段时读取 `X-Forwarded-For` / `X-Real-IP`，默认可信代理包含 loopback、Docker/内网网段。生产有独立反代或负载均衡时可显式配置：
 

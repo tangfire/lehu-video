@@ -10,6 +10,8 @@
 - 渐进增强：首发只做文字/图片社区；视频、私有文件 COS、业务指标告警后续再按真实流量增加。
 - 数据安全：运行中数据库不自动 drop 历史表，新环境只按 `sql/campus.sql` 初始化干净校园表。
 
+上线部署见 `docs/deployment-launch.md`；媒体存储见 `docs/media-storage.md`；e仔 AI 和 RAG 知识库见 `docs/ai-rag.md`；观测与飞书告警见 `docs/observability-alerting.md`。
+
 ## Services
 
 - `api`: 校园 e站 HTTP 入口，负责 JWT、运营后台、小程序接口、e仔任务编排和健康检查。
@@ -53,6 +55,8 @@ flowchart LR
 微信小程序生产域名需要同时配置 API request 域名、COS 上传域名和 CDN 下载域名。COS/CDN 控制台需要配置 CORS、回源、缓存规则和基础防盗刷策略。知识库/RAG 文件第一阶段保持后台低频上传链路，后续再单独迁私有 COS。
 
 ## Operations
+
+观测与告警的完整使用说明见 `docs/observability-alerting.md`。
 
 健康状态先看 Grafana 的「校园 e站健康监控」；请求排障先用用户给的 `request_id` 在「校园 e站日志搜索」里查入口日志，再用同条日志里的 `trace_id` 搜下游调用。
 
