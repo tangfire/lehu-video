@@ -9,7 +9,7 @@ SET @column_exists := (
 );
 SET @ddl := IF(
   @column_exists = 0,
-  'ALTER TABLE `campus_forum_post` ADD COLUMN `media_type` VARCHAR(16) NOT NULL DEFAULT ''text'' COMMENT ''text/image/video'' AFTER `images`',
+  'ALTER TABLE `campus_forum_post` ADD COLUMN `media_type` VARCHAR(16) NOT NULL DEFAULT ''text'' COMMENT ''text/image'' AFTER `images`',
   'SELECT 1'
 );
 PREPARE stmt FROM @ddl;
@@ -26,22 +26,6 @@ SET @column_exists := (
 SET @ddl := IF(
   @column_exists = 0,
   'ALTER TABLE `campus_forum_post` ADD COLUMN `cover_url` VARCHAR(1024) NOT NULL DEFAULT '''' AFTER `media_type`',
-  'SELECT 1'
-);
-PREPARE stmt FROM @ddl;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @column_exists := (
-  SELECT COUNT(1)
-  FROM information_schema.columns
-  WHERE table_schema = DATABASE()
-    AND table_name = 'campus_forum_post'
-    AND column_name = 'video_url'
-);
-SET @ddl := IF(
-  @column_exists = 0,
-  'ALTER TABLE `campus_forum_post` ADD COLUMN `video_url` VARCHAR(1024) NOT NULL DEFAULT '''' AFTER `cover_url`',
   'SELECT 1'
 );
 PREPARE stmt FROM @ddl;

@@ -1,4 +1,4 @@
-name: campus-estation-backend
+name: lehu-campus
 
 services:
   mysql:
@@ -88,7 +88,7 @@ services:
       start_period: 15s
 
   campus-rag:
-    image: campus-estation-rag
+    image: lehu-campus-rag
     build:
       context: .
       dockerfile: campus-rag/Dockerfile
@@ -152,15 +152,13 @@ services:
       retries: 12
       start_period: 20s
 
-  core:
+  campus-user:
     build:
       context: .
       dockerfile: deploy/backend.Dockerfile
       args:
-        SERVICE_PATH: ./app/videoCore/service/cmd/service
-    container_name: campus-core
-    environment:
-      LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS: ${LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS:-true}
+        SERVICE_PATH: ./app/campusUser/service/cmd/service
+    container_name: campus-user
     depends_on:
       mysql:
         condition: service_healthy
@@ -170,7 +168,7 @@ services:
         condition: service_started
     command: ["-conf", "/data/conf"]
     volumes:
-      - ./deploy/config/videoCore:/data/conf:ro
+      - ./deploy/config/campusUser:/data/conf:ro
     ports:
       - "18030:8030"
       - "19030:9030"
@@ -186,16 +184,13 @@ services:
       context: .
       dockerfile: deploy/backend.Dockerfile
       args:
-        SERVICE_PATH: ./app/videoApi/service/cmd/service
+        SERVICE_PATH: ./app/campusApi/service/cmd/service
     container_name: campus-api
     environment:
       LEHU_DEV_VERIFICATION_CODE: "888888"
       LEHU_CAMPUS_ADMIN_ALLOW_ALL: ${LEHU_CAMPUS_ADMIN_ALLOW_ALL:-false}
       LEHU_CAMPUS_ADMIN_USER_IDS: ${LEHU_CAMPUS_ADMIN_USER_IDS:-}
       LEHU_CAMPUS_OPERATOR_USER_IDS: ${LEHU_CAMPUS_OPERATOR_USER_IDS:-}
-      LEHU_CAMPUS_ONLY: ${LEHU_CAMPUS_ONLY:-true}
-      LEHU_CAMPUS_ENABLE_VIDEO_POSTS: ${LEHU_CAMPUS_ENABLE_VIDEO_POSTS:-false}
-      LEHU_DISABLE_API_KAFKA_CONSUMER: ${LEHU_DISABLE_API_KAFKA_CONSUMER:-true}
       LEHU_WECHAT_MOCK_LOGIN: ${LEHU_WECHAT_MOCK_LOGIN:-false}
       LEHU_WECHAT_DEV_OPENID: ${LEHU_WECHAT_DEV_OPENID:-}
       WECHAT_APP_ID: ${WECHAT_APP_ID:-}
@@ -217,13 +212,13 @@ services:
         condition: service_started
       base:
         condition: service_started
-      core:
+      campus-user:
         condition: service_started
       campus-rag:
         condition: service_started
     command: ["-conf", "/data/conf"]
     volumes:
-      - ./deploy/config/videoApi:/data/conf:ro
+      - ./deploy/config/campusApi:/data/conf:ro
     ports:
       - "18080:8080"
     healthcheck:
@@ -234,7 +229,7 @@ services:
       start_period: 20s
 
   health-exporter:
-    image: campus-estation-rag
+    image: lehu-campus-rag
     container_name: campus-health-exporter
     restart: unless-stopped
     command: ["python", "/app/health_exporter.py", "--config", "/etc/health-exporter/targets.json", "--listen", "0.0.0.0:9115"]
@@ -311,6 +306,20 @@ services:
     depends_on:
       - loki
       - prometheus
+
+  admin-web:
+    build:
+      context: ./web/admin
+      args:
+        VITE_API_BASE_URL: ${ADMIN_API_BASE_URL:-http://localhost:18080/v1}
+        VITE_JWT_SECRET: ${ADMIN_JWT_SECRET:-fireshine}
+    container_name: campus-admin-web
+    restart: unless-stopped
+    ports:
+      - "15173:80"
+    depends_on:
+      api:
+        condition: service_started
 
 volumes:
   campus_mysql_data:

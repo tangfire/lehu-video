@@ -1,35 +1,32 @@
-# 校园 e站 Backend
+# lehu-campus 校园 e站
 
-校园 e站后端以小程序社区、课表、运营后台、e仔 AI/RAG 和浏览器内排障为主。短视频、IM chat、Kafka 链路已经作为历史栈归档到 `docker-compose.legacy.yml`，不再进入默认生产启动。
+校园 e站后端以小程序社区、课表、运营后台、e仔 AI/RAG 和浏览器内排障为主。旧项目栈已经从当前项目移除。
 
 ## 本地 Docker 启动
 
 ```bash
-cd /Users/firetang/Documents/lehu/lehu-video
+cd /Users/firetang/Documents/lehu/lehu-campus
 docker compose up -d --build
+```
+
+如果本机之前用旧 Compose 项目名启动过，第一次切换到 `lehu-campus` 前先停旧 stack，避免端口或容器名冲突：
+
+```bash
+docker compose -p lehu-video-backend down
+docker compose -p campus-estation-backend down
 ```
 
 默认启动的校园 e站服务：
 
 ```text
 mysql / redis / consul / minio / qdrant / campus-rag
-base / core / api
+base / campus-user / api / admin-web
 health-exporter / prometheus / loki / alloy / grafana
-```
-
-默认不启动：
-
-```text
-kafka / kafka-init / chat
 ```
 
 默认关键环境变量：
 
 ```bash
-export LEHU_CAMPUS_ONLY=true
-export LEHU_CAMPUS_ENABLE_VIDEO_POSTS=false
-export LEHU_DISABLE_VIDEO_KAFKA_CONSUMERS=true
-export LEHU_DISABLE_API_KAFKA_CONSUMER=true
 export LEHU_STORAGE_PROVIDER=minio
 ```
 
@@ -37,6 +34,7 @@ export LEHU_STORAGE_PROVIDER=minio
 
 ```text
 API：http://localhost:18080
+运营后台：http://localhost:15173/admin
 Grafana：http://localhost:13002
 Prometheus：http://localhost:19090
 MinIO API：http://localhost:19000
@@ -109,7 +107,7 @@ downloadFile 合法域名：CDN 下载域名，例如 https://cdn.example.com
 
 腾讯云控制台需要配置 COS CORS、CDN 回源、图片缓存规则和基础防盗刷策略。MinIO 只作为本地开发和低频内部文件过渡；知识库/RAG 文件暂不在这一阶段做公开 CDN 化，后续可单独迁到私有 COS。
 
-`sql/video.sql`、`sql/legacy/` 和 `docker-compose.legacy.yml` 仅保留历史短视频/chat 栈，不再作为校园 e站默认入口。
+帖子只支持文字和图片，后端固定拒绝视频上传和视频帖。
 
 ## e仔与 RAG
 
@@ -184,7 +182,7 @@ API_BASE=http://127.0.0.1:18080/v1 ./scripts/smoke.sh
 
 ## 成本建议
 
-首发 400 人、关闭视频帖、本机 MinIO、图片压缩的前提下，建议：
+首发 400 人、关闭视频帖、公开媒体走 COS + CDN、图片压缩的前提下，建议：
 
 ```text
 2核4G / 100GB / 7Mbps / 1000GB/月

@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+package api.campusUser.service.v1;
+
+option go_package = "lehu-video/api/campusUser/service/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.campusUser.service.v1";
+import "api/campusUser/service/v1/base.proto";
+
+// 用户基础信息（不包含社交状态）
+message UserBaseInfo {
+	string id = 1;
+	string name = 2;
+	string nickname = 3;
+	string avatar = 4;
+	string background_image = 5;
+	string signature = 6;
+	string mobile = 7;
+	string email = 8;
+	int32 gender = 9;
+
+	// 统计信息
+	int64 follow_count = 10;
+	int64 follower_count = 11;
+	int64 be_liked_count = 12;      // 原 total_favorited
+	int64 work_count = 13;
+	int64 collection_count = 14;     // 原 favorite_count
+
+	// 时间信息
+	string created_at = 15;
+	string updated_at = 16;
+}
+
+service UserService {
+	// 创建用户
+	rpc CreateUser (CreateUserReq) returns (CreateUserResp){};
+
+	// 获取用户基础信息
+	rpc GetUserBaseInfo (GetUserBaseInfoReq) returns (GetUserBaseInfoResp);
+
+	// 更新用户信息
+	rpc UpdateUserInfo (UpdateUserInfoReq) returns (UpdateUserInfoResp);
+
+	// 批量获取用户基础信息
+	rpc BatchGetUserBaseInfo(BatchGetUserBaseInfoReq) returns (BatchGetUserBaseInfoResp);
+
+	// 搜索用户（基于基本信息）
+	rpc SearchUsers(SearchUsersReq) returns (SearchUsersResp);
+
+	// 更新用户统计信息
+	rpc UpdateUserStats(UpdateUserStatsReq) returns (UpdateUserStatsResp);
+
+	// 更新用户最后上线时间
+	rpc UpdateUserLastOnlineTime(UpdateUserLastOnlineTimeReq) returns (UpdateUserLastOnlineTimeResp);
+}
+
+message CreateUserReq{
+	string mobile = 1;
+	string email = 2;
+	string account_id = 3;
+	string name = 4;
+}
+
+message CreateUserResp{
+	Metadata meta = 1;
+	string user_id = 2;
+}
+
+message GetUserBaseInfoReq{
+	string user_id = 1;
+	string account_id = 2;
+}
+
+message GetUserBaseInfoResp{
+	Metadata meta = 1;
+	UserBaseInfo user = 2;
+}
+
+message UpdateUserInfoReq{
+	string user_id = 1;
+	string name = 2;
+	string nickname = 3;
+	string avatar = 4;
+	string background_image = 5;
+	string signature = 6;
+	int32 gender = 7;
+}
+
+message UpdateUserInfoResp{
+	Metadata meta = 1;
+}
+
+message BatchGetUserBaseInfoReq{
+	repeated string user_ids = 1;
+}
+
+message BatchGetUserBaseInfoResp{
+	repeated UserBaseInfo users = 1;
+	Metadata meta = 2;
+}
+
+message SearchUsersReq {
+	string keyword = 1;
+	int32 page = 2;
+	int32 page_size = 3;
+}
+
+message SearchUsersResp {
+	repeated UserBaseInfo users = 1;
+	int32 total = 2;
+	Metadata meta = 3;
+}
+
+message UpdateUserStatsReq {
+	string user_id = 1;
+	optional int64 follow_count = 2;
+	optional int64 follower_count = 3;
+	optional int64 be_liked_count = 4;      // 原 total_favorited
+	optional int64 work_count = 5;
+	optional int64 collection_count = 6;    // 原 favorite_count
+}
+
+message UpdateUserStatsResp {
+	Metadata meta = 1;
+}
+
+message UpdateUserLastOnlineTimeReq {
+	string user_id = 1;
+	string last_online_time = 2; // 格式：2006-01-02 15:04:05
+}
+
+message UpdateUserLastOnlineTimeResp {
+	Metadata meta = 1;
+}

@@ -5,6 +5,459 @@ openapi: 3.0.3
 info:
     title: ""
     version: 0.0.1
-paths: {}
+paths:
+    /helloworld/{name}:
+        get:
+            tags:
+                - Greeter
+            description: Sends a greeting
+            operationId: Greeter_SayHello
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/helloworld.v1.HelloReply'
+    /v1/file:
+        post:
+            tags:
+                - FileService
+            operationId: FileService_PreSignUploadingPublicFile
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.campusApi.service.v1.PreSignUploadPublicFileReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.PreSignUploadPublicFileResp'
+    /v1/file/report:
+        post:
+            tags:
+                - FileService
+            operationId: FileService_ReportPublicFileUploaded
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.campusApi.service.v1.ReportPublicFileUploadedReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.ReportPublicFileUploadedResp'
+    /v1/user/code:
+        post:
+            tags:
+                - UserService
+            description: 获取验证码
+            operationId: UserService_GetVerificationCode
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.campusApi.service.v1.GetVerificationCodeReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.GetVerificationCodeResp'
+    /v1/user/info:
+        put:
+            tags:
+                - UserService
+            operationId: UserService_UpdateUserInfo
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.campusApi.service.v1.UpdateUserInfoReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.UpdateUserInfoResp'
+    /v1/user/info/{userId}:
+        get:
+            tags:
+                - UserService
+            operationId: UserService_GetUserInfo
+            parameters:
+                - name: userId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.GetUserInfoResp'
+    /v1/user/login:
+        post:
+            tags:
+                - UserService
+            description: 登录
+            operationId: UserService_Login
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.campusApi.service.v1.LoginReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.LoginResp'
+    /v1/user/register:
+        post:
+            tags:
+                - UserService
+            description: 注册
+            operationId: UserService_Register
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.campusApi.service.v1.RegisterReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.RegisterResp'
+    /v1/user/voucher:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_BindUserVoucher
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.campusApi.service.v1.BindUserVoucherReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.BindUserVoucherResp'
+        delete:
+            tags:
+                - UserService
+            operationId: UserService_UnbindUserVoucher
+            parameters:
+                - name: voucherType
+                  in: query
+                  schema:
+                    type: integer
+                    format: enum
+                - name: voucher
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.UnbindUserVoucherResp'
+    /v1/users/batch:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_BatchGetUserInfo
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.campusApi.service.v1.BatchGetUserInfoReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.BatchGetUserInfoResp'
+    /v1/users/search:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_SearchUsers
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.campusApi.service.v1.SearchUsersReq'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.campusApi.service.v1.SearchUsersResp'
 components:
-    schemas: {}
+    schemas:
+        api.campusApi.service.v1.BatchGetUserInfoReq:
+            type: object
+            properties:
+                userIds:
+                    type: array
+                    items:
+                        type: string
+                includePrivate:
+                    type: boolean
+                includeRelation:
+                    type: boolean
+            description: 批量查询用户信息
+        api.campusApi.service.v1.BatchGetUserInfoResp:
+            type: object
+            properties:
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.campusApi.service.v1.User'
+        api.campusApi.service.v1.BindUserVoucherReq:
+            type: object
+            properties:
+                voucherType:
+                    type: integer
+                    format: enum
+                voucher:
+                    type: string
+        api.campusApi.service.v1.BindUserVoucherResp:
+            type: object
+            properties: {}
+        api.campusApi.service.v1.GetUserInfoResp:
+            type: object
+            properties:
+                user:
+                    $ref: '#/components/schemas/api.campusApi.service.v1.User'
+        api.campusApi.service.v1.GetVerificationCodeReq:
+            type: object
+            properties:
+                mobile:
+                    type: string
+                email:
+                    type: string
+        api.campusApi.service.v1.GetVerificationCodeResp:
+            type: object
+            properties:
+                codeId:
+                    type: string
+        api.campusApi.service.v1.LoginReq:
+            type: object
+            properties:
+                mobile:
+                    type: string
+                email:
+                    type: string
+                password:
+                    type: string
+        api.campusApi.service.v1.LoginResp:
+            type: object
+            properties:
+                token:
+                    type: string
+                user:
+                    $ref: '#/components/schemas/api.campusApi.service.v1.User'
+        api.campusApi.service.v1.PageStatsReq:
+            type: object
+            properties:
+                page:
+                    type: integer
+                    format: int32
+                size:
+                    type: integer
+                    format: int32
+                sort:
+                    type: string
+        api.campusApi.service.v1.PageStatsResp:
+            type: object
+            properties:
+                total:
+                    type: integer
+                    format: int32
+        api.campusApi.service.v1.PreSignUploadPublicFileReq:
+            type: object
+            properties:
+                hash:
+                    type: string
+                fileType:
+                    type: string
+                size:
+                    type: string
+                    description: 'gotags: json`size,omitempty,string`'
+                filename:
+                    type: string
+        api.campusApi.service.v1.PreSignUploadPublicFileResp:
+            type: object
+            properties:
+                url:
+                    type: string
+                fileId:
+                    type: string
+                    description: '@gotags: json:"file_id,omitempty,string"'
+        api.campusApi.service.v1.RegisterReq:
+            type: object
+            properties:
+                mobile:
+                    type: string
+                email:
+                    type: string
+                password:
+                    type: string
+                codeId:
+                    type: string
+                code:
+                    type: string
+        api.campusApi.service.v1.RegisterResp:
+            type: object
+            properties:
+                userId:
+                    type: string
+        api.campusApi.service.v1.ReportPublicFileUploadedReq:
+            type: object
+            properties:
+                fileId:
+                    type: string
+        api.campusApi.service.v1.ReportPublicFileUploadedResp:
+            type: object
+            properties:
+                objectName:
+                    type: string
+        api.campusApi.service.v1.SearchUsersReq:
+            type: object
+            properties:
+                keyword:
+                    type: string
+                pageStats:
+                    $ref: '#/components/schemas/api.campusApi.service.v1.PageStatsReq'
+            description: 搜索用户请求
+        api.campusApi.service.v1.SearchUsersResp:
+            type: object
+            properties:
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.campusApi.service.v1.User'
+                pageStats:
+                    $ref: '#/components/schemas/api.campusApi.service.v1.PageStatsResp'
+        api.campusApi.service.v1.UnbindUserVoucherResp:
+            type: object
+            properties: {}
+        api.campusApi.service.v1.UpdateUserInfoReq:
+            type: object
+            properties:
+                userId:
+                    type: string
+                name:
+                    type: string
+                avatar:
+                    type: string
+                backgroundImage:
+                    type: string
+                signature:
+                    type: string
+                nickname:
+                    type: string
+                gender:
+                    type: integer
+                    format: int32
+        api.campusApi.service.v1.UpdateUserInfoResp:
+            type: object
+            properties: {}
+        api.campusApi.service.v1.User:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                nickname:
+                    type: string
+                avatar:
+                    type: string
+                backgroundImage:
+                    type: string
+                signature:
+                    type: string
+                gender:
+                    type: integer
+                    format: int32
+                followCount:
+                    type: string
+                followerCount:
+                    type: string
+                totalFavorited:
+                    type: string
+                workCount:
+                    type: string
+                favoriteCount:
+                    type: string
+                createdAt:
+                    type: string
+                onlineStatus:
+                    type: integer
+                    format: int32
+                lastOnlineTime:
+                    type: string
+                isFollowing:
+                    type: boolean
+                isFollower:
+                    type: boolean
+                isFriend:
+                    type: boolean
+                friendRemark:
+                    type: string
+                friendGroup:
+                    type: string
+                mobile:
+                    type: string
+                email:
+                    type: string
+            description: 统一的用户模型
+        helloworld.v1.HelloReply:
+            type: object
+            properties:
+                message:
+                    type: string
+            description: The response message containing the greetings
+tags:
+    - name: FileService
+    - name: Greeter
+      description: The greeting service definition.
+    - name: UserService

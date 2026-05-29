@@ -15,9 +15,9 @@
     "target": "http://base:8020/healthz"
   },
   {
-    "name": "core_health",
+    "name": "campus_user_health",
     "type": "http",
-    "target": "http://core:8030/healthz"
+    "target": "http://campus-user:8030/healthz"
   },
   {
     "name": "campus_rag_health",
