@@ -37,6 +37,8 @@ campus-estation.user.service
 
 `campus-api` 使用 `discovery:///...` 形式通过 Consul 发现 gRPC 服务。`campus-rag` 不走 Consul，使用 Docker 内网地址 `http://campus-rag:8090`。
 
+Consul 不要求单独一台服务器。首发只有一台轻量服务器时，生产用同机单节点 Consul 就够了；关键是不要用 `agent -dev` 当生产注册中心。生产 compose 会以 `server + bootstrap-expect=1 + data-dir` 方式启动并持久化数据，本地开发才继续使用 dev 模式。
+
 ## 为什么保留这几个服务
 
 - `campus-api` 作为 API 网关，隔离前端和内部服务，避免小程序/后台直接感知 gRPC。
@@ -60,6 +62,6 @@ campus-estation.user.service
 
 可以描述为：
 
-> 基于 Go Kratos + gRPC + Consul 构建校园社区轻量微服务系统，拆分 API 网关、账号文件服务、用户资料服务、AI/RAG 服务和 LangGraph 运营 Agent 服务；使用 Redis 缓存热点读和限流，COS/CDN 承载公开媒体，Grafana + Loki + Prometheus + Alloy 实现日志搜索、健康监控和飞书告警，并通过 Agent 将举报、重要反馈和待人工确认审核推到飞书。
+> 基于 Go Kratos + gRPC + Consul 构建校园社区轻量微服务系统，拆分 API 网关、账号文件服务、用户资料服务、AI/RAG 服务和 LangGraph 运营 Agent 服务；使用 Redis 缓存热点读和限流，COS/CDN 承载公开媒体，Grafana + Loki + Prometheus + Alloy 实现日志搜索、健康监控和飞书告警；举报和重要反馈走运营提醒队列，发帖中高风险内容再进入 Agent 复核和 human-in-the-loop 飞书确认。
 
 不要描述为“单体项目”。也不建议继续叫“短视频架构”，当前产品和文档统一叫“校园 e站微服务架构”。

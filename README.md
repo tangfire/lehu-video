@@ -36,7 +36,7 @@ flowchart LR
 - `base`：账号、验证码、文件预签名上传、对象存储确认。本地用 MinIO，生产公开媒体用 COS + CDN。
 - `campus-user`：用户资料、搜索、统计和在线时间。
 - `campus-rag`：知识库文档解析、切片、embedding 和 Qdrant 检索。
-- `campus-agent`：LangGraph 运营值班 Agent，负责每日巡检、RAG 缺口分析、举报/重要反馈飞书提醒和发帖 AI/Agent 初审判断。
+- `campus-agent`：LangGraph 运营值班 Agent，负责每日巡检、RAG 缺口分析、治理建议和发帖 AI/Agent 初审判断。
 - `admin-web`：运营后台，随主项目一起构建和部署。
 - `grafana / loki / alloy / prometheus / health-exporter / alert-webhook`：日志搜索、健康监控和飞书告警。
 
@@ -53,7 +53,7 @@ flowchart LR
 - 发帖链路：小程序/后台调用 API；文字/图片帖写 MySQL；图片先走 `/v1/campus/upload/presign` 直传对象存储，再 `/complete` 确认；后端固定拒绝视频。
 - 媒体链路：生产公开图片不走服务器出网，`base` 返回 COS 上传地址和 CDN 访问地址，避免轻量服务器带宽被图片占满。
 - e仔链路：评论区 `@e仔` 先落任务；需要校园事实时查 RAG；命中资料后再生成官方账号回复；未配置模型时降级，不影响社区主链路。
-- 值班 Agent 链路：举报、重要反馈、待人工确认审核和每日巡检会通过 `alert-webhook` 推飞书；发帖审核规则先行，低风险不调模型，中高风险才调 Agent 并做人机确认。
+- 运营提醒链路：举报、重要反馈、待人工确认审核和每日巡检会通过 `alert-webhook` 推飞书；其中举报/反馈先进入 `campus_ops_alert` 队列，不调用 Agent 模型。发帖审核规则先行，低风险不调模型，中高风险才调 `campus-agent` 并做人机确认。
 - 排障链路：用户拿到 `request_id` 后，在 Grafana 日志搜索定位入口日志；健康面板用于判断 API、Redis、RAG、Agent 等组件是否可用，生产云 MySQL 由 `api_ready` 间接覆盖。
 
 图里的监控链路可以这样理解：
@@ -62,7 +62,7 @@ flowchart LR
 - `Alloy`：采集 Docker 容器日志，送到 `Loki`。
 - `Loki`：存日志。Grafana 通过 Loki 查 `request_id`、接口路径、错误日志。
 - `health-exporter`：主动探测 API、Redis、RAG、Agent、飞书桥接、Qdrant 等目标是否可用，并把结果变成指标；生产云 MySQL 不单独 TCP 探测，先看 `api_ready`。
-- `alert-webhook`：接收 Grafana 告警和值班 Agent 运营通知，发到飞书群；生产不要暴露公网。
+- `alert-webhook`：接收 Grafana 告警和运营通知，发到飞书群；运营通知包含 Agent 报告、举报/反馈、审核提醒和 SLA 提醒，生产不要暴露公网。
 - `Prometheus`：定时抓取并保存这些健康指标，例如某个目标当前是 up 还是 down、连续 down 了多久。
 - `Grafana`：同时查询 Loki 和 Prometheus；Loki 用来看“为什么报错”，Prometheus 用来看“哪里挂了”和触发告警。
 
@@ -309,7 +309,7 @@ LEHU_ALERT_FEISHU_SECRET=飞书机器人签名密钥
 GRAFANA_ROOT_URL=https://grafana.example.com
 ```
 
-飞书群里创建“自定义机器人”，复制 webhook；建议开启“签名校验”，把签名密钥填到 `LEHU_ALERT_FEISHU_SECRET`。当前只报 P0/P1：API/ready、MySQL、Redis、health-exporter 连续 2 分钟不可用发 critical；base、campus-user、RAG、campus-agent、alert-webhook、MinIO、Qdrant、Consul 连续 3 分钟不可用发 warning。
+飞书群里创建“自定义机器人”，复制 webhook；建议开启“签名校验”，把签名密钥填到 `LEHU_ALERT_FEISHU_SECRET`。当前只报 P0/P1：API/ready、Redis、health-exporter 连续 2 分钟不可用发 critical；base、campus-user、RAG、campus-agent、alert-webhook、Qdrant、Consul 连续 3 分钟不可用发 warning。生产云 MySQL 和 COS/CDN 不在本机 health-exporter 里单独探测，先通过 `api_ready` 和云厂商监控覆盖。
 
 本地模拟一条 Grafana webhook：
 

@@ -114,22 +114,24 @@ flowchart LR
 1. 用户报错时复制 `request_id`。
 2. Grafana 日志搜索按 `request_id` 找到入口日志。
 3. 如有 `trace_id`，继续搜索同一请求的下游日志。
-4. Grafana 健康监控确认 API、MySQL、Redis、RAG、Agent、alert-webhook、Qdrant 等目标状态。
+4. Grafana 健康监控确认 API、Redis、RAG、Agent、alert-webhook、Qdrant 等目标状态；生产云 MySQL 先通过 `api_ready` 间接覆盖。
 5. 关键目标 down 时由 Grafana Alerting 经过 `alert-webhook` 推送飞书群。
 
-### Ops Duty Agent
+### Ops Duty Agent And Alerts
 
 1. 用户举报、重要反馈、待人工确认审核和 AI 预算预警进入 `campus_ops_alert`。
 2. `campus-api` 后台任务 5 秒级扫描待发送事件。
 3. 事件经 `alert-webhook /agent` 进入飞书。
 4. 发帖审核卡片可以用一次性 token 通过/拒绝；举报卡片可以下架内容或忽略举报。
-5. 真正写库、通知举报人和审核日志都由 `campus-api` 完成，`campus-agent` 只提供判断和建议。
+5. 举报、反馈和 SLA 超时提醒通常不调用 `campus-agent` 模型，只是运营提醒队列；发帖中高风险/不确定审核、每日巡检、RAG 缺口和治理建议才进入 `campus-agent`。
+6. 真正写库、通知举报人和审核日志都由 `campus-api` 完成，`campus-agent` 只提供判断和建议。
 
 ## Production Defaults
 
 - 默认使用 `docker-compose.yml + docker-compose.prod.yml`。
 - 生产只暴露 API、运营后台、Grafana 到宿主机 loopback，外部流量通过反向代理接入 HTTPS。
 - 生产默认不启动本地 MySQL/MinIO；Redis、Consul、Qdrant、Prometheus、base、campus-user 不直接暴露公网。
+- Consul 首发是同机单节点注册中心，不需要单独服务器；生产 compose 使用 `server + bootstrap-expect=1 + data-dir` 持久化，本地开发才使用 `agent -dev`。
 - `qdrant` 默认限制为 `768m / 0.75 CPU`，`campus-rag` 默认限制为 `512m / 0.5 CPU`，避免 2核4G 首发服务器被 RAG 链路挤爆。
 - `LEHU_ENABLE_LEGACY_UPLOAD=false`，禁止图片上传退回 API 中转。
 - `LEHU_ACCESS_LOG_RETENTION_DAYS=7`，避免 `campus_access_log` 在 1核1G 云 MySQL 上无限增长。

@@ -97,7 +97,7 @@ flowchart LR
     Health[health-exporter] --> Prometheus[(Prometheus)]
     Grafana -->|query metrics| Prometheus
     Grafana --> Alert[alert-webhook]
-    API -->|Agent 运营通知| Alert
+    API -->|运营通知| Alert
     Alert --> Feishu[Feishu bot]
 ```
 
@@ -112,7 +112,7 @@ flowchart LR
 | `campus-agent` | LangGraph 运营值班 Agent、巡检、治理建议、发帖初审判断 | `campus-agent/main.py` |
 | `admin-web` | 运营后台 | `web/admin/src/pages/Admin/*` |
 | `health-exporter` | 探测各组件健康状态，暴露给 Prometheus | `deploy/observability/health-exporter/*` |
-| `alert-webhook` | Grafana 告警和值班 Agent 运营通知转飞书群机器人消息 | `deploy/observability/alert-webhook/*` |
+| `alert-webhook` | Grafana 告警和运营通知转飞书群机器人消息 | `deploy/observability/alert-webhook/*` |
 
 ## 核心业务模块
 

@@ -1,6 +1,8 @@
 # 运营值班 Agent 设计
 
-运营值班 Agent 是校园 e站的后台运营自动化服务。它不面向学生，主要目标是减少人工盯后台：定时巡检、举报/重要反馈主动飞书提醒、AI/Agent 发帖初审，以及不确定内容的飞书人工确认闭环。
+运营值班 Agent 是校园 e站的后台运营分析服务。它不面向学生，主要目标是减少人工盯后台：定时巡检、RAG 缺口分析、治理建议、AI/Agent 发帖初审，以及不确定内容的飞书人工确认闭环。
+
+这里要区分两个概念：`campus-agent` 负责需要模型分析和工具调用的任务；举报、重要反馈、SLA 超时和飞书发送失败属于 `campus_ops_alert` 运营提醒队列，通常不调用 Agent 模型，只负责可靠通知、去重、重试和回后台处理。
 
 边界很明确：`campus-agent` 只产出判断、理由和风险等级；真正写库的通过/拒绝、通知作者、审核日志都由 `campus-api` 执行。除低风险高置信帖子可自动通过外，高风险治理动作不自动执行。
 
@@ -17,7 +19,8 @@ flowchart LR
     API --> Runs[(campus_agent_run)]
     API --> Alerts[(campus_ops_alert)]
     API --> Tokens[(campus_ops_action_token)]
-    API -->|日报/高风险/举报/反馈/审核| Alert[alert-webhook]
+    API -->|日报/高风险/审核| Alert[alert-webhook]
+    Alerts -->|举报/反馈/SLA| Alert
     Alert --> Feishu[飞书群机器人]
 ```
 
@@ -27,7 +30,7 @@ flowchart LR
 - `campus-api` 仍是唯一公网 HTTP 入口，负责后台鉴权、运行记录入库和内部工具接口。
 - `campus-agent` 不直连 MySQL、Redis、Loki、Prometheus；巡检类任务只通过 `campus-api` 的只读工具取数。
 - AI/Agent 发帖审核走 `campus-api -> campus-agent /internal/moderation/audit`，Agent 返回 `decision/confidence/risk_level/reason/evidence`。
-- 飞书通知复用 `alert-webhook`，和 Grafana 告警共用同一个飞书机器人配置，但入口不同：Grafana 用 `/grafana`，Agent 运营通知用 `/agent`。
+- 飞书通知复用 `alert-webhook`，和 Grafana 告警共用同一个飞书机器人配置，但入口不同：Grafana 用 `/grafana`，运营通知用 `/agent`。`/agent` 既承接 Agent 报告，也承接不调用模型的举报/反馈提醒。
 
 ## LangGraph 工作流
 
@@ -107,7 +110,7 @@ flowchart LR
     Admin[后台手动运行] --> Run
     Run --> Agent[campus-agent 分析]
     Agent --> Save[campus_agent_run]
-    Event[举报/重要反馈/待人工审核] --> OpsAlert[campus_ops_alert]
+    Event[举报/重要反馈/SLA/待人工审核] --> OpsAlert[campus_ops_alert]
     OpsAlert --> Webhook[alert-webhook /agent]
     Save -->|daily report/high risk/manual| Webhook
     Webhook --> Feishu[飞书群]
@@ -121,9 +124,9 @@ flowchart LR
 | 每日巡检 | `campus-api` 后台任务默认每天 `09:30 Asia/Shanghai` 创建一次 `daily_ops`，完成后发送飞书日报 |
 | 高风险提醒 | 手动运行完成后如果 `risk_level=high`，自动发送一条高风险提醒 |
 | 手动发送 | 运营在 `/admin/copilot` 对任意 `done` 状态运行记录点击“发送到飞书” |
-| 举报提醒 | 用户举报帖子/评论后写入 `campus_ops_alert`，飞书卡片带被举报帖子/评论摘要、举报原因、举报人和后台入口，可在飞书内下架或忽略；举报人会收到站内确认和处理结果 |
+| 举报提醒 | 用户举报帖子/评论后写入 `campus_ops_alert`，不调用 Agent 模型；飞书卡片带被举报帖子/评论摘要、举报原因、举报人和后台入口，可在飞书内下架或忽略；举报人会收到站内确认和处理结果 |
 | 重要反馈 | `contact/cooperation/bug/content` 类型即时提醒，普通 `suggestion` 进入日报 |
-| 审核确认 | Agent 拿不准的帖子推飞书卡片，可点通过/拒绝或回后台 |
+| 审核确认 | 发帖本地规则识别为中高风险或不确定时调用 `campus-agent`；Agent 拿不准的帖子推飞书卡片，可点通过/拒绝或回后台 |
 | SLA 超时 | 举报超过 30 分钟、待审超过 2 小时、飞书失败/积压超过 10 分钟时，按类型每小时聚合提醒一次 |
 
 发送失败不会改写 Agent 的分析结果，只会更新运行记录里的飞书状态。后台列表会展示 `pending/sent/failed/skipped`。`/admin/copilot` 还会展示“飞书提醒队列”：待发送、发送中、失败、今日已发送、最近错误和最近提醒，用来确认飞书值班链路是否真的在工作；失败重试仍由后台任务退避处理，不在页面手动重发。
@@ -229,4 +232,4 @@ LEHU_FEISHU_CARD_VERIFY_TOKEN=
 
 可以这样讲：
 
-> 我在校园 e站里做了一个运营值班 Agent，独立为 `campus-agent` 微服务，使用 LangGraph 编排巡检类工具调用，用 LangChain tool 封装只读后台工具接口；同时把发帖 AI 审核迁到 Agent 服务。系统支持每日巡检、RAG 缺口分析、举报/重要反馈飞书主动提醒，以及发帖审核和举报治理的 human-in-the-loop 闭环：低风险高置信自动通过，不确定或高风险内容推飞书卡片，由运营点击通过/拒绝/下架/忽略，真正写库仍由 `campus-api` 完成。
+> 我在校园 e站里做了一个运营值班 Agent，独立为 `campus-agent` 微服务，使用 LangGraph 编排巡检类工具调用，用 LangChain tool 封装只读后台工具接口；同时把发帖 AI 审核迁到 Agent 服务。系统支持每日巡检、RAG 缺口分析、治理建议和发帖审核 human-in-the-loop：低风险规则直接通过，中高风险或不确定内容调用 Agent 复核，再推飞书卡片给运营确认。举报和重要反馈不包装成 Agent 推理，而是走 `campus_ops_alert` 运营提醒队列，负责可靠飞书通知、去重、重试和 SLA 超时提醒；真正写库仍由 `campus-api` 完成。

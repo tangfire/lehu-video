@@ -18,6 +18,8 @@
 
 当前仓库已经有 GitHub Actions：`.github/workflows/ci-cd.yml`。
 
+先说清楚当前状态：自动部署已经能做到“CI 通过后自动 SSH 到服务器、发布前防呆、发布后健康检查”，但 `scripts/deploy-production.sh` 仍然执行普通的 `docker compose up -d --build`。这不是严格蓝绿发布，更新 `api/admin-web` 时可能有几秒级容器重建和连接抖动。要做到真正用户无感，需要下面的“轻量蓝绿发布”再落一轮脚本和反代切流。
+
 触发规则：
 
 | 事件 | 行为 |
@@ -170,6 +172,24 @@ flowchart LR
 1. 把反代 upstream 切回 `blue`。
 2. reload Caddy/Nginx。
 3. 排查 `green` 日志。
+
+单机首发可优化成这一版，不需要 K8s，也不需要复制 MySQL/Redis/Qdrant：
+
+| 组件 | 蓝绿方式 |
+| --- | --- |
+| API | 同时运行 `api-blue` 和 `api-green`，分别绑定 `127.0.0.1:18080/28080` |
+| 运营后台 | 同时运行 `admin-blue` 和 `admin-green`，分别绑定 `127.0.0.1:15173/25173` |
+| campus-agent | 可先不双跑；它不直接承接公网流量。涉及 Agent 大改时再加 `agent-green` |
+| 反代 | Caddy/Nginx 只切 `api` 和 `admin` upstream |
+| 数据层 | 云 MySQL、Redis、Qdrant 仍然单份共享 |
+
+真正落地时要补三件东西：
+
+- `deploy/reverse-proxy/Caddyfile.bluegreen`：用一个小文件记录当前 active upstream。
+- `docker-compose.bluegreen.yml`：定义 `api-green/admin-green`，避免和现有 `container_name` 冲突。
+- `scripts/release-bluegreen.sh`：启动 standby、跑 `/healthz` `/readyz` 和 smoke、切 Caddy upstream、保留旧版本 10 到 30 分钟。
+
+蓝绿发布仍然要求数据库迁移向前兼容。只要 SQL 有破坏性变更，切流再快也救不了回滚。
 
 ## 为什么不直接 K8s
 
