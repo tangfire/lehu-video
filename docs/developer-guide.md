@@ -303,8 +303,8 @@ lehu_campus_db
 | 文件 | `file`、`file_campus_*` 分片表 |
 | 社区 | `campus_forum_category`、`campus_forum_post`、`campus_forum_comment`、点赞收藏举报表 |
 | 反馈通知 | `campus_feedback`、`campus_notification`、`campus_notification_outbox` |
-| e仔/RAG | `campus_ai_reply_task`、`campus_knowledge_document`、`campus_knowledge_chunk`、`campus_rag_query_log` |
-| 审核与安全 | `campus_ops_setting`、`campus_ai_audit_task`、`campus_access_log`、`campus_ip_block`、`campus_audit_log` |
+| e仔/RAG | `campus_ai_reply_task`、`campus_knowledge_document`、`campus_knowledge_chunk`、`campus_rag_query_log`、`campus_rag_eval_case` |
+| 审核与安全 | `campus_ops_setting`、`campus_ai_audit_task`、`campus_ai_usage_log`、`campus_access_log`、`campus_ip_block`、`campus_audit_log` |
 | 埋点 | `campus_event` |
 
 运行中的老库不要自动 drop 历史表。需要清理时，先备份、确认、再人工执行。

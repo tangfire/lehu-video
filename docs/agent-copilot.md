@@ -79,16 +79,17 @@ flowchart LR
 
 ## AI/Agent 发帖审核
 
-后台“审核设置”里的 `AI/Agent 初审` 开启后，新帖先进入 `campus_ai_audit_task` 队列，由 `campus-api` 后台任务调用 `campus-agent`。
+后台“审核设置”里的 `AI/Agent 初审` 开启后，新帖先走 `campus-api` 本地规则。明显低风险直接自动同步，不调用模型、不发飞书；中风险/不确定/高风险才进入 `campus_ai_audit_task`，由后台任务在预算允许时调用 `campus-agent`。
 
 策略：
 
-| Agent 结果 | 系统行为 |
+| 判断结果 | 系统行为 |
 | --- | --- |
-| `pass + low + confidence >= 0.85` | `campus-api` 自动设为可见，不打扰作者 |
-| `review` 或 `confidence < 0.85` | 保持待审核，生成飞书审批卡片 |
-| `reject` 或 `high` | 不自动拒绝，作为高风险待审推飞书 |
-| Agent 不可用 | 保持待审核，飞书提醒“审核 Agent 不可用” |
+| 本地规则 `low` | 自动设为可见，不调模型、不打扰作者 |
+| 本地规则 `medium/uncertain` 且 Agent `pass + low + confidence >= 0.9` | 自动设为可见 |
+| Agent `review/reject/medium/high` 或 `confidence < 0.9` | 保持待审核，生成飞书审批卡片 |
+| 本地规则 `high` | 即使 Agent 复核为低风险，也保持待审核并推飞书 |
+| 预算超限或 Agent 不可用 | 低风险照常通过，其他内容保留待审核并飞书提醒 |
 
 飞书审核卡片包含帖子摘要、风险等级、Agent 理由、后台链接，以及“通过/拒绝”按钮。举报卡片包含举报原因、目标类型和“下架内容/忽略举报/打开后台”按钮。按钮背后都是一次性 token 调用 `campus-api /v1/campus/feishu/card/callback`；如果公网回调或飞书能力不完整，仍可降级为打开后台处理。
 
@@ -147,12 +148,21 @@ CAMPUS_API_INTERNAL_BASE_URL=http://api:8080/v1
 # 不要填成 campus-agent 服务地址。
 CAMPUS_AGENT_API_KEY=
 CAMPUS_AGENT_BASE_URL=
-CAMPUS_AGENT_MODEL=
+CAMPUS_AGENT_MODEL=deepseek-v4-flash
 
 # 未配置独立模型时回退这组
 CAMPUS_AI_API_KEY=
 CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
-CAMPUS_AI_MODEL=deepseek-chat
+CAMPUS_AI_MODEL=deepseek-v4-flash
+
+# AI 成本账本与预算保护
+CAMPUS_AI_BUDGET_ENABLED=true
+CAMPUS_AI_MONTHLY_BUDGET_CNY=20
+CAMPUS_AI_DAILY_BUDGET_CNY=2
+CAMPUS_AI_BUDGET_WARN_RATIO=0.7,0.9
+CAMPUS_AI_PRICE_INPUT_USD_PER_M=0.14
+CAMPUS_AI_PRICE_OUTPUT_USD_PER_M=0.28
+CAMPUS_AI_USD_CNY_RATE=7.2
 
 # 值班 Agent 飞书通知
 CAMPUS_AGENT_ENABLED=true
@@ -165,7 +175,7 @@ CAMPUS_OPS_FEISHU_REPORT_NOTIFY=true
 CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY=true
 CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES=contact,cooperation,bug,content
 CAMPUS_AGENT_AUDIT_ENABLED=true
-CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE=0.85
+CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE=0.9
 CAMPUS_AI_AUDIT_BATCH_SIZE=2
 CAMPUS_AI_AUDIT_TASK_TIMEOUT=10s
 CAMPUS_AGENT_RUN_STALE_AFTER=10m
@@ -177,6 +187,10 @@ LEHU_ADMIN_ROOT_URL=https://admin.example.com
 LEHU_FEISHU_CARD_CALLBACK_ENABLED=true
 LEHU_FEISHU_CARD_VERIFY_TOKEN=
 ```
+
+`campus_ai_usage_log` 会记录 Agent 巡检、发帖审核、e仔回复和后台 e仔预览的模型调用 token 与预估成本。超过月预算 70%/90% 会推飞书预警；超过日/月硬预算后，非低风险发帖会进入人工待审，e仔和 Copilot 会走降级结果。
+
+每日后台任务还会从真实 `campus_rag_query_log` 里把 `wrong/needs_fix/unsafe`、低置信需要知识的问题和失败问题沉淀为停用状态的 `campus_rag_eval_case` 草稿。运营可在知识库评测页筛选“Agent 草稿”并批量启用。
 
 本地如果没有模型 key，Agent 仍会生成规则 fallback 报告，方便开发演示。
 

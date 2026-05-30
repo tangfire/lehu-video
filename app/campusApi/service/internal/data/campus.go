@@ -424,6 +424,24 @@ type campusRAGEvalCaseModel struct {
 
 func (campusRAGEvalCaseModel) TableName() string { return "campus_rag_eval_case" }
 
+type campusAIUsageLogModel struct {
+	ID               int64     `gorm:"column:id"`
+	Feature          string    `gorm:"column:feature"`
+	SourceType       string    `gorm:"column:source_type"`
+	SourceID         string    `gorm:"column:source_id"`
+	Model            string    `gorm:"column:model"`
+	PromptTokens     int64     `gorm:"column:prompt_tokens"`
+	CompletionTokens int64     `gorm:"column:completion_tokens"`
+	TotalTokens      int64     `gorm:"column:total_tokens"`
+	EstimatedCostUSD float64   `gorm:"column:estimated_cost_usd"`
+	EstimatedCostCNY float64   `gorm:"column:estimated_cost_cny"`
+	Status           string    `gorm:"column:status"`
+	ErrorMessage     string    `gorm:"column:error_message"`
+	CreatedAt        time.Time `gorm:"column:created_at"`
+}
+
+func (campusAIUsageLogModel) TableName() string { return "campus_ai_usage_log" }
+
 type campusAgentRunModel struct {
 	ID            int64           `gorm:"column:id"`
 	RunType       string          `gorm:"column:run_type"`
@@ -2654,7 +2672,9 @@ func (r *campusRepo) ListRAGEvalCases(ctx context.Context, status int32, offset,
 		limit = 20
 	}
 	db := r.data.db.WithContext(ctx).Model(&campusRAGEvalCaseModel{})
-	if status >= 0 {
+	if status == -2 {
+		db = db.Where("status = ? AND note LIKE ?", 0, "Agent 自动沉淀%")
+	} else if status >= 0 {
 		db = db.Where("status = ?", status)
 	}
 	var total int64
@@ -2686,6 +2706,65 @@ func (r *campusRepo) GetRAGEvalCaseByID(ctx context.Context, id int64) (bool, *b
 	return true, toBizRAGEvalCase(&row), nil
 }
 
+func (r *campusRepo) GetRAGEvalCaseBySourceLogID(ctx context.Context, sourceLogID int64) (bool, *biz.CampusRAGEvalCase, error) {
+	if sourceLogID <= 0 {
+		return false, nil, nil
+	}
+	var row campusRAGEvalCaseModel
+	err := r.data.db.WithContext(ctx).Model(&campusRAGEvalCaseModel{}).
+		Where("source_log_id = ?", sourceLogID).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	return true, toBizRAGEvalCase(&row), nil
+}
+
+func (r *campusRepo) ListRAGQueryLogsForEvalDrafts(ctx context.Context, limit int) ([]*biz.CampusRAGQueryLog, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	var rows []campusRAGQueryLogModel
+	err := r.data.db.WithContext(ctx).Model(&campusRAGQueryLogModel{}).
+		Where("(quality_label IN ? OR (need_knowledge = ? AND confidence <= ?) OR error_message <> '')", []string{"wrong", "needs_fix", "unsafe"}, true, 0.52).
+		Order("created_at DESC, id DESC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*biz.CampusRAGQueryLog, 0, len(rows))
+	for i := range rows {
+		out = append(out, toBizRAGQueryLog(&rows[i]))
+	}
+	return out, nil
+}
+
+func (r *campusRepo) BatchUpdateRAGEvalCasesStatus(ctx context.Context, ids []int64, status int32, updatedBy string) (int64, error) {
+	clean := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			clean = append(clean, id)
+		}
+	}
+	if len(clean) == 0 {
+		return 0, nil
+	}
+	if status != 0 {
+		status = 1
+	}
+	res := r.data.db.WithContext(ctx).Model(&campusRAGEvalCaseModel{}).
+		Where("id IN ?", clean).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		})
+	return res.RowsAffected, res.Error
+}
+
 func (r *campusRepo) UpdateRAGEvalCaseResult(ctx context.Context, id int64, result *biz.CampusRAGEvalResult) error {
 	if result == nil {
 		return nil
@@ -2701,6 +2780,121 @@ func (r *campusRepo) UpdateRAGEvalCaseResult(ctx context.Context, id int64, resu
 			"last_result":     raw,
 			"updated_at":      time.Now(),
 		}).Error
+}
+
+func (r *campusRepo) CreateAIUsageLog(ctx context.Context, item *biz.CampusAIUsageLog) error {
+	if item == nil {
+		return nil
+	}
+	row := toAIUsageLogModel(item)
+	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) GetAIUsageSummary(ctx context.Context, start, end time.Time) (*biz.CampusAIUsageSummary, error) {
+	summary := &biz.CampusAIUsageSummary{StartedAt: start, EndedAt: end, Features: []*biz.CampusAIUsageFeatureCost{}}
+	db := r.data.db.WithContext(ctx).Model(&campusAIUsageLogModel{})
+	if !start.IsZero() {
+		db = db.Where("created_at >= ?", start)
+	}
+	if !end.IsZero() {
+		db = db.Where("created_at < ?", end)
+	}
+	type totalRow struct {
+		CallCount        int64
+		FailedCount      int64
+		PromptTokens     int64
+		CompletionTokens int64
+		TotalTokens      int64
+		EstimatedCostUSD float64
+		EstimatedCostCNY float64
+	}
+	var total totalRow
+	if err := db.Select(`
+		COUNT(*) AS call_count,
+		SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
+		COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+		COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+		COALESCE(SUM(total_tokens), 0) AS total_tokens,
+		COALESCE(SUM(estimated_cost_usd), 0) AS estimated_cost_usd,
+		COALESCE(SUM(estimated_cost_cny), 0) AS estimated_cost_cny`).Scan(&total).Error; err != nil {
+		return nil, err
+	}
+	summary.CallCount = total.CallCount
+	summary.FailedCount = total.FailedCount
+	summary.PromptTokens = total.PromptTokens
+	summary.CompletionTokens = total.CompletionTokens
+	summary.TotalTokens = total.TotalTokens
+	summary.EstimatedCostUSD = total.EstimatedCostUSD
+	summary.EstimatedCostCNY = total.EstimatedCostCNY
+
+	featureDB := r.data.db.WithContext(ctx).Model(&campusAIUsageLogModel{})
+	if !start.IsZero() {
+		featureDB = featureDB.Where("created_at >= ?", start)
+	}
+	if !end.IsZero() {
+		featureDB = featureDB.Where("created_at < ?", end)
+	}
+	var featureRows []struct {
+		Feature          string
+		CallCount        int64
+		FailedCount      int64
+		PromptTokens     int64
+		CompletionTokens int64
+		TotalTokens      int64
+		EstimatedCostUSD float64
+		EstimatedCostCNY float64
+	}
+	if err := featureDB.Select(`
+		feature,
+		COUNT(*) AS call_count,
+		SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
+		COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+		COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+		COALESCE(SUM(total_tokens), 0) AS total_tokens,
+		COALESCE(SUM(estimated_cost_usd), 0) AS estimated_cost_usd,
+		COALESCE(SUM(estimated_cost_cny), 0) AS estimated_cost_cny`).
+		Group("feature").
+		Order("estimated_cost_cny DESC, call_count DESC").
+		Scan(&featureRows).Error; err != nil {
+		return nil, err
+	}
+	for i := range featureRows {
+		row := featureRows[i]
+		summary.Features = append(summary.Features, &biz.CampusAIUsageFeatureCost{
+			Feature:          row.Feature,
+			CallCount:        row.CallCount,
+			FailedCount:      row.FailedCount,
+			PromptTokens:     row.PromptTokens,
+			CompletionTokens: row.CompletionTokens,
+			TotalTokens:      row.TotalTokens,
+			EstimatedCostUSD: row.EstimatedCostUSD,
+			EstimatedCostCNY: row.EstimatedCostCNY,
+		})
+	}
+	return summary, nil
+}
+
+func (r *campusRepo) ListAIUsageLogs(ctx context.Context, feature string, offset, limit int) ([]*biz.CampusAIUsageLog, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	db := r.data.db.WithContext(ctx).Model(&campusAIUsageLogModel{})
+	if strings.TrimSpace(feature) != "" {
+		db = db.Where("feature = ?", strings.TrimSpace(feature))
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusAIUsageLogModel
+	if err := db.Order("created_at DESC, id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*biz.CampusAIUsageLog, 0, len(rows))
+	for i := range rows {
+		out = append(out, toBizAIUsageLog(&rows[i]))
+	}
+	return out, total, nil
 }
 
 func (r *campusRepo) CreateAgentRun(ctx context.Context, item *biz.CampusAgentRun) error {
@@ -4010,6 +4204,49 @@ func toBizRAGEvalCase(row *campusRAGEvalCaseModel) *biz.CampusRAGEvalCase {
 		CreatedBy:          fmt.Sprintf("%d", row.CreatedBy),
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
+	}
+}
+
+func toAIUsageLogModel(in *biz.CampusAIUsageLog) campusAIUsageLogModel {
+	now := time.Now()
+	if in.CreatedAt.IsZero() {
+		in.CreatedAt = now
+	}
+	return campusAIUsageLogModel{
+		ID:               in.ID,
+		Feature:          trimLimitData(in.Feature, 48),
+		SourceType:       trimLimitData(in.SourceType, 48),
+		SourceID:         trimLimitData(in.SourceID, 64),
+		Model:            trimLimitData(in.Model, 64),
+		PromptTokens:     in.PromptTokens,
+		CompletionTokens: in.CompletionTokens,
+		TotalTokens:      in.TotalTokens,
+		EstimatedCostUSD: in.EstimatedCostUSD,
+		EstimatedCostCNY: in.EstimatedCostCNY,
+		Status:           trimLimitData(in.Status, 24),
+		ErrorMessage:     trimLimitData(in.ErrorMessage, 1000),
+		CreatedAt:        in.CreatedAt,
+	}
+}
+
+func toBizAIUsageLog(row *campusAIUsageLogModel) *biz.CampusAIUsageLog {
+	if row == nil {
+		return nil
+	}
+	return &biz.CampusAIUsageLog{
+		ID:               row.ID,
+		Feature:          row.Feature,
+		SourceType:       row.SourceType,
+		SourceID:         row.SourceID,
+		Model:            row.Model,
+		PromptTokens:     row.PromptTokens,
+		CompletionTokens: row.CompletionTokens,
+		TotalTokens:      row.TotalTokens,
+		EstimatedCostUSD: row.EstimatedCostUSD,
+		EstimatedCostCNY: row.EstimatedCostCNY,
+		Status:           row.Status,
+		ErrorMessage:     row.ErrorMessage,
+		CreatedAt:        row.CreatedAt,
 	}
 }
 

@@ -75,6 +75,8 @@ const AdminKnowledge = ({ mode = 'full' }) => {
     const [evalCases, setEvalCases] = useState([]);
     const [evalForm, setEvalForm] = useState(initialEvalCase);
     const [evalSummary, setEvalSummary] = useState(null);
+    const [evalStatusFilter, setEvalStatusFilter] = useState('-1');
+    const [selectedEvalCaseIds, setSelectedEvalCaseIds] = useState([]);
     const [ragHealth, setRagHealth] = useState(null);
     const [loading, setLoading] = useState(false);
     const [working, setWorking] = useState('');
@@ -111,14 +113,16 @@ const AdminKnowledge = ({ mode = 'full' }) => {
         }
     }, []);
 
-    const loadEvalCases = useCallback(async () => {
+    const loadEvalCases = useCallback(async (nextStatus = evalStatusFilter) => {
         try {
-            const data = await campusAdminApi.listRagEvalCases({ page: 1, size: 30 });
+            const statusValue = nextStatus === 'draft' ? 'draft' : Number(nextStatus);
+            const data = await campusAdminApi.listRagEvalCases({ page: 1, size: 30, status: Number.isNaN(statusValue) ? -1 : statusValue });
             setEvalCases(data.cases || []);
+            setSelectedEvalCaseIds([]);
         } catch (err) {
             setError(err.message || '获取 RAG 评测集失败');
         }
-    }, []);
+    }, [evalStatusFilter]);
 
     const loadRagHealth = useCallback(async () => {
         try {
@@ -337,6 +341,26 @@ const AdminKnowledge = ({ mode = 'full' }) => {
             await loadEvalCases();
         } catch (err) {
             setError(err.message || '运行评测失败');
+        } finally {
+            setWorking('');
+        }
+    };
+
+    const toggleEvalSelection = (id) => {
+        setSelectedEvalCaseIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+    };
+
+    const batchEnableEvalCases = async () => {
+        if (!selectedEvalCaseIds.length || working) return;
+        setWorking('eval-batch');
+        setError('');
+        try {
+            const ids = selectedEvalCaseIds.map((id) => Number(id)).filter(Boolean);
+            const data = await campusAdminApi.batchRagEvalCases({ case_ids: ids, status: 1 });
+            setToast(`已启用 ${data.updated_count || 0} 条评测草稿`);
+            await loadEvalCases();
+        } catch (err) {
+            setError(err.message || '批量启用失败');
         } finally {
             setWorking('');
         }
@@ -670,12 +694,20 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                     </div>
                     <div className="admin-row-actions">
                         <button className="admin-button primary" type="button" disabled={working === 'eval-create'} onClick={createEvalCase}>加入评测集</button>
-                        <button className="admin-button" type="button" onClick={loadEvalCases}>刷新</button>
+                        <select className="admin-select" value={evalStatusFilter} onChange={(e) => { setEvalStatusFilter(e.target.value); loadEvalCases(e.target.value); }}>
+                            <option value="-1">全部用例</option>
+                            <option value="1">已启用</option>
+                            <option value="0">停用/草稿</option>
+                            <option value="draft">Agent 草稿</option>
+                        </select>
+                        <button className="admin-button" type="button" disabled={!selectedEvalCaseIds.length || working === 'eval-batch'} onClick={batchEnableEvalCases}>批量启用</button>
+                        <button className="admin-button" type="button" onClick={() => loadEvalCases()}>刷新</button>
                     </div>
                     <div className="admin-table-wrap">
                         <table className="admin-table">
                             <thead>
                                 <tr>
+                                    <th></th>
                                     <th>问题</th>
                                     <th>期望</th>
                                     <th>最近结果</th>
@@ -683,11 +715,17 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {!evalCases.length && <tr><td colSpan="4"><div className="admin-empty compact">暂无评测用例</div></td></tr>}
+                                {!evalCases.length && <tr><td colSpan="5"><div className="admin-empty compact">暂无评测用例</div></td></tr>}
                                 {evalCases.map((item) => (
                                     <tr key={item.id}>
+                                        <td>
+                                            <input type="checkbox" checked={selectedEvalCaseIds.includes(item.id)} onChange={() => toggleEvalSelection(item.id)} />
+                                        </td>
                                         <td className="admin-title-cell">{excerpt(item.question, 90)}</td>
-                                        <td>{item.expected_document_id !== '0' ? `文档 ${item.expected_document_id}` : item.expected_source || (item.expected_keywords || []).join('、') || '按置信度'}</td>
+                                        <td>
+                                            <span className={`admin-status ${Number(item.status) === 1 ? 'status-1' : ''}`}>{Number(item.status) === 1 ? '启用' : (item.note || '').includes('Agent 自动沉淀') ? 'Agent草稿' : '停用'}</span>
+                                            <span> {item.expected_document_id !== '0' ? `文档 ${item.expected_document_id}` : item.expected_source || (item.expected_keywords || []).join('、') || '按置信度'}</span>
+                                        </td>
                                         <td>
                                             <span className={`admin-status ${item.last_hit ? 'status-1' : ''}`}>{item.last_run_at ? (item.last_hit ? '通过' : '未命中') : '未运行'}</span>
                                             <span> {Number(item.last_score || 0).toFixed(2)} / {Number(item.last_confidence || 0).toFixed(2)}</span>

@@ -72,6 +72,7 @@ sql/campus.sql
 | --- | --- |
 | `campus_ops_setting` | 运营配置，例如审核模式、值班 Agent/飞书开关、e仔人设 |
 | `campus_ai_audit_task` | AI 发帖审核任务 |
+| `campus_ai_usage_log` | 模型调用 token、预估成本和预算保护账本 |
 | `campus_audit_log` | 审核记录 |
 | `campus_access_log` | API 访问记录 |
 | `campus_ip_block` | IP 封禁 |
@@ -87,6 +88,7 @@ sql/campus.sql
 | `campus_knowledge_document` | 知识库文档元数据 |
 | `campus_knowledge_chunk` | 知识库切片预览 |
 | `campus_rag_query_log` | RAG 查询日志 |
+| `campus_rag_eval_case` | RAG 回归评测用例，含 Agent 自动沉淀的停用草稿 |
 
 Qdrant 里也会保存知识库切片向量。MySQL 的 `campus_knowledge_chunk` 更偏后台预览和排查，Qdrant 才是线上语义检索主要索引。
 
@@ -175,8 +177,9 @@ campus_knowledge_document -> campus-rag -> Qdrant -> campus_knowledge_chunk
 2. `campus_forum_post`：帖子主体。
 3. `campus_forum_comment`：互动内容。
 4. `campus_notification`：用户收到什么。
-5. `campus_ops_setting`：后台配置，包括 `post_audit_mode`、`agent_enabled`、`agent_audit_enabled`、`feishu_ops_enabled`、日报/高风险/举报/反馈提醒开关和 e仔人设。
+5. `campus_ops_setting`：后台配置，包括 `post_audit_mode`、Agent/飞书开关、AI 预算和 e仔人设。
 6. `campus_knowledge_document` 和 `campus_knowledge_chunk`：知识库状态。
-7. `campus_access_log`：请求访问记录。
+7. `campus_ai_usage_log`：模型调用成本是否异常。
+8. `campus_access_log`：请求访问记录。
 
 不要直接改业务表状态，优先通过后台操作。必须手动修数据时，先备份单条记录，再改最小字段。

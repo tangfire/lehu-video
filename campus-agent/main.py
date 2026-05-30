@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 import requests
 from fastapi import FastAPI, Header, HTTPException
@@ -15,9 +15,12 @@ INTERNAL_TOKEN = os.getenv("CAMPUS_AGENT_INTERNAL_TOKEN", "local-agent-token")
 CAMPUS_API_INTERNAL_BASE_URL = os.getenv("CAMPUS_API_INTERNAL_BASE_URL", "http://api:8080/v1").rstrip("/")
 API_KEY = os.getenv("CAMPUS_AGENT_API_KEY") or os.getenv("CAMPUS_AI_API_KEY") or os.getenv("DEEPSEEK_API_KEY", "")
 BASE_URL = (os.getenv("CAMPUS_AGENT_BASE_URL") or os.getenv("CAMPUS_AI_BASE_URL") or "https://api.deepseek.com/chat/completions").strip()
-MODEL = (os.getenv("CAMPUS_AGENT_MODEL") or os.getenv("CAMPUS_AI_MODEL") or "deepseek-chat").strip()
+MODEL = (os.getenv("CAMPUS_AGENT_MODEL") or os.getenv("CAMPUS_AI_MODEL") or "deepseek-v4-flash").strip()
 HTTP_TIMEOUT = float(os.getenv("CAMPUS_AGENT_HTTP_TIMEOUT", "12"))
 MAX_TOOLS = int(os.getenv("CAMPUS_AGENT_MAX_TOOLS", "6"))
+INPUT_PRICE_USD_PER_M = float(os.getenv("CAMPUS_AI_PRICE_INPUT_USD_PER_M", "0.14"))
+OUTPUT_PRICE_USD_PER_M = float(os.getenv("CAMPUS_AI_PRICE_OUTPUT_USD_PER_M", "0.28"))
+USD_CNY_RATE = float(os.getenv("CAMPUS_AI_USD_CNY_RATE", "7.2"))
 
 app = FastAPI(title=LISTEN_TITLE, version="1.0.0")
 
@@ -27,6 +30,7 @@ class RunRequest(BaseModel):
     run_type: str
     question: str = ""
     operator_id: str = ""
+    model_allowed: bool = True
 
 
 class ModerationAuditRequest(BaseModel):
@@ -37,6 +41,16 @@ class ModerationAuditRequest(BaseModel):
     post_type: str = ""
     media_type: str = ""
     image_count: int = 0
+    model_allowed: bool = True
+
+
+class ModelUsage(BaseModel):
+    model: str = MODEL
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    estimated_cost_usd: float = 0.0
+    estimated_cost_cny: float = 0.0
 
 
 class ModerationAuditResult(BaseModel):
@@ -45,6 +59,10 @@ class ModerationAuditResult(BaseModel):
     risk_level: str = "medium"
     reason: str = "需要人工复核"
     evidence: List[str] = Field(default_factory=list)
+    rule_risk_level: str = "medium"
+    model_used: bool = False
+    model_usage: Optional[ModelUsage] = None
+    model_skipped_reason: str = ""
 
 
 class Finding(BaseModel):
@@ -84,9 +102,13 @@ class AgentState(TypedDict, total=False):
     run_type: str
     question: str
     operator_id: str
+    model_allowed: bool
     tool_names: List[str]
     tool_results: List[Dict[str, Any]]
     result: AgentResult
+    model_used: bool
+    model_usage: Optional[Dict[str, Any]]
+    model_skipped_reason: str
 
 
 TOOLS: Dict[str, Dict[str, str]] = {
@@ -174,7 +196,16 @@ def call_tools_node(state: AgentState) -> AgentState:
 
 def generate_report_node(state: AgentState) -> AgentState:
     tool_results = state.get("tool_results", [])
-    result = call_model(state.get("run_type", ""), state.get("question", ""), tool_results)
+    if state.get("model_allowed", True):
+        result, usage, skipped_reason, attempted = call_model(state.get("run_type", ""), state.get("question", ""), tool_results)
+        state["model_used"] = attempted
+        state["model_usage"] = usage.model_dump() if usage else None
+        state["model_skipped_reason"] = skipped_reason
+    else:
+        result = None
+        state["model_used"] = False
+        state["model_usage"] = None
+        state["model_skipped_reason"] = "model_skipped_budget"
     state["result"] = result or fallback_result(state.get("run_type", ""), state.get("question", ""), tool_results)
     return state
 
@@ -295,9 +326,34 @@ def parse_model_json(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def call_model(run_type: str, question: str, tool_results: List[Dict[str, Any]]) -> Optional[AgentResult]:
-    if not API_KEY:
+def estimate_usage_cost(prompt_tokens: int, completion_tokens: int) -> Tuple[float, float]:
+    usd = (prompt_tokens / 1_000_000.0) * INPUT_PRICE_USD_PER_M
+    usd += (completion_tokens / 1_000_000.0) * OUTPUT_PRICE_USD_PER_M
+    cny = usd * USD_CNY_RATE
+    return round(usd, 8), round(cny, 6)
+
+
+def usage_from_response(data: Dict[str, Any]) -> Optional[ModelUsage]:
+    raw = data.get("usage")
+    if not isinstance(raw, dict):
         return None
+    prompt_tokens = int(raw.get("prompt_tokens") or raw.get("input_tokens") or 0)
+    completion_tokens = int(raw.get("completion_tokens") or raw.get("output_tokens") or 0)
+    total_tokens = int(raw.get("total_tokens") or (prompt_tokens + completion_tokens))
+    estimated_usd, estimated_cny = estimate_usage_cost(prompt_tokens, completion_tokens)
+    return ModelUsage(
+        model=MODEL,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        estimated_cost_usd=estimated_usd,
+        estimated_cost_cny=estimated_cny,
+    )
+
+
+def call_model(run_type: str, question: str, tool_results: List[Dict[str, Any]]) -> Tuple[Optional[AgentResult], Optional[ModelUsage], str, bool]:
+    if not API_KEY:
+        return None, None, "model_unavailable", False
     prompt = {
         "role": "user",
         "content": (
@@ -315,15 +371,17 @@ def call_model(run_type: str, question: str, tool_results: List[Dict[str, Any]])
             json={"model": MODEL, "messages": [prompt], "temperature": 0.2, "max_tokens": 900},
             timeout=HTTP_TIMEOUT,
         )
+        data = resp.json() if resp.content else {}
+        usage = usage_from_response(data)
         if resp.status_code >= 400:
-            return None
-        content = (((resp.json().get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+            return None, usage, "model_error", True
+        content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
         parsed = parse_model_json(content)
         if not parsed:
-            return None
-        return AgentResult(**parsed)
+            return None, usage, "invalid_json", True
+        return AgentResult(**parsed), usage, "", True
     except Exception:  # noqa: BLE001
-        return None
+        return None, None, "model_error", True
 
 
 def normalize_moderation_result(data: Dict[str, Any]) -> ModerationAuditResult:
@@ -348,24 +406,56 @@ def normalize_moderation_result(data: Dict[str, Any]) -> ModerationAuditResult:
     return ModerationAuditResult(decision=decision, confidence=confidence, risk_level=risk, reason=reason, evidence=evidence)
 
 
-def heuristic_moderation(req: ModerationAuditRequest) -> ModerationAuditResult:
+def rule_moderation(req: ModerationAuditRequest) -> ModerationAuditResult:
     text = f"{req.title}\n{req.content}".lower()
-    high_words = ["赌博", "裸聊", "诈骗", "代考", "代课", "身份证", "银行卡", "毒品", "买卖账号"]
-    medium_words = ["加微信", "兼职", "刷单", "引战", "辱骂", "曝光", "挂人", "联系方式"]
+    high_words = ["赌博", "裸聊", "诈骗", "代考", "代课", "身份证", "银行卡", "毒品", "买卖账号", "刷单", "套现"]
+    medium_words = ["加微信", "兼职", "引战", "辱骂", "曝光", "挂人", "联系方式", "私聊", "群号", "二维码"]
     for word in high_words:
         if word in text:
-            return ModerationAuditResult(decision="review", confidence=0.72, risk_level="high", reason=f"疑似包含高风险词：{word}", evidence=[f"keyword:{word}"])
+            return ModerationAuditResult(
+                decision="review",
+                confidence=0.72,
+                risk_level="high",
+                rule_risk_level="high",
+                reason=f"疑似包含高风险词：{word}",
+                evidence=[f"keyword:{word}"],
+            )
     for word in medium_words:
         if word in text:
-            return ModerationAuditResult(decision="review", confidence=0.68, risk_level="medium", reason=f"疑似需要人工确认：{word}", evidence=[f"keyword:{word}"])
+            return ModerationAuditResult(
+                decision="review",
+                confidence=0.68,
+                risk_level="medium",
+                rule_risk_level="medium",
+                reason=f"疑似需要人工确认：{word}",
+                evidence=[f"keyword:{word}"],
+            )
     if len((req.title + req.content).strip()) < 8:
-        return ModerationAuditResult(decision="review", confidence=0.55, risk_level="medium", reason="内容过短，语义不够明确", evidence=["too_short"])
-    return ModerationAuditResult(decision="pass", confidence=0.88, risk_level="low", reason="未发现明显违规风险", evidence=["heuristic_low_risk"])
+        return ModerationAuditResult(
+            decision="review",
+            confidence=0.55,
+            risk_level="medium",
+            rule_risk_level="medium",
+            reason="内容过短，语义不够明确",
+            evidence=["too_short"],
+        )
+    return ModerationAuditResult(
+        decision="pass",
+        confidence=0.96,
+        risk_level="low",
+        rule_risk_level="low",
+        reason="规则未发现明显风险",
+        evidence=["rule_low_risk"],
+        model_skipped_reason="rule_low_risk",
+    )
 
 
-def call_moderation_model(req: ModerationAuditRequest) -> Optional[ModerationAuditResult]:
+heuristic_moderation = rule_moderation
+
+
+def call_moderation_model(req: ModerationAuditRequest) -> Tuple[Optional[ModerationAuditResult], Optional[ModelUsage], str, bool]:
     if not API_KEY:
-        return None
+        return None, None, "model_unavailable", False
     prompt = (
         "你是校园社区内容安全审核 Agent。只输出 JSON，字段为 decision, confidence, risk_level, reason, evidence。"
         "decision 只能是 pass/review/reject；risk_level 只能是 low/medium/high；confidence 是 0 到 1。"
@@ -380,15 +470,17 @@ def call_moderation_model(req: ModerationAuditRequest) -> Optional[ModerationAud
             json={"model": MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.1, "max_tokens": 360},
             timeout=HTTP_TIMEOUT,
         )
+        data = resp.json() if resp.content else {}
+        usage = usage_from_response(data)
         if resp.status_code >= 400:
-            return None
-        content = (((resp.json().get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+            return None, usage, "model_error", True
+        content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
         parsed = parse_model_json(content)
         if not parsed:
-            return None
-        return normalize_moderation_result(parsed)
+            return None, usage, "invalid_json", True
+        return normalize_moderation_result(parsed), usage, "", True
     except Exception:  # noqa: BLE001
-        return None
+        return None, None, "model_error", True
 
 
 @app.get("/healthz")
@@ -407,6 +499,7 @@ def run_copilot(req: RunRequest, x_campus_agent_token: Optional[str] = Header(de
         "run_type": run_type,
         "question": req.question,
         "operator_id": req.operator_id,
+        "model_allowed": req.model_allowed,
     })
     tool_results = state.get("tool_results", [])
     result = state.get("result") or fallback_result(run_type, req.question, tool_results)
@@ -415,6 +508,9 @@ def run_copilot(req: RunRequest, x_campus_agent_token: Optional[str] = Header(de
         "run_type": run_type,
         "framework": "langgraph",
         "model": MODEL,
+        "model_used": bool(state.get("model_used", False)),
+        "model_usage": state.get("model_usage"),
+        "model_skipped_reason": state.get("model_skipped_reason", ""),
         "result": result.model_dump(),
         "tool_trace": build_tool_trace(tool_results),
     }
@@ -423,5 +519,23 @@ def run_copilot(req: RunRequest, x_campus_agent_token: Optional[str] = Header(de
 @app.post("/internal/moderation/audit")
 def moderation_audit(req: ModerationAuditRequest, x_campus_agent_token: Optional[str] = Header(default=None)) -> Dict[str, Any]:
     check_token(x_campus_agent_token)
-    result = call_moderation_model(req) or heuristic_moderation(req)
+    rule = rule_moderation(req)
+    if rule.rule_risk_level == "low":
+        return rule.model_dump()
+    if not req.model_allowed:
+        rule.model_used = False
+        rule.model_skipped_reason = "model_skipped_budget"
+        return rule.model_dump()
+    model_result, usage, skipped_reason, attempted = call_moderation_model(req)
+    result = model_result or rule
+    result.rule_risk_level = rule.rule_risk_level
+    result.model_used = attempted
+    result.model_usage = usage
+    result.model_skipped_reason = skipped_reason
+    if not model_result:
+        result.decision = "review"
+        result.confidence = min(result.confidence, 0.6)
+        result.reason = rule.reason if skipped_reason == "" else f"{rule.reason}；{skipped_reason}"
+        if skipped_reason and skipped_reason not in result.evidence:
+            result.evidence = (result.evidence or []) + [skipped_reason]
     return result.model_dump()

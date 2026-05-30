@@ -47,6 +47,13 @@ const normalizeAgentSettings = (settings = {}) => ({
     high_risk_notify_enabled: Boolean(settings.high_risk_notify_enabled),
     report_notify_enabled: Boolean(settings.report_notify_enabled),
     feedback_notify_enabled: Boolean(settings.feedback_notify_enabled),
+    ai_budget_enabled: settings.ai_budget_enabled !== false,
+    ai_monthly_budget_cny: Number(settings.ai_monthly_budget_cny || 20),
+    ai_daily_budget_cny: Number(settings.ai_daily_budget_cny || 2),
+    ai_budget_warn_ratio: settings.ai_budget_warn_ratio || '0.7,0.9',
+    today_ai_cost_cny: Number(settings.today_ai_cost_cny || 0),
+    month_ai_cost_cny: Number(settings.month_ai_cost_cny || 0),
+    budget_status: settings.budget_status || 'ok',
     webhook_configured: Boolean(settings.webhook_configured),
     public_api_base_url_configured: Boolean(settings.public_api_base_url_configured),
     agent_service_configured: Boolean(settings.agent_service_configured),
@@ -58,6 +65,7 @@ const AdminAuditSettings = () => {
     const [settings, setSettings] = useState(null);
     const [agentSettings, setAgentSettings] = useState(null);
     const [agentDraft, setAgentDraft] = useState(normalizeAgentSettings());
+    const [aiUsageSummary, setAiUsageSummary] = useState(null);
     const [selectedMode, setSelectedMode] = useState('off');
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -70,15 +78,17 @@ const AdminAuditSettings = () => {
         setLoading(true);
         setError('');
         try {
-            const [auditData, agentData] = await Promise.all([
+            const [auditData, agentData, usageData] = await Promise.all([
                 campusAdminApi.getAuditSettings(),
                 campusAdminApi.getAgentSettings(),
+                campusAdminApi.getAIUsageSummary(),
             ]);
             const next = auditData.settings || {};
             const nextAgent = normalizeAgentSettings(agentData.settings || {});
             setSettings(next);
             setAgentSettings(nextAgent);
             setAgentDraft(nextAgent);
+            setAiUsageSummary(usageData.summary || null);
             setSelectedMode(next.post_audit_mode || 'off');
         } catch (err) {
             setError(err.message || '获取审核设置失败');
@@ -134,6 +144,10 @@ const AdminAuditSettings = () => {
                 high_risk_notify_enabled: agentDraft.high_risk_notify_enabled,
                 report_notify_enabled: agentDraft.report_notify_enabled,
                 feedback_notify_enabled: agentDraft.feedback_notify_enabled,
+                ai_budget_enabled: agentDraft.ai_budget_enabled,
+                ai_monthly_budget_cny: Number(agentDraft.ai_monthly_budget_cny || 0),
+                ai_daily_budget_cny: Number(agentDraft.ai_daily_budget_cny || 0),
+                ai_budget_warn_ratio: agentDraft.ai_budget_warn_ratio,
             });
             const next = normalizeAgentSettings(data.settings || {});
             setAgentSettings(next);
@@ -150,6 +164,15 @@ const AdminAuditSettings = () => {
     const toggleAgentDraft = (key) => {
         setAgentDraft((prev) => ({ ...prev, [key]: !prev[key] }));
     };
+
+    const updateAgentDraft = (key, value) => {
+        setAgentDraft((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const monthBudget = Number(agentDraft.ai_monthly_budget_cny || 0);
+    const dailyBudget = Number(agentDraft.ai_daily_budget_cny || 0);
+    const monthUsageRate = monthBudget > 0 ? Math.min(100, (Number(agentDraft.month_ai_cost_cny || 0) / monthBudget) * 100) : 0;
+    const dailyUsageRate = dailyBudget > 0 ? Math.min(100, (Number(agentDraft.today_ai_cost_cny || 0) / dailyBudget) * 100) : 0;
 
     return (
         <div className="admin-audit-settings-page">
@@ -250,6 +273,44 @@ const AdminAuditSettings = () => {
                     ))}
                 </div>
 
+                <div className="admin-agent-budget-panel">
+                    <div className="admin-agent-budget-head">
+                        <div>
+                            <strong>AI 成本保护</strong>
+                            <span>{agentDraft.ai_budget_enabled ? `今日 ¥${agentDraft.today_ai_cost_cny.toFixed(4)} · 本月 ¥${agentDraft.month_ai_cost_cny.toFixed(4)}` : '预算保护已关闭'}</span>
+                        </div>
+                        <label className={`admin-agent-switch inline ${agentDraft.ai_budget_enabled ? 'on' : ''}`}>
+                            <input type="checkbox" checked={agentDraft.ai_budget_enabled} onChange={() => toggleAgentDraft('ai_budget_enabled')} />
+                            <span><strong>预算开关</strong><em>{agentDraft.budget_status === 'ok' ? '正常' : agentDraft.budget_status}</em></span>
+                        </label>
+                    </div>
+                    <div className="admin-agent-budget-bars">
+                        <BudgetBar label="今日" used={agentDraft.today_ai_cost_cny} budget={dailyBudget} rate={dailyUsageRate} />
+                        <BudgetBar label="本月" used={agentDraft.month_ai_cost_cny} budget={monthBudget} rate={monthUsageRate} />
+                    </div>
+                    <div className="admin-agent-budget-inputs">
+                        <label>
+                            <span>日预算</span>
+                            <input className="admin-input" type="number" min="0" step="0.1" value={agentDraft.ai_daily_budget_cny} onChange={(e) => updateAgentDraft('ai_daily_budget_cny', e.target.value)} />
+                        </label>
+                        <label>
+                            <span>月预算</span>
+                            <input className="admin-input" type="number" min="0" step="1" value={agentDraft.ai_monthly_budget_cny} onChange={(e) => updateAgentDraft('ai_monthly_budget_cny', e.target.value)} />
+                        </label>
+                        <label>
+                            <span>预警阈值</span>
+                            <input className="admin-input" value={agentDraft.ai_budget_warn_ratio} onChange={(e) => updateAgentDraft('ai_budget_warn_ratio', e.target.value)} />
+                        </label>
+                    </div>
+                    {!!aiUsageSummary?.features?.length && (
+                        <div className="admin-agent-feature-costs">
+                            {aiUsageSummary.features.slice(0, 4).map((item) => (
+                                <span key={item.feature}>{item.feature} · ¥{Number(item.estimated_cost_cny || 0).toFixed(4)} · {item.call_count || 0}次</span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
                 <div className="admin-audit-footer">
                     <div className="admin-audit-meta">
                         <FiClock />
@@ -286,6 +347,16 @@ const StatusChip = ({ icon, ok, label }) => (
         {icon}
         {label}：{ok ? '正常' : '未配置'}
     </span>
+);
+
+const BudgetBar = ({ label, used, budget, rate }) => (
+    <div className="admin-agent-budget-bar">
+        <div>
+            <span>{label}</span>
+            <strong>¥{Number(used || 0).toFixed(4)} / ¥{Number(budget || 0).toFixed(2)}</strong>
+        </div>
+        <em><i style={{ width: `${Math.max(2, rate)}%` }} /></em>
+    </div>
 );
 
 export default AdminAuditSettings;

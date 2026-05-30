@@ -58,6 +58,7 @@ const (
 	CampusOpsAlertTypeFeedbackImportant   = "feedback_important"
 	CampusOpsAlertTypeAuditReviewRequired = "audit_review_required"
 	CampusOpsAlertTypeAuditHighRisk       = "audit_high_risk"
+	CampusOpsAlertTypeAIBudgetWarning     = "ai_budget_warning"
 
 	CampusOpsAlertPriorityNormal   = "normal"
 	CampusOpsAlertPriorityHigh     = "high"
@@ -145,6 +146,10 @@ const (
 	campusOpsSettingHighRiskNotify       = "high_risk_notify_enabled"
 	campusOpsSettingReportNotify         = "report_notify_enabled"
 	campusOpsSettingFeedbackNotify       = "feedback_notify_enabled"
+	campusOpsSettingAIBudgetEnabled      = "ai_budget_enabled"
+	campusOpsSettingAIMonthlyBudgetCNY   = "ai_monthly_budget_cny"
+	campusOpsSettingAIDailyBudgetCNY     = "ai_daily_budget_cny"
+	campusOpsSettingAIBudgetWarnRatio    = "ai_budget_warn_ratio"
 	campusOpsSettingEzaiPersonaName      = "ezai_persona_name"
 	campusOpsSettingEzaiPersonaRole      = "ezai_persona_role"
 	campusOpsSettingEzaiPersonality      = "ezai_persona_personality"
@@ -491,6 +496,13 @@ type CampusAgentSettings struct {
 	HighRiskNotifyEnabled      bool
 	ReportNotifyEnabled        bool
 	FeedbackNotifyEnabled      bool
+	AIBudgetEnabled            bool
+	AIMonthlyBudgetCNY         float64
+	AIDailyBudgetCNY           float64
+	AIBudgetWarnRatio          string
+	TodayAICostCNY             float64
+	MonthAICostCNY             float64
+	AIBudgetStatus             string
 	WebhookConfigured          bool
 	PublicAPIBaseURLConfigured bool
 	AgentServiceConfigured     bool
@@ -515,6 +527,56 @@ type CampusAIContentAuditTask struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	ProcessedAt *time.Time
+}
+
+type CampusAIModelUsage struct {
+	Model            string
+	PromptTokens     int64
+	CompletionTokens int64
+	TotalTokens      int64
+	EstimatedCostUSD float64
+	EstimatedCostCNY float64
+}
+
+type CampusAIUsageLog struct {
+	ID               int64
+	Feature          string
+	SourceType       string
+	SourceID         string
+	Model            string
+	PromptTokens     int64
+	CompletionTokens int64
+	TotalTokens      int64
+	EstimatedCostUSD float64
+	EstimatedCostCNY float64
+	Status           string
+	ErrorMessage     string
+	CreatedAt        time.Time
+}
+
+type CampusAIUsageFeatureCost struct {
+	Feature          string
+	CallCount        int64
+	FailedCount      int64
+	PromptTokens     int64
+	CompletionTokens int64
+	TotalTokens      int64
+	EstimatedCostUSD float64
+	EstimatedCostCNY float64
+}
+
+type CampusAIUsageSummary struct {
+	Period           string
+	StartedAt        time.Time
+	EndedAt          time.Time
+	CallCount        int64
+	FailedCount      int64
+	PromptTokens     int64
+	CompletionTokens int64
+	TotalTokens      int64
+	EstimatedCostUSD float64
+	EstimatedCostCNY float64
+	Features         []*CampusAIUsageFeatureCost
 }
 
 type CampusAIReplyOverview struct {
@@ -1043,6 +1105,10 @@ type UpdateCampusAgentSettingsInput struct {
 	HighRiskNotifyEnabled bool
 	ReportNotifyEnabled   bool
 	FeedbackNotifyEnabled bool
+	AIBudgetEnabled       bool
+	AIMonthlyBudgetCNY    float64
+	AIDailyBudgetCNY      float64
+	AIBudgetWarnRatio     string
 }
 
 type GetCampusEzaiPersonaInput struct {
@@ -1153,6 +1219,16 @@ type ListCampusRAGEvalCasesOutput struct {
 	Total int64
 }
 
+type BatchUpdateCampusRAGEvalCasesInput struct {
+	UserID  string
+	CaseIDs []int64
+	Status  int32
+}
+
+type BatchUpdateCampusRAGEvalCasesOutput struct {
+	Updated int64
+}
+
 type CreateCampusRAGEvalCaseInput struct {
 	UserID             string
 	Question           string
@@ -1186,6 +1262,23 @@ type RunCampusRAGEvalCasesOutput struct {
 	Total   int64
 	Passed  int64
 	Average float64
+}
+
+type GetCampusAIUsageSummaryInput struct {
+	UserID string
+	Month  string
+}
+
+type ListCampusAIUsageLogsInput struct {
+	UserID  string
+	Feature string
+	Page    int32
+	Size    int32
+}
+
+type ListCampusAIUsageLogsOutput struct {
+	Logs  []*CampusAIUsageLog
+	Total int64
 }
 
 type CreateCampusAgentRunInput struct {
@@ -1535,7 +1628,13 @@ type CampusRepo interface {
 	UpdateRAGEvalCase(ctx context.Context, item *CampusRAGEvalCase) error
 	ListRAGEvalCases(ctx context.Context, status int32, offset, limit int) ([]*CampusRAGEvalCase, int64, error)
 	GetRAGEvalCaseByID(ctx context.Context, id int64) (bool, *CampusRAGEvalCase, error)
+	GetRAGEvalCaseBySourceLogID(ctx context.Context, sourceLogID int64) (bool, *CampusRAGEvalCase, error)
+	ListRAGQueryLogsForEvalDrafts(ctx context.Context, limit int) ([]*CampusRAGQueryLog, error)
+	BatchUpdateRAGEvalCasesStatus(ctx context.Context, ids []int64, status int32, updatedBy string) (int64, error)
 	UpdateRAGEvalCaseResult(ctx context.Context, id int64, result *CampusRAGEvalResult) error
+	CreateAIUsageLog(ctx context.Context, item *CampusAIUsageLog) error
+	GetAIUsageSummary(ctx context.Context, start, end time.Time) (*CampusAIUsageSummary, error)
+	ListAIUsageLogs(ctx context.Context, feature string, offset, limit int) ([]*CampusAIUsageLog, int64, error)
 	CreateAgentRun(ctx context.Context, item *CampusAgentRun) error
 	UpdateAgentRun(ctx context.Context, item *CampusAgentRun) error
 	UpdateAgentRunFeishu(ctx context.Context, id int64, status string, sentAt *time.Time, errorMessage string) error
@@ -1653,7 +1752,7 @@ func loadCampusAIReplyConfig() CampusAIReplyConfig {
 	apiKey := firstNonEmpty(os.Getenv("CAMPUS_AI_API_KEY"), os.Getenv("DEEPSEEK_API_KEY"))
 	botUserID := firstNonEmpty(os.Getenv("CAMPUS_EZAI_BOT_USER_ID"), os.Getenv("CAMPUS_EZAI_USER_ID"))
 	baseURL := firstNonEmpty(os.Getenv("CAMPUS_AI_BASE_URL"), "https://api.deepseek.com/chat/completions")
-	model := firstNonEmpty(os.Getenv("CAMPUS_AI_MODEL"), "deepseek-chat")
+	model := firstNonEmpty(os.Getenv("CAMPUS_AI_MODEL"), "deepseek-v4-flash")
 	enabled := strings.TrimSpace(apiKey) != "" && strings.TrimSpace(botUserID) != "" && !envBoolFalse(os.Getenv("CAMPUS_AI_EZAI_ENABLED"))
 	return CampusAIReplyConfig{
 		Enabled:         enabled,
@@ -1686,6 +1785,23 @@ func envInt64(key string, fallback int64) int64 {
 	if err != nil || parsed <= 0 {
 		return fallback
 	}
+	return parsed
+}
+
+func envFloatBiz(key string, fallback float64) float64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil || parsed < 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func parseInt64String(value string) int64 {
+	parsed, _ := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 	return parsed
 }
 
@@ -2108,23 +2224,40 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 	status := CampusAuditStatusVisible
 	auditReason := ""
 	var auditSettings *CampusOpsAuditSettings
+	var ruleResult campusContentRuleResult
+	var enqueueAIAudit bool
+	var directAuditAlertReason string
+	var directAuditAlertRisk string
+	var directAuditAlertEvidence []string
 	if !isOperator {
 		settings, err := uc.getCampusAuditSettings(ctx)
 		if err != nil {
 			return nil, err
 		}
 		auditSettings = settings
-		agentAuditReady := uc.agentAuditEnabled(ctx)
 		switch settings.PostAuditMode {
 		case CampusPostAuditModeManual:
 			status = CampusAuditStatusPending
 			auditReason = "等待人工审核"
 		case CampusPostAuditModeAI:
-			status = CampusAuditStatusPending
-			if agentAuditReady {
-				auditReason = "等待 AI/Agent 初审"
+			ruleResult = classifyCampusPostByRules(title, content)
+			if ruleResult.RiskLevel == "low" {
+				status = CampusAuditStatusVisible
+				auditReason = ""
 			} else {
-				auditReason = "Agent 初审未启用，等待人工复核"
+				status = CampusAuditStatusPending
+				auditReason = "同步中"
+				directAuditAlertRisk = ruleResult.RiskLevel
+				directAuditAlertEvidence = ruleResult.Evidence
+				if !uc.agentAuditEnabled(ctx) {
+					directAuditAlertReason = "Agent 初审未启用，等待人工复核"
+				} else if !campusAgentModelConfigured() {
+					directAuditAlertReason = "Agent 模型未配置，等待人工复核"
+				} else if allowed, skippedReason := uc.aiBudgetAllowsModel(ctx, "content_audit", "post", "pending"); !allowed {
+					directAuditAlertReason = skippedReason
+				} else {
+					enqueueAIAudit = true
+				}
 			}
 		}
 	}
@@ -2151,13 +2284,18 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		return nil, apperror.Internal(err, "发布帖子失败")
 	}
 	if !isOperator && status == CampusAuditStatusPending {
-		if auditSettings != nil && auditSettings.PostAuditMode == CampusPostAuditModeAI && uc.agentAuditEnabled(ctx) {
+		if auditSettings != nil && auditSettings.PostAuditMode == CampusPostAuditModeAI && enqueueAIAudit {
 			if err := uc.enqueuePostAIContentAudit(ctx, post); err != nil {
 				uc.log.WithContext(ctx).Warnf("queue campus post ai audit failed: post_id=%d err=%v", post.ID, err)
 			}
 		} else {
-			reason := firstNonEmpty(auditReason, "新帖需要人工确认")
-			if err := uc.enqueueAuditOpsAlert(ctx, post, CampusAIContentAuditDecisionReview, "medium", reason, []string{"manual_review"}); err != nil {
+			reason := firstNonEmpty(directAuditAlertReason, ruleResult.Reason, auditReason, "新帖需要人工确认")
+			riskLevel := firstNonEmpty(directAuditAlertRisk, "medium")
+			evidence := directAuditAlertEvidence
+			if len(evidence) == 0 {
+				evidence = []string{"manual_review"}
+			}
+			if err := uc.enqueueAuditOpsAlert(ctx, post, CampusAIContentAuditDecisionReview, riskLevel, reason, evidence); err != nil {
 				uc.log.WithContext(ctx).Warnf("queue campus manual audit alert failed: post_id=%d err=%v", post.ID, err)
 			}
 		}
@@ -3061,10 +3199,34 @@ func (uc *CampusUsecase) enqueuePostAIContentAudit(ctx context.Context, post *Ca
 	})
 }
 
-func (uc *CampusUsecase) ProcessPendingAIContentAuditTasks(ctx context.Context, limit int) error {
-	if !uc.agentAuditEnabled(ctx) {
-		return nil
+type campusContentRuleResult struct {
+	RiskLevel string
+	Decision  string
+	Reason    string
+	Evidence  []string
+}
+
+func classifyCampusPostByRules(title, content string) campusContentRuleResult {
+	text := strings.ToLower(title + "\n" + content)
+	highWords := []string{"赌博", "裸聊", "诈骗", "代考", "代课", "身份证", "银行卡", "毒品", "买卖账号", "刷单", "套现"}
+	mediumWords := []string{"加微信", "兼职", "引战", "辱骂", "曝光", "挂人", "联系方式", "私聊", "群号", "二维码"}
+	for _, word := range highWords {
+		if strings.Contains(text, word) {
+			return campusContentRuleResult{RiskLevel: "high", Decision: CampusAIContentAuditDecisionReview, Reason: "疑似包含高风险词：" + word, Evidence: []string{"keyword:" + word}}
+		}
 	}
+	for _, word := range mediumWords {
+		if strings.Contains(text, word) {
+			return campusContentRuleResult{RiskLevel: "medium", Decision: CampusAIContentAuditDecisionReview, Reason: "疑似需要人工确认：" + word, Evidence: []string{"keyword:" + word}}
+		}
+	}
+	if len([]rune(strings.TrimSpace(title+content))) < 8 {
+		return campusContentRuleResult{RiskLevel: "medium", Decision: CampusAIContentAuditDecisionReview, Reason: "内容过短，语义不够明确", Evidence: []string{"too_short"}}
+	}
+	return campusContentRuleResult{RiskLevel: "low", Decision: CampusAIContentAuditDecisionPass, Reason: "规则未发现明显风险", Evidence: []string{"rule_low_risk"}}
+}
+
+func (uc *CampusUsecase) ProcessPendingAIContentAuditTasks(ctx context.Context, limit int) error {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -3105,6 +3267,70 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 	if post.Status != CampusAuditStatusPending {
 		return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionReview, "none", "内容已不处于待审核状态", "")
 	}
+	ruleResult := classifyCampusPostByRules(post.Title, post.Content)
+	if ruleResult.RiskLevel == "low" {
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, ""); err != nil {
+			return err
+		}
+		rawResult, _ := json.Marshal(map[string]interface{}{
+			"decision":        CampusAIContentAuditDecisionPass,
+			"risk_level":      "low",
+			"rule_risk_level": "low",
+			"reason":          ruleResult.Reason,
+			"evidence":        ruleResult.Evidence,
+			"model_used":      false,
+			"skipped_reason":  "rule_low_risk",
+			"confidence":      0.96,
+			"cost_protection": true,
+		})
+		_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
+			ID:         uc.idGen.NextID(),
+			TargetType: "post",
+			TargetID:   post.ID,
+			UserID:     post.AuthorID,
+			Provider:   "rule",
+			Result:     CampusAIContentAuditDecisionPass,
+			Reason:     ruleResult.Reason,
+		})
+		return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionPass, "low", ruleResult.Reason, string(rawResult))
+	}
+	if !uc.agentAuditEnabled(ctx) || !campusAgentModelConfigured() {
+		reason := "Agent 初审不可用，等待人工处理"
+		if !campusAgentModelConfigured() {
+			reason = "Agent 模型未配置，等待人工处理"
+		}
+		rawResult, _ := json.Marshal(map[string]interface{}{
+			"decision":             CampusAIContentAuditDecisionReview,
+			"risk_level":           ruleResult.RiskLevel,
+			"rule_risk_level":      ruleResult.RiskLevel,
+			"reason":               reason,
+			"evidence":             ruleResult.Evidence,
+			"model_used":           false,
+			"model_skipped_reason": "model_unavailable",
+		})
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusPending, reason); err != nil {
+			return err
+		}
+		_ = uc.enqueueAuditOpsAlert(ctx, post, CampusAIContentAuditDecisionReview, ruleResult.RiskLevel, reason, ruleResult.Evidence)
+		return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionReview, ruleResult.RiskLevel, reason, string(rawResult))
+	}
+	if allowed, skippedReason := uc.aiBudgetAllowsModel(ctx, "content_audit", "post", fmt.Sprintf("%d", post.ID)); !allowed {
+		reason := firstNonEmpty(skippedReason, "model_skipped_budget")
+		rawResult, _ := json.Marshal(map[string]interface{}{
+			"decision":             CampusAIContentAuditDecisionReview,
+			"risk_level":           ruleResult.RiskLevel,
+			"rule_risk_level":      ruleResult.RiskLevel,
+			"reason":               reason,
+			"evidence":             ruleResult.Evidence,
+			"model_used":           false,
+			"model_skipped_reason": reason,
+		})
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusPending, reason); err != nil {
+			return err
+		}
+		_ = uc.enqueueAuditOpsAlert(ctx, post, CampusAIContentAuditDecisionReview, ruleResult.RiskLevel, reason, append(ruleResult.Evidence, reason))
+		return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionReview, ruleResult.RiskLevel, reason, string(rawResult))
+	}
 	result, raw, err := uc.auditPostWithAI(ctx, post)
 	if err != nil {
 		reason := "审核 Agent 不可用，需要人工处理"
@@ -3131,17 +3357,35 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 		decision = CampusAIContentAuditDecisionReview
 	}
 	riskLevel := normalizeAIContentAuditRiskLevel(result.RiskLevel)
+	ruleRiskLevel := normalizeAIContentAuditRiskLevel(firstNonEmpty(result.RuleRiskLevel, ruleResult.RiskLevel))
 	reason := trimLimit(firstNonEmpty(result.Reason, "AI 审核建议人工复核"), 240)
 	confidence := result.Confidence
 	if confidence < 0 || confidence > 1 {
 		confidence = 0
 	}
-	autoPass := decision == CampusAIContentAuditDecisionPass && riskLevel == "low" && confidence >= agentAuditAutoPassConfidence()
+	if result.ModelUsage != nil || result.ModelUsed {
+		usageStatus := "success"
+		usageError := ""
+		if result.ModelSkippedReason != "" && result.ModelSkippedReason != "rule_low_risk" {
+			usageStatus = "failed"
+			usageError = result.ModelSkippedReason
+		}
+		uc.recordAIUsage(ctx, "content_audit", "post", fmt.Sprintf("%d", post.ID), usageStatus, usageError, result.ModelUsage)
+	}
+	autoPass := ruleRiskLevel != "high" && decision == CampusAIContentAuditDecisionPass && riskLevel == "low" && confidence >= agentAuditAutoPassConfidence()
 	switch {
 	case autoPass:
 		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, ""); err != nil {
 			return err
 		}
+	case ruleRiskLevel == "high":
+		decision = CampusAIContentAuditDecisionReview
+		riskLevel = "high"
+		reason = firstNonEmpty(reason, ruleResult.Reason, "规则识别高风险，等待人工复核")
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusPending, reason); err != nil {
+			return err
+		}
+		_ = uc.enqueueAuditOpsAlert(ctx, post, decision, "high", reason, append(result.Evidence, ruleResult.Evidence...))
 	case decision == CampusAIContentAuditDecisionReject:
 		decision = CampusAIContentAuditDecisionReview
 		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusPending, reason); err != nil {
@@ -3168,11 +3412,15 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 }
 
 type aiContentAuditResult struct {
-	Decision   string   `json:"decision"`
-	Confidence float64  `json:"confidence"`
-	RiskLevel  string   `json:"risk_level"`
-	Reason     string   `json:"reason"`
-	Evidence   []string `json:"evidence"`
+	Decision           string              `json:"decision"`
+	Confidence         float64             `json:"confidence"`
+	RiskLevel          string              `json:"risk_level"`
+	Reason             string              `json:"reason"`
+	Evidence           []string            `json:"evidence"`
+	RuleRiskLevel      string              `json:"rule_risk_level"`
+	ModelUsed          bool                `json:"model_used"`
+	ModelUsage         *CampusAIModelUsage `json:"model_usage"`
+	ModelSkippedReason string              `json:"model_skipped_reason"`
 }
 
 func (uc *CampusUsecase) auditPostWithAI(ctx context.Context, post *CampusForumPost) (*aiContentAuditResult, string, error) {
@@ -3184,13 +3432,14 @@ func (uc *CampusUsecase) auditPostWithAI(ctx context.Context, post *CampusForumP
 		baseURL = "http://campus-agent:8091"
 	}
 	body, _ := json.Marshal(map[string]interface{}{
-		"post_id":     fmt.Sprintf("%d", post.ID),
-		"author_id":   post.AuthorID,
-		"title":       trimLimit(post.Title, 160),
-		"content":     trimLimit(post.Content, 2400),
-		"post_type":   post.PostType,
-		"media_type":  post.MediaType,
-		"image_count": len(post.Images),
+		"post_id":       fmt.Sprintf("%d", post.ID),
+		"author_id":     post.AuthorID,
+		"title":         trimLimit(post.Title, 160),
+		"content":       trimLimit(post.Content, 2400),
+		"post_type":     post.PostType,
+		"media_type":    post.MediaType,
+		"image_count":   len(post.Images),
+		"model_allowed": true,
 	})
 	req, err := http.NewRequestWithContext(taskCtx, http.MethodPost, baseURL+"/internal/moderation/audit", bytes.NewReader(body))
 	if err != nil {
@@ -3758,7 +4007,44 @@ func (uc *CampusUsecase) HandleFeishuCardAction(ctx context.Context, input *Hand
 		Result:     action,
 		Reason:     reason,
 	})
+	uc.sendFeishuActionReceipt(ctx, targetType, item.TargetID, action, resultMessage)
 	return resultMessage, nil
+}
+
+func (uc *CampusUsecase) sendFeishuActionReceipt(ctx context.Context, targetType string, targetID int64, action, message string) {
+	if !uc.feishuOpsEnabled(ctx) || targetID <= 0 {
+		return
+	}
+	targetLabel := map[string]string{"post": "帖子", "comment": "评论"}[targetType]
+	if targetLabel == "" {
+		targetLabel = "内容"
+	}
+	adminPath := "/admin/posts"
+	if targetType == "comment" {
+		adminPath = "/admin/moderation?tab=comments"
+	}
+	payload := map[string]interface{}{
+		"title":      "校园 e站飞书处理回执",
+		"summary":    fmt.Sprintf("%s %d：%s", targetLabel, targetID, firstNonEmpty(message, "已处理")),
+		"risk_level": "low",
+		"findings": []map[string]interface{}{
+			{"title": firstNonEmpty(message, "已处理"), "detail": fmt.Sprintf("动作：%s", action), "severity": "low"},
+		},
+		"recommendations": []map[string]interface{}{
+			{"title": "后台状态已更新", "detail": "如需修改理由或进一步处理，请回后台查看。", "priority": "normal"},
+		},
+		"next_actions": []map[string]interface{}{
+			{"label": "打开后台", "path": adminPath, "href": adminURL(adminPath)},
+		},
+		"run_id":      fmt.Sprintf("receipt-%s-%d-%d", targetType, targetID, time.Now().Unix()),
+		"run_type":    "feishu_action_receipt",
+		"target_type": targetType,
+		"target_id":   fmt.Sprintf("%d", targetID),
+		"reason":      "feishu_action_receipt",
+	}
+	if status, _, errMsg, err := sendAgentPayloadToFeishu(ctx, payload); err != nil {
+		uc.log.WithContext(ctx).Warnf("send feishu action receipt failed: target_type=%s target_id=%d status=%s err=%v msg=%s", targetType, targetID, status, err, errMsg)
+	}
 }
 
 func (uc *CampusUsecase) markReportsHandledByTarget(ctx context.Context, targetType string, targetID int64, status int32) error {
@@ -3868,18 +4154,26 @@ func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, task *CampusAIR
 		uc.recordRAGQueryLog(ctx, task, post, query, ragResp, answer, ragDuration, ragErr)
 		return answer, nil
 	}
+	if allowed, skippedReason := uc.aiBudgetAllowsModel(ctx, "ezai_reply", "ai_reply_task", fmt.Sprintf("%d", task.ID)); !allowed {
+		answer := sanitizeEzaiAnswerWithLimit(persona.FallbackReply, persona.MaxReplyChars)
+		uc.recordRAGQueryLog(ctx, task, post, query, ragResp, answer, ragDuration, ragErr)
+		uc.recordAIUsage(ctx, "ezai_reply", "ai_reply_task", fmt.Sprintf("%d", task.ID), "skipped", skippedReason, nil)
+		return answer, nil
+	}
 	systemPrompt := buildEzaiSystemPrompt(persona, knowledgeContext != "")
-	answer, err := uc.callEzaiChatCompletion(taskCtx, systemPrompt, userPrompt)
+	answer, usage, err := uc.callEzaiChatCompletion(taskCtx, systemPrompt, userPrompt)
 	if err != nil {
 		uc.recordRAGQueryLog(ctx, task, post, query, ragResp, "", ragDuration, ragErr)
+		uc.recordAIUsage(ctx, "ezai_reply", "ai_reply_task", fmt.Sprintf("%d", task.ID), "failed", err.Error(), usage)
 		return "", err
 	}
+	uc.recordAIUsage(ctx, "ezai_reply", "ai_reply_task", fmt.Sprintf("%d", task.ID), "success", "", usage)
 	answer = sanitizeEzaiAnswerWithLimit(answer, persona.MaxReplyChars)
 	uc.recordRAGQueryLog(ctx, task, post, query, ragResp, answer, ragDuration, ragErr)
 	return answer, nil
 }
 
-func (uc *CampusUsecase) callEzaiChatCompletion(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+func (uc *CampusUsecase) callEzaiChatCompletion(ctx context.Context, systemPrompt, userPrompt string) (string, *CampusAIModelUsage, error) {
 	cfg := uc.aiReplyConfig
 	body, _ := json.Marshal(map[string]interface{}{
 		"model": cfg.Model,
@@ -3895,18 +4189,19 @@ func (uc *CampusUsecase) callEzaiChatCompletion(ctx context.Context, systemPromp
 	})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.BaseURL, bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	usage := extractAIUsageFromRaw(raw, cfg.Model)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("ai api status=%d body=%s", resp.StatusCode, trimLimit(string(raw), 300))
+		return "", usage, fmt.Errorf("ai api status=%d body=%s", resp.StatusCode, trimLimit(string(raw), 300))
 	}
 	var out struct {
 		Choices []struct {
@@ -3916,12 +4211,12 @@ func (uc *CampusUsecase) callEzaiChatCompletion(ctx context.Context, systemPromp
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return "", err
+		return "", usage, err
 	}
 	if len(out.Choices) == 0 {
-		return "", fmt.Errorf("ai api returned empty choices")
+		return "", usage, fmt.Errorf("ai api returned empty choices")
 	}
-	return out.Choices[0].Message.Content, nil
+	return out.Choices[0].Message.Content, usage, nil
 }
 
 func defaultEzaiPersonaConfig() *CampusEzaiPersonaConfig {
@@ -4489,10 +4784,24 @@ func (uc *CampusUsecase) AdminUpdateAgentSettings(ctx context.Context, input *Up
 			return nil, apperror.Internal(err, "保存 Agent 设置失败")
 		}
 	}
+	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAIBudgetEnabled, boolOpsSettingValue(input.AIBudgetEnabled), input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存 AI 预算设置失败")
+	}
+	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAIMonthlyBudgetCNY, formatFloatSetting(clampPositiveFloat(input.AIMonthlyBudgetCNY, defaultAIMonthlyBudgetCNY())), input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存 AI 月预算失败")
+	}
+	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAIDailyBudgetCNY, formatFloatSetting(clampPositiveFloat(input.AIDailyBudgetCNY, defaultAIDailyBudgetCNY())), input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存 AI 日预算失败")
+	}
+	warnRatio := normalizeAIBudgetWarnRatio(input.AIBudgetWarnRatio)
+	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAIBudgetWarnRatio, warnRatio, input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存 AI 预算预警阈值失败")
+	}
 	return uc.getCampusAgentSettings(ctx), nil
 }
 
 func (uc *CampusUsecase) getCampusAgentSettings(ctx context.Context) *CampusAgentSettings {
+	todayCost, monthCost, budgetStatus := uc.aiBudgetSnapshot(ctx)
 	settings := &CampusAgentSettings{
 		AgentEnabled:               uc.boolOpsSetting(ctx, campusOpsSettingAgentEnabled, "CAMPUS_AGENT_ENABLED", true),
 		AgentAuditEnabled:          uc.boolOpsSetting(ctx, campusOpsSettingAgentAuditEnabled, "CAMPUS_AGENT_AUDIT_ENABLED", uc.aiAuditConfig.Enabled),
@@ -4501,6 +4810,13 @@ func (uc *CampusUsecase) getCampusAgentSettings(ctx context.Context) *CampusAgen
 		HighRiskNotifyEnabled:      uc.boolOpsSetting(ctx, campusOpsSettingHighRiskNotify, "CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED", true),
 		ReportNotifyEnabled:        uc.boolOpsSetting(ctx, campusOpsSettingReportNotify, "CAMPUS_OPS_FEISHU_REPORT_NOTIFY", true),
 		FeedbackNotifyEnabled:      uc.boolOpsSetting(ctx, campusOpsSettingFeedbackNotify, "CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY", true),
+		AIBudgetEnabled:            uc.boolOpsSetting(ctx, campusOpsSettingAIBudgetEnabled, "CAMPUS_AI_BUDGET_ENABLED", true),
+		AIMonthlyBudgetCNY:         uc.floatOpsSetting(ctx, campusOpsSettingAIMonthlyBudgetCNY, "CAMPUS_AI_MONTHLY_BUDGET_CNY", defaultAIMonthlyBudgetCNY()),
+		AIDailyBudgetCNY:           uc.floatOpsSetting(ctx, campusOpsSettingAIDailyBudgetCNY, "CAMPUS_AI_DAILY_BUDGET_CNY", defaultAIDailyBudgetCNY()),
+		AIBudgetWarnRatio:          uc.stringOpsSetting(ctx, campusOpsSettingAIBudgetWarnRatio, "CAMPUS_AI_BUDGET_WARN_RATIO", defaultAIBudgetWarnRatio()),
+		TodayAICostCNY:             todayCost,
+		MonthAICostCNY:             monthCost,
+		AIBudgetStatus:             budgetStatus,
 		WebhookConfigured:          strings.TrimSpace(os.Getenv("LEHU_ALERT_FEISHU_WEBHOOK")) != "",
 		PublicAPIBaseURLConfigured: strings.TrimSpace(os.Getenv("LEHU_PUBLIC_API_BASE_URL")) != "",
 		AgentServiceConfigured:     strings.TrimSpace(firstNonEmpty(os.Getenv("CAMPUS_AGENT_SERVICE_URL"), "http://campus-agent:8091")) != "",
@@ -4514,6 +4830,10 @@ func (uc *CampusUsecase) getCampusAgentSettings(ctx context.Context) *CampusAgen
 		campusOpsSettingHighRiskNotify,
 		campusOpsSettingReportNotify,
 		campusOpsSettingFeedbackNotify,
+		campusOpsSettingAIBudgetEnabled,
+		campusOpsSettingAIMonthlyBudgetCNY,
+		campusOpsSettingAIDailyBudgetCNY,
+		campusOpsSettingAIBudgetWarnRatio,
 	}
 	for _, key := range keys {
 		ok, _, updatedBy, updatedAt, err := uc.repo.GetOpsSetting(ctx, key)
@@ -4570,11 +4890,301 @@ func (uc *CampusUsecase) boolOpsSetting(ctx context.Context, key, envName string
 	return parseBoolSetting(value, fallback)
 }
 
+func (uc *CampusUsecase) floatOpsSetting(ctx context.Context, key, envName string, fallback float64) float64 {
+	ok, value, _, _, err := uc.repo.GetOpsSetting(ctx, key)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("read campus float setting failed: key=%s err=%v", key, err)
+		return envFloatBiz(envName, fallback)
+	}
+	if !ok {
+		return envFloatBiz(envName, fallback)
+	}
+	parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil || parsed < 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func (uc *CampusUsecase) stringOpsSetting(ctx context.Context, key, envName, fallback string) string {
+	ok, value, _, _, err := uc.repo.GetOpsSetting(ctx, key)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("read campus string setting failed: key=%s err=%v", key, err)
+		return firstNonEmpty(os.Getenv(envName), fallback)
+	}
+	if !ok {
+		return firstNonEmpty(os.Getenv(envName), fallback)
+	}
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return strings.TrimSpace(value)
+}
+
 func boolOpsSettingValue(value bool) string {
 	if value {
 		return "true"
 	}
 	return "false"
+}
+
+func formatFloatSetting(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func clampPositiveFloat(value, fallback float64) float64 {
+	if value < 0 {
+		return fallback
+	}
+	return value
+}
+
+func defaultAIMonthlyBudgetCNY() float64 {
+	return envFloatBiz("CAMPUS_AI_MONTHLY_BUDGET_CNY", 20)
+}
+
+func defaultAIDailyBudgetCNY() float64 {
+	return envFloatBiz("CAMPUS_AI_DAILY_BUDGET_CNY", 2)
+}
+
+func defaultAIBudgetWarnRatio() string {
+	return firstNonEmpty(os.Getenv("CAMPUS_AI_BUDGET_WARN_RATIO"), "0.7,0.9")
+}
+
+func normalizeAIBudgetWarnRatio(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return defaultAIBudgetWarnRatio()
+	}
+	out := make([]string, 0, 2)
+	for _, part := range strings.Split(value, ",") {
+		ratio, err := strconv.ParseFloat(strings.TrimSpace(part), 64)
+		if err != nil || ratio <= 0 || ratio >= 1 {
+			continue
+		}
+		out = append(out, strconv.FormatFloat(ratio, 'f', -1, 64))
+	}
+	if len(out) == 0 {
+		return defaultAIBudgetWarnRatio()
+	}
+	return strings.Join(out, ",")
+}
+
+func parseAIBudgetWarnRatios(value string) []float64 {
+	value = normalizeAIBudgetWarnRatio(value)
+	ratios := make([]float64, 0, 2)
+	for _, part := range strings.Split(value, ",") {
+		ratio, err := strconv.ParseFloat(strings.TrimSpace(part), 64)
+		if err == nil && ratio > 0 && ratio < 1 {
+			ratios = append(ratios, ratio)
+		}
+	}
+	return ratios
+}
+
+func campusLocalNow() time.Time {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.FixedZone("Asia/Shanghai", 8*60*60)
+	}
+	return time.Now().In(loc)
+}
+
+func campusDayRange(now time.Time) (time.Time, time.Time) {
+	loc := now.Location()
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	return start, start.Add(24 * time.Hour)
+}
+
+func campusMonthRange(now time.Time) (time.Time, time.Time) {
+	loc := now.Location()
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+	return start, start.AddDate(0, 1, 0)
+}
+
+func (uc *CampusUsecase) aiBudgetSnapshot(ctx context.Context) (float64, float64, string) {
+	now := campusLocalNow()
+	dayStart, dayEnd := campusDayRange(now)
+	monthStart, monthEnd := campusMonthRange(now)
+	daySummary, err := uc.repo.GetAIUsageSummary(ctx, dayStart, dayEnd)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("load ai daily usage summary failed: %v", err)
+	}
+	monthSummary, err := uc.repo.GetAIUsageSummary(ctx, monthStart, monthEnd)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("load ai monthly usage summary failed: %v", err)
+	}
+	dayCost := 0.0
+	monthCost := 0.0
+	if daySummary != nil {
+		dayCost = daySummary.EstimatedCostCNY
+	}
+	if monthSummary != nil {
+		monthCost = monthSummary.EstimatedCostCNY
+	}
+	dayBudget := uc.floatOpsSetting(ctx, campusOpsSettingAIDailyBudgetCNY, "CAMPUS_AI_DAILY_BUDGET_CNY", defaultAIDailyBudgetCNY())
+	monthBudget := uc.floatOpsSetting(ctx, campusOpsSettingAIMonthlyBudgetCNY, "CAMPUS_AI_MONTHLY_BUDGET_CNY", defaultAIMonthlyBudgetCNY())
+	status := "ok"
+	if dayBudget > 0 && dayCost >= dayBudget {
+		status = "daily_exceeded"
+	} else if monthBudget > 0 && monthCost >= monthBudget {
+		status = "monthly_exceeded"
+	} else if (dayBudget > 0 && dayCost >= dayBudget*0.9) || (monthBudget > 0 && monthCost >= monthBudget*0.9) {
+		status = "warning"
+	}
+	return dayCost, monthCost, status
+}
+
+func (uc *CampusUsecase) aiBudgetAllowsModel(ctx context.Context, feature, sourceType, sourceID string) (bool, string) {
+	if !uc.boolOpsSetting(ctx, campusOpsSettingAIBudgetEnabled, "CAMPUS_AI_BUDGET_ENABLED", true) {
+		return true, ""
+	}
+	now := campusLocalNow()
+	dayStart, dayEnd := campusDayRange(now)
+	monthStart, monthEnd := campusMonthRange(now)
+	dayBudget := uc.floatOpsSetting(ctx, campusOpsSettingAIDailyBudgetCNY, "CAMPUS_AI_DAILY_BUDGET_CNY", defaultAIDailyBudgetCNY())
+	monthBudget := uc.floatOpsSetting(ctx, campusOpsSettingAIMonthlyBudgetCNY, "CAMPUS_AI_MONTHLY_BUDGET_CNY", defaultAIMonthlyBudgetCNY())
+	daySummary, dayErr := uc.repo.GetAIUsageSummary(ctx, dayStart, dayEnd)
+	monthSummary, monthErr := uc.repo.GetAIUsageSummary(ctx, monthStart, monthEnd)
+	if dayErr != nil || monthErr != nil {
+		uc.log.WithContext(ctx).Warnf("load ai budget failed: feature=%s day_err=%v month_err=%v", feature, dayErr, monthErr)
+		return true, ""
+	}
+	dayCost, monthCost := 0.0, 0.0
+	if daySummary != nil {
+		dayCost = daySummary.EstimatedCostCNY
+	}
+	if monthSummary != nil {
+		monthCost = monthSummary.EstimatedCostCNY
+	}
+	if dayBudget > 0 && dayCost >= dayBudget {
+		return false, "model_skipped_daily_budget"
+	}
+	if monthBudget > 0 && monthCost >= monthBudget {
+		return false, "model_skipped_monthly_budget"
+	}
+	return true, ""
+}
+
+func (uc *CampusUsecase) recordAIUsage(ctx context.Context, feature, sourceType, sourceID, status, errorMessage string, usage *CampusAIModelUsage) {
+	feature = trimLimit(strings.TrimSpace(feature), 48)
+	if feature == "" {
+		feature = "unknown"
+	}
+	item := &CampusAIUsageLog{
+		ID:           uc.idGen.NextID(),
+		Feature:      feature,
+		SourceType:   trimLimit(sourceType, 48),
+		SourceID:     trimLimit(sourceID, 64),
+		Status:       firstNonEmpty(status, "success"),
+		ErrorMessage: trimLimit(errorMessage, 1000),
+		CreatedAt:    time.Now(),
+	}
+	if usage != nil {
+		item.Model = usage.Model
+		item.PromptTokens = usage.PromptTokens
+		item.CompletionTokens = usage.CompletionTokens
+		item.TotalTokens = usage.TotalTokens
+		item.EstimatedCostUSD = usage.EstimatedCostUSD
+		item.EstimatedCostCNY = usage.EstimatedCostCNY
+	}
+	if item.EstimatedCostUSD == 0 && (item.PromptTokens > 0 || item.CompletionTokens > 0) {
+		item.EstimatedCostUSD, item.EstimatedCostCNY = estimateCampusAIUsageCost(item.PromptTokens, item.CompletionTokens)
+	}
+	if err := uc.repo.CreateAIUsageLog(ctx, item); err != nil {
+		uc.log.WithContext(ctx).Warnf("create ai usage log failed: feature=%s source=%s/%s err=%v", feature, sourceType, sourceID, err)
+		return
+	}
+	uc.maybeEnqueueAIBudgetWarning(ctx, item)
+}
+
+func estimateCampusAIUsageCost(promptTokens, completionTokens int64) (float64, float64) {
+	inputPrice := envFloatBiz("CAMPUS_AI_PRICE_INPUT_USD_PER_M", 0.14)
+	outputPrice := envFloatBiz("CAMPUS_AI_PRICE_OUTPUT_USD_PER_M", 0.28)
+	rate := envFloatBiz("CAMPUS_AI_USD_CNY_RATE", 7.2)
+	usd := float64(promptTokens)/1000000*inputPrice + float64(completionTokens)/1000000*outputPrice
+	return usd, usd * rate
+}
+
+func extractAIUsageFromRaw(raw []byte, fallbackModel string) *CampusAIModelUsage {
+	var out struct {
+		Model string `json:"model"`
+		Usage struct {
+			PromptTokens     int64 `json:"prompt_tokens"`
+			CompletionTokens int64 `json:"completion_tokens"`
+			TotalTokens      int64 `json:"total_tokens"`
+			InputTokens      int64 `json:"input_tokens"`
+			OutputTokens     int64 `json:"output_tokens"`
+		} `json:"usage"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &out) != nil {
+		return nil
+	}
+	promptTokens := out.Usage.PromptTokens
+	if promptTokens == 0 {
+		promptTokens = out.Usage.InputTokens
+	}
+	completionTokens := out.Usage.CompletionTokens
+	if completionTokens == 0 {
+		completionTokens = out.Usage.OutputTokens
+	}
+	totalTokens := out.Usage.TotalTokens
+	if totalTokens == 0 {
+		totalTokens = promptTokens + completionTokens
+	}
+	if promptTokens == 0 && completionTokens == 0 && totalTokens == 0 {
+		return nil
+	}
+	usd, cny := estimateCampusAIUsageCost(promptTokens, completionTokens)
+	return &CampusAIModelUsage{
+		Model:            firstNonEmpty(out.Model, fallbackModel),
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
+		TotalTokens:      totalTokens,
+		EstimatedCostUSD: usd,
+		EstimatedCostCNY: cny,
+	}
+}
+
+func (uc *CampusUsecase) maybeEnqueueAIBudgetWarning(ctx context.Context, latest *CampusAIUsageLog) {
+	if latest == nil || !uc.feishuOpsEnabled(ctx) || !uc.boolOpsSetting(ctx, campusOpsSettingAIBudgetEnabled, "CAMPUS_AI_BUDGET_ENABLED", true) {
+		return
+	}
+	now := campusLocalNow()
+	monthStart, monthEnd := campusMonthRange(now)
+	summary, err := uc.repo.GetAIUsageSummary(ctx, monthStart, monthEnd)
+	if err != nil || summary == nil {
+		return
+	}
+	budget := uc.floatOpsSetting(ctx, campusOpsSettingAIMonthlyBudgetCNY, "CAMPUS_AI_MONTHLY_BUDGET_CNY", defaultAIMonthlyBudgetCNY())
+	if budget <= 0 {
+		return
+	}
+	used := summary.EstimatedCostCNY
+	for _, ratio := range parseAIBudgetWarnRatios(uc.stringOpsSetting(ctx, campusOpsSettingAIBudgetWarnRatio, "CAMPUS_AI_BUDGET_WARN_RATIO", defaultAIBudgetWarnRatio())) {
+		if used < budget*ratio {
+			continue
+		}
+		key := fmt.Sprintf("ai_budget_warn_sent_%04d%02d_%d", now.Year(), now.Month(), int(ratio*100))
+		if ok, _, _, _, err := uc.repo.GetOpsSetting(ctx, key); err == nil && ok {
+			continue
+		}
+		title := fmt.Sprintf("AI 月预算已使用 %.0f%%", ratio*100)
+		summaryText := fmt.Sprintf("本月 AI 预估成本 %.2f 元，月预算 %.2f 元。最近功能：%s。", used, budget, latest.Feature)
+		payload := map[string]interface{}{
+			"used_cny":   fmt.Sprintf("%.4f", used),
+			"budget_cny": fmt.Sprintf("%.2f", budget),
+			"ratio":      fmt.Sprintf("%.2f", ratio),
+			"feature":    latest.Feature,
+			"admin_path": "/admin/audit",
+		}
+		if err := uc.enqueueOpsAlert(ctx, CampusOpsAlertTypeAIBudgetWarning, CampusOpsAlertPriorityHigh, "ai_budget", int64(ratio*100),
+			key, title, summaryText, payload); err != nil {
+			uc.log.WithContext(ctx).Warnf("enqueue ai budget warning failed: err=%v", err)
+			continue
+		}
+		_ = uc.repo.SetOpsSetting(ctx, key, "true", "system")
+	}
 }
 
 func (uc *CampusUsecase) AdminGetEzaiPersona(ctx context.Context, input *GetCampusEzaiPersonaInput) (*CampusEzaiPersonaConfig, error) {
@@ -4669,14 +5279,22 @@ func (uc *CampusUsecase) AdminPreviewEzaiPersona(ctx context.Context, input *Pre
 		preview.FallbackReason = firstNonEmpty(preview.FallbackReason, "model_disabled")
 		return preview, nil
 	}
+	if allowed, skippedReason := uc.aiBudgetAllowsModel(ctx, "ezai_preview", "admin_preview", input.UserID); !allowed {
+		preview.Reply = sanitizeEzaiAnswerWithLimit(persona.FallbackReply, persona.MaxReplyChars)
+		preview.FallbackReason = firstNonEmpty(preview.FallbackReason, skippedReason)
+		uc.recordAIUsage(ctx, "ezai_preview", "admin_preview", input.UserID, "skipped", skippedReason, nil)
+		return preview, nil
+	}
 	taskCtx, cancel := context.WithTimeout(ctx, uc.aiReplyConfig.Timeout)
 	defer cancel()
-	answer, err := uc.callEzaiChatCompletion(taskCtx, systemPrompt, userPrompt)
+	answer, usage, err := uc.callEzaiChatCompletion(taskCtx, systemPrompt, userPrompt)
 	if err != nil {
 		preview.Reply = sanitizeEzaiAnswerWithLimit(persona.FallbackReply, persona.MaxReplyChars)
 		preview.FallbackReason = firstNonEmpty(preview.FallbackReason, "model_error: "+trimLimit(err.Error(), 120))
+		uc.recordAIUsage(ctx, "ezai_preview", "admin_preview", input.UserID, "failed", err.Error(), usage)
 		return preview, nil
 	}
+	uc.recordAIUsage(ctx, "ezai_preview", "admin_preview", input.UserID, "success", "", usage)
 	preview.UsedModel = true
 	preview.Reply = sanitizeEzaiAnswerWithLimit(answer, persona.MaxReplyChars)
 	if preview.Reply == "" {
@@ -5471,6 +6089,21 @@ func (uc *CampusUsecase) AdminListRAGEvalCases(ctx context.Context, input *ListC
 	return &ListCampusRAGEvalCasesOutput{Cases: cases, Total: total}, nil
 }
 
+func (uc *CampusUsecase) AdminBatchUpdateRAGEvalCases(ctx context.Context, input *BatchUpdateCampusRAGEvalCasesInput) (*BatchUpdateCampusRAGEvalCasesOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	status := int32(1)
+	if input.Status == 0 {
+		status = 0
+	}
+	updated, err := uc.repo.BatchUpdateRAGEvalCasesStatus(ctx, input.CaseIDs, status, input.UserID)
+	if err != nil {
+		return nil, apperror.Internal(err, "批量更新 RAG 评测用例失败")
+	}
+	return &BatchUpdateCampusRAGEvalCasesOutput{Updated: updated}, nil
+}
+
 func (uc *CampusUsecase) AdminCreateRAGEvalCase(ctx context.Context, input *CreateCampusRAGEvalCaseInput) (*CampusRAGEvalCase, error) {
 	if !uc.isCampusOperator(ctx, input.UserID) {
 		return nil, apperror.Forbidden("没有后台权限")
@@ -5582,6 +6215,55 @@ func (uc *CampusUsecase) AdminRunRAGEvalCases(ctx context.Context, input *RunCam
 		avg = sum / float64(len(results))
 	}
 	return &RunCampusRAGEvalCasesOutput{Results: results, Total: int64(len(results)), Passed: passed, Average: avg}, nil
+}
+
+func (uc *CampusUsecase) SeedRAGEvalDraftsFromLogs(ctx context.Context, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	logs, err := uc.repo.ListRAGQueryLogsForEvalDrafts(ctx, limit)
+	if err != nil {
+		return 0, err
+	}
+	var created int64
+	for _, item := range logs {
+		if item == nil || item.ID <= 0 || strings.TrimSpace(item.Query) == "" {
+			continue
+		}
+		ok, _, err := uc.repo.GetRAGEvalCaseBySourceLogID(ctx, item.ID)
+		if err != nil {
+			uc.log.WithContext(ctx).Warnf("check rag eval draft by log failed: log_id=%d err=%v", item.ID, err)
+			continue
+		}
+		if ok {
+			continue
+		}
+		firstChunk := &CampusRAGQueryChunk{}
+		if len(item.HitChunks) > 0 && item.HitChunks[0] != nil {
+			firstChunk = item.HitChunks[0]
+		}
+		draft := &CampusRAGEvalCase{
+			ID:                 uc.idGen.NextID(),
+			Question:           trimLimit(item.Query, 1000),
+			ExpectedDocumentID: parseInt64String(firstChunk.DocumentID),
+			ExpectedSource:     trimLimit(firstChunk.Source, 120),
+			ExpectedKeywords:   []string{},
+			Category:           normalizeKnowledgeCategory(firstChunk.Category),
+			Status:             0,
+			SourceLogID:        item.ID,
+			Note:               "Agent 自动沉淀，待人工确认",
+			CreatedBy:          scheduledAgentOperatorID(),
+		}
+		if draft.Category == "" {
+			draft.Category = "general"
+		}
+		if err := uc.repo.CreateRAGEvalCase(ctx, draft); err != nil {
+			uc.log.WithContext(ctx).Warnf("create rag eval draft failed: log_id=%d err=%v", item.ID, err)
+			continue
+		}
+		created++
+	}
+	return created, nil
 }
 
 func (uc *CampusUsecase) runRAGEvalCase(ctx context.Context, item *CampusRAGEvalCase) *CampusRAGEvalResult {
@@ -5828,6 +6510,43 @@ func (uc *CampusUsecase) AdminSendAgentRunFeishu(ctx context.Context, input *Sen
 	return run, nil
 }
 
+func (uc *CampusUsecase) AdminGetAIUsageSummary(ctx context.Context, input *GetCampusAIUsageSummaryInput) (*CampusAIUsageSummary, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	now := campusLocalNow()
+	start, end := campusMonthRange(now)
+	month := strings.TrimSpace(input.Month)
+	if month != "" {
+		if parsed, err := time.ParseInLocation("2006-01", month, now.Location()); err == nil {
+			start, end = campusMonthRange(parsed)
+		}
+	}
+	summary, err := uc.repo.GetAIUsageSummary(ctx, start, end)
+	if err != nil {
+		return nil, apperror.Internal(err, "获取 AI 成本汇总失败")
+	}
+	if summary == nil {
+		summary = &CampusAIUsageSummary{}
+	}
+	summary.Period = start.Format("2006-01")
+	summary.StartedAt = start
+	summary.EndedAt = end
+	return summary, nil
+}
+
+func (uc *CampusUsecase) AdminListAIUsageLogs(ctx context.Context, input *ListCampusAIUsageLogsInput) (*ListCampusAIUsageLogsOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	logs, total, err := uc.repo.ListAIUsageLogs(ctx, input.Feature, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取 AI 调用明细失败")
+	}
+	return &ListCampusAIUsageLogsOutput{Logs: logs, Total: total}, nil
+}
+
 func (uc *CampusUsecase) invokeAgentRun(ctx context.Context, run *CampusAgentRun) error {
 	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("CAMPUS_AGENT_SERVICE_URL")), "/")
 	if baseURL == "" {
@@ -5837,11 +6556,13 @@ func (uc *CampusUsecase) invokeAgentRun(ctx context.Context, run *CampusAgentRun
 	if token == "" {
 		token = "local-agent-token"
 	}
+	modelAllowed, skippedReason := uc.aiBudgetAllowsModel(ctx, "agent_copilot", "agent_run", fmt.Sprintf("%d", run.ID))
 	body := map[string]interface{}{
-		"run_id":      fmt.Sprintf("%d", run.ID),
-		"run_type":    run.RunType,
-		"question":    run.Question,
-		"operator_id": run.CreatedBy,
+		"run_id":        fmt.Sprintf("%d", run.ID),
+		"run_type":      run.RunType,
+		"question":      run.Question,
+		"operator_id":   run.CreatedBy,
+		"model_allowed": modelAllowed,
 	}
 	raw, _ := json.Marshal(body)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/internal/copilot/run", bytes.NewReader(raw))
@@ -5861,13 +6582,37 @@ func (uc *CampusUsecase) invokeAgentRun(ctx context.Context, run *CampusAgentRun
 		return fmt.Errorf("agent status=%d body=%s", resp.StatusCode, trimLimit(string(respRaw), 400))
 	}
 	var out struct {
-		Result    map[string]interface{}   `json:"result"`
-		ToolTrace []map[string]interface{} `json:"tool_trace"`
+		Result             map[string]interface{}   `json:"result"`
+		ToolTrace          []map[string]interface{} `json:"tool_trace"`
+		ModelUsed          bool                     `json:"model_used"`
+		ModelUsage         *CampusAIModelUsage      `json:"model_usage"`
+		ModelSkippedReason string                   `json:"model_skipped_reason"`
 	}
 	if err := json.Unmarshal(respRaw, &out); err != nil {
 		return err
 	}
+	if out.ModelSkippedReason == "" {
+		out.ModelSkippedReason = skippedReason
+	}
+	status := "success"
+	errorMessage := ""
+	if !out.ModelUsed {
+		status = "skipped"
+		errorMessage = firstNonEmpty(out.ModelSkippedReason, "model_not_used")
+	} else if out.ModelSkippedReason != "" {
+		status = "failed"
+		errorMessage = out.ModelSkippedReason
+	}
+	uc.recordAIUsage(ctx, "agent_copilot", "agent_run", fmt.Sprintf("%d", run.ID), status, errorMessage, out.ModelUsage)
 	run.Result = out.Result
+	if run.Result == nil {
+		run.Result = map[string]interface{}{}
+	}
+	run.Result["model_used"] = out.ModelUsed
+	run.Result["model_skipped_reason"] = out.ModelSkippedReason
+	if out.ModelUsage != nil {
+		run.Result["model_usage"] = out.ModelUsage
+	}
 	run.ToolTrace = out.ToolTrace
 	run.Status = CampusAgentRunStatusDone
 	run.Summary = trimLimit(fmt.Sprint(out.Result["summary"]), 500)
@@ -6036,11 +6781,11 @@ func opsFeishuFeedbackTypeEnabled(feedbackType string) bool {
 func agentAuditAutoPassConfidence() float64 {
 	value := strings.TrimSpace(os.Getenv("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE"))
 	if value == "" {
-		return 0.85
+		return 0.9
 	}
 	parsed, err := strconv.ParseFloat(value, 64)
 	if err != nil || parsed <= 0 || parsed > 1 {
-		return 0.85
+		return 0.9
 	}
 	return parsed
 }

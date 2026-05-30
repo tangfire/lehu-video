@@ -67,13 +67,17 @@ Go 后端通过 OpenAI Chat Completions 风格接口调用模型，默认按 Dee
 DEEPSEEK_API_KEY=sk-xxx
 CAMPUS_AI_API_KEY=sk-xxx
 CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
-CAMPUS_AI_MODEL=deepseek-chat
+CAMPUS_AI_MODEL=deepseek-v4-flash
 CAMPUS_AI_DAILY_LIMIT=200
 CAMPUS_AI_MAX_OUTPUT_TOKENS=220
 CAMPUS_EZAI_MIN_RAG_CONFIDENCE=0.56
 CAMPUS_EZAI_BOT_USER_ID=123
 CAMPUS_AI_EZAI_ENABLED=true
 ```
+
+AI 调用会写入 `campus_ai_usage_log`，覆盖发帖审核、运营 Copilot、e仔回复和后台预览。后台 `/admin/audit` 能看到今日/月度预估成本，默认日预算 2 元、月预算 20 元，超过预算后非低风险审核会转人工，e仔/预览会降级为安全兜底回复。
+
+RAG 质量闭环会把真实低质量日志自动沉淀成停用状态评测草稿：`wrong/needs_fix/unsafe`、`need_knowledge=true && confidence <= 0.52`、以及有明确问题的失败任务。运营在知识库评测页筛选“Agent 草稿”后批量启用，后续补资料再跑回归评测。
 
 实际启用条件：
 

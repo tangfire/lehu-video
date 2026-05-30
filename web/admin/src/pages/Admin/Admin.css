@@ -500,6 +500,12 @@
     cursor: pointer;
 }
 
+.admin-agent-switch.inline {
+    min-width: 168px;
+    grid-template-columns: 34px minmax(0, 1fr);
+    padding: 8px 10px;
+}
+
 .admin-agent-switch.on {
     border-color: #c7d2fe;
     background: #f8fafc;
@@ -528,6 +534,93 @@
     font-size: 12px;
     font-style: normal;
     line-height: 1.35;
+}
+
+.admin-agent-budget-panel {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #fbfaf9;
+}
+
+.admin-agent-budget-head,
+.admin-agent-budget-bar > div,
+.admin-agent-feature-costs {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.admin-agent-budget-head strong,
+.admin-agent-budget-bar strong {
+    color: var(--admin-text);
+    font-size: 14px;
+}
+
+.admin-agent-budget-head span,
+.admin-agent-budget-bar span,
+.admin-agent-feature-costs span {
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-agent-budget-bars {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.admin-agent-budget-bar {
+    display: grid;
+    gap: 8px;
+}
+
+.admin-agent-budget-bar em {
+    height: 8px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e5e7eb;
+}
+
+.admin-agent-budget-bar i {
+    display: block;
+    height: 100%;
+    max-width: 100%;
+    border-radius: inherit;
+    background: var(--admin-primary);
+}
+
+.admin-agent-budget-inputs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.admin-agent-budget-inputs label {
+    display: grid;
+    gap: 5px;
+}
+
+.admin-agent-budget-inputs span {
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.admin-agent-feature-costs {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+.admin-agent-feature-costs span {
+    padding: 5px 8px;
+    border: 1px solid var(--admin-line);
+    border-radius: 999px;
+    background: #fff;
 }
 
 .admin-ezai-persona-page {
@@ -3778,10 +3871,17 @@
     .admin-form-grid.compact,
     .admin-agent-status-grid,
     .admin-agent-switch-grid,
+    .admin-agent-budget-bars,
+    .admin-agent-budget-inputs,
     .admin-copilot-task-grid,
     .admin-copilot-grid,
     .admin-copilot-runbar {
         grid-template-columns: 1fr;
+    }
+
+    .admin-agent-budget-head {
+        align-items: stretch;
+        flex-direction: column;
     }
 
     .admin-copilot-hero {

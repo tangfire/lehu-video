@@ -82,6 +82,7 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 	s.runExclusive(ctx, "ai_replies", s.safeProcessAIReplyTasks)
 	s.runExclusive(ctx, "ai_audit", s.safeProcessAIContentAuditTasks)
 	s.runExclusive(ctx, "access_log_cleanup", s.safeCleanupAccessLogs)
+	s.runExclusive(ctx, "rag_eval_drafts", s.safeSeedRAGEvalDrafts)
 	var dailyReportTimer *time.Timer
 	if campusAgentDailyReportEnabled() {
 		dailyReportTimer = time.NewTimer(durationUntilNextDailyReport(time.Now()))
@@ -110,6 +111,7 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 		case <-reconcileTicker.C:
 			s.runExclusive(ctx, "stats_reconcile", s.safeReconcile)
 			s.runExclusive(ctx, "access_log_cleanup", s.safeCleanupAccessLogs)
+			s.runExclusive(ctx, "rag_eval_drafts", s.safeSeedRAGEvalDrafts)
 		case <-flushTicker.C:
 			if err := s.uc.FlushCampusBatches(ctx); err != nil {
 				s.log.Warnf("flush campus batches failed: %v", err)
@@ -234,6 +236,19 @@ func (s *CampusTaskServer) safeRunDailyAgentReport(ctx context.Context) {
 	}
 	if run != nil {
 		s.log.Infof("值班 Agent 每日巡检完成: run_id=%d risk=%s feishu=%s", run.ID, run.RiskLevel, run.FeishuStatus)
+	}
+}
+
+func (s *CampusTaskServer) safeSeedRAGEvalDrafts(ctx context.Context) {
+	taskCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	created, err := s.uc.SeedRAGEvalDraftsFromLogs(taskCtx, envIntServer("CAMPUS_RAG_EVAL_DRAFT_BATCH_SIZE", 30))
+	if err != nil {
+		s.log.Warnf("沉淀 RAG 评测草稿失败: %v", err)
+		return
+	}
+	if created > 0 {
+		s.log.Infof("沉淀 RAG 评测草稿完成: created=%d", created)
 	}
 }
 

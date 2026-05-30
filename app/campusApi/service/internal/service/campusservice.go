@@ -102,6 +102,8 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/admin/copilot/runs", s.wrap(s.authRequired(s.handleAdminCreateAgentRun)))
 	r.GET("/v1/campus/admin/copilot/runs/{id}", s.wrap(s.authRequired(s.handleAdminGetAgentRun)))
 	r.POST("/v1/campus/admin/copilot/runs/{id}/send-feishu", s.wrap(s.authRequired(s.handleAdminSendAgentRunFeishu)))
+	r.GET("/v1/campus/admin/ai-usage/summary", s.wrap(s.authRequired(s.handleAdminAIUsageSummary)))
+	r.GET("/v1/campus/admin/ai-usage/logs", s.wrap(s.authRequired(s.handleAdminAIUsageLogs)))
 	r.GET("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminListPosts)))
 	r.POST("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminCreatePost)))
 	r.POST("/v1/campus/admin/posts/batch", s.wrap(s.authRequired(s.handleAdminBatchPosts)))
@@ -128,6 +130,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/knowledge/eval-cases", s.wrap(s.authRequired(s.handleAdminListRAGEvalCases)))
 	r.POST("/v1/campus/admin/knowledge/eval-cases", s.wrap(s.authRequired(s.handleAdminCreateRAGEvalCase)))
 	r.PUT("/v1/campus/admin/knowledge/eval-cases/{id}", s.wrap(s.authRequired(s.handleAdminUpdateRAGEvalCase)))
+	r.POST("/v1/campus/admin/knowledge/eval-cases/batch", s.wrap(s.authRequired(s.handleAdminBatchUpdateRAGEvalCases)))
 	r.POST("/v1/campus/admin/knowledge/eval-cases/run", s.wrap(s.authRequired(s.handleAdminRunRAGEvalCases)))
 	r.POST("/v1/campus/admin/knowledge/upload", s.wrap(s.authRequired(s.handleAdminUploadKnowledgeFile)))
 	r.GET("/v1/campus/admin/reports", s.wrap(s.authRequired(s.handleAdminListReports)))
@@ -839,6 +842,11 @@ type ragEvalRunRequest struct {
 	CaseIDs []int64 `json:"case_ids"`
 }
 
+type ragEvalBatchRequest struct {
+	CaseIDs []int64 `json:"case_ids"`
+	Status  int32   `json:"status"`
+}
+
 type agentRunRequest struct {
 	RunType  string `json:"run_type"`
 	Question string `json:"question"`
@@ -1440,6 +1448,40 @@ func (s *CampusService) handleAdminSendAgentRunFeishu(w http.ResponseWriter, r *
 	writeJSON(w, r, map[string]interface{}{"run": agentRunToMap(run)})
 }
 
+func (s *CampusService) handleAdminAIUsageSummary(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminGetAIUsageSummary(r.Context(), &biz.GetCampusAIUsageSummaryInput{
+		UserID: userID,
+		Month:  strings.TrimSpace(q.Get("month")),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"summary": aiUsageSummaryToMap(out)})
+}
+
+func (s *CampusService) handleAdminAIUsageLogs(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListAIUsageLogs(r.Context(), &biz.ListCampusAIUsageLogsInput{
+		UserID:  userID,
+		Feature: strings.TrimSpace(q.Get("feature")),
+		Page:    int32(queryInt(q.Get("page"), 1)),
+		Size:    int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Logs))
+	for _, item := range out.Logs {
+		items = append(items, aiUsageLogToMap(item))
+	}
+	writeJSON(w, r, map[string]interface{}{"logs": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
 func (s *CampusService) handleFeishuCardCallback(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(r.URL.Query().Get("token"))
 	action := strings.TrimSpace(r.URL.Query().Get("action"))
@@ -1692,13 +1734,17 @@ type auditSettingsRequest struct {
 }
 
 type agentSettingsRequest struct {
-	AgentEnabled          bool `json:"agent_enabled"`
-	AgentAuditEnabled     bool `json:"agent_audit_enabled"`
-	FeishuOpsEnabled      bool `json:"feishu_ops_enabled"`
-	DailyReportEnabled    bool `json:"daily_report_enabled"`
-	HighRiskNotifyEnabled bool `json:"high_risk_notify_enabled"`
-	ReportNotifyEnabled   bool `json:"report_notify_enabled"`
-	FeedbackNotifyEnabled bool `json:"feedback_notify_enabled"`
+	AgentEnabled          bool    `json:"agent_enabled"`
+	AgentAuditEnabled     bool    `json:"agent_audit_enabled"`
+	FeishuOpsEnabled      bool    `json:"feishu_ops_enabled"`
+	DailyReportEnabled    bool    `json:"daily_report_enabled"`
+	HighRiskNotifyEnabled bool    `json:"high_risk_notify_enabled"`
+	ReportNotifyEnabled   bool    `json:"report_notify_enabled"`
+	FeedbackNotifyEnabled bool    `json:"feedback_notify_enabled"`
+	AIBudgetEnabled       bool    `json:"ai_budget_enabled"`
+	AIMonthlyBudgetCNY    float64 `json:"ai_monthly_budget_cny"`
+	AIDailyBudgetCNY      float64 `json:"ai_daily_budget_cny"`
+	AIBudgetWarnRatio     string  `json:"ai_budget_warn_ratio"`
 }
 
 type ezaiPersonaRequest struct {
@@ -1774,6 +1820,10 @@ func (s *CampusService) handleAdminUpdateAgentSettings(w http.ResponseWriter, r 
 		HighRiskNotifyEnabled: req.HighRiskNotifyEnabled,
 		ReportNotifyEnabled:   req.ReportNotifyEnabled,
 		FeedbackNotifyEnabled: req.FeedbackNotifyEnabled,
+		AIBudgetEnabled:       req.AIBudgetEnabled,
+		AIMonthlyBudgetCNY:    req.AIMonthlyBudgetCNY,
+		AIDailyBudgetCNY:      req.AIDailyBudgetCNY,
+		AIBudgetWarnRatio:     req.AIBudgetWarnRatio,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -2338,7 +2388,11 @@ func (s *CampusService) handleAdminListRAGEvalCases(w http.ResponseWriter, r *ht
 	userID, _ := s.userIDFromRequest(r)
 	status := int32(-1)
 	if q.Get("status") != "" {
-		status = int32(queryInt(q.Get("status"), -1))
+		if strings.TrimSpace(q.Get("status")) == "draft" {
+			status = -2
+		} else {
+			status = int32(queryInt(q.Get("status"), -1))
+		}
 	}
 	out, err := s.uc.AdminListRAGEvalCases(r.Context(), &biz.ListCampusRAGEvalCasesInput{
 		UserID: userID,
@@ -2406,6 +2460,24 @@ func (s *CampusService) handleAdminUpdateRAGEvalCase(w http.ResponseWriter, r *h
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"case": ragEvalCaseToMap(item)})
+}
+
+func (s *CampusService) handleAdminBatchUpdateRAGEvalCases(w http.ResponseWriter, r *http.Request) {
+	var req ragEvalBatchRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminBatchUpdateRAGEvalCases(r.Context(), &biz.BatchUpdateCampusRAGEvalCasesInput{
+		UserID:  userID,
+		CaseIDs: req.CaseIDs,
+		Status:  req.Status,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"updated_count": out.Updated})
 }
 
 func (s *CampusService) handleAdminRunRAGEvalCases(w http.ResponseWriter, r *http.Request) {
@@ -3689,6 +3761,13 @@ func agentSettingsToMap(settings *biz.CampusAgentSettings) map[string]interface{
 		"high_risk_notify_enabled":       settings.HighRiskNotifyEnabled,
 		"report_notify_enabled":          settings.ReportNotifyEnabled,
 		"feedback_notify_enabled":        settings.FeedbackNotifyEnabled,
+		"ai_budget_enabled":              settings.AIBudgetEnabled,
+		"ai_monthly_budget_cny":          settings.AIMonthlyBudgetCNY,
+		"ai_daily_budget_cny":            settings.AIDailyBudgetCNY,
+		"ai_budget_warn_ratio":           settings.AIBudgetWarnRatio,
+		"today_ai_cost_cny":              settings.TodayAICostCNY,
+		"month_ai_cost_cny":              settings.MonthAICostCNY,
+		"budget_status":                  settings.AIBudgetStatus,
 		"enabled":                        settings.FeishuOpsEnabled,
 		"daily_enabled":                  settings.DailyReportEnabled,
 		"daily_time":                     firstNonEmptyService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_TIME"), "09:30"),
@@ -3696,13 +3775,69 @@ func agentSettingsToMap(settings *biz.CampusAgentSettings) map[string]interface{
 		"ops_events_enabled":             settings.FeishuOpsEnabled,
 		"feedback_notify_types":          firstNonEmptyService(os.Getenv("CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES"), "contact,cooperation,bug,content"),
 		"audit_callback_enabled":         !envBoolFalseService(os.Getenv("LEHU_FEISHU_CARD_CALLBACK_ENABLED")),
-		"audit_auto_pass_confidence":     firstNonEmptyService(os.Getenv("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE"), "0.85"),
+		"audit_auto_pass_confidence":     firstNonEmptyService(os.Getenv("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE"), "0.9"),
 		"webhook_configured":             settings.WebhookConfigured,
 		"public_api_base_url_configured": settings.PublicAPIBaseURLConfigured,
 		"agent_service_configured":       settings.AgentServiceConfigured,
 		"agent_model_configured":         settings.AgentModelConfigured,
 		"updated_by":                     settings.UpdatedBy,
 		"updated_at":                     formatTime(settings.UpdatedAt),
+	}
+}
+
+func aiUsageSummaryToMap(item *biz.CampusAIUsageSummary) map[string]interface{} {
+	if item == nil {
+		item = &biz.CampusAIUsageSummary{}
+	}
+	features := make([]map[string]interface{}, 0, len(item.Features))
+	for _, feature := range item.Features {
+		if feature == nil {
+			continue
+		}
+		features = append(features, map[string]interface{}{
+			"feature":            feature.Feature,
+			"call_count":         feature.CallCount,
+			"failed_count":       feature.FailedCount,
+			"prompt_tokens":      feature.PromptTokens,
+			"completion_tokens":  feature.CompletionTokens,
+			"total_tokens":       feature.TotalTokens,
+			"estimated_cost_usd": feature.EstimatedCostUSD,
+			"estimated_cost_cny": feature.EstimatedCostCNY,
+		})
+	}
+	return map[string]interface{}{
+		"period":             item.Period,
+		"started_at":         formatTime(item.StartedAt),
+		"ended_at":           formatTime(item.EndedAt),
+		"call_count":         item.CallCount,
+		"failed_count":       item.FailedCount,
+		"prompt_tokens":      item.PromptTokens,
+		"completion_tokens":  item.CompletionTokens,
+		"total_tokens":       item.TotalTokens,
+		"estimated_cost_usd": item.EstimatedCostUSD,
+		"estimated_cost_cny": item.EstimatedCostCNY,
+		"features":           features,
+	}
+}
+
+func aiUsageLogToMap(item *biz.CampusAIUsageLog) map[string]interface{} {
+	if item == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":                 strconv.FormatInt(item.ID, 10),
+		"feature":            item.Feature,
+		"source_type":        item.SourceType,
+		"source_id":          item.SourceID,
+		"model":              item.Model,
+		"prompt_tokens":      item.PromptTokens,
+		"completion_tokens":  item.CompletionTokens,
+		"total_tokens":       item.TotalTokens,
+		"estimated_cost_usd": item.EstimatedCostUSD,
+		"estimated_cost_cny": item.EstimatedCostCNY,
+		"status":             item.Status,
+		"error_message":      item.ErrorMessage,
+		"created_at":         formatTime(item.CreatedAt),
 	}
 }
 
