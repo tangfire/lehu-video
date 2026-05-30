@@ -79,6 +79,8 @@ grafana.example.com {
 
 数据库建议使用同地域、可内网连接的 1核1G 云 MySQL。核心用户数据、帖子、评论、点赞、收藏、通知、审核、权限、文件记录、e仔/RAG 质量数据都放云 MySQL；不要为了日志再拆一套 Docker MySQL，跨库统计和排障复杂度不划算。后续如果日活、慢查询或 MySQL CPU 明显升高，再升级到 2核4G 云 MySQL。
 
+生产 compose 默认不会启动本地 Docker MySQL、MinIO 和 `minio-init`，它们只保留在 `local-stateful` profile 里给临时自建或本地调试使用。生产健康监控也不再探测本地 `mysql_tcp/minio_health`，云 MySQL 是否可用先由 `api_ready` 间接覆盖，细节看云厂商监控。
+
 ### 域名
 
 至少准备：
@@ -103,12 +105,10 @@ cp .env.production.example .env.production
 必须改掉的密钥：
 
 ```bash
-MYSQL_ROOT_PASSWORD=...
 REDIS_PASSWORD=...
-MINIO_ROOT_USER=...
-MINIO_ROOT_PASSWORD=...
 LEHU_JWT_SECRET=...
 GRAFANA_ADMIN_PASSWORD=...
+LEHU_MYSQL_DSN=campus_app:...@tcp(云 MySQL 内网地址:3306)/lehu_campus_db?parseTime=True&loc=Local
 ```
 
 数据库和 Redis：
@@ -140,6 +140,17 @@ COS_BUCKET=campus-1250000000
 COS_PUBLIC_CDN_BASE_URL=https://cdn.example.com
 LEHU_ENABLE_LEGACY_UPLOAD=false
 ```
+
+RAG/Qdrant 资源限制：
+
+```bash
+QDRANT_MEM_LIMIT=768m
+QDRANT_CPUS=0.75
+CAMPUS_RAG_MEM_LIMIT=512m
+CAMPUS_RAG_CPUS=0.5
+```
+
+这组默认值是给 2核4G 首发服务器用的：Qdrant 和 RAG 可以工作，但不会无限吃内存。后续知识库明显变大时，优先调高这两个限制。
 
 微信小程序：
 
@@ -253,7 +264,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 docker compose ps
 ```
 
-第一次启动后等 MySQL、Qdrant、RAG、Grafana 全部起来，再做接口检查。
+第一次启动前先确认云 MySQL 内网地址可连。启动后等 Qdrant、RAG、Grafana 全部起来，再做接口检查。
 
 ```bash
 curl http://127.0.0.1:18080/healthz

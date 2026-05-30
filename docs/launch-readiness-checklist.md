@@ -27,7 +27,6 @@ cp .env.production.example .env.production
 
 | 配置 | 要求 |
 | --- | --- |
-| `MYSQL_ROOT_PASSWORD` | 真实强密码 |
 | `LEHU_MYSQL_DSN` | 云 MySQL 内网地址和业务账号 |
 | `REDIS_PASSWORD` | 真实强密码 |
 | `LEHU_JWT_SECRET` | 随机长密钥 |
@@ -229,11 +228,12 @@ campus_user_health
 campus_rag_health
 campus_agent_health
 alert_webhook_health
-mysql_tcp
 redis_tcp
 qdrant_tcp
 consul_tcp
 ```
+
+生产健康目标默认不包含本地 `mysql_tcp` 和 `minio_health`；云 MySQL 可用性先看 `api_ready`，细节看云厂商监控。
 
 注意：`alert-webhook` 自己挂掉时，Grafana 能看到 down，但飞书可能收不到这条通知。后续可用腾讯云云监控做外部兜底。
 

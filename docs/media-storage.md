@@ -158,7 +158,7 @@ MinIO 现在主要用于：
 - 低频内部文件过渡。
 - RAG 知识库文件的本地调试链路。
 
-生产公开图片不再依赖 MinIO。以后如果 RAG 文件也迁到私有 COS，可以再考虑生产不启动 MinIO。
+生产公开图片不再依赖 MinIO。生产 compose 默认也不会启动 MinIO；只有显式启用 `local-stateful` profile 并切回 MinIO provider 时才会启动本地 MinIO。
 
 ## RAG 文件和公开图片的区别
 

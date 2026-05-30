@@ -1,0 +1,52 @@
+[
+  {
+    "name": "api_health",
+    "type": "http",
+    "target": "http://api:8080/healthz"
+  },
+  {
+    "name": "api_ready",
+    "type": "http",
+    "target": "http://api:8080/readyz"
+  },
+  {
+    "name": "base_health",
+    "type": "http",
+    "target": "http://base:8020/healthz"
+  },
+  {
+    "name": "campus_user_health",
+    "type": "http",
+    "target": "http://campus-user:8030/healthz"
+  },
+  {
+    "name": "campus_rag_health",
+    "type": "http",
+    "target": "http://campus-rag:8090/healthz"
+  },
+  {
+    "name": "campus_agent_health",
+    "type": "http",
+    "target": "http://campus-agent:8091/healthz"
+  },
+  {
+    "name": "alert_webhook_health",
+    "type": "http",
+    "target": "http://alert-webhook:9120/healthz"
+  },
+  {
+    "name": "redis_tcp",
+    "type": "tcp",
+    "target": "redis:6379"
+  },
+  {
+    "name": "consul_tcp",
+    "type": "tcp",
+    "target": "consul:8500"
+  },
+  {
+    "name": "qdrant_tcp",
+    "type": "tcp",
+    "target": "qdrant:6333"
+  }
+]

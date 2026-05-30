@@ -512,7 +512,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 - Go module 仍叫 `lehu-video`，目录已经校园化。短期不建议强改 module，后续稳定后再做全量改名。
 - `campusApi` 的 `campus.go` 和 `campusservice.go` 偏大。功能稳定后可以按社区、后台、e仔、知识库、通知拆文件。
 - `api/helloworld` 仍是 Kratos 模板残留，可以后续删除，降低误导。
-- 本地 compose 仍启动 MinIO；生产公开媒体不用 MinIO。后续如果 RAG 文件也迁私有 COS，可以考虑生产不启动 MinIO。
+- 本地 compose 仍启动 MinIO；生产公开媒体不用 MinIO，生产 compose 默认也不启动 MinIO。只有显式启用 `local-stateful` profile 并切回 MinIO provider 时才会用本地 MinIO。
 - 业务指标告警暂时只做健康类。等真实用户稳定后，再加 5xx 率、上传失败率、AI 失败率等业务告警。
 - `campus_access_log` 写云 MySQL，已经有 7 天保留期清理；流量变大后可考虑只保留异常/限流/封禁摘要，普通请求继续依赖 Loki。
 - 首发不要拆双 MySQL。核心业务表、文件记录、审核权限和 e仔/RAG 质量数据统一在云 MySQL；如果 1核1G 云 MySQL 出现持续 CPU 或慢查询压力，优先升级到 2核4G 云 MySQL。

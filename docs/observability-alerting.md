@@ -144,7 +144,7 @@ make logs-search Q="/v1/campus/forum/posts" SINCE=2h
 `health-exporter` 每 15 秒左右探测一次目标，并在 `:9115/metrics` 暴露结果。Prometheus 每 30 秒抓取一次。
 同时 Prometheus 会抓取 `campus-api` 的 `GET /v1/campus/internal/ops-metrics`，用于值班 Agent、飞书提醒和 SLA 面板；这个路径只给 Docker 内网使用，生产反向代理不要转发到公网。
 
-健康目标来自 `deploy/observability/health-exporter/targets.json`：
+健康目标来自 `deploy/observability/health-exporter/targets.json`。生产环境会挂载 `targets.prod.json`，不包含本地 `mysql_tcp` 和 `minio_health`；云 MySQL 是否可用由 `api_ready` 间接覆盖，云 MySQL 细节看云厂商监控。
 
 | 名称 | 类型 | 目标 | 含义 |
 | --- | --- | --- | --- |
@@ -155,8 +155,8 @@ make logs-search Q="/v1/campus/forum/posts" SINCE=2h
 | `campus_rag_health` | HTTP | `http://campus-rag:8090/healthz` | RAG 服务活着 |
 | `campus_agent_health` | HTTP | `http://campus-agent:8091/healthz` | 运营值班 Agent 服务活着 |
 | `alert_webhook_health` | HTTP | `http://alert-webhook:9120/healthz` | 飞书告警桥接服务活着 |
-| `minio_health` | HTTP | `http://minio:9000/minio/health/live` | 本地 MinIO 活着 |
-| `mysql_tcp` | TCP | `mysql:3306` | MySQL 端口可连 |
+| `minio_health` | HTTP | `http://minio:9000/minio/health/live` | 仅本地/`local-stateful` profile 使用 |
+| `mysql_tcp` | TCP | `mysql:3306` | 仅本地/`local-stateful` profile 使用 |
 | `redis_tcp` | TCP | `redis:6379` | Redis 端口可连 |
 | `consul_tcp` | TCP | `consul:8500` | Consul 端口可连 |
 | `qdrant_tcp` | TCP | `qdrant:6333` | Qdrant 端口可连 |
@@ -185,8 +185,8 @@ make logs-search Q="/v1/campus/forum/posts" SINCE=2h
 
 | 告警 | 条件 | 持续时间 | 级别 | 说明 |
 | --- | --- | --- | --- | --- |
-| `CampusCriticalTargetDown` | `api_health`、`api_ready`、`mysql_tcp`、`redis_tcp` 失败 | `2m` | `critical` | 核心服务或核心依赖不可用 |
-| `CampusDependencyTargetDown` | `base_health`、`campus_user_health`、`campus_rag_health`、`campus_agent_health`、`alert_webhook_health`、`minio_health`、`qdrant_tcp`、`consul_tcp` 失败 | `3m` | `warning` | 非入口依赖不可用，可能影响部分功能 |
+| `CampusCriticalTargetDown` | `api_health`、`api_ready`、`mysql_tcp`、`redis_tcp` 失败 | `2m` | `critical` | 核心服务或核心依赖不可用；生产没有 `mysql_tcp` series 时不会因缺失触发 |
+| `CampusDependencyTargetDown` | `base_health`、`campus_user_health`、`campus_rag_health`、`campus_agent_health`、`alert_webhook_health`、`minio_health`、`qdrant_tcp`、`consul_tcp` 失败 | `3m` | `warning` | 非入口依赖不可用；生产没有 `minio_health` series 时不会因缺失触发 |
 | `CampusHealthExporterDown` | Prometheus 抓不到 `health-exporter` | `2m` | `critical` | 健康面板和告警可能失真 |
 
 通知策略：
@@ -368,10 +368,10 @@ PY
 
 推荐流程：
 
-1. 看飞书消息里的 `目标`，例如 `api_ready`、`mysql_tcp`、`campus_rag_health`。
+1. 看飞书消息里的 `目标`，例如 `api_ready`、`redis_tcp`、`campus_rag_health`。
 2. 打开 Grafana 的 `校园 e站健康监控`，确认是单个目标 down，还是一片依赖同时 down。
-3. 如果是 `api_ready` down，先查 `campus-api` 日志，再看 MySQL/Redis 是否也 down。
-4. 如果是 `mysql_tcp` 或 `redis_tcp` down，优先检查对应容器状态和磁盘/内存。
+3. 如果是 `api_ready` down，先查 `campus-api` 日志，再看云 MySQL、Redis 是否也不可用。
+4. 如果是 `redis_tcp` down，优先检查 Redis 容器状态和磁盘/内存；如果本地 profile 里看到 `mysql_tcp` down，再查本地 MySQL。
 5. 如果是 `campus_rag_health` 或 `qdrant_tcp` down，社区主链路通常还在，但 e仔知识库回答可能降级。
 6. 如果用户提供了 `request_id`，到 `校园 e站日志搜索` 直接搜请求编号。
 7. 处理完后等告警自动恢复，飞书会收到 resolved 消息。
@@ -381,8 +381,8 @@ PY
 | 现象 | 优先看 |
 | --- | --- |
 | `api_health` down | API 容器是否退出、启动日志 |
-| `api_ready` down 但 `api_health` up | API 进程还活着，依赖可能不可用 |
-| `mysql_tcp` down | MySQL 容器、磁盘、内存 |
+| `api_ready` down 但 `api_health` up | API 进程还活着，依赖可能不可用，生产先看云 MySQL 和 Redis |
+| `mysql_tcp` down | 仅本地/`local-stateful` profile 适用：MySQL 容器、磁盘、内存 |
 | `redis_tcp` down | Redis 容器、内存 |
 | `campus_rag_health` down | RAG 容器、模型 key、Qdrant |
 | `campus_agent_health` down | `campus-agent` 容器、内部 token、模型配置；社区主链路不应受影响 |
