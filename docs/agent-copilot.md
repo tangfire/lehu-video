@@ -72,8 +72,8 @@ flowchart LR
 - 内部工具接口只接受 `X-Campus-Agent-Token`。
 - 巡检、RAG 缺口、治理建议的工具全部只读。
 - 发帖审核的写操作只由 `campus-api` 执行，`campus-agent` 不直接写库。
-- 飞书审核按钮使用 `campus_ops_action_token` 一次性 token，默认 24 小时过期，token 绑定目标和动作。
-- 举报和反馈第一版只飞书提醒并跳后台处理；飞书按钮闭环只用于发帖审核。
+- 飞书按钮使用 `campus_ops_action_token` 一次性 token，默认 24 小时过期，token 绑定目标和动作。
+- 发帖审核支持飞书内“通过/拒绝”；帖子/评论举报支持飞书内“下架内容/忽略举报”；反馈仍只提醒并跳后台处理。
 - 高风险或低置信审核不自动拒绝，只保留待审核并提醒人工确认。
 
 ## AI/Agent 发帖审核
@@ -89,7 +89,7 @@ flowchart LR
 | `reject` 或 `high` | 不自动拒绝，作为高风险待审推飞书 |
 | Agent 不可用 | 保持待审核，飞书提醒“审核 Agent 不可用” |
 
-飞书审核卡片包含帖子摘要、风险等级、Agent 理由、后台链接，以及“通过/拒绝”按钮。按钮背后是一次性 token 调用 `campus-api /v1/campus/feishu/card/callback`；如果公网回调或飞书能力不完整，仍可降级为打开后台处理。
+飞书审核卡片包含帖子摘要、风险等级、Agent 理由、后台链接，以及“通过/拒绝”按钮。举报卡片包含举报原因、目标类型和“下架内容/忽略举报/打开后台”按钮。按钮背后都是一次性 token 调用 `campus-api /v1/campus/feishu/card/callback`；如果公网回调或飞书能力不完整，仍可降级为打开后台处理。
 
 小程序端采用“作者可见优先”：待审核帖子不进入公共首页，但作者本人可在详情和“我的帖子”看到；客户端优先展示 `publish_state/client_status_label/client_status_detail`，不要直接展示后台审核原因。
 
@@ -117,7 +117,7 @@ flowchart LR
 | 每日巡检 | `campus-api` 后台任务默认每天 `09:30 Asia/Shanghai` 创建一次 `daily_ops`，完成后发送飞书日报 |
 | 高风险提醒 | 手动运行完成后如果 `risk_level=high`，自动发送一条高风险提醒 |
 | 手动发送 | 运营在 `/admin/copilot` 对任意 `done` 状态运行记录点击“发送到飞书” |
-| 举报提醒 | 用户举报帖子/评论后写入 `campus_ops_alert`，后台任务 5 秒级扫描并推飞书 |
+| 举报提醒 | 用户举报帖子/评论后写入 `campus_ops_alert`，后台任务 5 秒级扫描并推飞书，可在飞书内下架或忽略 |
 | 重要反馈 | `contact/cooperation/bug/content` 类型即时提醒，普通 `suggestion` 进入日报 |
 | 审核确认 | Agent 拿不准的帖子推飞书卡片，可点通过/拒绝或回后台 |
 
@@ -194,4 +194,4 @@ LEHU_FEISHU_CARD_VERIFY_TOKEN=
 
 可以这样讲：
 
-> 我在校园 e站里做了一个运营值班 Agent，独立为 `campus-agent` 微服务，使用 LangGraph 编排巡检类工具调用，用 LangChain tool 封装只读后台工具接口；同时把发帖 AI 审核迁到 Agent 服务。系统支持每日巡检、RAG 缺口分析、举报/重要反馈飞书主动提醒，以及发帖审核的 human-in-the-loop 闭环：低风险高置信自动通过，不确定或高风险内容推飞书卡片，由运营点击通过/拒绝，真正写库仍由 `campus-api` 完成。
+> 我在校园 e站里做了一个运营值班 Agent，独立为 `campus-agent` 微服务，使用 LangGraph 编排巡检类工具调用，用 LangChain tool 封装只读后台工具接口；同时把发帖 AI 审核迁到 Agent 服务。系统支持每日巡检、RAG 缺口分析、举报/重要反馈飞书主动提醒，以及发帖审核和举报治理的 human-in-the-loop 闭环：低风险高置信自动通过，不确定或高风险内容推飞书卡片，由运营点击通过/拒绝/下架/忽略，真正写库仍由 `campus-api` 完成。

@@ -1452,6 +1452,7 @@ type CampusRepo interface {
 	CreateReport(ctx context.Context, report *CampusForumReport) error
 	ListReports(ctx context.Context, status int32, offset, limit int) ([]*CampusForumReport, int64, error)
 	UpdateReportStatus(ctx context.Context, reportID int64, status int32) error
+	UpdateReportsStatusByTarget(ctx context.Context, targetType string, targetID int64, status int32) error
 	CreateFeedback(ctx context.Context, feedback *CampusFeedback) error
 	ListFeedback(ctx context.Context, status int32, offset, limit int) ([]*CampusFeedback, int64, error)
 	UpdateFeedbackStatus(ctx context.Context, feedbackID int64, status int32, note string) error
@@ -3281,14 +3282,44 @@ func (uc *CampusUsecase) enqueueReportOpsAlert(ctx context.Context, report *Camp
 	if report == nil || !opsFeishuReportNotifyEnabled() {
 		return
 	}
-	summary := fmt.Sprintf("用户 %s 举报了 %s %d：%s", report.ReporterID, report.TargetType, report.TargetID, firstNonEmpty(report.Reason, "未填写原因"))
+	targetType := normalizeCampusTargetType(report.TargetType)
+	if targetType == "" {
+		return
+	}
+	targetLabel := map[string]string{"post": "帖子", "comment": "评论"}[targetType]
+	if targetLabel == "" {
+		targetLabel = "内容"
+	}
+	actions := []map[string]interface{}{}
+	if feishuCardCallbackEnabled() {
+		deleteToken, deleteErr := uc.createOpsActionToken(ctx, "delete_reported", targetType, report.TargetID, "飞书举报确认违规")
+		if deleteErr != nil {
+			uc.log.WithContext(ctx).Warnf("create feishu report delete token failed: target_type=%s target_id=%d err=%v", targetType, report.TargetID, deleteErr)
+		}
+		dismissToken, dismissErr := uc.createOpsActionToken(ctx, "dismiss_report", targetType, report.TargetID, "举报暂不成立")
+		if dismissErr != nil {
+			uc.log.WithContext(ctx).Warnf("create feishu report dismiss token failed: target_type=%s target_id=%d err=%v", targetType, report.TargetID, dismissErr)
+		}
+		if deleteToken != "" {
+			actions = append(actions, map[string]interface{}{"label": "下架" + targetLabel, "style": "danger", "url": buildFeishuActionURL(deleteToken, "delete_reported"), "action": "delete_reported"})
+		}
+		if dismissToken != "" {
+			actions = append(actions, map[string]interface{}{"label": "忽略举报", "style": "default", "url": buildFeishuActionURL(dismissToken, "dismiss_report"), "action": "dismiss_report"})
+		}
+	}
+	adminPath := "/admin/moderation?tab=reports&status=0"
+	actions = append(actions, map[string]interface{}{"label": "打开后台", "style": "default", "url": adminURL(adminPath), "action": "open_admin"})
+	summary := fmt.Sprintf("用户 %s 举报了%s %d：%s", report.ReporterID, targetLabel, report.TargetID, firstNonEmpty(report.Reason, "未填写原因"))
 	payload := map[string]interface{}{
 		"report_id":   fmt.Sprintf("%d", report.ID),
-		"target_type": report.TargetType,
+		"target_type": targetType,
 		"target_id":   fmt.Sprintf("%d", report.TargetID),
 		"reporter_id": report.ReporterID,
 		"reason":      report.Reason,
 		"detail":      report.Detail,
+		"actions":     actions,
+		"admin_path":  adminPath,
+		"callback_ok": feishuCardCallbackEnabled(),
 	}
 	if err := uc.enqueueOpsAlert(ctx, CampusOpsAlertTypeReportCreated, CampusOpsAlertPriorityHigh, "report", report.ID,
 		fmt.Sprintf("report:%d", report.ID),
@@ -3522,51 +3553,114 @@ func (uc *CampusUsecase) HandleFeishuCardAction(ctx context.Context, input *Hand
 	if !used {
 		return "", apperror.Conflict("审批 token 已使用或已过期")
 	}
-	if item.TargetType != "post" {
-		return "", apperror.InvalidArgument("审批对象不支持")
-	}
-	ok, post, err := uc.repo.GetAnyPostByID(ctx, item.TargetID)
-	if err != nil {
-		return "", apperror.Internal(err, "查询帖子失败")
-	}
-	if !ok || post == nil {
-		return "", apperror.NotFound("帖子不存在")
-	}
-	if post.Status != CampusAuditStatusPending {
-		return "这条帖子已经被处理，无需重复操作", nil
-	}
 	action := strings.TrimSpace(strings.ToLower(item.Action))
-	reason := firstNonEmpty(input.Reason, item.Reason, "飞书 Agent 审批")
-	switch action {
-	case "approve", "pass", "visible":
-		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, ""); err != nil {
-			return "", apperror.Internal(err, "通过帖子失败")
+	if action == "" {
+		action = strings.TrimSpace(strings.ToLower(input.Action))
+	}
+	targetType := strings.TrimSpace(strings.ToLower(item.TargetType))
+	reason := firstNonEmpty(input.Reason, item.Reason, "飞书 Agent 处理")
+	resultMessage := ""
+	auditTargetType := targetType
+	auditTargetID := item.TargetID
+
+	switch targetType {
+	case "post":
+		ok, post, err := uc.repo.GetAnyPostByID(ctx, item.TargetID)
+		if err != nil {
+			return "", apperror.Internal(err, "查询帖子失败")
 		}
-		post.Status = CampusAuditStatusVisible
-		post.AuditReason = ""
-	case "reject":
-		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusRejected, reason); err != nil {
-			return "", apperror.Internal(err, "拒绝帖子失败")
+		if !ok || post == nil {
+			return "", apperror.NotFound("帖子不存在")
 		}
-		post.Status = CampusAuditStatusRejected
-		post.AuditReason = reason
-		uc.notifyPostAuditResult(ctx, post, false, "这条内容暂未同步")
+		switch action {
+		case "approve", "pass", "visible":
+			if post.Status != CampusAuditStatusPending {
+				return "这条帖子已经被处理，无需重复操作", nil
+			}
+			if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, ""); err != nil {
+				return "", apperror.Internal(err, "通过帖子失败")
+			}
+			post.Status = CampusAuditStatusVisible
+			post.AuditReason = ""
+			resultMessage = "已通过帖子"
+		case "reject":
+			if post.Status != CampusAuditStatusPending {
+				return "这条帖子已经被处理，无需重复操作", nil
+			}
+			if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusRejected, reason); err != nil {
+				return "", apperror.Internal(err, "拒绝帖子失败")
+			}
+			post.Status = CampusAuditStatusRejected
+			post.AuditReason = reason
+			uc.notifyPostAuditResult(ctx, post, false, "这条内容暂未同步")
+			resultMessage = "已拒绝帖子"
+		case "delete", "delete_reported", "takedown", "offline":
+			if post.Status == CampusAuditStatusDeleted {
+				_ = uc.markReportsHandledByTarget(ctx, "post", post.ID, CampusAuditStatusVisible)
+				return "这条帖子已下架，无需重复操作", nil
+			}
+			reason = firstNonEmpty(reason, "飞书举报确认违规")
+			if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusDeleted, reason); err != nil {
+				return "", apperror.Internal(err, "下架帖子失败")
+			}
+			post.Status = CampusAuditStatusDeleted
+			post.AuditReason = reason
+			uc.notifyPostAuditResult(ctx, post, false, "这条内容已下架")
+			_ = uc.markReportsHandledByTarget(ctx, "post", post.ID, CampusAuditStatusVisible)
+			resultMessage = "已下架帖子，并标记相关举报已处理"
+		case "dismiss_report":
+			_ = uc.markReportsHandledByTarget(ctx, "post", post.ID, CampusAuditStatusRejected)
+			resultMessage = "已忽略该帖子的待处理举报，内容保持展示"
+		default:
+			return "", apperror.InvalidArgument("审批动作无效")
+		}
+	case "comment":
+		ok, comment, err := uc.repo.GetAnyCommentByID(ctx, item.TargetID)
+		if err != nil {
+			return "", apperror.Internal(err, "查询评论失败")
+		}
+		if !ok || comment == nil {
+			return "", apperror.NotFound("评论不存在")
+		}
+		switch action {
+		case "delete", "delete_reported", "takedown", "offline":
+			if comment.Status == CampusAuditStatusDeleted {
+				_ = uc.markReportsHandledByTarget(ctx, "comment", comment.ID, CampusAuditStatusVisible)
+				return "这条评论已下架，无需重复操作", nil
+			}
+			reason = firstNonEmpty(reason, "飞书举报确认违规")
+			if err := uc.repo.UpdateCommentStatus(ctx, comment.ID, CampusAuditStatusDeleted, reason); err != nil {
+				return "", apperror.Internal(err, "下架评论失败")
+			}
+			_ = uc.markReportsHandledByTarget(ctx, "comment", comment.ID, CampusAuditStatusVisible)
+			resultMessage = "已下架评论，并标记相关举报已处理"
+		case "dismiss_report":
+			_ = uc.markReportsHandledByTarget(ctx, "comment", comment.ID, CampusAuditStatusRejected)
+			resultMessage = "已忽略该评论的待处理举报，内容保持展示"
+		default:
+			return "", apperror.InvalidArgument("审批动作无效")
+		}
 	default:
-		return "", apperror.InvalidArgument("审批动作无效")
+		return "", apperror.InvalidArgument("审批对象不支持")
 	}
 	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
 		ID:         uc.idGen.NextID(),
-		TargetType: "post",
-		TargetID:   post.ID,
+		TargetType: auditTargetType,
+		TargetID:   auditTargetID,
 		UserID:     scheduledAgentOperatorID(),
 		Provider:   "feishu_agent",
 		Result:     action,
 		Reason:     reason,
 	})
-	if action == "reject" {
-		return "已拒绝帖子", nil
+	return resultMessage, nil
+}
+
+func (uc *CampusUsecase) markReportsHandledByTarget(ctx context.Context, targetType string, targetID int64, status int32) error {
+	if err := uc.repo.UpdateReportsStatusByTarget(ctx, targetType, targetID, status); err != nil {
+		uc.log.WithContext(ctx).Warnf("mark reports handled failed: target_type=%s target_id=%d status=%d err=%v", targetType, targetID, status, err)
+		return err
 	}
-	return "已通过帖子", nil
+	return nil
 }
 
 func (uc *CampusUsecase) processAIReplyTask(ctx context.Context, task *CampusAIReplyTask) error {

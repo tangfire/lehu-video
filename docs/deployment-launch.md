@@ -185,7 +185,7 @@ LEHU_FEISHU_CARD_CALLBACK_ENABLED=true
 LEHU_FEISHU_CARD_VERIFY_TOKEN=
 ```
 
-Grafana 服务健康告警和 Agent 运营通知复用同一个飞书机器人。Grafana 调 `alert-webhook /grafana`，Agent 调 `alert-webhook /agent`。日报、举报、反馈只做提醒和后台跳转；发帖审核卡片可以通过一次性链接“通过/拒绝”，真正写库仍由 `campus-api` 完成。
+Grafana 服务健康告警和 Agent 运营通知复用同一个飞书机器人。Grafana 调 `alert-webhook /grafana`，Agent 调 `alert-webhook /agent`。日报和反馈只做提醒和后台跳转；发帖审核卡片可以通过一次性链接“通过/拒绝”，举报卡片可以“下架内容/忽略举报”。真正写库仍由 `campus-api` 校验一次性 token 后完成。
 
 真实 IP 和日志保留：
 

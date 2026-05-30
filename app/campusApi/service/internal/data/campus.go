@@ -1793,6 +1793,15 @@ func (r *campusRepo) UpdateReportStatus(ctx context.Context, reportID int64, sta
 		}).Error
 }
 
+func (r *campusRepo) UpdateReportsStatusByTarget(ctx context.Context, targetType string, targetID int64, status int32) error {
+	return r.data.db.WithContext(ctx).Model(&campusForumReportModel{}).
+		Where("target_type = ? AND target_id = ? AND status = ?", targetType, targetID, biz.CampusAuditStatusPending).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		}).Error
+}
+
 func (r *campusRepo) CreateFeedback(ctx context.Context, in *biz.CampusFeedback) error {
 	images, _ := json.Marshal(in.Images)
 	row := campusFeedbackModel{

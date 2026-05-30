@@ -219,7 +219,7 @@ def build_agent_feishu_post(payload):
 
     content.extend([
         line(""),
-        line("说明：日报、举报和反馈只做提醒；发帖审核卡片可使用一次性链接通过/拒绝，其余治理动作回后台处理。"),
+        line("说明：飞书按钮使用一次性链接；发帖审核可通过/拒绝，举报可下架/忽略，其他治理动作回后台处理。"),
     ])
 
     return {
@@ -299,7 +299,7 @@ def build_agent_feishu_card(payload):
 
     elements.append({
         "tag": "note",
-        "elements": [{"tag": "plain_text", "content": "Agent 负责提醒和建议；通过/拒绝按钮使用一次性 token，其他治理动作回后台处理。"}],
+        "elements": [{"tag": "plain_text", "content": "Agent 负责提醒和建议；按钮使用一次性 token，真正写库由 campus-api 执行。"}],
     })
     return {
         "msg_type": "interactive",
