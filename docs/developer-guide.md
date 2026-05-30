@@ -20,24 +20,25 @@
 ## 推荐阅读顺序
 
 1. `README.md`：启动、生产配置、监控和告警。
-2. `docs/developer-guide.md`：当前这份文档，理解项目怎么设计。
-3. `docs/architecture.md`：更偏架构图和运行拓扑。
-4. `docs/microservices.md`：理解微服务边界、gRPC/Consul 和不继续拆的原因。
-5. `docs/resume-highlights.md`：把项目整理成简历和面试表达。
-6. `docs/deployment-launch.md`：上线部署、环境变量、验收和常见问题。
-7. `docs/media-storage.md`：COS/CDN、MinIO、本地和生产上传链路。
-8. `docs/data-model.md`：核心表和数据流。
-9. `docs/api-map.md`：HTTP 路由按功能分组。
-10. `docs/admin-operations.md`：运营后台页面和日常工作流。
-11. `docs/ai-rag.md`：专门理解 e仔 AI、本地知识库和 RAG 检索。
-12. `docs/observability-alerting.md`：专门理解 Grafana、Loki、Alloy、Prometheus 和飞书告警。
-13. `docs/agent-copilot.md`：理解运营值班 Agent、飞书主动提醒和 AI 成本保护。
-14. `docs/wechat-submission.md`：小程序提审、隐私和社区规范。
-15. `docker-compose.yml` / `docker-compose.prod.yml`：理解本地与生产差异。
-16. `app/campusApi/service/internal/service/campusservice.go`：看 HTTP 路由总入口。
-17. `app/campusApi/service/internal/biz/campus.go`：看校园业务主用例。
-18. `sql/campus.sql`：看新库表结构。
-19. `web/admin/src/App.jsx`：看运营后台页面入口。
+2. `docs/product-feature-design.md`：从产品视角理解学生端、运营后台、e仔、Agent 和首发边界。
+3. `docs/developer-guide.md`：当前这份文档，理解项目怎么设计。
+4. `docs/architecture.md`：更偏架构图和运行拓扑。
+5. `docs/microservices.md`：理解微服务边界、gRPC/Consul 和不继续拆的原因。
+6. `docs/resume-highlights.md`：把项目整理成简历和面试表达。
+7. `docs/deployment-launch.md`：上线部署、环境变量、验收和常见问题。
+8. `docs/media-storage.md`：COS/CDN、MinIO、本地和生产上传链路。
+9. `docs/data-model.md`：核心表和数据流。
+10. `docs/api-map.md`：HTTP 路由按功能分组。
+11. `docs/admin-operations.md`：运营后台页面和日常工作流。
+12. `docs/ai-rag.md`：专门理解 e仔 AI、本地知识库和 RAG 检索。
+13. `docs/observability-alerting.md`：专门理解 Grafana、Loki、Alloy、Prometheus 和飞书告警。
+14. `docs/agent-copilot.md`：理解运营值班 Agent、飞书主动提醒和 AI 成本保护。
+15. `docs/wechat-submission.md`：小程序提审、隐私和社区规范。
+16. `docker-compose.yml` / `docker-compose.prod.yml`：理解本地与生产差异。
+17. `app/campusApi/service/internal/service/campusservice.go`：看 HTTP 路由总入口。
+18. `app/campusApi/service/internal/biz/campus.go`：看校园业务主用例。
+19. `sql/campus.sql`：看新库表结构。
+20. `web/admin/src/App.jsx`：看运营后台页面入口。
 
 ## 目录怎么读
 
