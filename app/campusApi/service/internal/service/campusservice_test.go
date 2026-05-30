@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+
+	"lehu-video/app/campusApi/service/internal/biz"
 )
 
 func TestClientIPDoesNotTrustForwardedHeaderFromPublicRemote(t *testing.T) {
@@ -82,5 +84,34 @@ func TestParseRawInt64ListRejectsUnsafeNumberForms(t *testing.T) {
 
 	if _, err := parseRawInt64List(values); err == nil {
 		t.Fatalf("parseRawInt64List() error = nil, want error for exponent notation")
+	}
+}
+
+func TestPostToMapAddsClientFriendlyPublishState(t *testing.T) {
+	cases := []struct {
+		name       string
+		status     int32
+		state      string
+		label      string
+		publicShow bool
+	}{
+		{name: "visible", status: biz.CampusAuditStatusVisible, state: "visible", label: "已发布", publicShow: true},
+		{name: "pending", status: biz.CampusAuditStatusPending, state: "syncing", label: "同步中", publicShow: false},
+		{name: "rejected", status: biz.CampusAuditStatusRejected, state: "needs_attention", label: "需修改", publicShow: false},
+		{name: "hidden", status: biz.CampusAuditStatusDeleted, state: "hidden", label: "已隐藏", publicShow: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := postToMap(&biz.CampusForumPost{ID: 1, Status: tc.status})
+			if got["publish_state"] != tc.state {
+				t.Fatalf("publish_state = %v, want %s", got["publish_state"], tc.state)
+			}
+			if got["client_status_label"] != tc.label {
+				t.Fatalf("client_status_label = %v, want %s", got["client_status_label"], tc.label)
+			}
+			if got["public_visible"] != tc.publicShow {
+				t.Fatalf("public_visible = %v, want %v", got["public_visible"], tc.publicShow)
+			}
+		})
 	}
 }

@@ -13,18 +13,21 @@ import (
 )
 
 type CampusTaskServer struct {
-	uc     *biz.CampusUsecase
-	log    *log.Helper
-	cancel context.CancelFunc
-	done   chan struct{}
-	mu     sync.Mutex
+	uc      *biz.CampusUsecase
+	log     *log.Helper
+	cancel  context.CancelFunc
+	done    chan struct{}
+	mu      sync.Mutex
+	wg      sync.WaitGroup
+	running map[string]bool
 }
 
 func NewCampusTaskServer(uc *biz.CampusUsecase, logger log.Logger) *CampusTaskServer {
 	return &CampusTaskServer{
-		uc:   uc,
-		log:  log.NewHelper(logger),
-		done: make(chan struct{}),
+		uc:      uc,
+		log:     log.NewHelper(logger),
+		done:    make(chan struct{}),
+		running: map[string]bool{},
 	}
 }
 
@@ -54,6 +57,16 @@ func (s *CampusTaskServer) Stop(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+	workersDone := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(workersDone)
+	}()
+	select {
+	case <-workersDone:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	if err := s.uc.StopCampusBatches(ctx); err != nil {
 		s.log.Warnf("停止校园批处理失败: %v", err)
 	}
@@ -63,12 +76,12 @@ func (s *CampusTaskServer) Stop(ctx context.Context) error {
 
 func (s *CampusTaskServer) run(ctx context.Context) {
 	defer close(s.done)
-	s.safeRefreshRecommendPool(ctx)
-	s.safeProcessNotificationOutbox(ctx)
-	s.safeProcessOpsAlerts(ctx)
-	s.safeProcessAIReplyTasks(ctx)
-	s.safeProcessAIContentAuditTasks(ctx)
-	s.safeCleanupAccessLogs(ctx)
+	s.runExclusive(ctx, "recommend_pool", s.safeRefreshRecommendPool)
+	s.runExclusive(ctx, "notification_outbox", s.safeProcessNotificationOutbox)
+	s.runExclusive(ctx, "ops_alerts", s.safeProcessOpsAlerts)
+	s.runExclusive(ctx, "ai_replies", s.safeProcessAIReplyTasks)
+	s.runExclusive(ctx, "ai_audit", s.safeProcessAIContentAuditTasks)
+	s.runExclusive(ctx, "access_log_cleanup", s.safeCleanupAccessLogs)
 	var dailyReportTimer *time.Timer
 	if campusAgentDailyReportEnabled() {
 		dailyReportTimer = time.NewTimer(durationUntilNextDailyReport(time.Now()))
@@ -93,29 +106,50 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-recommendTicker.C:
-			s.safeRefreshRecommendPool(ctx)
+			s.runExclusive(ctx, "recommend_pool", s.safeRefreshRecommendPool)
 		case <-reconcileTicker.C:
-			s.safeReconcile(ctx)
-			s.safeCleanupAccessLogs(ctx)
+			s.runExclusive(ctx, "stats_reconcile", s.safeReconcile)
+			s.runExclusive(ctx, "access_log_cleanup", s.safeCleanupAccessLogs)
 		case <-flushTicker.C:
 			if err := s.uc.FlushCampusBatches(ctx); err != nil {
 				s.log.Warnf("flush campus batches failed: %v", err)
 			}
 		case <-notificationTicker.C:
-			s.safeProcessNotificationOutbox(ctx)
+			s.runExclusive(ctx, "notification_outbox", s.safeProcessNotificationOutbox)
 		case <-opsAlertTicker.C:
-			s.safeProcessOpsAlerts(ctx)
+			s.runExclusive(ctx, "ops_alerts", s.safeProcessOpsAlerts)
 		case <-aiReplyTicker.C:
-			s.safeProcessAIReplyTasks(ctx)
+			s.runExclusive(ctx, "ai_replies", s.safeProcessAIReplyTasks)
 		case <-aiAuditTicker.C:
-			s.safeProcessAIContentAuditTasks(ctx)
+			s.runExclusive(ctx, "ai_audit", s.safeProcessAIContentAuditTasks)
 		case <-dailyReportTimerC(dailyReportTimer):
-			s.safeRunDailyAgentReport(ctx)
+			s.runExclusive(ctx, "daily_agent_report", s.safeRunDailyAgentReport)
 			if dailyReportTimer != nil {
 				dailyReportTimer.Reset(durationUntilNextDailyReport(time.Now()))
 			}
 		}
 	}
+}
+
+func (s *CampusTaskServer) runExclusive(ctx context.Context, name string, fn func(context.Context)) {
+	s.mu.Lock()
+	if s.running[name] {
+		s.mu.Unlock()
+		return
+	}
+	s.running[name] = true
+	s.wg.Add(1)
+	s.mu.Unlock()
+
+	go func() {
+		defer s.wg.Done()
+		defer func() {
+			s.mu.Lock()
+			delete(s.running, name)
+			s.mu.Unlock()
+		}()
+		fn(ctx)
+	}()
 }
 
 func (s *CampusTaskServer) safeRefreshRecommendPool(ctx context.Context) {
@@ -175,9 +209,17 @@ func (s *CampusTaskServer) safeProcessAIReplyTasks(ctx context.Context) {
 }
 
 func (s *CampusTaskServer) safeProcessAIContentAuditTasks(ctx context.Context) {
-	taskCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	perTaskTimeout := envDurationServer("CAMPUS_AI_AUDIT_TASK_TIMEOUT", 10*time.Second)
+	limit := envIntServer("CAMPUS_AI_AUDIT_BATCH_SIZE", 2)
+	if limit < 1 {
+		limit = 1
+	}
+	if limit > 3 {
+		limit = 3
+	}
+	taskCtx, cancel := context.WithTimeout(ctx, time.Duration(limit)*perTaskTimeout+2*time.Second)
 	defer cancel()
-	if err := s.uc.ProcessPendingAIContentAuditTasks(taskCtx, 10); err != nil {
+	if err := s.uc.ProcessPendingAIContentAuditTasks(taskCtx, limit); err != nil {
 		s.log.Warnf("处理校园 AI 内容审核任务失败: %v", err)
 	}
 }
@@ -244,4 +286,28 @@ func envBoolFalseServer(value string) bool {
 	default:
 		return false
 	}
+}
+
+func envIntServer(key string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func envDurationServer(key string, fallback time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
 }

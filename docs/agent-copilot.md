@@ -84,12 +84,14 @@ flowchart LR
 
 | Agent 结果 | 系统行为 |
 | --- | --- |
-| `pass + low + confidence >= 0.85` | `campus-api` 自动设为可见，并通知作者 |
+| `pass + low + confidence >= 0.85` | `campus-api` 自动设为可见，不打扰作者 |
 | `review` 或 `confidence < 0.85` | 保持待审核，生成飞书审批卡片 |
 | `reject` 或 `high` | 不自动拒绝，作为高风险待审推飞书 |
 | Agent 不可用 | 保持待审核，飞书提醒“审核 Agent 不可用” |
 
 飞书审核卡片包含帖子摘要、风险等级、Agent 理由、后台链接，以及“通过/拒绝”按钮。按钮背后是一次性 token 调用 `campus-api /v1/campus/feishu/card/callback`；如果公网回调或飞书能力不完整，仍可降级为打开后台处理。
+
+小程序端采用“作者可见优先”：待审核帖子不进入公共首页，但作者本人可在详情和“我的帖子”看到；客户端优先展示 `publish_state/client_status_label/client_status_detail`，不要直接展示后台审核原因。
 
 ## 飞书运营闭环
 
@@ -160,6 +162,10 @@ CAMPUS_OPS_FEISHU_EVENTS_ENABLED=true
 CAMPUS_OPS_FEISHU_REPORT_NOTIFY=true
 CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES=contact,cooperation,bug,content
 CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE=0.85
+CAMPUS_AI_AUDIT_BATCH_SIZE=2
+CAMPUS_AI_AUDIT_TASK_TIMEOUT=10s
+CAMPUS_AGENT_RUN_STALE_AFTER=10m
+CAMPUS_AGENT_MAX_CONCURRENT_RUNS=1
 LEHU_ALERT_WEBHOOK_INTERNAL_URL=http://alert-webhook:9120
 LEHU_ALERT_WEBHOOK_TOKEN=change-me-long-random-alert-token
 LEHU_PUBLIC_API_BASE_URL=https://api.example.com/v1

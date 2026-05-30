@@ -70,6 +70,7 @@ CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
 CAMPUS_AI_MODEL=deepseek-chat
 CAMPUS_AI_DAILY_LIMIT=200
 CAMPUS_AI_MAX_OUTPUT_TOKENS=220
+CAMPUS_EZAI_MIN_RAG_CONFIDENCE=0.56
 CAMPUS_EZAI_BOT_USER_ID=123
 CAMPUS_AI_EZAI_ENABLED=true
 ```
@@ -373,7 +374,7 @@ sequenceDiagram
 | 没有配置 e仔模型 key 或 bot 用户 | 不创建 e仔回复任务 |
 | 没有配置 `CAMPUS_RAG_BASE_URL` | RAG client 为 noop，知识库查询等于关闭 |
 | 知识库判断不需要资料 | 不强行查库，直接用帖子上下文和模型回答 |
-| 需要资料但没有高置信度命中 | 使用 `ezai_persona_no_knowledge_reply`，避免编造 |
+| 需要资料但没有高置信度命中 | 低于 `CAMPUS_EZAI_MIN_RAG_CONFIDENCE` 时使用 `ezai_persona_no_knowledge_reply`，避免编造 |
 | RAG 服务异常 | 记录错误；如果模型可用，会尽量按帖子上下文回答，否则 fallback |
 | 模型接口异常或超时 | 使用 `ezai_persona_fallback_reply` |
 | 达到每日回复上限 | 任务延后到次日再处理 |

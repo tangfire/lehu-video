@@ -141,7 +141,7 @@ campus_notification_outbox
 campus_notification
 ```
 
-如果审核模式不是 `off`，帖子会先进入待审核，再由人工或 AI 审核变更状态。
+如果审核模式不是 `off`，帖子会先进入待审核，再由人工或 AI 审核变更状态。待审核帖不进入公共列表，但作者本人可以在自己的详情和“我的帖子”看到，小程序用 `publish_state/client_status_label/client_status_detail` 展示成“同步中/需修改”。
 
 ### 图片上传
 

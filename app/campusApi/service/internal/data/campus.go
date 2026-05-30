@@ -2710,6 +2710,22 @@ func (r *campusRepo) GetAgentRunByID(ctx context.Context, id int64) (bool, *biz.
 	return true, toBizAgentRun(&row), nil
 }
 
+func (r *campusRepo) CountRunningAgentRuns(ctx context.Context, runType string, staleAfter time.Duration) (int64, error) {
+	db := r.data.db.WithContext(ctx).Model(&campusAgentRunModel{}).
+		Where("status = ?", biz.CampusAgentRunStatusRunning)
+	if strings.TrimSpace(runType) != "" {
+		db = db.Where("run_type = ?", strings.TrimSpace(runType))
+	}
+	if staleAfter > 0 {
+		db = db.Where("created_at >= ?", time.Now().Add(-staleAfter))
+	}
+	var count int64
+	if err := db.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *campusRepo) ListAgentRuns(ctx context.Context, offset, limit int) ([]*biz.CampusAgentRun, int64, error) {
 	if limit <= 0 {
 		limit = 20

@@ -139,6 +139,7 @@ CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
 CAMPUS_AI_MODEL=deepseek-chat
 CAMPUS_AI_DAILY_LIMIT=200
 CAMPUS_EZAI_BOT_USER_ID=
+CAMPUS_EZAI_MIN_RAG_CONFIDENCE=0.56
 SILICONFLOW_API_KEY=
 ```
 
@@ -161,9 +162,13 @@ CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES=contact,cooperation,bug,content
 CAMPUS_AGENT_AUDIT_ENABLED=true
 CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE=0.85
 CAMPUS_AGENT_AUDIT_TIMEOUT=10s
+CAMPUS_AI_AUDIT_BATCH_SIZE=2
+CAMPUS_AI_AUDIT_TASK_TIMEOUT=10s
+CAMPUS_AGENT_RUN_STALE_AFTER=10m
+CAMPUS_AGENT_MAX_CONCURRENT_RUNS=1
 ```
 
-`campus-agent` 承担两类能力：巡检类任务只读，只生成每日巡检、RAG 缺口和治理建议；发帖审核通过 `/internal/moderation/audit` 返回结构化判断。低风险高置信帖子可自动通过，不确定或高风险内容保留待审核并推飞书确认。生产默认每天 `09:30 Asia/Shanghai` 自动跑一次 `daily_ops` 并发飞书日报；举报和重要反馈会进入 5 秒级飞书提醒队列。
+`campus-agent` 承担两类能力：巡检类任务只读，只生成每日巡检、RAG 缺口和治理建议；发帖审核通过 `/internal/moderation/audit` 返回结构化判断。低风险高置信帖子自动同步到首页且不打扰作者，不确定或高风险内容保留待处理并推飞书确认。生产默认每天 `09:30 Asia/Shanghai` 自动跑一次 `daily_ops` 并发飞书日报；举报和重要反馈会进入 5 秒级飞书提醒队列。生产 compose 会把 `campus-agent` 限制在约 `384m / 0.5 CPU`，AI 审核 worker 默认每轮 2 条，避免挤占 API 主链路。
 
 飞书告警和 Agent 运营通知：
 

@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS `campus_ops_setting` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园运营配置';
 
 INSERT INTO `campus_ops_setting` (`setting_key`, `setting_value`, `updated_by`)
-VALUES ('post_audit_mode', 'off', 0)
+VALUES ('post_audit_mode', 'ai', 0)
 ON DUPLICATE KEY UPDATE `setting_key` = `setting_key`;
 
 CREATE TABLE IF NOT EXISTS `campus_ai_audit_task` (

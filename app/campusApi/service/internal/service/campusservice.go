@@ -3064,35 +3064,81 @@ func postToMap(post *biz.CampusForumPost) map[string]interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"id":                strconv.FormatInt(post.ID, 10),
-		"category_code":     post.CategoryCode,
-		"category_name":     post.CategoryName,
-		"author":            authorToMap(post.Author),
-		"title":             post.Title,
-		"content":           post.Content,
-		"images":            post.Images,
-		"media_type":        post.MediaType,
-		"post_type":         post.PostType,
-		"extra":             post.Extra,
-		"cover_url":         post.CoverURL,
-		"is_official":       post.IsOfficial,
-		"is_featured":       post.IsFeatured,
-		"is_pinned":         post.IsPinned,
-		"sort_weight":       post.SortWeight,
-		"status":            post.Status,
-		"audit_reason":      post.AuditReason,
-		"ai_audit_status":   post.AIAuditStatus,
-		"ai_audit_risk":     post.AIAuditRisk,
-		"ai_audit_decision": post.AIAuditDecision,
-		"ai_audit_reason":   post.AIAuditReason,
-		"ai_audit_error":    post.AIAuditError,
-		"like_count":        post.LikeCount,
-		"comment_count":     post.CommentCount,
-		"collected_count":   post.CollectedCount,
-		"is_liked":          post.IsLiked,
-		"is_collected":      post.IsCollected,
-		"created_at":        formatTime(post.CreatedAt),
-		"updated_at":        formatTime(post.UpdatedAt),
+		"id":                   strconv.FormatInt(post.ID, 10),
+		"category_code":        post.CategoryCode,
+		"category_name":        post.CategoryName,
+		"author":               authorToMap(post.Author),
+		"title":                post.Title,
+		"content":              post.Content,
+		"images":               post.Images,
+		"media_type":           post.MediaType,
+		"post_type":            post.PostType,
+		"extra":                post.Extra,
+		"cover_url":            post.CoverURL,
+		"is_official":          post.IsOfficial,
+		"is_featured":          post.IsFeatured,
+		"is_pinned":            post.IsPinned,
+		"sort_weight":          post.SortWeight,
+		"status":               post.Status,
+		"audit_reason":         post.AuditReason,
+		"publish_state":        postPublishState(post),
+		"public_visible":       post.Status == biz.CampusAuditStatusVisible,
+		"client_status_label":  postClientStatusLabel(post),
+		"client_status_detail": postClientStatusDetail(post),
+		"ai_audit_status":      post.AIAuditStatus,
+		"ai_audit_risk":        post.AIAuditRisk,
+		"ai_audit_decision":    post.AIAuditDecision,
+		"ai_audit_reason":      post.AIAuditReason,
+		"ai_audit_error":       post.AIAuditError,
+		"like_count":           post.LikeCount,
+		"comment_count":        post.CommentCount,
+		"collected_count":      post.CollectedCount,
+		"is_liked":             post.IsLiked,
+		"is_collected":         post.IsCollected,
+		"created_at":           formatTime(post.CreatedAt),
+		"updated_at":           formatTime(post.UpdatedAt),
+	}
+}
+
+func postPublishState(post *biz.CampusForumPost) string {
+	if post == nil {
+		return "hidden"
+	}
+	switch post.Status {
+	case biz.CampusAuditStatusVisible:
+		return "visible"
+	case biz.CampusAuditStatusPending:
+		return "syncing"
+	case biz.CampusAuditStatusRejected:
+		return "needs_attention"
+	default:
+		return "hidden"
+	}
+}
+
+func postClientStatusLabel(post *biz.CampusForumPost) string {
+	switch postPublishState(post) {
+	case "visible":
+		return "已发布"
+	case "syncing":
+		return "同步中"
+	case "needs_attention":
+		return "需修改"
+	default:
+		return "已隐藏"
+	}
+}
+
+func postClientStatusDetail(post *biz.CampusForumPost) string {
+	switch postPublishState(post) {
+	case "visible":
+		return "已同步到首页"
+	case "syncing":
+		return "已发布，正在同步到首页"
+	case "needs_attention":
+		return "这条内容暂未同步，请修改后再发布"
+	default:
+		return "这条内容暂不可见"
 	}
 }
 

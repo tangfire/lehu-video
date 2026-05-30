@@ -64,6 +64,8 @@
 
 帖子只支持文字和图片，不支持视频。
 
+帖子响应保留后台字段 `status/audit_reason`，同时给小程序提供 `publish_state/public_visible/client_status_label/client_status_detail`。公共列表和他人主页只返回公开可见帖；作者本人访问详情或“我的帖子”时可以看到自己的同步中/需修改内容。
+
 ## 评论、点赞、收藏、举报
 
 | 方法 | 路径 | 权限 | 用途 |

@@ -216,6 +216,8 @@ manual  人工审核
 ai      AI 初审，运营复核
 ```
 
+新库初始化默认是 `ai`。用户发帖后接口立即返回；公共首页只展示已通过帖子，作者本人可在详情和“我的帖子”看到同步中的内容。小程序应优先展示 `publish_state/client_status_label/client_status_detail`，不要直接展示后台审核原因。
+
 相关接口：
 
 ```text
