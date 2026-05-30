@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { FiBarChart2, FiBell, FiChevronDown, FiCpu, FiEdit3, FiFileText, FiGrid, FiKey, FiMessageCircle, FiShield, FiUsers } from 'react-icons/fi';
+import { FiBarChart2, FiBell, FiChevronDown, FiCpu, FiEdit3, FiFileText, FiGrid, FiKey, FiShield, FiUsers } from 'react-icons/fi';
 import { clearUserData, getCurrentUser, isLoggedIn } from '../../api/user';
 import './Admin.css';
 
@@ -12,7 +12,6 @@ const navItems = [
     { to: '/admin/moderation', label: '反馈与举报', icon: <FiBell /> },
     { to: '/admin/audit', label: '审核设置', icon: <FiShield /> },
     { to: '/admin/assistant', label: 'e仔助手', icon: <FiCpu /> },
-    { to: '/admin/ai-replies', label: 'e仔回复', icon: <FiMessageCircle /> },
 ];
 
 const advancedItems = [
