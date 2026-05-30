@@ -144,6 +144,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/users", s.wrap(s.authRequired(s.handleAdminListUsers)))
 	r.PUT("/v1/campus/admin/users/{id}/role", s.wrap(s.authRequired(s.handleAdminUpdateUserRole)))
 	r.POST("/v1/campus/admin/notifications", s.wrap(s.authRequired(s.handleAdminCreateNotification)))
+	r.GET("/v1/campus/internal/ops-metrics", s.wrap(s.handleOpsMetrics))
 	r.GET("/v1/campus/internal/copilot/tools/admin-summary", s.wrap(s.handleCopilotToolAdminSummary))
 	r.GET("/v1/campus/internal/copilot/tools/security-overview", s.wrap(s.handleCopilotToolSecurityOverview))
 	r.GET("/v1/campus/internal/copilot/tools/ai-reply-overview", s.wrap(s.handleCopilotToolAIReplyOverview))
@@ -1845,6 +1846,17 @@ func (s *CampusService) handleAdminUpdateAgentSettings(w http.ResponseWriter, r 
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"settings": agentSettingsToMap(settings)})
+}
+
+func (s *CampusService) handleOpsMetrics(w http.ResponseWriter, r *http.Request) {
+	text, err := s.uc.RenderOpsMetrics(r.Context())
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(text))
 }
 
 func (s *CampusService) handleAdminGetEzaiPersona(w http.ResponseWriter, r *http.Request) {

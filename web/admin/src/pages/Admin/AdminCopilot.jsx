@@ -38,6 +38,9 @@ const alertTypeText = {
     audit_review_required: '待审',
     audit_high_risk: '高风险',
     ai_budget_warning: '预算',
+    report_overdue: '举报超时',
+    audit_overdue: '待审超时',
+    feishu_delivery_degraded: '飞书异常',
 };
 
 const AdminCopilot = () => {

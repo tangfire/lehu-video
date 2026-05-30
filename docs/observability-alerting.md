@@ -73,6 +73,7 @@ Dashboards -> Campus e站
 | --- | --- |
 | `校园 e站日志搜索` | 按容器、`request_id`、`trace_id`、接口路径、错误关键词查日志 |
 | `校园 e站健康监控` | 看 API、MySQL、Redis、RAG、Qdrant 等目标是否 up/down |
+| `校园 e站值班 Agent` | 看 Agent 运行、AI 成本、审核决策、飞书队列和 SLA 超时 |
 
 日志搜索面板的底层查询大致是：
 
@@ -85,6 +86,15 @@ Dashboards -> Campus e站
 ```promql
 campus_probe_success
 campus_probe_duration_seconds
+```
+
+值班 Agent 面板查询 `campus-api` 暴露的内部运营指标，例如：
+
+```promql
+campus_agent_runs_total
+campus_ai_cost_cny
+campus_ops_alerts
+campus_sla_overdue_items
 ```
 
 ## 日志怎么查
@@ -132,6 +142,7 @@ make logs-search Q="/v1/campus/forum/posts" SINCE=2h
 ## 健康监控怎么理解
 
 `health-exporter` 每 15 秒左右探测一次目标，并在 `:9115/metrics` 暴露结果。Prometheus 每 30 秒抓取一次。
+同时 Prometheus 会抓取 `campus-api` 的 `GET /v1/campus/internal/ops-metrics`，用于值班 Agent、飞书提醒和 SLA 面板；这个路径只给 Docker 内网使用，生产反向代理不要转发到公网。
 
 健康目标来自 `deploy/observability/health-exporter/targets.json`：
 
@@ -158,6 +169,13 @@ make logs-search Q="/v1/campus/forum/posts" SINCE=2h
 | `campus_probe_duration_seconds` | 探测耗时 |
 | `campus_probe_status_code` | HTTP 探测的状态码，TCP 目标为 `0` |
 | `campus_probe_last_checked_timestamp_seconds` | 最近一次探测时间 |
+| `campus_agent_runs_total` | Agent 运行记录数量，按类型、状态、来源和风险分组 |
+| `campus_ai_cost_cny` | AI 估算成本，按今日/月度和功能分组 |
+| `campus_ai_audit_decisions_total` | AI/Agent 审核决策数量 |
+| `campus_ai_audit_pending` | 当前待处理 AI 审核任务 |
+| `campus_ops_alerts` | 飞书运营提醒队列数量 |
+| `campus_ops_alert_oldest_pending_seconds` | 最老待发送/发送中飞书提醒积压秒数 |
+| `campus_sla_overdue_items` | 举报、待审、飞书链路 SLA 超时数量 |
 
 看到 `up` 基本表示这项探测正常；看到 `down` 表示这个 HTTP 接口或 TCP 端口连续探测失败。`readyz` 比 `healthz` 更适合作为“能不能接流量”的判断，因为它应该覆盖关键依赖。
 
@@ -373,7 +391,7 @@ PY
 
 ## Agent 和 AI 成本排障
 
-值班 Agent、发帖 AI 初审、e仔回复和后台预览的模型调用会写入 MySQL `campus_ai_usage_log`，后台 `/admin/audit` 会展示今日和本月预估成本。当前没有把 token 成本做成 Prometheus 指标，原因是这类数据需要按功能、来源和预算状态看，用后台表格更直观，也避免 Prometheus 存太多业务明细。
+值班 Agent、发帖 AI 初审、e仔回复和后台预览的模型调用会写入 MySQL `campus_ai_usage_log`，后台 `/admin/audit` 会展示今日和本月预估成本。Prometheus 只抓聚合后的 `campus_ai_cost_cny{window,feature}`，用于 Grafana 看趋势和异常；单次调用、来源对象和错误详情仍回后台表格或 Loki 查，避免 Prometheus 存过多业务明细。
 
 常用日志查询：
 
@@ -389,9 +407,10 @@ PY
 
 1. `/admin/audit` 里的飞书运营通知、举报提醒、重要反馈提醒是否开启。
 2. `/admin/copilot` 的“飞书提醒队列”是否有失败、待发送堆积或最近错误。
-3. `LEHU_ALERT_FEISHU_WEBHOOK` 是否同时存在于 `api` 和 `alert-webhook` 容器环境。
-4. `campus_ops_alert` 里对应事件的 `status / retry_count / feishu_error`。
-5. Grafana 日志里 `campus-api` 的 `ops_alert` 和 `campus-alert-webhook` 的 `agent_notice`。
+3. Grafana 的「校园 e站值班 Agent」里 `campus_ops_alerts` 和 `campus_sla_overdue_items` 是否积压。
+4. `LEHU_ALERT_FEISHU_WEBHOOK` 是否同时存在于 `api` 和 `alert-webhook` 容器环境。
+5. `campus_ops_alert` 里对应事件的 `status / retry_count / feishu_error`。
+6. Grafana 日志里 `campus-api` 的 `ops_alert` 和 `campus-alert-webhook` 的 `agent_notice`。
 
 ## 留存和成本
 

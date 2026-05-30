@@ -1797,6 +1797,24 @@ func (r *campusRepo) GetReportByID(ctx context.Context, reportID int64) (bool, *
 	return true, report, nil
 }
 
+func (r *campusRepo) GetReportByTargetAndReporter(ctx context.Context, targetType string, targetID int64, reporterID string) (bool, *biz.CampusForumReport, error) {
+	var row campusForumReportModel
+	err := r.data.db.WithContext(ctx).Model(&campusForumReportModel{}).
+		Where("target_type = ? AND target_id = ? AND reporter_id = ?", strings.TrimSpace(targetType), targetID, parseID(reporterID)).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	report := toBizReport(&row)
+	if err := r.fillReports(ctx, []*biz.CampusForumReport{report}); err != nil {
+		return false, nil, err
+	}
+	return true, report, nil
+}
+
 func (r *campusRepo) ListReports(ctx context.Context, status int32, offset, limit int) ([]*biz.CampusForumReport, int64, error) {
 	db := r.data.db.WithContext(ctx).Model(&campusForumReportModel{})
 	if status >= 0 {
@@ -3139,6 +3157,229 @@ func (r *campusRepo) GetOpsAlertSummary(ctx context.Context, todayStart time.Tim
 		out.RecentAlerts = append(out.RecentAlerts, toBizOpsAlert(&rows[i]))
 	}
 	return out, nil
+}
+
+func (r *campusRepo) GetOpsSLASnapshot(ctx context.Context, reportBefore, auditBefore, feishuBefore time.Time, sampleLimit int) (*biz.CampusOpsSLASnapshot, error) {
+	if sampleLimit <= 0 {
+		sampleLimit = 3
+	}
+	out := &biz.CampusOpsSLASnapshot{}
+
+	reportQuery := func() *gorm.DB {
+		return r.data.db.WithContext(ctx).Model(&campusForumReportModel{}).
+			Where("status = ? AND created_at <= ?", biz.CampusAuditStatusPending, reportBefore)
+	}
+	if err := reportQuery().Count(&out.OverdueReportCount).Error; err != nil {
+		return nil, err
+	}
+	var reportRows []campusForumReportModel
+	if err := reportQuery().Order("created_at ASC, id ASC").Limit(sampleLimit).Find(&reportRows).Error; err != nil {
+		return nil, err
+	}
+	out.OverdueReports = make([]*biz.CampusForumReport, 0, len(reportRows))
+	for i := range reportRows {
+		out.OverdueReports = append(out.OverdueReports, toBizReport(&reportRows[i]))
+	}
+	if err := r.fillReports(ctx, out.OverdueReports); err != nil {
+		return nil, err
+	}
+
+	postQuery := func() *gorm.DB {
+		return r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
+			Where("status = ? AND is_deleted = ? AND created_at <= ?", biz.CampusAuditStatusPending, false, auditBefore)
+	}
+	if err := postQuery().Count(&out.OverduePostCount).Error; err != nil {
+		return nil, err
+	}
+	var postRows []campusForumPostModel
+	if err := postQuery().Order("created_at ASC, id ASC").Limit(sampleLimit).Find(&postRows).Error; err != nil {
+		return nil, err
+	}
+	out.OverduePosts = make([]*biz.CampusForumPost, 0, len(postRows))
+	for i := range postRows {
+		out.OverduePosts = append(out.OverduePosts, toBizPost(&postRows[i]))
+	}
+	if err := r.fillPostCategoryNames(ctx, out.OverduePosts); err != nil {
+		return nil, err
+	}
+
+	commentQuery := func() *gorm.DB {
+		return r.data.db.WithContext(ctx).Model(&campusForumCommentModel{}).
+			Where("status = ? AND is_deleted = ? AND created_at <= ?", biz.CampusAuditStatusPending, false, auditBefore)
+	}
+	if err := commentQuery().Count(&out.OverdueCommentCount).Error; err != nil {
+		return nil, err
+	}
+	var commentRows []campusForumCommentModel
+	if err := commentQuery().Order("created_at ASC, id ASC").Limit(sampleLimit).Find(&commentRows).Error; err != nil {
+		return nil, err
+	}
+	out.OverdueComments = make([]*biz.CampusForumComment, 0, len(commentRows))
+	for i := range commentRows {
+		out.OverdueComments = append(out.OverdueComments, toBizComment(&commentRows[i]))
+	}
+	if err := r.FillCommentPosts(ctx, out.OverdueComments); err != nil {
+		return nil, err
+	}
+
+	feishuQuery := func() *gorm.DB {
+		return r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).
+			Where("(status = ? AND updated_at <= ?) OR (feishu_status = ? AND updated_at <= ?) OR (status IN ? AND created_at <= ?)",
+				biz.CampusOpsAlertStatusFailed, feishuBefore,
+				biz.CampusAgentFeishuStatusFailed, feishuBefore,
+				[]string{biz.CampusOpsAlertStatusPending, biz.CampusOpsAlertStatusProcessing}, feishuBefore)
+	}
+	if err := feishuQuery().Count(&out.FeishuDegradedCount).Error; err != nil {
+		return nil, err
+	}
+	var alertRows []campusOpsAlertModel
+	if err := feishuQuery().Order("updated_at ASC, id ASC").Limit(sampleLimit).Find(&alertRows).Error; err != nil {
+		return nil, err
+	}
+	out.FeishuDegradedAlerts = make([]*biz.CampusOpsAlert, 0, len(alertRows))
+	for i := range alertRows {
+		out.FeishuDegradedAlerts = append(out.FeishuDegradedAlerts, toBizOpsAlert(&alertRows[i]))
+	}
+	return out, nil
+}
+
+func (r *campusRepo) GetOpsMetricSeries(ctx context.Context, now time.Time, sla *biz.CampusOpsSLASnapshot) ([]biz.CampusMetricSeries, error) {
+	series := make([]biz.CampusMetricSeries, 0, 32)
+	appendSeries := func(name string, labels map[string]string, value float64) {
+		series = append(series, biz.CampusMetricSeries{Name: name, Labels: labels, Value: value})
+	}
+
+	var runRows []struct {
+		RunType   string `gorm:"column:run_type"`
+		Status    string `gorm:"column:status"`
+		Source    string `gorm:"column:source"`
+		RiskLevel string `gorm:"column:risk_level"`
+		Count     int64  `gorm:"column:count"`
+	}
+	if err := r.data.db.WithContext(ctx).Model(&campusAgentRunModel{}).
+		Select("run_type, status, source, risk_level, COUNT(*) AS count").
+		Group("run_type, status, source, risk_level").
+		Scan(&runRows).Error; err != nil {
+		return nil, err
+	}
+	if len(runRows) == 0 {
+		appendSeries("campus_agent_runs_total", map[string]string{"run_type": "none", "status": "none", "source": "none", "risk_level": "none"}, 0)
+	}
+	for _, row := range runRows {
+		appendSeries("campus_agent_runs_total", map[string]string{
+			"run_type":   firstNonEmptyData(row.RunType, "unknown"),
+			"status":     firstNonEmptyData(row.Status, "unknown"),
+			"source":     firstNonEmptyData(row.Source, "unknown"),
+			"risk_level": firstNonEmptyData(row.RiskLevel, "unknown"),
+		}, float64(row.Count))
+	}
+
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	for _, item := range []struct {
+		window string
+		start  time.Time
+	}{
+		{"today", today},
+		{"month", month},
+	} {
+		var costRows []struct {
+			Feature string  `gorm:"column:feature"`
+			Cost    float64 `gorm:"column:cost"`
+		}
+		if err := r.data.db.WithContext(ctx).Model(&campusAIUsageLogModel{}).
+			Select("feature, COALESCE(SUM(estimated_cost_cny), 0) AS cost").
+			Where("created_at >= ? AND created_at < ?", item.start, now).
+			Group("feature").
+			Scan(&costRows).Error; err != nil {
+			return nil, err
+		}
+		if len(costRows) == 0 {
+			appendSeries("campus_ai_cost_cny", map[string]string{"window": item.window, "feature": "all"}, 0)
+		}
+		for _, row := range costRows {
+			appendSeries("campus_ai_cost_cny", map[string]string{
+				"window":  item.window,
+				"feature": firstNonEmptyData(row.Feature, "unknown"),
+			}, row.Cost)
+		}
+	}
+
+	var auditRows []struct {
+		Decision  string `gorm:"column:decision"`
+		RiskLevel string `gorm:"column:risk_level"`
+		Count     int64  `gorm:"column:count"`
+	}
+	if err := r.data.db.WithContext(ctx).Model(&campusAIContentAuditTaskModel{}).
+		Select("decision, risk_level, COUNT(*) AS count").
+		Group("decision, risk_level").
+		Scan(&auditRows).Error; err != nil {
+		return nil, err
+	}
+	if len(auditRows) == 0 {
+		appendSeries("campus_ai_audit_decisions_total", map[string]string{"decision": "none", "risk_level": "none"}, 0)
+	}
+	for _, row := range auditRows {
+		appendSeries("campus_ai_audit_decisions_total", map[string]string{
+			"decision":   firstNonEmptyData(row.Decision, "unknown"),
+			"risk_level": firstNonEmptyData(row.RiskLevel, "unknown"),
+		}, float64(row.Count))
+	}
+	var pendingAudit int64
+	if err := r.data.db.WithContext(ctx).Model(&campusAIContentAuditTaskModel{}).
+		Where("status = ?", biz.CampusAIContentAuditTaskStatusPending).
+		Count(&pendingAudit).Error; err != nil {
+		return nil, err
+	}
+	appendSeries("campus_ai_audit_pending", nil, float64(pendingAudit))
+
+	var alertRows []struct {
+		AlertType    string `gorm:"column:alert_type"`
+		Status       string `gorm:"column:status"`
+		FeishuStatus string `gorm:"column:feishu_status"`
+		Count        int64  `gorm:"column:count"`
+	}
+	if err := r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).
+		Select("alert_type, status, feishu_status, COUNT(*) AS count").
+		Group("alert_type, status, feishu_status").
+		Scan(&alertRows).Error; err != nil {
+		return nil, err
+	}
+	if len(alertRows) == 0 {
+		appendSeries("campus_ops_alerts", map[string]string{"alert_type": "none", "status": "none", "feishu_status": "none"}, 0)
+	}
+	for _, row := range alertRows {
+		appendSeries("campus_ops_alerts", map[string]string{
+			"alert_type":    firstNonEmptyData(row.AlertType, "unknown"),
+			"status":        firstNonEmptyData(row.Status, "unknown"),
+			"feishu_status": firstNonEmptyData(row.FeishuStatus, "unknown"),
+		}, float64(row.Count))
+	}
+	var oldest struct {
+		CreatedAt sql.NullTime `gorm:"column:created_at"`
+	}
+	if err := r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).
+		Select("MIN(created_at) AS created_at").
+		Where("status IN ?", []string{biz.CampusOpsAlertStatusPending, biz.CampusOpsAlertStatusProcessing}).
+		Scan(&oldest).Error; err != nil {
+		return nil, err
+	}
+	oldestSeconds := 0.0
+	if oldest.CreatedAt.Valid {
+		oldestSeconds = now.Sub(oldest.CreatedAt.Time).Seconds()
+		if oldestSeconds < 0 {
+			oldestSeconds = 0
+		}
+	}
+	appendSeries("campus_ops_alert_oldest_pending_seconds", nil, oldestSeconds)
+
+	if sla == nil {
+		sla = &biz.CampusOpsSLASnapshot{}
+	}
+	appendSeries("campus_sla_overdue_items", map[string]string{"kind": "report"}, float64(sla.OverdueReportCount))
+	appendSeries("campus_sla_overdue_items", map[string]string{"kind": "audit"}, float64(sla.OverduePostCount+sla.OverdueCommentCount))
+	appendSeries("campus_sla_overdue_items", map[string]string{"kind": "feishu"}, float64(sla.FeishuDegradedCount))
+	return series, nil
 }
 
 func (r *campusRepo) CreateOpsActionToken(ctx context.Context, item *biz.CampusOpsActionToken) error {

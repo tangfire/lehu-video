@@ -121,11 +121,14 @@ flowchart LR
 | 每日巡检 | `campus-api` 后台任务默认每天 `09:30 Asia/Shanghai` 创建一次 `daily_ops`，完成后发送飞书日报 |
 | 高风险提醒 | 手动运行完成后如果 `risk_level=high`，自动发送一条高风险提醒 |
 | 手动发送 | 运营在 `/admin/copilot` 对任意 `done` 状态运行记录点击“发送到飞书” |
-| 举报提醒 | 用户举报帖子/评论后写入 `campus_ops_alert`，后台任务 5 秒级扫描并推飞书，可在飞书内下架或忽略；举报人会收到站内确认和处理结果 |
+| 举报提醒 | 用户举报帖子/评论后写入 `campus_ops_alert`，飞书卡片带被举报帖子/评论摘要、举报原因、举报人和后台入口，可在飞书内下架或忽略；举报人会收到站内确认和处理结果 |
 | 重要反馈 | `contact/cooperation/bug/content` 类型即时提醒，普通 `suggestion` 进入日报 |
 | 审核确认 | Agent 拿不准的帖子推飞书卡片，可点通过/拒绝或回后台 |
+| SLA 超时 | 举报超过 30 分钟、待审超过 2 小时、飞书失败/积压超过 10 分钟时，按类型每小时聚合提醒一次 |
 
 发送失败不会改写 Agent 的分析结果，只会更新运行记录里的飞书状态。后台列表会展示 `pending/sent/failed/skipped`。`/admin/copilot` 还会展示“飞书提醒队列”：待发送、发送中、失败、今日已发送、最近错误和最近提醒，用来确认飞书值班链路是否真的在工作；失败重试仍由后台任务退避处理，不在页面手动重发。
+
+Grafana 的「校园 e站值班 Agent」面板会展示 `campus_agent_runs_total`、`campus_ai_cost_cny`、`campus_ai_audit_decisions_total`、`campus_ops_alerts`、`campus_sla_overdue_items` 等指标，用来判断 Agent 和飞书链路是否真的在值班。
 
 `campus_agent_run` 记录这些字段：
 
@@ -172,6 +175,10 @@ CAMPUS_AGENT_FEISHU_ENABLED=true
 CAMPUS_AGENT_DAILY_REPORT_ENABLED=true
 CAMPUS_AGENT_DAILY_REPORT_TIME=09:30
 CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED=true
+CAMPUS_OPS_SLA_SCAN_ENABLED=true
+CAMPUS_OPS_SLA_REPORT_OVERDUE=30m
+CAMPUS_OPS_SLA_AUDIT_OVERDUE=2h
+CAMPUS_OPS_SLA_FEISHU_FAILED=10m
 CAMPUS_OPS_FEISHU_EVENTS_ENABLED=true
 CAMPUS_OPS_FEISHU_REPORT_NOTIFY=true
 CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY=true

@@ -59,6 +59,9 @@ const (
 	CampusOpsAlertTypeAuditReviewRequired = "audit_review_required"
 	CampusOpsAlertTypeAuditHighRisk       = "audit_high_risk"
 	CampusOpsAlertTypeAIBudgetWarning     = "ai_budget_warning"
+	CampusOpsAlertTypeReportOverdue       = "report_overdue"
+	CampusOpsAlertTypeAuditOverdue        = "audit_overdue"
+	CampusOpsAlertTypeFeishuDegraded      = "feishu_delivery_degraded"
 
 	CampusOpsAlertPriorityNormal   = "normal"
 	CampusOpsAlertPriorityHigh     = "high"
@@ -529,6 +532,23 @@ type CampusOpsAlertSummary struct {
 	LastFailedAt    *time.Time
 	LastError       string
 	RecentAlerts    []*CampusOpsAlert
+}
+
+type CampusOpsSLASnapshot struct {
+	OverdueReports       []*CampusForumReport
+	OverdueReportCount   int64
+	OverduePosts         []*CampusForumPost
+	OverduePostCount     int64
+	OverdueComments      []*CampusForumComment
+	OverdueCommentCount  int64
+	FeishuDegradedAlerts []*CampusOpsAlert
+	FeishuDegradedCount  int64
+}
+
+type CampusMetricSeries struct {
+	Name   string
+	Labels map[string]string
+	Value  float64
 }
 
 type CampusAIContentAuditTask struct {
@@ -1608,6 +1628,7 @@ type CampusRepo interface {
 	RemovePostCollection(ctx context.Context, userID string, postID int64) error
 	CreateReport(ctx context.Context, report *CampusForumReport) error
 	GetReportByID(ctx context.Context, reportID int64) (bool, *CampusForumReport, error)
+	GetReportByTargetAndReporter(ctx context.Context, targetType string, targetID int64, reporterID string) (bool, *CampusForumReport, error)
 	ListReports(ctx context.Context, status int32, offset, limit int) ([]*CampusForumReport, int64, error)
 	ListReportsByTarget(ctx context.Context, targetType string, targetID int64, status int32) ([]*CampusForumReport, error)
 	UpdateReportStatus(ctx context.Context, reportID int64, status int32) error
@@ -1672,6 +1693,8 @@ type CampusRepo interface {
 	MarkOpsAlertSent(ctx context.Context, id int64, feishuStatus, feishuError string, sentAt *time.Time) error
 	MarkOpsAlertRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error
 	GetOpsAlertSummary(ctx context.Context, todayStart time.Time, recentLimit int) (*CampusOpsAlertSummary, error)
+	GetOpsSLASnapshot(ctx context.Context, reportBefore, auditBefore, feishuBefore time.Time, sampleLimit int) (*CampusOpsSLASnapshot, error)
+	GetOpsMetricSeries(ctx context.Context, now time.Time, sla *CampusOpsSLASnapshot) ([]CampusMetricSeries, error)
 	CreateOpsActionToken(ctx context.Context, item *CampusOpsActionToken) error
 	UseOpsActionToken(ctx context.Context, tokenHash string, now time.Time) (bool, *CampusOpsActionToken, error)
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
@@ -3691,23 +3714,67 @@ func (uc *CampusUsecase) enqueueReportOpsAlert(ctx context.Context, report *Camp
 	}
 	adminPath := "/admin/moderation?tab=reports&status=0"
 	actions = append(actions, map[string]interface{}{"label": "打开后台", "style": "default", "url": adminURL(adminPath), "action": "open_admin"})
-	summary := fmt.Sprintf("用户 %s 举报了%s %d：%s", report.ReporterID, targetLabel, report.TargetID, firstNonEmpty(report.Reason, "未填写原因"))
+	reporterName := campusReportReporterName(report)
+	targetTitle, targetExcerpt, commentExcerpt, postID, postTitle := campusReportTargetSummary(report)
+	targetText := firstNonEmpty(targetTitle, commentExcerpt, targetExcerpt, fmt.Sprintf("%s %d", targetLabel, report.TargetID))
+	summary := fmt.Sprintf("%s 举报了%s「%s」：%s", reporterName, targetLabel, trimLimit(targetText, 60), firstNonEmpty(report.Reason, "未填写原因"))
 	payload := map[string]interface{}{
-		"report_id":   fmt.Sprintf("%d", report.ID),
-		"target_type": targetType,
-		"target_id":   fmt.Sprintf("%d", report.TargetID),
-		"reporter_id": report.ReporterID,
-		"reason":      report.Reason,
-		"detail":      report.Detail,
-		"actions":     actions,
-		"admin_path":  adminPath,
-		"callback_ok": feishuCardCallbackEnabled(),
+		"report_id":       fmt.Sprintf("%d", report.ID),
+		"target_type":     targetType,
+		"target_id":       fmt.Sprintf("%d", report.TargetID),
+		"target_title":    targetTitle,
+		"target_excerpt":  targetExcerpt,
+		"comment_excerpt": commentExcerpt,
+		"post_id":         postID,
+		"post_title":      postTitle,
+		"reporter_id":     report.ReporterID,
+		"reporter_name":   reporterName,
+		"reason":          report.Reason,
+		"detail":          report.Detail,
+		"actions":         actions,
+		"admin_path":      adminPath,
+		"callback_ok":     feishuCardCallbackEnabled(),
 	}
 	if err := uc.enqueueOpsAlert(ctx, CampusOpsAlertTypeReportCreated, CampusOpsAlertPriorityHigh, "report", report.ID,
 		fmt.Sprintf("report:%d", report.ID),
 		"校园 e站收到新举报", summary, payload); err != nil {
 		uc.log.WithContext(ctx).Warnf("enqueue report ops alert failed: report_id=%d err=%v", report.ID, err)
 	}
+}
+
+func campusReportReporterName(report *CampusForumReport) string {
+	if report == nil {
+		return "用户"
+	}
+	if report.Reporter != nil {
+		return firstNonEmpty(report.Reporter.Name, report.Reporter.Nickname, report.Reporter.UserID, report.ReporterID, "用户")
+	}
+	return firstNonEmpty(report.ReporterID, "用户")
+}
+
+func campusReportTargetSummary(report *CampusForumReport) (targetTitle, targetExcerpt, commentExcerpt string, postID int64, postTitle string) {
+	if report == nil {
+		return "", "", "", 0, ""
+	}
+	if report.Target != nil {
+		targetTitle = trimLimit(report.Target.Title, 80)
+		targetExcerpt = trimLimit(report.Target.Content, 180)
+		postID = report.Target.ID
+		postTitle = targetTitle
+	}
+	if report.Comment != nil {
+		commentExcerpt = trimLimit(report.Comment.Content, 180)
+		if report.Comment.Post != nil {
+			postID = report.Comment.Post.ID
+			postTitle = trimLimit(report.Comment.Post.Title, 80)
+			if targetTitle == "" {
+				targetTitle = postTitle
+			}
+		} else if report.Comment.PostID > 0 {
+			postID = report.Comment.PostID
+		}
+	}
+	return targetTitle, targetExcerpt, commentExcerpt, postID, postTitle
 }
 
 func (uc *CampusUsecase) enqueueFeedbackOpsAlert(ctx context.Context, feedback *CampusFeedback) {
@@ -3834,6 +3901,258 @@ func (uc *CampusUsecase) ProcessPendingOpsAlerts(ctx context.Context, limit int)
 	return firstErr
 }
 
+func (uc *CampusUsecase) ProcessOpsSLAAlerts(ctx context.Context) error {
+	if envBoolFalse(os.Getenv("CAMPUS_OPS_SLA_SCAN_ENABLED")) || !uc.feishuOpsEnabled(ctx) {
+		return nil
+	}
+	now := campusLocalNow()
+	snapshot, err := uc.currentOpsSLASnapshot(ctx, now)
+	if err != nil {
+		return apperror.Internal(err, "获取运营 SLA 快照失败")
+	}
+	bucket := now.Format("2006010215")
+	targetID := now.Truncate(time.Hour).Unix()
+	reportThreshold, auditThreshold, feishuThreshold := opsSLAThresholds()
+	if snapshot.OverdueReportCount > 0 {
+		if err := uc.enqueueOpsAlert(ctx, CampusOpsAlertTypeReportOverdue, CampusOpsAlertPriorityHigh, "sla", targetID,
+			"sla:report_overdue:"+bucket,
+			"校园 e站举报处理超时",
+			fmt.Sprintf("有 %d 条举报超过 %s 未处理", snapshot.OverdueReportCount, formatOpsDuration(reportThreshold)),
+			map[string]interface{}{
+				"count":      snapshot.OverdueReportCount,
+				"threshold":  reportThreshold.String(),
+				"samples":    reportSLASamples(snapshot.OverdueReports),
+				"admin_path": "/admin/moderation?tab=reports&status=0",
+			}); err != nil {
+			return err
+		}
+	}
+	auditCount := snapshot.OverduePostCount + snapshot.OverdueCommentCount
+	if auditCount > 0 {
+		if err := uc.enqueueOpsAlert(ctx, CampusOpsAlertTypeAuditOverdue, CampusOpsAlertPriorityHigh, "sla", targetID,
+			"sla:audit_overdue:"+bucket,
+			"校园 e站待审内容超时",
+			fmt.Sprintf("有 %d 条待审内容超过 %s 未处理", auditCount, formatOpsDuration(auditThreshold)),
+			map[string]interface{}{
+				"count":      auditCount,
+				"threshold":  auditThreshold.String(),
+				"samples":    auditSLASamples(snapshot.OverduePosts, snapshot.OverdueComments),
+				"admin_path": "/admin/posts?status=0",
+			}); err != nil {
+			return err
+		}
+	}
+	if snapshot.FeishuDegradedCount > 0 {
+		if err := uc.enqueueOpsAlert(ctx, CampusOpsAlertTypeFeishuDegraded, CampusOpsAlertPriorityCritical, "sla", targetID,
+			"sla:feishu_delivery_degraded:"+bucket,
+			"校园 e站飞书提醒链路异常",
+			fmt.Sprintf("有 %d 条飞书提醒失败或积压超过 %s", snapshot.FeishuDegradedCount, formatOpsDuration(feishuThreshold)),
+			map[string]interface{}{
+				"count":      snapshot.FeishuDegradedCount,
+				"threshold":  feishuThreshold.String(),
+				"samples":    feishuSLASamples(snapshot.FeishuDegradedAlerts),
+				"admin_path": "/admin/copilot",
+			}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) currentOpsSLASnapshot(ctx context.Context, now time.Time) (*CampusOpsSLASnapshot, error) {
+	reportThreshold, auditThreshold, feishuThreshold := opsSLAThresholds()
+	return uc.repo.GetOpsSLASnapshot(ctx, now.Add(-reportThreshold), now.Add(-auditThreshold), now.Add(-feishuThreshold), 3)
+}
+
+func opsSLAThresholds() (time.Duration, time.Duration, time.Duration) {
+	return envDurationBiz("CAMPUS_OPS_SLA_REPORT_OVERDUE", 30*time.Minute),
+		envDurationBiz("CAMPUS_OPS_SLA_AUDIT_OVERDUE", 2*time.Hour),
+		envDurationBiz("CAMPUS_OPS_SLA_FEISHU_FAILED", 10*time.Minute)
+}
+
+func reportSLASamples(reports []*CampusForumReport) []map[string]interface{} {
+	samples := make([]map[string]interface{}, 0, len(reports))
+	for _, report := range reports {
+		if report == nil {
+			continue
+		}
+		targetTitle, targetExcerpt, commentExcerpt, postID, postTitle := campusReportTargetSummary(report)
+		targetType := normalizeCampusTargetType(report.TargetType)
+		targetLabel := map[string]string{"post": "帖子", "comment": "评论"}[targetType]
+		if targetLabel == "" {
+			targetLabel = "内容"
+		}
+		samples = append(samples, map[string]interface{}{
+			"id":       fmt.Sprintf("report:%d", report.ID),
+			"title":    fmt.Sprintf("举报 %s %d：%s", targetLabel, report.TargetID, firstNonEmpty(report.Reason, "未填写原因")),
+			"detail":   trimLimit(firstNonEmpty(commentExcerpt, targetExcerpt, targetTitle, postTitle), 180),
+			"post_id":  postID,
+			"post":     postTitle,
+			"reporter": campusReportReporterName(report),
+		})
+	}
+	return samples
+}
+
+func auditSLASamples(posts []*CampusForumPost, comments []*CampusForumComment) []map[string]interface{} {
+	samples := make([]map[string]interface{}, 0, len(posts)+len(comments))
+	for _, post := range posts {
+		if post == nil {
+			continue
+		}
+		samples = append(samples, map[string]interface{}{
+			"id":     fmt.Sprintf("post:%d", post.ID),
+			"title":  "待审帖子：" + trimLimit(firstNonEmpty(post.Title, fmt.Sprintf("%d", post.ID)), 80),
+			"detail": trimLimit(post.Content, 180),
+		})
+	}
+	for _, comment := range comments {
+		if comment == nil {
+			continue
+		}
+		title := fmt.Sprintf("待审评论：%d", comment.ID)
+		if comment.Post != nil && comment.Post.Title != "" {
+			title = "待审评论：" + trimLimit(comment.Post.Title, 80)
+		}
+		samples = append(samples, map[string]interface{}{
+			"id":     fmt.Sprintf("comment:%d", comment.ID),
+			"title":  title,
+			"detail": trimLimit(comment.Content, 180),
+		})
+	}
+	if len(samples) > 3 {
+		return samples[:3]
+	}
+	return samples
+}
+
+func feishuSLASamples(alerts []*CampusOpsAlert) []map[string]interface{} {
+	samples := make([]map[string]interface{}, 0, len(alerts))
+	for _, alert := range alerts {
+		if alert == nil {
+			continue
+		}
+		samples = append(samples, map[string]interface{}{
+			"id":     fmt.Sprintf("ops_alert:%d", alert.ID),
+			"title":  firstNonEmpty(alert.Title, alert.AlertType),
+			"detail": trimLimit(firstNonEmpty(alert.FeishuError, alert.Summary, alert.Status), 180),
+			"status": alert.Status,
+		})
+	}
+	return samples
+}
+
+func formatOpsDuration(d time.Duration) string {
+	if d >= time.Hour && d%time.Hour == 0 {
+		return fmt.Sprintf("%d 小时", int(d/time.Hour))
+	}
+	if d >= time.Minute && d%time.Minute == 0 {
+		return fmt.Sprintf("%d 分钟", int(d/time.Minute))
+	}
+	return d.String()
+}
+
+func (uc *CampusUsecase) RenderOpsMetrics(ctx context.Context) (string, error) {
+	now := campusLocalNow()
+	sla, err := uc.currentOpsSLASnapshot(ctx, now)
+	if err != nil {
+		return "", apperror.Internal(err, "获取运营指标 SLA 快照失败")
+	}
+	series, err := uc.repo.GetOpsMetricSeries(ctx, now, sla)
+	if err != nil {
+		return "", apperror.Internal(err, "获取运营指标失败")
+	}
+	return renderPrometheusMetrics(series), nil
+}
+
+func renderPrometheusMetrics(series []CampusMetricSeries) string {
+	help := map[string]string{
+		"campus_agent_runs_total":                 "Total Campus Agent runs by type, status, source and risk level.",
+		"campus_ai_cost_cny":                      "Estimated AI model cost in CNY by window and feature.",
+		"campus_ai_audit_decisions_total":         "Total Campus AI audit task decisions by decision and risk level.",
+		"campus_ai_audit_pending":                 "Current pending Campus AI audit tasks.",
+		"campus_ops_alerts":                       "Current Campus ops alert queue size by status, Feishu status and alert type.",
+		"campus_ops_alert_oldest_pending_seconds": "Age of the oldest pending or processing Campus ops alert.",
+		"campus_sla_overdue_items":                "Current overdue operation items by SLA kind.",
+	}
+	typ := map[string]string{
+		"campus_agent_runs_total":                 "gauge",
+		"campus_ai_cost_cny":                      "gauge",
+		"campus_ai_audit_decisions_total":         "gauge",
+		"campus_ai_audit_pending":                 "gauge",
+		"campus_ops_alerts":                       "gauge",
+		"campus_ops_alert_oldest_pending_seconds": "gauge",
+		"campus_sla_overdue_items":                "gauge",
+	}
+	var b strings.Builder
+	seen := map[string]bool{}
+	for _, item := range series {
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			continue
+		}
+		if !seen[name] {
+			if text := help[name]; text != "" {
+				b.WriteString("# HELP ")
+				b.WriteString(name)
+				b.WriteByte(' ')
+				b.WriteString(text)
+				b.WriteByte('\n')
+			}
+			if text := typ[name]; text != "" {
+				b.WriteString("# TYPE ")
+				b.WriteString(name)
+				b.WriteByte(' ')
+				b.WriteString(text)
+				b.WriteByte('\n')
+			}
+			seen[name] = true
+		}
+		b.WriteString(name)
+		if len(item.Labels) > 0 {
+			keys := make([]string, 0, len(item.Labels))
+			for key := range item.Labels {
+				keys = append(keys, key)
+			}
+			sortStrings(keys)
+			b.WriteByte('{')
+			for i, key := range keys {
+				if i > 0 {
+					b.WriteByte(',')
+				}
+				b.WriteString(key)
+				b.WriteString("=\"")
+				b.WriteString(promLabelEscape(item.Labels[key]))
+				b.WriteByte('"')
+			}
+			b.WriteByte('}')
+		}
+		b.WriteByte(' ')
+		b.WriteString(strconv.FormatFloat(item.Value, 'f', -1, 64))
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+func promLabelEscape(value string) string {
+	value = strings.ReplaceAll(value, "\\", "\\\\")
+	value = strings.ReplaceAll(value, "\n", "\\n")
+	value = strings.ReplaceAll(value, "\"", "\\\"")
+	return value
+}
+
+func sortStrings(values []string) {
+	for i := 1; i < len(values); i++ {
+		value := values[i]
+		j := i - 1
+		for j >= 0 && values[j] > value {
+			values[j+1] = values[j]
+			j--
+		}
+		values[j+1] = value
+	}
+}
+
 func (uc *CampusUsecase) processOpsAlert(ctx context.Context, alert *CampusOpsAlert) error {
 	if alert == nil || alert.ID <= 0 {
 		return nil
@@ -3868,7 +4187,7 @@ func (uc *CampusUsecase) opsAlertFeishuPayload(alert *CampusOpsAlert) map[string
 			nextActions = append(nextActions, map[string]interface{}{"label": "审核帖子", "path": "/admin/posts?status=0", "href": adminURL("/admin/posts?status=0")})
 		}
 	}
-	findings := []map[string]interface{}{{"title": alert.Summary, "detail": alert.TargetType, "severity": alert.Priority}}
+	findings := opsAlertFindings(alert, payload)
 	if evidence, ok := payload["evidence"].([]string); ok {
 		for _, item := range evidence {
 			findings = append(findings, map[string]interface{}{"title": trimLimit(item, 80), "severity": "medium"})
@@ -3890,6 +4209,102 @@ func (uc *CampusUsecase) opsAlertFeishuPayload(alert *CampusOpsAlert) map[string
 		"reason":          "ops_alert",
 	}
 	return out
+}
+
+func opsAlertFindings(alert *CampusOpsAlert, payload map[string]interface{}) []map[string]interface{} {
+	if alert == nil {
+		return []map[string]interface{}{}
+	}
+	findings := []map[string]interface{}{{"title": alert.Summary, "detail": alert.TargetType, "severity": alert.Priority}}
+	switch alert.AlertType {
+	case CampusOpsAlertTypeReportCreated:
+		targetType := opsPayloadString(payload, "target_type")
+		targetID := opsPayloadString(payload, "target_id")
+		targetLabel := map[string]string{"post": "帖子", "comment": "评论"}[targetType]
+		if targetLabel == "" {
+			targetLabel = "内容"
+		}
+		targetDetail := firstNonEmpty(
+			opsPayloadString(payload, "comment_excerpt"),
+			opsPayloadString(payload, "target_excerpt"),
+			opsPayloadString(payload, "target_title"),
+		)
+		if postTitle := opsPayloadString(payload, "post_title"); postTitle != "" && targetType == "comment" {
+			targetDetail = firstNonEmpty(targetDetail, "评论所属帖子："+postTitle)
+		}
+		findings = append(findings, map[string]interface{}{
+			"title":    fmt.Sprintf("被举报%s %s", targetLabel, targetID),
+			"detail":   trimLimit(targetDetail, 180),
+			"severity": alert.Priority,
+		})
+		reason := firstNonEmpty(opsPayloadString(payload, "reason"), "未填写原因")
+		detail := opsPayloadString(payload, "detail")
+		findings = append(findings, map[string]interface{}{
+			"title":    "举报原因：" + trimLimit(reason, 80),
+			"detail":   trimLimit(detail, 180),
+			"severity": "medium",
+		})
+		reporter := firstNonEmpty(opsPayloadString(payload, "reporter_name"), opsPayloadString(payload, "reporter_id"), "未知用户")
+		if reporterID := opsPayloadString(payload, "reporter_id"); reporterID != "" && !strings.Contains(reporter, reporterID) {
+			reporter = fmt.Sprintf("%s（%s）", reporter, reporterID)
+		}
+		findings = append(findings, map[string]interface{}{"title": "举报人：" + trimLimit(reporter, 80), "severity": "low"})
+	case CampusOpsAlertTypeReportOverdue, CampusOpsAlertTypeAuditOverdue, CampusOpsAlertTypeFeishuDegraded:
+		if samples, ok := payload["samples"].([]map[string]interface{}); ok {
+			for _, item := range samples {
+				findings = append(findings, map[string]interface{}{
+					"title":    trimLimit(firstNonEmpty(opsMapString(item, "title"), opsMapString(item, "id")), 100),
+					"detail":   trimLimit(opsMapString(item, "detail"), 180),
+					"severity": alert.Priority,
+				})
+			}
+		} else if raw, ok := payload["samples"].([]interface{}); ok {
+			for _, value := range raw {
+				if item, ok := value.(map[string]interface{}); ok {
+					findings = append(findings, map[string]interface{}{
+						"title":    trimLimit(firstNonEmpty(opsMapString(item, "title"), opsMapString(item, "id")), 100),
+						"detail":   trimLimit(opsMapString(item, "detail"), 180),
+						"severity": alert.Priority,
+					})
+				}
+			}
+		}
+	}
+	return findings
+}
+
+func opsPayloadString(payload map[string]interface{}, key string) string {
+	if payload == nil {
+		return ""
+	}
+	return opsMapString(payload, key)
+}
+
+func opsMapString(payload map[string]interface{}, key string) string {
+	if payload == nil {
+		return ""
+	}
+	value := payload[key]
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case fmt.Stringer:
+		return strings.TrimSpace(typed.String())
+	case int64:
+		return strconv.FormatInt(typed, 10)
+	case int:
+		return strconv.Itoa(typed)
+	case float64:
+		if typed == float64(int64(typed)) {
+			return strconv.FormatInt(int64(typed), 10)
+		}
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	default:
+		if value == nil {
+			return ""
+		}
+		return strings.TrimSpace(fmt.Sprint(value))
+	}
 }
 
 func (uc *CampusUsecase) markOpsAlertRetry(ctx context.Context, item *CampusOpsAlert, processErr error) {
@@ -4573,14 +4988,17 @@ func (uc *CampusUsecase) ReportContent(ctx context.Context, input *ReportCampusC
 	if input.TargetID <= 0 {
 		return apperror.InvalidArgument("举报对象 ID 无效")
 	}
+	var targetPost *CampusForumPost
+	var targetComment *CampusForumComment
 	if targetType == "post" {
-		ok, _, err := uc.repo.GetPostByID(ctx, input.TargetID)
+		ok, post, err := uc.repo.GetPostByID(ctx, input.TargetID)
 		if err != nil {
 			return apperror.Internal(err, "查询帖子失败")
 		}
 		if !ok {
 			return apperror.NotFound("帖子不存在")
 		}
+		targetPost = post
 	} else {
 		ok, comment, err := uc.repo.GetCommentByID(ctx, input.TargetID)
 		if err != nil {
@@ -4589,6 +5007,7 @@ func (uc *CampusUsecase) ReportContent(ctx context.Context, input *ReportCampusC
 		if !ok || comment.Status != CampusAuditStatusVisible {
 			return apperror.NotFound("评论不存在")
 		}
+		targetComment = comment
 	}
 	reason := firstNonEmpty(input.Reason, "其他")
 	detail := strings.TrimSpace(input.Detail)
@@ -4598,7 +5017,7 @@ func (uc *CampusUsecase) ReportContent(ctx context.Context, input *ReportCampusC
 	if len([]rune(detail)) > 300 {
 		return apperror.InvalidArgument("举报说明不能超过 300 个字")
 	}
-	if err := uc.repo.CreateReport(ctx, &CampusForumReport{
+	report := &CampusForumReport{
 		ID:         uc.idGen.NextID(),
 		TargetType: targetType,
 		TargetID:   input.TargetID,
@@ -4606,19 +5025,32 @@ func (uc *CampusUsecase) ReportContent(ctx context.Context, input *ReportCampusC
 		Reason:     reason,
 		Detail:     detail,
 		Status:     CampusAuditStatusPending,
-	}); err != nil {
+		Target:     targetPost,
+		Comment:    targetComment,
+	}
+	if err := uc.repo.CreateReport(ctx, report); err != nil {
 		return apperror.Internal(err, "提交举报失败")
 	}
 	uc.notifyReportReceived(ctx, targetType, input.TargetID, input.UserID)
-	uc.enqueueReportOpsAlert(ctx, &CampusForumReport{
-		ID:         stableReportAlertID(targetType, input.TargetID, input.UserID),
-		TargetType: targetType,
-		TargetID:   input.TargetID,
-		ReporterID: input.UserID,
-		Reason:     reason,
-		Detail:     detail,
-		Status:     CampusAuditStatusPending,
-	})
+	if ok, saved, err := uc.repo.GetReportByTargetAndReporter(ctx, targetType, input.TargetID, input.UserID); err == nil && ok && saved != nil {
+		report = saved
+	} else if err != nil {
+		uc.log.WithContext(ctx).Warnf("load report for ops alert failed: target_type=%s target_id=%d reporter_id=%s err=%v", targetType, input.TargetID, input.UserID, err)
+	}
+	if report.Reporter == nil && uc.assembler != nil {
+		if authors, err := uc.assembler.LoadAuthors(ctx, []string{input.UserID}); err == nil {
+			report.Reporter = authors[input.UserID]
+		} else {
+			uc.log.WithContext(ctx).Warnf("load report author for ops alert failed: reporter_id=%s err=%v", input.UserID, err)
+		}
+	}
+	if report.Target == nil {
+		report.Target = targetPost
+	}
+	if report.Comment == nil {
+		report.Comment = targetComment
+	}
+	uc.enqueueReportOpsAlert(ctx, report)
 	return nil
 }
 

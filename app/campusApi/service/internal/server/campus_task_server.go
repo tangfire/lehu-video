@@ -79,6 +79,7 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 	s.runExclusive(ctx, "recommend_pool", s.safeRefreshRecommendPool)
 	s.runExclusive(ctx, "notification_outbox", s.safeProcessNotificationOutbox)
 	s.runExclusive(ctx, "ops_alerts", s.safeProcessOpsAlerts)
+	s.runExclusive(ctx, "ops_sla_alerts", s.safeProcessOpsSLAAlerts)
 	s.runExclusive(ctx, "ai_replies", s.safeProcessAIReplyTasks)
 	s.runExclusive(ctx, "ai_audit", s.safeProcessAIContentAuditTasks)
 	s.runExclusive(ctx, "access_log_cleanup", s.safeCleanupAccessLogs)
@@ -93,6 +94,7 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 	flushTicker := time.NewTicker(10 * time.Second)
 	notificationTicker := time.NewTicker(2 * time.Second)
 	opsAlertTicker := time.NewTicker(5 * time.Second)
+	opsSLATicker := time.NewTicker(5 * time.Minute)
 	aiReplyTicker := time.NewTicker(5 * time.Second)
 	aiAuditTicker := time.NewTicker(5 * time.Second)
 	defer recommendTicker.Stop()
@@ -100,6 +102,7 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 	defer flushTicker.Stop()
 	defer notificationTicker.Stop()
 	defer opsAlertTicker.Stop()
+	defer opsSLATicker.Stop()
 	defer aiReplyTicker.Stop()
 	defer aiAuditTicker.Stop()
 	for {
@@ -120,6 +123,8 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 			s.runExclusive(ctx, "notification_outbox", s.safeProcessNotificationOutbox)
 		case <-opsAlertTicker.C:
 			s.runExclusive(ctx, "ops_alerts", s.safeProcessOpsAlerts)
+		case <-opsSLATicker.C:
+			s.runExclusive(ctx, "ops_sla_alerts", s.safeProcessOpsSLAAlerts)
 		case <-aiReplyTicker.C:
 			s.runExclusive(ctx, "ai_replies", s.safeProcessAIReplyTasks)
 		case <-aiAuditTicker.C:
@@ -199,6 +204,14 @@ func (s *CampusTaskServer) safeProcessOpsAlerts(ctx context.Context) {
 	defer cancel()
 	if err := s.uc.ProcessPendingOpsAlerts(taskCtx, 20); err != nil {
 		s.log.Warnf("处理校园运营值班提醒失败: %v", err)
+	}
+}
+
+func (s *CampusTaskServer) safeProcessOpsSLAAlerts(ctx context.Context) {
+	taskCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := s.uc.ProcessOpsSLAAlerts(taskCtx); err != nil {
+		s.log.Warnf("处理校园运营 SLA 提醒失败: %v", err)
 	}
 }
 

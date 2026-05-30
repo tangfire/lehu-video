@@ -227,6 +227,8 @@
 | `GET` | `/v1/campus/internal/copilot/tools/reports` | 举报 |
 | `GET` | `/v1/campus/internal/copilot/tools/feedback` | 反馈 |
 
+Prometheus 还会在 Docker 内网抓取 `GET /v1/campus/internal/ops-metrics`，用于 Grafana「校园 e站值班 Agent」面板。生产反向代理不要把这个路径暴露到公网。
+
 `campus-agent` 自身还提供 Docker 内网接口：`GET /healthz`、`POST /internal/copilot/run` 和 `POST /internal/moderation/audit`。公网只通过 `campus-api` 访问。
 
 ## 已移除的旧链路

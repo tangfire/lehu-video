@@ -205,7 +205,7 @@ CAMPUS_AGENT_RUN_STALE_AFTER=10m
 CAMPUS_AGENT_MAX_CONCURRENT_RUNS=1
 ```
 
-`campus-agent` 承担两类能力：巡检类任务只读，只生成每日巡检、RAG 缺口和治理建议；发帖审核通过 `/internal/moderation/audit` 返回结构化判断。审核链路规则先行：明显低风险帖子自动同步到首页且不调模型，不确定或高风险才调用 Agent；高风险规则不允许被 Agent 洗白，会保留待处理并推飞书确认。生产默认每天 `09:30 Asia/Shanghai` 自动跑一次 `daily_ops` 并发飞书日报；举报和重要反馈会进入 5 秒级飞书提醒队列，举报人会收到站内“已收到”和“处理结果”消息。生产 compose 会把 `campus-agent` 限制在约 `384m / 0.5 CPU`，AI 审核 worker 默认每轮 2 条，避免挤占 API 主链路。
+`campus-agent` 承担两类能力：巡检类任务只读，只生成每日巡检、RAG 缺口和治理建议；发帖审核通过 `/internal/moderation/audit` 返回结构化判断。审核链路规则先行：明显低风险帖子自动同步到首页且不调模型，不确定或高风险才调用 Agent；高风险规则不允许被 Agent 洗白，会保留待处理并推飞书确认。生产默认每天 `09:30 Asia/Shanghai` 自动跑一次 `daily_ops` 并发飞书日报；举报和重要反馈会进入 5 秒级飞书提醒队列，举报飞书卡片会带被举报内容摘要、举报原因、举报人和后台入口，举报人会收到站内“已收到”和“处理结果”消息。生产 compose 会把 `campus-agent` 限制在约 `384m / 0.5 CPU`，AI 审核 worker 默认每轮 2 条，避免挤占 API 主链路。
 
 这些环境变量是新库默认值；运营后台 `/admin/audit` 的“值班 Agent 开关”和“AI 成本保护”保存后会写入 `campus_ops_setting`，之后以数据库设置为准，不需要重启容器。若后续模型成本过高，可以在后台关闭 `Agent 模型能力`、只关闭 `AI/Agent 初审`，或调低预算；飞书举报/反馈提醒仍可单独保留。
 
@@ -222,9 +222,13 @@ LEHU_ADMIN_ROOT_URL=https://admin.example.com
 LEHU_PUBLIC_API_BASE_URL=https://api.example.com/v1
 LEHU_FEISHU_CARD_CALLBACK_ENABLED=true
 LEHU_FEISHU_CARD_VERIFY_TOKEN=
+CAMPUS_OPS_SLA_SCAN_ENABLED=true
+CAMPUS_OPS_SLA_REPORT_OVERDUE=30m
+CAMPUS_OPS_SLA_AUDIT_OVERDUE=2h
+CAMPUS_OPS_SLA_FEISHU_FAILED=10m
 ```
 
-Grafana 服务健康告警和 Agent 运营通知复用同一个飞书机器人。Grafana 调 `alert-webhook /grafana`，Agent 调 `alert-webhook /agent`。日报和反馈只做提醒和后台跳转；发帖审核卡片可以通过一次性链接“通过/拒绝”，举报卡片可以“下架内容/忽略举报”。真正写库仍由 `campus-api` 校验一次性 token 后完成。
+Grafana 服务健康告警和 Agent 运营通知复用同一个飞书机器人。Grafana 调 `alert-webhook /grafana`，Agent 调 `alert-webhook /agent`。日报和反馈只做提醒和后台跳转；发帖审核卡片可以通过一次性链接“通过/拒绝”，举报卡片可以“下架内容/忽略举报”。真正写库仍由 `campus-api` 校验一次性 token 后完成。举报超过 30 分钟、待审超过 2 小时、飞书发送失败或积压超过 10 分钟时，后台任务会按类型每小时聚合推一次 SLA 提醒；Grafana 的「校园 e站值班 Agent」面板也会显示 Agent 调用、AI 成本、审核决策、飞书队列和 SLA 超时。
 
 真实 IP 和日志保留：
 

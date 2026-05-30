@@ -38,6 +38,7 @@ func NewCampusWhiteListMatcher() selector.MatchFunc {
 		"/v1/campus/users/{id}":                                     {},
 		"/v1/campus/users/{id}/posts":                               {},
 		"/v1/campus/analytics/track":                                {},
+		"/v1/campus/internal/ops-metrics":                           {},
 		"/healthz":                                                  {},
 		"/readyz":                                                   {},
 	}

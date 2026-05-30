@@ -229,6 +229,7 @@ CREATE TABLE IF NOT EXISTS `campus_forum_comment` (
   PRIMARY KEY (`id`),
   INDEX `idx_campus_comment_post_created` (`post_id`, `status`, `is_deleted`, `created_at`, `id`),
   INDEX `idx_campus_comment_parent_created` (`parent_id`, `status`, `is_deleted`, `created_at`, `id`),
+  INDEX `idx_campus_comment_status_created` (`status`, `is_deleted`, `created_at`),
   INDEX `idx_campus_comment_author` (`author_id`, `is_deleted`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园论坛评论';
 
@@ -284,6 +285,7 @@ CREATE TABLE IF NOT EXISTS `campus_forum_report` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_campus_report_once` (`target_type`, `target_id`, `reporter_id`),
   INDEX `idx_campus_report_target` (`target_type`, `target_id`, `status`),
+  INDEX `idx_campus_report_status_created` (`status`, `created_at`),
   INDEX `idx_campus_report_reporter` (`reporter_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园论坛举报记录';
 
