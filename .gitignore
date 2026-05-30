@@ -33,6 +33,11 @@ __pycache__/
 *.key
 *.log
 bin/
+.env
+.env.local
+.env.production
+!.env.local.example
+!.env.production.example
 
 # Develop tools
 .vscode/

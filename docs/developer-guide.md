@@ -420,8 +420,11 @@ docker compose ps
 启动：
 
 ```bash
-docker compose up -d --build
+cp .env.local.example .env.local
+docker compose --env-file .env.local up -d --build
 ```
+
+本地也可以直接 `docker compose up -d --build`，因为 compose 里有开发默认值；但推荐复制 `.env.local`，和生产 `.env.production` 保持同样的配置维护方式。真实 `.env.local` 和 `.env.production` 不进仓库。
 
 后台：
 
@@ -487,7 +490,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 | 改知识库 | `campus-rag/main.py`、知识库 admin 接口、Qdrant 配置 |
 | 改文件上传 | `base` 文件服务、COS provider、上传 presign/complete |
 | 改监控告警 | `deploy/observability/*` |
-| 改上线配置 | `.env.production.example`、`docker-compose.prod.yml` |
+| 改上线配置 | `.env.local.example`、`.env.production.example`、`docker-compose.prod.yml` |
 | 改发布流程 | `docs/release-strategy.md`、`scripts/release-check.sh`、反向代理配置 |
 
 ## 人类接手 AI 代码时的安全做法
@@ -496,7 +499,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 - 先看 `service -> biz -> data` 三层，再决定改哪层。
 - 每次只改一个明确问题，避免顺手重构把线上行为改掉。
 - 数据库新增字段时，优先同步 `sql/campus.sql` 和单独迁移 SQL；全新库看 `campus.sql`，已有库才跑对应增量 SQL。
-- 生产配置改动同时检查 `.env.production.example`、`docker-compose.prod.yml` 和 README。
+- 配置改动同时检查 `.env.local.example`、`.env.production.example`、`docker-compose.prod.yml` 和 README。
 - 后台 UI 改动后至少跑 `npm --prefix web/admin run build` 和 `npm --prefix web/admin run lint`。
 - 后端改动后至少跑相关包测试；跨服务改动再跑 `go test ./...`。
 - 不确定某张表是否还能删时，默认不要删运行中数据库，只更新新库初始化脚本。

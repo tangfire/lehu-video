@@ -16,6 +16,7 @@ RUN_COMPOSE_CONFIG="${RUN_COMPOSE_CONFIG:-1}"
 RUN_HEALTH_CHECK="${RUN_HEALTH_CHECK:-0}"
 RUN_SMOKE="${RUN_SMOKE:-0}"
 PYTHON_DOCKER_IMAGE="${PYTHON_DOCKER_IMAGE:-python:3.12-slim}"
+LOCAL_ENV_FILE="${LOCAL_ENV_FILE:-.env.local.example}"
 
 read_env() {
   local key="$1"
@@ -190,6 +191,10 @@ if [ "${RUN_COMPOSE_CONFIG}" = "1" ]; then
   section "docker compose config"
   printf '+ docker compose config > /tmp/lehu-campus-compose.local.yml\n'
   docker compose config >/tmp/lehu-campus-compose.local.yml
+  if [ -f "${LOCAL_ENV_FILE}" ]; then
+    printf '+ docker compose --env-file %s config > /tmp/lehu-campus-compose.local-env.yml\n' "${LOCAL_ENV_FILE}"
+    docker compose --env-file "${LOCAL_ENV_FILE}" config >/tmp/lehu-campus-compose.local-env.yml
+  fi
   printf '+ docker compose --env-file %s -f docker-compose.yml -f docker-compose.prod.yml config > /tmp/lehu-campus-compose.prod.yml\n' "${ENV_FILE}"
   docker compose --env-file "${ENV_FILE}" -f docker-compose.yml -f docker-compose.prod.yml config >/tmp/lehu-campus-compose.prod.yml
 fi

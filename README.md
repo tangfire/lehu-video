@@ -107,6 +107,15 @@ export LEHU_STORAGE_PROVIDER=minio
 export LEHU_ENABLE_LEGACY_UPLOAD=false
 ```
 
+推荐复制本地环境变量模板，真实本地配置不进仓库：
+
+```bash
+cp .env.local.example .env.local
+docker compose --env-file .env.local up -d --build
+```
+
+也可以直接 `docker compose up -d --build`，因为 `docker-compose.yml` 保留了本地默认值；但长期建议本地和生产都使用 `example -> real env` 的同一套习惯。
+
 ## 生产 Docker 启动
 
 生产使用 `docker-compose.prod.yml` 作为覆盖文件，本地开发方式不变。先复制示例环境变量并替换所有占位值：

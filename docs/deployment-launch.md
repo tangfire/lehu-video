@@ -15,8 +15,11 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 本地开发继续只用：
 
 ```bash
-docker compose up -d --build
+cp .env.local.example .env.local
+docker compose --env-file .env.local up -d --build
 ```
+
+本地也可以直接 `docker compose up -d --build`，因为 compose 里有开发默认值；但建议复制 `.env.local`，这样本地和生产都是“真实 env 文件不进仓库、example 模板进仓库”的同一套习惯。
 
 生产覆盖文件会收紧端口：
 
