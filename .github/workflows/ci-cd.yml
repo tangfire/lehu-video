@@ -1,0 +1,73 @@
+name: Campus e站 CI/CD
+
+on:
+  pull_request:
+    branches:
+      - campus-estation-cleanup
+  push:
+    branches:
+      - campus-estation-cleanup
+  workflow_dispatch:
+
+concurrency:
+  group: campus-production-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Test and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/admin/package-lock.json
+
+      - name: Install admin dependencies
+        run: npm --prefix web/admin ci
+
+      - name: Release preflight
+        run: bash scripts/release-check.sh
+
+  deploy:
+    name: Deploy production
+    runs-on: ubuntu-latest
+    needs: ci
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/campus-estation-cleanup') || github.event_name == 'workflow_dispatch'
+    environment: production
+    steps:
+      - name: Prepare SSH key
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/campus_deploy_key
+          chmod 600 ~/.ssh/campus_deploy_key
+          ssh-keyscan -p "${{ secrets.DEPLOY_PORT || '22' }}" -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy on server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_BRANCH: campus-estation-cleanup
+        run: |
+          set -euo pipefail
+          remote_env="$(printf 'DEPLOY_PATH=%q DEPLOY_BRANCH=%q' "${DEPLOY_PATH}" "${DEPLOY_BRANCH}")"
+          ssh -i ~/.ssh/campus_deploy_key -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "${remote_env} bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "${DEPLOY_PATH}"
+          bash scripts/deploy-production.sh
+          REMOTE

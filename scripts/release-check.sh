@@ -79,7 +79,7 @@ fi
 
 if [ "${RUN_SMOKE}" = "1" ]; then
   section "smoke"
-  API_BASE="${API_BASE}" run bash scripts/smoke.sh
+  run env API_BASE="${API_BASE}" bash scripts/smoke.sh
 fi
 
 section "done"

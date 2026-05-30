@@ -16,6 +16,18 @@
 
 ## 当前推荐流程
 
+当前仓库已经有 GitHub Actions：`.github/workflows/ci-cd.yml`。
+
+触发规则：
+
+| 事件 | 行为 |
+| --- | --- |
+| PR 到 `campus-estation-cleanup` | 只跑 CI，不部署 |
+| push 到 `campus-estation-cleanup` | 先跑 CI，通过后 SSH 到服务器部署 |
+| 手动 `workflow_dispatch` | 跑 CI，通过后部署当前选择的分支 |
+
+也就是说，当前分支 `campus-estation-cleanup` 就是生产发布分支。以后代码合并到这个分支，会自动走到生产部署。
+
 发布前在本地或服务器运行：
 
 ```bash
@@ -49,7 +61,7 @@ ENV_FILE=/path/to/.env.production bash scripts/release-check.sh
 
 ## 普通发布
 
-适合小版本、低峰期、可接受几秒连接抖动的情况。
+适合小版本、低峰期、可接受几秒连接抖动的情况。GitHub Actions 自动部署本质上执行的也是这套流程。
 
 ```bash
 git pull
@@ -66,6 +78,44 @@ RUN_HEALTH_CHECK=1 bash scripts/release-check.sh
 - 运营后台登录
 - Grafana 健康面板
 - 飞书是否有异常告警
+
+## GitHub Actions 部署配置
+
+仓库需要配置这些 GitHub Secrets：
+
+| Secret | 含义 |
+| --- | --- |
+| `DEPLOY_HOST` | 服务器公网 IP 或域名 |
+| `DEPLOY_PORT` | SSH 端口，没填时按 `22` |
+| `DEPLOY_USER` | SSH 用户 |
+| `DEPLOY_SSH_KEY` | 部署私钥内容 |
+| `DEPLOY_PATH` | 服务器上的项目目录，例如 `/opt/lehu-campus` |
+
+服务器需要提前准备：
+
+1. 项目已经 clone 到 `DEPLOY_PATH`。
+2. `DEPLOY_PATH/.env.production` 已经配置好，不能提交到 Git。
+3. 服务器 SSH 用户能执行 `git pull`、`docker compose`。
+4. 服务器上已经安装 Docker 和 Docker Compose v2。
+5. `origin` remote 能拉到 `campus-estation-cleanup` 分支。
+
+Actions 部署时会在服务器执行：
+
+```bash
+bash scripts/deploy-production.sh
+```
+
+这个脚本会：
+
+1. `git fetch origin campus-estation-cleanup`
+2. `git reset --hard origin/campus-estation-cleanup`
+3. 在服务器跑 compose 配置检查
+4. `docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
+5. 再跑一次健康检查
+
+Go 测试和后台构建已经在 GitHub Actions 的 CI 阶段跑过；服务器部署阶段不要求安装 Go 和 Node，只要求 Docker、Docker Compose 和 Git 可用。
+
+注意：脚本会 `git reset --hard`，所以服务器项目目录不要手改 tracked 文件；生产密钥只放 `.env.production`。
 
 ## 轻量蓝绿发布
 

@@ -93,6 +93,11 @@ smoke:
 release-check:
 	bash scripts/release-check.sh
 
+.PHONY: deploy-production
+# deploy current production server checkout
+deploy-production:
+	bash scripts/deploy-production.sh
+
 .PHONY: build
 # build
 build:

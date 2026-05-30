@@ -360,6 +360,8 @@ RUN_HEALTH_CHECK=1 bash scripts/release-check.sh
 
 更完整的无感更新和轻量蓝绿发布方案见 [docs/release-strategy.md](docs/release-strategy.md)。
 
+当前 GitHub Actions 已配置为：PR 到 `campus-estation-cleanup` 只跑检查，push 到 `campus-estation-cleanup` 会在检查通过后 SSH 到服务器执行生产部署。需要在 GitHub Secrets 里配置 `DEPLOY_HOST / DEPLOY_PORT / DEPLOY_USER / DEPLOY_SSH_KEY / DEPLOY_PATH`。
+
 ## 成本建议
 
 首发 300 人试运营、关闭视频帖、公开媒体走 COS + CDN、图片压缩的前提下，建议：
