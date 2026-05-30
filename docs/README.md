@@ -11,7 +11,7 @@
 7. [上线准备与验收清单](launch-readiness-checklist.md)：上线前逐项确认生产配置、云资源、小程序、后台、飞书、监控和 smoke。
 8. [发布与无感更新策略](release-strategy.md)：没有测试环境时如何发布、回滚，以及后续轻量蓝绿发布怎么演进。
 9. [媒体存储与 COS/CDN](media-storage.md)：公开图片为什么走 COS + CDN，本地 MinIO 和上传链路怎么工作。
-10. [数据模型导览](data-model.md)：按业务模块解释 `sql/campus.sql` 里的核心表。
+10. [数据模型导览](data-model.md)：按业务模块解释 `sql/campus.sql` 里的核心表；新库初始化和历史增量脚本边界见 [SQL 使用说明](../sql/README.md)。
 11. [API 路由地图](api-map.md)：按功能列出小程序、运营后台和内部 RAG 接口。
 12. [运营后台使用与功能地图](admin-operations.md)：后台页面、日常运营流程、权限和注意事项。
 13. [e仔 AI 与 RAG 知识库设计](ai-rag.md)：解释 e仔人设、自动回复、本地知识库、向量检索、后台测试和降级策略。

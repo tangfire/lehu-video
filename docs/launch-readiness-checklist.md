@@ -70,7 +70,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 - 3306 不开放公网。
 - 安全组只允许应用服务器访问。
 - 数据库名为 `lehu_campus_db`。
-- 已初始化 `sql/campus.sql`。
+- 已初始化 `sql/campus.sql`。全新生产库只跑这个文件，不再重复执行 `sql/2026*.sql` 历史增量脚本。
 - 至少确认云 MySQL 自带基础备份或快照能力。
 
 ### Redis

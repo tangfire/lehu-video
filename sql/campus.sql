@@ -1,3 +1,12 @@
+-- 校园 e站全新数据库初始化脚本。
+--
+-- 生产首发如果使用全新的云 MySQL，只需要执行本文件：
+--   mysql -h <云 MySQL 内网地址> -u <业务账号> -p < sql/campus.sql
+--
+-- sql/2026*.sql 是历史增量脚本，给已有开发库/旧库补结构用。
+-- 新库执行过 campus.sql 后，不要再把历史增量脚本重复跑一遍。
+-- 首发上线以后，新的结构变更应同时更新 campus.sql，并新增向前兼容的增量 SQL。
+
 CREATE DATABASE IF NOT EXISTS lehu_campus_db
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
@@ -203,6 +212,7 @@ CREATE TABLE IF NOT EXISTS `campus_forum_post` (
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   INDEX `idx_campus_post_category_created` (`category_code`, `status`, `is_deleted`, `created_at`, `id`),
+  INDEX `idx_campus_post_status_created` (`status`, `is_deleted`, `created_at`, `id`),
   INDEX `idx_campus_post_author` (`author_id`, `is_deleted`, `created_at`),
   INDEX `idx_campus_post_hot` (`status`, `is_deleted`, `like_count`, `comment_count`, `created_at`),
   INDEX `idx_campus_post_media` (`media_type`, `status`, `is_deleted`, `created_at`),
@@ -469,6 +479,10 @@ CREATE TABLE IF NOT EXISTS `campus_ops_alert` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_campus_ops_alert_dedupe` (`dedupe_key`),
   INDEX `idx_campus_ops_alert_status_next` (`status`, `next_retry_at`, `locked_until`, `id`),
+  INDEX `idx_campus_ops_alert_status_sent` (`status`, `sent_at`, `id`),
+  INDEX `idx_campus_ops_alert_status_updated` (`status`, `updated_at`, `id`),
+  INDEX `idx_campus_ops_alert_feishu_updated` (`feishu_status`, `updated_at`, `id`),
+  INDEX `idx_campus_ops_alert_updated` (`updated_at`, `id`),
   INDEX `idx_campus_ops_alert_target` (`target_type`, `target_id`),
   INDEX `idx_campus_ops_alert_type_created` (`alert_type`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='运营值班Agent飞书提醒队列';

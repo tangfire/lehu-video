@@ -310,6 +310,8 @@ GET  /v1/campus/admin/moments/packages/{id}/download.zip
 sql/campus.sql
 ```
 
+全新库只执行 `sql/campus.sql`。`sql/2026*.sql` 是历史增量脚本，给已有开发库或首发后的线上库升级使用；不要在全新生产库跑完 `campus.sql` 后再把历史增量脚本重复执行一遍。
+
 默认库名：
 
 ```text
@@ -493,7 +495,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 - 先用 `rg` 搜入口，不要凭文件名猜实现在哪里。
 - 先看 `service -> biz -> data` 三层，再决定改哪层。
 - 每次只改一个明确问题，避免顺手重构把线上行为改掉。
-- 数据库新增字段时，优先同步 `sql/campus.sql` 和单独迁移 SQL。
+- 数据库新增字段时，优先同步 `sql/campus.sql` 和单独迁移 SQL；全新库看 `campus.sql`，已有库才跑对应增量 SQL。
 - 生产配置改动同时检查 `.env.production.example`、`docker-compose.prod.yml` 和 README。
 - 后台 UI 改动后至少跑 `npm --prefix web/admin run build` 和 `npm --prefix web/admin run lint`。
 - 后端改动后至少跑相关包测试；跨服务改动再跑 `go test ./...`。
