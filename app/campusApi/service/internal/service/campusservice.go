@@ -34,7 +34,7 @@ type CampusService struct {
 }
 
 const (
-	campusMaxImageBytes       = 5 << 20
+	campusMaxImageBytes       = 10 << 20
 	campusMaxKnowledgeBytes   = 20 << 20
 	campusMultipartExtraBytes = 1 << 20
 	defaultTrustedProxyCIDRs  = "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
@@ -423,7 +423,7 @@ func (s *CampusService) handleUploadImage(w http.ResponseWriter, r *http.Request
 	}
 	defer file.Close()
 	if header.Size > campusMaxImageBytes {
-		writeError(w, r, apperror.InvalidArgument("图片不能超过 5MB"))
+		writeError(w, r, apperror.InvalidArgument("图片不能超过 10MB"))
 		return
 	}
 	data, err := io.ReadAll(io.LimitReader(file, campusMaxImageBytes+1))
@@ -432,7 +432,7 @@ func (s *CampusService) handleUploadImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if len(data) > campusMaxImageBytes {
-		writeError(w, r, apperror.InvalidArgument("图片不能超过 5MB"))
+		writeError(w, r, apperror.InvalidArgument("图片不能超过 10MB"))
 		return
 	}
 	fileType := imageFileType(header.Filename, http.DetectContentType(data))

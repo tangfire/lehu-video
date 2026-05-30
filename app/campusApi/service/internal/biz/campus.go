@@ -2138,8 +2138,8 @@ func (uc *CampusUsecase) PreSignPublicImage(ctx context.Context, hash, fileType,
 	if fileType != "jpg" && fileType != "jpeg" && fileType != "png" && fileType != "webp" {
 		return "", "", apperror.InvalidArgument("仅支持 jpg、png、webp 图片")
 	}
-	if size <= 0 || size > 5<<20 {
-		return "", "", apperror.InvalidArgument("图片不能超过 5MB")
+	if size <= 0 || size > 10<<20 {
+		return "", "", apperror.InvalidArgument("图片不能超过 10MB")
 	}
 	fileID, url, err := uc.base.PreSign4PublicUpload(ctx, hash, fileType, filename, size, 3600)
 	if err != nil {
