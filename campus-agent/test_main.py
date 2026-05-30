@@ -4,13 +4,16 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import main as agent_main
 from main import (
     TASK_TOOLS,
     AgentResult,
+    ModerationAuditResult,
     ModerationAuditRequest,
     build_agent_context,
     fallback_result,
     heuristic_moderation,
+    moderation_audit,
     normalize_moderation_result,
     parse_model_json,
     plan_tools_node,
@@ -59,6 +62,34 @@ class CampusAgentTest(unittest.TestCase):
         result = heuristic_moderation(ModerationAuditRequest(title="校园墙", content="这里有暗号甲", high_risk_words=["暗号甲"], review_words=["暗号乙"]))
         self.assertEqual(result.risk_level, "high")
         self.assertIn("keyword:暗号甲", result.evidence)
+
+    def test_moderation_audit_calls_model_for_rule_low(self):
+        calls = []
+        original = agent_main.call_moderation_model
+
+        def fake_model(req):
+            calls.append(req)
+            return ModerationAuditResult(
+                decision="pass",
+                confidence=0.94,
+                risk_level="low",
+                reason="模型判断为普通校园分享",
+                evidence=["model:ok"],
+            ), None, "", True
+
+        try:
+            agent_main.call_moderation_model = fake_model
+            result = moderation_audit(
+                ModerationAuditRequest(title="食堂新品", content="二楼今天有新套餐，味道还不错"),
+                x_campus_agent_token=agent_main.INTERNAL_TOKEN,
+            )
+        finally:
+            agent_main.call_moderation_model = original
+
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(result["model_used"])
+        self.assertEqual(result["rule_risk_level"], "low")
+        self.assertEqual(result["decision"], "pass")
 
     def test_build_agent_context_extracts_top_items(self):
         context = build_agent_context([

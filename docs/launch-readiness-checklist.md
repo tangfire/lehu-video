@@ -195,7 +195,7 @@ RUN_HEALTH_CHECK=1 RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 RUN_PYTHON_TESTS=0 bash scri
 | 飞书运营通知 | 开启 |
 | 举报提醒 | 开启 |
 | 重要反馈提醒 | 开启 |
-| AI 月预算 | 默认 20 元 |
+| AI 月预算 | 默认 5 元 |
 | AI 日预算 | 默认 2 元 |
 
 ## e仔与知识库

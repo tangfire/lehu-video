@@ -2324,23 +2324,34 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 			auditReason = "等待人工审核"
 		case CampusPostAuditModeAI:
 			ruleResult = uc.classifyCampusPostByRules(ctx, title, content)
-			if ruleResult.RiskLevel == "low" {
-				status = CampusAuditStatusVisible
-				auditReason = ""
+			directAuditAlertRisk = ruleResult.RiskLevel
+			directAuditAlertEvidence = ruleResult.Evidence
+			if !uc.agentAuditEnabled(ctx) || !campusAgentModelConfigured() {
+				if ruleResult.RiskLevel == "low" {
+					status = CampusAuditStatusVisible
+					auditReason = ""
+				} else {
+					status = CampusAuditStatusPending
+					auditReason = "同步中"
+					if !uc.agentAuditEnabled(ctx) {
+						directAuditAlertReason = "Agent 初审未启用，等待人工复核"
+					} else {
+						directAuditAlertReason = "Agent 模型未配置，等待人工复核"
+					}
+				}
+			} else if allowed, skippedReason := uc.aiBudgetAllowsModel(ctx, "content_audit", "post", "pending"); !allowed {
+				if ruleResult.RiskLevel == "low" {
+					status = CampusAuditStatusVisible
+					auditReason = ""
+				} else {
+					status = CampusAuditStatusPending
+					auditReason = "同步中"
+					directAuditAlertReason = skippedReason
+				}
 			} else {
 				status = CampusAuditStatusPending
 				auditReason = "同步中"
-				directAuditAlertRisk = ruleResult.RiskLevel
-				directAuditAlertEvidence = ruleResult.Evidence
-				if !uc.agentAuditEnabled(ctx) {
-					directAuditAlertReason = "Agent 初审未启用，等待人工复核"
-				} else if !campusAgentModelConfigured() {
-					directAuditAlertReason = "Agent 模型未配置，等待人工复核"
-				} else if allowed, skippedReason := uc.aiBudgetAllowsModel(ctx, "content_audit", "post", "pending"); !allowed {
-					directAuditAlertReason = skippedReason
-				} else {
-					enqueueAIAudit = true
-				}
+				enqueueAIAudit = true
 			}
 		}
 	}
@@ -2370,6 +2381,15 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		if auditSettings != nil && auditSettings.PostAuditMode == CampusPostAuditModeAI && enqueueAIAudit {
 			if err := uc.enqueuePostAIContentAudit(ctx, post); err != nil {
 				uc.log.WithContext(ctx).Warnf("queue campus post ai audit failed: post_id=%d err=%v", post.ID, err)
+				reason := firstNonEmpty(ruleResult.Reason, "AI 审核任务入队失败，等待人工复核")
+				riskLevel := firstNonEmpty(directAuditAlertRisk, ruleResult.RiskLevel, "medium")
+				evidence := directAuditAlertEvidence
+				if len(evidence) == 0 {
+					evidence = []string{"ai_audit_queue_failed"}
+				}
+				if err := uc.enqueueAuditOpsAlert(ctx, post, CampusAIContentAuditDecisionReview, riskLevel, reason, evidence); err != nil {
+					uc.log.WithContext(ctx).Warnf("queue campus ai audit fallback alert failed: post_id=%d err=%v", post.ID, err)
+				}
 			}
 		} else {
 			reason := firstNonEmpty(directAuditAlertReason, ruleResult.Reason, auditReason, "新帖需要人工确认")
@@ -3446,6 +3466,34 @@ func (uc *CampusUsecase) ProcessPendingAIContentAuditTasks(ctx context.Context, 
 	return firstErr
 }
 
+func (uc *CampusUsecase) passPostByRuleFallback(ctx context.Context, task *CampusAIContentAuditTask, post *CampusForumPost, ruleResult campusContentRuleResult, skippedReason string) error {
+	if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, ""); err != nil {
+		return err
+	}
+	reason := firstNonEmpty(ruleResult.Reason, "规则未发现明显风险")
+	rawResult, _ := json.Marshal(map[string]interface{}{
+		"decision":             CampusAIContentAuditDecisionPass,
+		"risk_level":           "low",
+		"rule_risk_level":      "low",
+		"reason":               reason,
+		"evidence":             ruleResult.Evidence,
+		"model_used":           false,
+		"model_skipped_reason": skippedReason,
+		"confidence":           0.96,
+		"fallback":             true,
+	})
+	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
+		ID:         uc.idGen.NextID(),
+		TargetType: "post",
+		TargetID:   post.ID,
+		UserID:     post.AuthorID,
+		Provider:   "rule",
+		Result:     CampusAIContentAuditDecisionPass,
+		Reason:     reason,
+	})
+	return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionPass, "low", reason, string(rawResult))
+}
+
 func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *CampusAIContentAuditTask) error {
 	if task == nil {
 		return nil
@@ -3464,36 +3512,13 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 		return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionReview, "none", "内容已不处于待审核状态", "")
 	}
 	ruleResult := uc.classifyCampusPostByRules(ctx, post.Title, post.Content)
-	if ruleResult.RiskLevel == "low" {
-		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, ""); err != nil {
-			return err
-		}
-		rawResult, _ := json.Marshal(map[string]interface{}{
-			"decision":        CampusAIContentAuditDecisionPass,
-			"risk_level":      "low",
-			"rule_risk_level": "low",
-			"reason":          ruleResult.Reason,
-			"evidence":        ruleResult.Evidence,
-			"model_used":      false,
-			"skipped_reason":  "rule_low_risk",
-			"confidence":      0.96,
-			"cost_protection": true,
-		})
-		_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
-			ID:         uc.idGen.NextID(),
-			TargetType: "post",
-			TargetID:   post.ID,
-			UserID:     post.AuthorID,
-			Provider:   "rule",
-			Result:     CampusAIContentAuditDecisionPass,
-			Reason:     ruleResult.Reason,
-		})
-		return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionPass, "low", ruleResult.Reason, string(rawResult))
-	}
 	if !uc.agentAuditEnabled(ctx) || !campusAgentModelConfigured() {
 		reason := "Agent 初审不可用，等待人工处理"
 		if !campusAgentModelConfigured() {
 			reason = "Agent 模型未配置，等待人工处理"
+		}
+		if ruleResult.RiskLevel == "low" {
+			return uc.passPostByRuleFallback(ctx, task, post, ruleResult, reason)
 		}
 		rawResult, _ := json.Marshal(map[string]interface{}{
 			"decision":             CampusAIContentAuditDecisionReview,
@@ -3512,6 +3537,9 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 	}
 	if allowed, skippedReason := uc.aiBudgetAllowsModel(ctx, "content_audit", "post", fmt.Sprintf("%d", post.ID)); !allowed {
 		reason := firstNonEmpty(skippedReason, "model_skipped_budget")
+		if ruleResult.RiskLevel == "low" {
+			return uc.passPostByRuleFallback(ctx, task, post, ruleResult, reason)
+		}
 		rawResult, _ := json.Marshal(map[string]interface{}{
 			"decision":             CampusAIContentAuditDecisionReview,
 			"risk_level":           ruleResult.RiskLevel,
@@ -3529,6 +3557,9 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 	}
 	result, raw, err := uc.auditPostWithAI(ctx, post)
 	if err != nil {
+		if ruleResult.RiskLevel == "low" {
+			return uc.passPostByRuleFallback(ctx, task, post, ruleResult, "agent_error:"+trimLimit(err.Error(), 120))
+		}
 		reason := "审核 Agent 不可用，需要人工处理"
 		rawResult, _ := json.Marshal(map[string]interface{}{
 			"decision":   CampusAIContentAuditDecisionReview,
@@ -5562,11 +5593,11 @@ func clampPositiveFloat(value, fallback float64) float64 {
 }
 
 func defaultAIMonthlyBudgetCNY() float64 {
-	return envFloatBiz("CAMPUS_AI_MONTHLY_BUDGET_CNY", 20)
+	return envFloatBiz("CAMPUS_AI_MONTHLY_BUDGET_CNY", 5)
 }
 
 func defaultAIDailyBudgetCNY() float64 {
-	return envFloatBiz("CAMPUS_AI_DAILY_BUDGET_CNY", 2)
+	return envFloatBiz("CAMPUS_AI_DAILY_BUDGET_CNY", 0.5)
 }
 
 func defaultAIBudgetWarnRatio() string {

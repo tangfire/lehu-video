@@ -98,7 +98,7 @@ flowchart LR
 4. 客户端调用 `/v1/campus/upload/complete` 确认文件。
 5. API 写入校园帖子、审核状态和通知相关数据，立即返回发布成功。
 6. 公共首页只展示 `visible` 内容；作者本人可以看到自己的同步中帖子。
-7. 审核规则先行：低风险直接同步；中高风险或不确定内容进入 Agent 初审和飞书人工确认。
+7. 审核规则先行但不替代 AI：普通帖子异步进入 Agent 初审，高置信低风险自动同步；中高风险或不确定内容进入飞书人工确认。
 
 ### e仔 Reply
 
@@ -136,5 +136,5 @@ flowchart LR
 - `LEHU_ENABLE_LEGACY_UPLOAD=false`，禁止图片上传退回 API 中转。
 - `LEHU_ACCESS_LOG_RETENTION_DAYS=7`，避免 `campus_access_log` 在 1核1G 云 MySQL 上无限增长。
 - `LEHU_REDIS_CACHE_ENABLED=true`，Redis 用于真实 IP 限流和短 TTL 热点读缓存；验证码能力保留在旧账号基础服务里，小程序主链路不依赖它。
-- `CAMPUS_AI_BUDGET_ENABLED=true`，AI 调用写入 `campus_ai_usage_log`，默认日预算 2 元、月预算 20 元；低风险审核不调模型。
+- `CAMPUS_AI_BUDGET_ENABLED=true`，AI 调用写入 `campus_ai_usage_log`，默认日预算 0.5 元、月预算 5 元；预算或模型不可用时才使用规则低风险兜底。
 - Docker json log 使用大小和份数限制；长期排障以 Loki 留存为准。

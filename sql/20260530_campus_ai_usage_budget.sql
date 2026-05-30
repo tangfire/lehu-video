@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS `campus_ai_usage_log` (
 
 INSERT INTO `campus_ops_setting` (`setting_key`, `setting_value`, `updated_by`) VALUES
 ('ai_budget_enabled', 'true', 0),
-('ai_monthly_budget_cny', '20', 0),
-('ai_daily_budget_cny', '2', 0),
+('ai_monthly_budget_cny', '5', 0),
+('ai_daily_budget_cny', '0.5', 0),
 ('ai_budget_warn_ratio', '0.7,0.9', 0)
 ON DUPLICATE KEY UPDATE `setting_key` = `setting_key`;

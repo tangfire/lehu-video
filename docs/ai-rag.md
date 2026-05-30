@@ -55,7 +55,7 @@ flowchart LR
 | e仔自动回复 | `campus_ai_reply_task` | 是 | 在评论区回答学生问题 |
 | AI/Agent 发帖审核 | `campus_ai_audit_task` | 否 | 对待审核帖子给出 `pass/review/reject` 判断 |
 
-AI/Agent 审核由后台“审核设置”决定是否启用。`campus-api` 只负责任务队列和最终写库，会调用 `campus-agent /internal/moderation/audit` 获取 `decision/confidence/risk_level/reason/evidence`。模型 key 配在 `campus-agent` 的 `CAMPUS_AGENT_*` 或通用 `CAMPUS_AI_*` 里；审核不查知识库，只看帖子类型、标题、正文和图片数量。低风险高置信自动通过，不确定或高风险会保留待审核并推飞书确认。
+AI/Agent 审核由后台“审核设置”决定是否启用。`campus-api` 只负责任务队列和最终写库，会调用 `campus-agent /internal/moderation/audit` 获取 `decision/confidence/risk_level/reason/evidence`。模型 key 配在 `campus-agent` 的 `CAMPUS_AGENT_*` 或通用 `CAMPUS_AI_*` 里；审核不查知识库，只看帖子类型、标题、正文和图片数量。Agent 高置信低风险自动通过，不确定或高风险会保留待审核并推飞书确认。
 
 ## 配置项
 
@@ -75,7 +75,7 @@ CAMPUS_EZAI_BOT_USER_ID=123
 CAMPUS_AI_EZAI_ENABLED=true
 ```
 
-AI 调用会写入 `campus_ai_usage_log`，覆盖发帖审核、运营 Copilot、e仔回复和后台预览。后台 `/admin/audit` 能看到今日/月度预估成本，默认日预算 2 元、月预算 20 元，超过预算后非低风险审核会转人工，e仔/预览会降级为安全兜底回复。
+AI 调用会写入 `campus_ai_usage_log`，覆盖发帖审核、运营 Copilot、e仔回复和后台预览。后台 `/admin/audit` 能看到今日/月度预估成本，默认日预算 0.5 元、月预算 5 元，超过预算后规则低风险兜底通过，其他审核转人工，e仔/预览会降级为安全兜底回复。
 
 RAG 质量闭环会把真实低质量日志自动沉淀成停用状态评测草稿：`wrong/needs_fix/unsafe`、`need_knowledge=true && confidence <= 0.52`、以及有明确问题的失败任务。运营在知识库评测页筛选“Agent 草稿”后批量启用，后续补资料再跑回归评测。
 

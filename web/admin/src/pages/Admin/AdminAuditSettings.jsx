@@ -22,8 +22,8 @@ const auditModes = [
         value: 'ai',
         title: 'AI/Agent 初审',
         badge: '提效',
-        summary: '低风险自动过',
-        detail: '不确定进飞书/后台。',
+        summary: '高置信自动过',
+        detail: '普通帖子异步 AI 初审，不确定进飞书/后台。',
     },
 ];
 

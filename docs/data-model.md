@@ -147,7 +147,7 @@ campus_notification
 
 如果审核模式不是 `off`，帖子会先进入待审核，再由人工或 AI 审核变更状态。待审核帖不进入公共列表，但作者本人可以在自己的详情和“我的帖子”看到，小程序用 `publish_state/client_status_label/client_status_detail` 展示成“同步中/需修改”。
 
-AI 初审是规则先行：低风险直接公开，不调模型；中风险、不确定或高风险才进入 `campus_ai_audit_task`。Agent 结果只提供判断和理由，最终状态仍由 `campus-api` 写入。
+AI 初审是规则先行但规则不替代 AI：AI 模式下普通用户新帖进入 `campus_ai_audit_task`，本地规则负责风险分级和高风险兜底。Agent 高置信低风险才公开；中风险、不确定、高风险或低置信结果保留待人工。Agent 结果只提供判断和理由，最终状态仍由 `campus-api` 写入。
 
 ### 图片上传
 

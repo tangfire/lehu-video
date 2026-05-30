@@ -652,8 +652,6 @@ def run_copilot(req: RunRequest, x_campus_agent_token: Optional[str] = Header(de
 def moderation_audit(req: ModerationAuditRequest, x_campus_agent_token: Optional[str] = Header(default=None)) -> Dict[str, Any]:
     check_token(x_campus_agent_token)
     rule = rule_moderation(req)
-    if rule.rule_risk_level == "low":
-        return rule.model_dump()
     if not req.model_allowed:
         rule.model_used = False
         rule.model_skipped_reason = "model_skipped_budget"

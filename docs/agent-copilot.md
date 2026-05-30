@@ -82,7 +82,7 @@ flowchart LR
 
 ## AI/Agent 发帖审核
 
-后台“审核设置”里的 `AI/Agent 初审` 开启后，新帖先走 `campus-api` 本地规则。明显低风险直接自动同步，不调用模型、不发飞书；中风险/不确定/高风险才进入 `campus_ai_audit_task`，由后台任务在预算允许时调用 `campus-agent`。
+后台“审核设置”里的 `AI/Agent 初审` 开启后，新帖先走 `campus-api` 本地规则做分级，但规则不再替代 AI。普通用户新帖会进入 `campus_ai_audit_task`，由后台任务在预算允许时调用 `campus-agent`；Agent 高置信低风险才自动同步，不确定或高风险进入飞书/后台人工确认。
 
 审核关键词在 `/admin/audit` 的“审核关键词”面板配置，存入 `campus_ops_setting`。`audit_high_risk_words` 命中后保留待审并推高优先级提醒，不允许 Agent 自动洗白；`audit_review_words` 命中后进入 Agent/人工复核。`campus-api` 本地规则和 `campus-agent /internal/moderation/audit` 使用同一份词表，配置为空或读取失败时回退默认词表。
 
@@ -90,11 +90,11 @@ flowchart LR
 
 | 判断结果 | 系统行为 |
 | --- | --- |
-| 本地规则 `low` | 自动设为可见，不调模型、不打扰作者 |
+| 本地规则 `low` 且 Agent `pass + low + confidence >= 0.9` | 自动设为可见，不打扰作者 |
 | 本地规则 `medium/uncertain` 且 Agent `pass + low + confidence >= 0.9` | 自动设为可见 |
 | Agent `review/reject/medium/high` 或 `confidence < 0.9` | 保持待审核，生成飞书审批卡片 |
 | 本地规则 `high` | 即使 Agent 复核为低风险，也保持待审核并推飞书 |
-| 预算超限或 Agent 不可用 | 低风险照常通过，其他内容保留待审核并飞书提醒 |
+| 预算超限或 Agent 不可用 | 规则低风险兜底通过，其他内容保留待审核并飞书提醒 |
 
 飞书审核卡片包含帖子摘要、风险等级、Agent 理由、后台链接，以及“通过/拒绝”按钮。举报卡片包含举报原因、目标类型和“下架内容/忽略举报/打开后台”按钮。按钮背后都是一次性 token 调用 `campus-api /v1/campus/feishu/card/callback`；如果公网回调或飞书能力不完整，仍可降级为打开后台处理。
 
@@ -165,8 +165,8 @@ CAMPUS_AI_MODEL=deepseek-v4-flash
 
 # AI 成本账本与预算保护
 CAMPUS_AI_BUDGET_ENABLED=true
-CAMPUS_AI_MONTHLY_BUDGET_CNY=20
-CAMPUS_AI_DAILY_BUDGET_CNY=2
+CAMPUS_AI_MONTHLY_BUDGET_CNY=5
+CAMPUS_AI_DAILY_BUDGET_CNY=0.5
 CAMPUS_AI_BUDGET_WARN_RATIO=0.7,0.9
 CAMPUS_AI_PRICE_INPUT_USD_PER_M=0.14
 CAMPUS_AI_PRICE_OUTPUT_USD_PER_M=0.28
@@ -200,7 +200,7 @@ LEHU_FEISHU_CARD_CALLBACK_ENABLED=true
 LEHU_FEISHU_CARD_VERIFY_TOKEN=
 ```
 
-`campus_ai_usage_log` 会记录 Agent 巡检、发帖审核、e仔回复和后台 e仔预览的模型调用 token 与预估成本。超过月预算 70%/90% 会推飞书预警；超过日/月硬预算后，非低风险发帖会进入人工待审，e仔和 Copilot 会走降级结果。
+`campus_ai_usage_log` 会记录 Agent 巡检、发帖审核、e仔回复和后台 e仔预览的模型调用 token 与预估成本。超过月预算 70%/90% 会推飞书预警；超过日/月硬预算后，规则低风险发帖兜底通过，其他发帖进入人工待审，e仔和 Copilot 会走降级结果。
 
 每日后台任务还会从真实 `campus_rag_query_log` 里把 `wrong/needs_fix/unsafe`、低置信需要知识的问题和失败问题沉淀为停用状态的 `campus_rag_eval_case` 草稿。运营可在知识库评测页筛选“Agent 草稿”并批量启用。
 
@@ -232,4 +232,4 @@ LEHU_FEISHU_CARD_VERIFY_TOKEN=
 
 可以这样讲：
 
-> 我在校园 e站里做了一个运营值班 Agent，独立为 `campus-agent` 微服务，使用 LangGraph 编排巡检类工具调用，用 LangChain tool 封装只读后台工具接口；同时把发帖 AI 审核迁到 Agent 服务。系统支持每日巡检、RAG 缺口分析、治理建议和发帖审核 human-in-the-loop：低风险规则直接通过，中高风险或不确定内容调用 Agent 复核，再推飞书卡片给运营确认。举报和重要反馈不包装成 Agent 推理，而是走 `campus_ops_alert` 运营提醒队列，负责可靠飞书通知、去重、重试和 SLA 超时提醒；真正写库仍由 `campus-api` 完成。
+> 我在校园 e站里做了一个运营值班 Agent，独立为 `campus-agent` 微服务，使用 LangGraph 编排巡检类工具调用，用 LangChain tool 封装只读后台工具接口；同时把发帖 AI 审核迁到 Agent 服务。系统支持每日巡检、RAG 缺口分析、治理建议和发帖审核 human-in-the-loop：本地规则先做风险分级，普通帖子异步调用 Agent，高置信低风险自动通过，中高风险或不确定内容推飞书卡片给运营确认。举报和重要反馈不包装成 Agent 推理，而是走 `campus_ops_alert` 运营提醒队列，负责可靠飞书通知、去重、重试和 SLA 超时提醒；真正写库仍由 `campus-api` 完成。

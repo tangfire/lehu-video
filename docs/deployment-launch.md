@@ -196,8 +196,8 @@ CAMPUS_EZAI_BOT_USER_ID=
 CAMPUS_AI_EZAI_ENABLED=true
 CAMPUS_EZAI_MIN_RAG_CONFIDENCE=0.56
 CAMPUS_AI_BUDGET_ENABLED=true
-CAMPUS_AI_MONTHLY_BUDGET_CNY=20
-CAMPUS_AI_DAILY_BUDGET_CNY=2
+CAMPUS_AI_MONTHLY_BUDGET_CNY=5
+CAMPUS_AI_DAILY_BUDGET_CNY=0.5
 CAMPUS_AI_BUDGET_WARN_RATIO=0.7,0.9
 CAMPUS_AI_PRICE_INPUT_USD_PER_M=0.14
 CAMPUS_AI_PRICE_OUTPUT_USD_PER_M=0.28
@@ -232,7 +232,7 @@ CAMPUS_AGENT_RUN_STALE_AFTER=10m
 CAMPUS_AGENT_MAX_CONCURRENT_RUNS=1
 ```
 
-`campus-agent` 承担两类需要模型推理的能力：巡检类任务只读，只生成每日巡检、RAG 缺口和治理建议；发帖审核通过 `/internal/moderation/audit` 返回结构化判断。审核链路规则先行：明显低风险帖子自动同步到首页且不调模型，不确定或高风险才调用 Agent；高风险规则不允许被 Agent 洗白，会保留待处理并推飞书确认。生产默认每天 `09:30 Asia/Shanghai` 自动跑一次 `daily_ops` 并发飞书日报。举报和重要反馈不调用 Agent 模型，直接进入 `campus_ops_alert` 飞书提醒队列；举报飞书卡片会带被举报内容摘要、举报原因、举报人和后台入口，举报人会收到站内“已收到”和“处理结果”消息。生产 compose 会把 `campus-agent` 限制在约 `384m / 0.5 CPU`，AI 审核 worker 默认每轮 2 条，避免挤占 API 主链路。
+`campus-agent` 承担两类需要模型推理的能力：巡检类任务只读，只生成每日巡检、RAG 缺口和治理建议；发帖审核通过 `/internal/moderation/audit` 返回结构化判断。审核链路规则先行但不替代 AI：AI 模式下普通用户帖子先作者可见并进入异步 Agent 初审，Agent 高置信低风险才同步到首页；中高风险、不确定或低置信内容会保留待处理并推飞书确认。高风险规则不允许被 Agent 洗白。预算超限或模型不可用时，规则低风险才作为兜底公开，其他内容转人工。生产默认每天 `09:30 Asia/Shanghai` 自动跑一次 `daily_ops` 并发飞书日报。举报和重要反馈不调用 Agent 模型，直接进入 `campus_ops_alert` 飞书提醒队列；举报飞书卡片会带被举报内容摘要、举报原因、举报人和后台入口，举报人会收到站内“已收到”和“处理结果”消息。生产 compose 会把 `campus-agent` 限制在约 `384m / 0.5 CPU`，AI 审核 worker 默认每轮 2 条，避免挤占 API 主链路。
 
 这些环境变量是新库默认值；运营后台 `/admin/audit` 的“值班 Agent 开关”和“AI 成本保护”保存后会写入 `campus_ops_setting`，之后以数据库设置为准，不需要重启容器。若后续模型成本过高，可以在后台关闭 `Agent 模型能力`、只关闭 `AI/Agent 初审`，或调低预算；飞书举报/反馈提醒仍可单独保留。
 
