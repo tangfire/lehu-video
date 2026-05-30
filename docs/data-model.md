@@ -16,7 +16,7 @@ lehu_campus_db
 sql/campus.sql
 ```
 
-全新生产云 MySQL 只执行 `sql/campus.sql`。`sql/2026*.sql` 是历史增量脚本，用于已有开发库或首发后的线上库升级；这些变更已经折叠进 `campus.sql`，新库不要重复执行历史增量脚本。详细说明见 [SQL 使用说明](../sql/README.md)。
+全新生产云 MySQL 只执行 `sql/campus.sql`。首发前历史增量已经折叠进该文件并清理；上线以后若有真实数据，再新增时间戳增量 SQL 给已有库升级。详细说明见 [SQL 使用说明](../sql/README.md)。
 
 当前项目只保留校园 e站需要的数据结构：账号、用户、文件、校园社区、通知、审核、安全、e仔/RAG、运营值班 Agent。运行中数据库不自动 drop 历史表。
 

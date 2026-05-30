@@ -94,7 +94,7 @@ location / {
 
 数据库建议使用同地域、可内网连接的 1核1G 云 MySQL。核心用户数据、帖子、评论、点赞、收藏、通知、审核、权限、文件记录、e仔/RAG 质量数据都放云 MySQL；不要为了日志再拆一套 Docker MySQL，跨库统计和排障复杂度不划算。后续如果日活、慢查询或 MySQL CPU 明显升高，再升级到 2核4G 云 MySQL。
 
-全新生产库初始化只执行 `sql/campus.sql`；它已经包含当前所有表、索引和默认运营配置。`sql/2026*.sql` 是给已有库升级的历史增量脚本，新库跑完 `campus.sql` 后不要再重复执行。SQL 目录说明见 [SQL 使用说明](../sql/README.md)。
+全新生产库初始化只执行 `sql/campus.sql`；它已经包含当前所有表、索引和默认运营配置。首发前历史增量已经折叠进该文件并清理；上线以后若有真实数据，再新增时间戳增量 SQL 给已有库升级。SQL 目录说明见 [SQL 使用说明](../sql/README.md)。
 
 生产 compose 默认不会启动本地 Docker MySQL、MinIO 和 `minio-init`，它们只保留在 `local-stateful` profile 里给临时自建或本地调试使用。生产健康监控也不再探测本地 `mysql_tcp/minio_health`，云 MySQL 是否可用先由 `api_ready` 间接覆盖，细节看云厂商监控。
 
@@ -374,4 +374,4 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d api base admin-web
 ```
 
-运行中数据库不要随便 drop 表。新库结构以 `sql/campus.sql` 为准；已有库升级才选择对应时间戳增量 SQL。
+运行中数据库不要随便 drop 表。新库结构以 `sql/campus.sql` 为准；上线后已有库升级才选择对应时间戳增量 SQL。

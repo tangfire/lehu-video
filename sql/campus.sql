@@ -3,8 +3,7 @@
 -- 生产首发如果使用全新的云 MySQL，只需要执行本文件：
 --   mysql -h <云 MySQL 内网地址> -u <业务账号> -p < sql/campus.sql
 --
--- sql/2026*.sql 是历史增量脚本，给已有开发库/旧库补结构用。
--- 新库执行过 campus.sql 后，不要再把历史增量脚本重复跑一遍。
+-- 首发前的历史增量脚本已经折叠进本文件并清理。
 -- 首发上线以后，新的结构变更应同时更新 campus.sql，并新增向前兼容的增量 SQL。
 
 CREATE DATABASE IF NOT EXISTS lehu_campus_db

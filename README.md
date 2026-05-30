@@ -169,7 +169,7 @@ export LEHU_WECHAT_MOCK_LOGIN=false
 sql/campus.sql
 ```
 
-全新生产云 MySQL 只执行 `sql/campus.sql`。`sql/2026*.sql` 是历史增量脚本，给已有开发库或首发后的线上库升级使用；新库跑完 `campus.sql` 后不要再重复执行历史增量脚本。SQL 目录说明见 [sql/README.md](sql/README.md)。
+全新生产云 MySQL 只执行 `sql/campus.sql`。首发前历史增量已经折叠进该文件并清理；上线以后若有真实数据，再新增时间戳增量 SQL 给已有库升级。SQL 目录说明见 [sql/README.md](sql/README.md)。
 
 默认数据库名：
 

@@ -310,7 +310,7 @@ GET  /v1/campus/admin/moments/packages/{id}/download.zip
 sql/campus.sql
 ```
 
-全新库只执行 `sql/campus.sql`。`sql/2026*.sql` 是历史增量脚本，给已有开发库或首发后的线上库升级使用；不要在全新生产库跑完 `campus.sql` 后再把历史增量脚本重复执行一遍。
+全新库只执行 `sql/campus.sql`。首发前历史增量已经折叠进该文件并清理；上线以后若有真实数据，再新增时间戳增量 SQL 给已有库升级。
 
 默认库名：
 
