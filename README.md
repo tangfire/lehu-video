@@ -1,6 +1,6 @@
 # lehu-campus 校园 e站
 
-校园 e站后端以小程序社区、课表、运营后台、e仔 AI/RAG 和浏览器内排障为主。项目保留轻量微服务架构：Go Kratos 服务通过 gRPC + Consul 做内部通信，Python RAG 服务通过 HTTP 接入，所有服务以 Docker 容器部署。
+校园 e站后端以小程序社区、课表、运营后台、e仔 AI/RAG、运营值班 Agent 和浏览器内排障为主。项目保留轻量微服务架构：Go Kratos 服务通过 gRPC + Consul 做内部通信，Python RAG/Agent 服务通过 Docker 内网 HTTP 接入，所有服务以 Docker 容器部署。
 
 ## 架构与设计
 
@@ -27,6 +27,7 @@ flowchart LR
     Health[health-exporter] --> Prometheus[(Prometheus 指标存储)]
     Grafana -->|查询指标| Prometheus
     Grafana --> Alert[alert-webhook]
+    API -->|运营通知 /agent| Alert
     Alert --> Feishu[飞书群机器人]
 ```
 
@@ -71,6 +72,7 @@ flowchart LR
 - 首发只支持文字/图片校园社区，视频能力不对外开放，降低带宽、审核和恶意刷流量风险。
 - 公开媒体用 COS + CDN，数据库和 Go 服务仍跑在轻量服务器，控制首发成本。
 - Redis 保留给登录态辅助、限流、缓存和短期任务状态；用户计数不再做复杂 dirty set 同步，优先让系统简单可控。
+- 运营值班 Agent 只做巡检、RAG 缺口、治理建议和发帖中高风险初审；举报/反馈/SLA 是运营提醒队列，不包装成 Agent 推理。
 - 监控采用 Grafana + Loki + Prometheus + Alloy，尽量在浏览器内完成查日志、看健康和收告警。
 - 运行中数据库不自动 drop 历史表；新库初始化以 `sql/campus.sql` 为准。
 
@@ -236,7 +238,47 @@ CAMPUS_AI_DAILY_BUDGET_CNY=2
 
 未配置 API Key 时，e仔/RAG 会降级，不影响社区主链路。
 
-值班 Agent 配置见 [docs/agent-copilot.md](docs/agent-copilot.md)。后台 `/admin/audit` 可以直接开关 Agent 模型能力、AI 初审、飞书运营通知和 AI 预算，不需要重启容器。举报默认即时飞书；`contact/cooperation/bug/content` 类型反馈默认即时飞书；普通 `suggestion` 默认只进后台和日报，避免噪音。
+## 运营值班 Agent
+
+完整设计见 [docs/agent-copilot.md](docs/agent-copilot.md)。`campus-agent` 是独立 Python FastAPI 服务，使用 LangGraph 编排受控工具调用，不面向学生端，不直接连 MySQL/Redis，也不直接执行删帖、封号、审核通过等写操作。
+
+真正属于 Agent 的能力：
+
+- `daily_ops`：每日运营巡检，汇总社区、审核、e仔、RAG 和安全状态。
+- `rag_gap`：知识库缺口分析，从错误标注、低置信日志和失败任务里找待补资料。
+- `moderation_advice`：治理建议，结合待审、举报、反馈和失败任务给优先级。
+- 发帖 AI/Agent 初审：本地规则先行，低风险不调模型；中高风险或不确定内容才调用 `campus-agent` 复核。
+
+不属于 Agent 推理、但属于运营值班体系的能力：
+
+- 举报、重要反馈、SLA 超时和飞书发送失败进入 `campus_ops_alert` 队列。
+- 队列负责可靠提醒、去重、退避重试和飞书处理回执，不调用 Agent 模型。
+- 飞书按钮的通过、拒绝、下架、忽略都回到 `campus-api` 校验一次性 token 后执行。
+
+关键配置：
+
+```text
+CAMPUS_AGENT_SERVICE_URL=http://campus-agent:8091
+CAMPUS_AGENT_INTERNAL_TOKEN=随机长token
+CAMPUS_AGENT_ENABLED=true
+CAMPUS_AGENT_AUDIT_ENABLED=true
+CAMPUS_AGENT_MAX_CONCURRENT_RUNS=1
+CAMPUS_AGENT_DAILY_REPORT_ENABLED=true
+CAMPUS_AGENT_DAILY_REPORT_TIME=09:30
+CAMPUS_OPS_FEISHU_EVENTS_ENABLED=true
+CAMPUS_AI_BUDGET_ENABLED=true
+CAMPUS_AI_MONTHLY_BUDGET_CNY=20
+CAMPUS_AI_DAILY_BUDGET_CNY=2
+```
+
+后台 `/admin/audit` 可以直接开关 Agent 模型能力、AI 初审、飞书运营通知和 AI 预算，不需要重启容器。后台 `/admin/copilot` 可以手动运行三种 Agent 报告、查看最近运行、发送飞书，并查看飞书提醒队列是否积压。
+
+默认运营提醒：
+
+- 用户举报帖子/评论：即时飞书。
+- `contact/cooperation/bug/content` 反馈：即时飞书。
+- 普通 `suggestion`：默认只进后台和日报，避免噪音。
+- 待人工确认审核、AI 预算 70%/90%、SLA 超时：飞书提醒。
 
 ## 监控与日志
 

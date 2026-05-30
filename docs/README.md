@@ -19,5 +19,6 @@
 15. [运营值班 Agent 设计](agent-copilot.md)：解释 LangGraph Agent、工具调用、飞书主动提醒、AI/Agent 初审和 human-in-the-loop。
 16. [观测与告警](observability-alerting.md)：解释 Grafana、Loki、Alloy、Prometheus、health-exporter 和飞书告警怎么工作、怎么查日志、怎么处理告警。
 17. [微信小程序提审与社区规则](wechat-submission.md)：隐私保护指引、社区规范、合法域名和提审验收清单。
+18. [上线进度汇报源稿](reports/campus-launch-progress-2026-05-30.md)：给合伙人同步用的当前进度、成本、风险和上线节奏汇报。
 
 如果只想快速知道“这个项目做什么”，先读功能设计总览；如果想接手开发，再读开发者导览。

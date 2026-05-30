@@ -323,7 +323,7 @@ LEHU_WECHAT_MOCK_LOGIN=true
 | 值班 Agent 与运营提醒 | 三种 Agent 任务可运行，手动发送飞书可用，举报/重要反馈/审核待确认能触发提醒 |
 | 朋友圈素材 | 可生成素材包，扫码能进帖子详情 |
 | Grafana | 日志搜索和健康监控有数据，`campus_agent_health`、`alert_webhook_health` 为 up |
-| 飞书 | 模拟 Grafana 告警和 Agent 通知都能发到群 |
+| 飞书 | 模拟 Grafana 告警和运营通知都能发到群 |
 
 命令行 smoke：
 

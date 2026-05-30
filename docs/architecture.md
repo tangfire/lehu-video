@@ -82,7 +82,7 @@ flowchart LR
 
 - `Alloy` 只负责采集容器日志并发送给 `Loki`。
 - `Loki` 只负责存日志和提供日志查询。
-- `health-exporter` 负责探测目标健康状态，包括 API、RAG、Agent、飞书桥接等 HTTP 健康接口和 MySQL/Redis/Qdrant 等 TCP 依赖。
+- `health-exporter` 负责探测目标健康状态，包括 API、RAG、Agent、飞书桥接等 HTTP 健康接口和 Redis/Qdrant 等 TCP 依赖；本地 `local-stateful` profile 才会探测本地 MySQL/MinIO。
 - `Prometheus` 负责定时抓取并保存 `health-exporter` 暴露出来的健康指标。
 - `Grafana` 同时把 `Loki` 和 `Prometheus` 当作数据源：日志搜索查 Loki，健康面板和告警规则查 Prometheus。
 

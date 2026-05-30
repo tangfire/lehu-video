@@ -283,7 +283,7 @@ RAG 质量闭环：
 
 | 场景 | 是否飞书 | 处理方式 |
 | --- | --- | --- |
-| API/MySQL/Redis 不可用 | 是 | Grafana 告警 |
+| API/Redis/核心依赖不可用 | 是 | Grafana 告警；生产云 MySQL 通过 `api_ready` 间接覆盖 |
 | RAG/Agent/alert-webhook 不可用 | 是，warning | Grafana 告警 |
 | 用户举报 | 是 | 飞书下架/忽略或回后台 |
 | 重要反馈 | 是 | 回后台处理 |
@@ -337,7 +337,7 @@ RAG 质量闭环：
 运维端：
 
 - Grafana 日志搜索有数据。
-- 健康面板包含 API、MySQL、Redis、RAG、Agent、alert-webhook。
+- 健康面板包含 API、Redis、RAG、Agent、alert-webhook、Qdrant、Consul；生产云 MySQL 通过 `api_ready` 间接观察。
 - 飞书能收到 Grafana 告警和运营通知。
 - `campus_access_log` 清理任务生效。
 - COS/CDN 上传下载链路正常。
