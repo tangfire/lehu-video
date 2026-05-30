@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiAlertCircle, FiCheckCircle, FiCpu, FiExternalLink, FiRefreshCw } from 'react-icons/fi';
+import { FiAlertCircle, FiCheckCircle, FiCpu, FiExternalLink, FiRefreshCw, FiShield, FiTrash2 } from 'react-icons/fi';
 import { campusAdminApi } from '../../api/admin';
 import { compactNumber, excerpt } from './adminUtils';
 import './Admin.css';
@@ -17,6 +17,18 @@ const statusText = (status) => {
     return map[status] || '全部';
 };
 
+const qualityOptions = [
+    ['good', '好'],
+    ['needs_fix', '待优化'],
+    ['wrong', '错误'],
+    ['unsafe', '风险'],
+];
+
+const qualityText = (label) => {
+    const item = qualityOptions.find(([value]) => value === label);
+    return item ? item[1] : '未标注';
+};
+
 const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
     const [summary, setSummary] = useState(null);
     const [tasks, setTasks] = useState([]);
@@ -25,6 +37,8 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
     const [retrying, setRetrying] = useState('');
+    const [reviewing, setReviewing] = useState('');
+    const [withdrawing, setWithdrawing] = useState('');
     const [error, setError] = useState('');
     const [toast, setToast] = useState('');
 
@@ -79,6 +93,40 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
             setError(err.message || '重试失败');
         } finally {
             setRetrying('');
+        }
+    };
+
+    const handleWithdraw = async (task) => {
+        if (withdrawing || !task?.answer_comment_id || task.answer_comment_id === '0') return;
+        if (!window.confirm('确定撤回这条 e仔回复吗？撤回后评论区将不可见。')) return;
+        setWithdrawing(task.id);
+        setToast('');
+        setError('');
+        try {
+            await campusAdminApi.moderateAiReplyTask(task.id, { action: 'withdraw' });
+            setToast('已撤回 e仔回复');
+            await load(page, status);
+        } catch (err) {
+            setError(err.message || '撤回失败');
+        } finally {
+            setWithdrawing('');
+        }
+    };
+
+    const handleQuality = async (task, label) => {
+        const logID = task?.rag_log?.id;
+        if (!logID || reviewing) return;
+        setReviewing(logID);
+        setToast('');
+        setError('');
+        try {
+            await campusAdminApi.reviewKnowledgeQueryLog(logID, { label, note: task.rag_log?.quality_note || '' });
+            setToast(`已标注为：${qualityText(label)}`);
+            await load(page, status);
+        } catch (err) {
+            setError(err.message || '标注失败');
+        } finally {
+            setReviewing('');
         }
     };
 
@@ -171,6 +219,48 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
                                         <span>{task.updated_at || task.created_at}</span>
                                     </div>
                                     <p>{excerpt(task.prompt, 110) || '无提问内容'}</p>
+                                    <div className="admin-ai-quality-grid">
+                                        <div>
+                                            <span>原评论</span>
+                                            <p>{excerpt(task.trigger_comment?.content, 180) || '未找到触发评论'}</p>
+                                        </div>
+                                        <div>
+                                            <span>e仔回复</span>
+                                            <p>{excerpt(task.answer_comment?.content || task.rag_log?.answer, 220) || (task.status === 'done' ? '未找到回复内容' : '尚未生成')}</p>
+                                        </div>
+                                    </div>
+                                    {task.rag_log && (
+                                        <div className="admin-ai-rag-card">
+                                            <div className="admin-ai-rag-head">
+                                                <span>RAG {task.rag_log.need_knowledge ? '需要知识库' : '无需知识库'} · 置信度 {Number(task.rag_log.confidence || 0).toFixed(2)} · {task.rag_log.duration_ms || 0}ms</span>
+                                                <strong>{qualityText(task.rag_log.quality_label)}</strong>
+                                            </div>
+                                            {!!task.rag_log.hit_chunks?.length && (
+                                                <div className="admin-ai-rag-chunks">
+                                                    {task.rag_log.hit_chunks.slice(0, 3).map((chunk) => (
+                                                        <span key={`${task.id}-${chunk.chunk_id || chunk.document_id}-${chunk.score}`}>
+                                                            {chunk.title || chunk.source || '知识片段'} {Number(chunk.score || 0).toFixed(2)}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {task.rag_log.error_message && <div className="admin-ai-error">{task.rag_log.error_message}</div>}
+                                            <div className="admin-ai-quality-actions">
+                                                {qualityOptions.map(([value, label]) => (
+                                                    <button
+                                                        key={value}
+                                                        className={`admin-button subtle ${task.rag_log.quality_label === value ? 'active' : ''}`}
+                                                        type="button"
+                                                        onClick={() => handleQuality(task, value)}
+                                                        disabled={reviewing === task.rag_log.id}
+                                                    >
+                                                        <FiShield />
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                     {task.last_error && <div className="admin-ai-error">{task.last_error}</div>}
                                     <div className="admin-ai-task-meta">
                                         <Link to={`/admin/posts?keyword=${task.post_id}`}>
@@ -182,6 +272,12 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
                                     </div>
                                 </div>
                                 <div className="admin-ai-task-actions">
+                                    {task.answer_comment_id && task.answer_comment_id !== '0' && (
+                                        <button className="admin-button danger" type="button" onClick={() => handleWithdraw(task)} disabled={withdrawing === task.id}>
+                                            <FiTrash2 />
+                                            撤回
+                                        </button>
+                                    )}
                                     {(task.status === 'failed' || task.status === 'processing') && (
                                         <button className="admin-button" type="button" onClick={() => handleRetry(task.id)} disabled={retrying === task.id}>
                                             <FiRefreshCw className={retrying === task.id ? 'spin' : ''} />

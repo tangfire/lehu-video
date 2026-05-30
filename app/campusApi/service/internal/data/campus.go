@@ -393,6 +393,10 @@ type campusRAGQueryLogModel struct {
 	Model            string          `gorm:"column:model"`
 	DurationMs       int64           `gorm:"column:duration_ms"`
 	ErrorMessage     string          `gorm:"column:error_message"`
+	QualityLabel     string          `gorm:"column:quality_label"`
+	QualityNote      string          `gorm:"column:quality_note"`
+	ReviewedBy       int64           `gorm:"column:reviewed_by"`
+	ReviewedAt       *time.Time      `gorm:"column:reviewed_at"`
 	CreatedAt        time.Time       `gorm:"column:created_at"`
 }
 
@@ -2023,6 +2027,20 @@ func (r *campusRepo) GetAIReplyOverview(ctx context.Context, botUserID string, l
 	return overview, nil
 }
 
+func (r *campusRepo) GetAIReplyTaskByID(ctx context.Context, id int64) (bool, *biz.CampusAIReplyTask, error) {
+	var row campusAIReplyTaskModel
+	err := r.data.db.WithContext(ctx).Model(&campusAIReplyTaskModel{}).
+		Where("id = ?", id).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	return true, toBizAIReplyTask(&row), nil
+}
+
 func (r *campusRepo) ListAIReplyTasks(ctx context.Context, status string, offset, limit int) ([]*biz.CampusAIReplyTask, int64, error) {
 	if limit <= 0 {
 		limit = 20
@@ -2044,6 +2062,77 @@ func (r *campusRepo) ListAIReplyTasks(ctx context.Context, status string, offset
 		tasks = append(tasks, toBizAIReplyTask(&rows[i]))
 	}
 	return tasks, total, nil
+}
+
+func (r *campusRepo) AttachAIReplyTaskDetails(ctx context.Context, tasks []*biz.CampusAIReplyTask) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+	commentIDs := make([]int64, 0, len(tasks)*2)
+	triggerIDs := make([]int64, 0, len(tasks))
+	seenComment := map[int64]struct{}{}
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		if task.TriggerCommentID > 0 {
+			triggerIDs = append(triggerIDs, task.TriggerCommentID)
+			if _, ok := seenComment[task.TriggerCommentID]; !ok {
+				seenComment[task.TriggerCommentID] = struct{}{}
+				commentIDs = append(commentIDs, task.TriggerCommentID)
+			}
+		}
+		if task.AnswerCommentID > 0 {
+			if _, ok := seenComment[task.AnswerCommentID]; !ok {
+				seenComment[task.AnswerCommentID] = struct{}{}
+				commentIDs = append(commentIDs, task.AnswerCommentID)
+			}
+		}
+	}
+	commentMap := map[int64]*biz.CampusForumComment{}
+	if len(commentIDs) > 0 {
+		var rows []campusForumCommentModel
+		if err := r.data.db.WithContext(ctx).Where("id IN ?", commentIDs).Find(&rows).Error; err != nil {
+			return err
+		}
+		comments := make([]*biz.CampusForumComment, 0, len(rows))
+		for i := range rows {
+			comment := toBizComment(&rows[i])
+			commentMap[comment.ID] = comment
+			comments = append(comments, comment)
+		}
+		if err := r.FillCommentPosts(ctx, comments); err != nil {
+			return err
+		}
+	}
+	ragMap := map[int64]*biz.CampusRAGQueryLog{}
+	if len(triggerIDs) > 0 {
+		var rows []campusRAGQueryLogModel
+		if err := r.data.db.WithContext(ctx).
+			Where("trigger_comment_id IN ?", triggerIDs).
+			Order("created_at DESC, id DESC").
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		for i := range rows {
+			item := toBizRAGQueryLog(&rows[i])
+			if item == nil {
+				continue
+			}
+			if _, ok := ragMap[item.TriggerCommentID]; !ok {
+				ragMap[item.TriggerCommentID] = item
+			}
+		}
+	}
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		task.TriggerComment = commentMap[task.TriggerCommentID]
+		task.AnswerComment = commentMap[task.AnswerCommentID]
+		task.RAGLog = ragMap[task.TriggerCommentID]
+	}
+	return nil
 }
 
 func (r *campusRepo) ResetAIReplyTask(ctx context.Context, id int64) error {
@@ -2377,6 +2466,31 @@ func (r *campusRepo) ListRAGQueryLogs(ctx context.Context, offset, limit int) ([
 		out = append(out, toBizRAGQueryLog(&rows[i]))
 	}
 	return out, total, nil
+}
+
+func (r *campusRepo) GetRAGQueryLogByID(ctx context.Context, id int64) (bool, *biz.CampusRAGQueryLog, error) {
+	var row campusRAGQueryLogModel
+	err := r.data.db.WithContext(ctx).Model(&campusRAGQueryLogModel{}).
+		Where("id = ?", id).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	return true, toBizRAGQueryLog(&row), nil
+}
+
+func (r *campusRepo) UpdateRAGQueryLogReview(ctx context.Context, id int64, label, note, reviewedBy string) error {
+	return r.data.db.WithContext(ctx).Model(&campusRAGQueryLogModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"quality_label": trimLimitData(label, 24),
+			"quality_note":  trimLimitData(note, 500),
+			"reviewed_by":   parseID(reviewedBy),
+			"reviewed_at":   time.Now(),
+		}).Error
 }
 
 func (r *campusRepo) ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*biz.CampusNotification, int64, error) {
@@ -3347,6 +3461,10 @@ func toRAGQueryLogModel(in *biz.CampusRAGQueryLog) campusRAGQueryLogModel {
 		Model:            trimLimitData(in.Model, 64),
 		DurationMs:       in.DurationMs,
 		ErrorMessage:     trimLimitData(in.ErrorMessage, 1000),
+		QualityLabel:     trimLimitData(in.QualityLabel, 24),
+		QualityNote:      trimLimitData(in.QualityNote, 500),
+		ReviewedBy:       parseID(in.ReviewedBy),
+		ReviewedAt:       in.ReviewedAt,
 		CreatedAt:        now,
 	}
 }
@@ -3370,6 +3488,10 @@ func toBizRAGQueryLog(row *campusRAGQueryLogModel) *biz.CampusRAGQueryLog {
 		Model:            row.Model,
 		DurationMs:       row.DurationMs,
 		ErrorMessage:     row.ErrorMessage,
+		QualityLabel:     row.QualityLabel,
+		QualityNote:      row.QualityNote,
+		ReviewedBy:       fmt.Sprintf("%d", row.ReviewedBy),
+		ReviewedAt:       row.ReviewedAt,
 		CreatedAt:        row.CreatedAt,
 	}
 }

@@ -488,11 +488,16 @@ CREATE TABLE IF NOT EXISTS `campus_rag_query_log` (
   `model` VARCHAR(64) NOT NULL DEFAULT '',
   `duration_ms` BIGINT NOT NULL DEFAULT 0,
   `error_message` VARCHAR(1000) NOT NULL DEFAULT '',
+  `quality_label` VARCHAR(24) NOT NULL DEFAULT '' COMMENT 'good/needs_fix/wrong/unsafe',
+  `quality_note` VARCHAR(500) NOT NULL DEFAULT '',
+  `reviewed_by` BIGINT NOT NULL DEFAULT 0,
+  `reviewed_at` DATETIME(3) DEFAULT NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   INDEX `idx_campus_rag_log_created` (`created_at`),
   INDEX `idx_campus_rag_log_user_created` (`user_id`, `created_at`),
-  INDEX `idx_campus_rag_log_comment` (`trigger_comment_id`)
+  INDEX `idx_campus_rag_log_comment` (`trigger_comment_id`),
+  INDEX `idx_campus_rag_log_quality` (`quality_label`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园e仔RAG查询日志';
 
 CREATE TABLE IF NOT EXISTS `campus_access_log` (

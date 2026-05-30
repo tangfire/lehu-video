@@ -107,6 +107,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/ai-replies/summary", s.wrap(s.authRequired(s.handleAdminAIReplySummary)))
 	r.GET("/v1/campus/admin/ai-replies/tasks", s.wrap(s.authRequired(s.handleAdminListAIReplyTasks)))
 	r.POST("/v1/campus/admin/ai-replies/tasks/{id}/retry", s.wrap(s.authRequired(s.handleAdminRetryAIReplyTask)))
+	r.POST("/v1/campus/admin/ai-replies/tasks/{id}/moderate", s.wrap(s.authRequired(s.handleAdminModerateAIReplyTask)))
 	r.GET("/v1/campus/admin/knowledge/documents", s.wrap(s.authRequired(s.handleAdminListKnowledgeDocuments)))
 	r.POST("/v1/campus/admin/knowledge/documents", s.wrap(s.authRequired(s.handleAdminCreateKnowledgeDocument)))
 	r.PUT("/v1/campus/admin/knowledge/documents/{id}", s.wrap(s.authRequired(s.handleAdminUpdateKnowledgeDocument)))
@@ -114,6 +115,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/knowledge/documents/{id}/chunks", s.wrap(s.authRequired(s.handleAdminListKnowledgeChunks)))
 	r.POST("/v1/campus/admin/knowledge/test-query", s.wrap(s.authRequired(s.handleAdminTestKnowledgeQuery)))
 	r.GET("/v1/campus/admin/knowledge/query-logs", s.wrap(s.authRequired(s.handleAdminListRAGQueryLogs)))
+	r.PUT("/v1/campus/admin/knowledge/query-logs/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewRAGQueryLog)))
 	r.POST("/v1/campus/admin/knowledge/upload", s.wrap(s.authRequired(s.handleAdminUploadKnowledgeFile)))
 	r.GET("/v1/campus/admin/reports", s.wrap(s.authRequired(s.handleAdminListReports)))
 	r.POST("/v1/campus/admin/reports/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewReport)))
@@ -788,6 +790,15 @@ type knowledgeDocumentRequest struct {
 type knowledgeTestQueryRequest struct {
 	Query string `json:"query"`
 	TopK  int32  `json:"top_k"`
+}
+
+type aiReplyModerateRequest struct {
+	Action string `json:"action"`
+}
+
+type ragQueryLogReviewRequest struct {
+	Label string `json:"label"`
+	Note  string `json:"note"`
 }
 
 type blockIPRequest struct {
@@ -1705,6 +1716,27 @@ func (s *CampusService) handleAdminRetryAIReplyTask(w http.ResponseWriter, r *ht
 	writeJSON(w, r, map[string]interface{}{})
 }
 
+func (s *CampusService) handleAdminModerateAIReplyTask(w http.ResponseWriter, r *http.Request) {
+	taskID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var req aiReplyModerateRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	if err := s.uc.AdminModerateAIReply(r.Context(), &biz.ModerateCampusAIReplyInput{
+		UserID: userID,
+		TaskID: taskID,
+		Action: req.Action,
+	}); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{})
+}
+
 func (s *CampusService) handleAdminListKnowledgeDocuments(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
@@ -1854,6 +1886,29 @@ func (s *CampusService) handleAdminListRAGQueryLogs(w http.ResponseWriter, r *ht
 		items = append(items, ragQueryLogToMap(item))
 	}
 	writeJSON(w, r, map[string]interface{}{"logs": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleAdminReviewRAGQueryLog(w http.ResponseWriter, r *http.Request) {
+	logID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var req ragQueryLogReviewRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	item, err := s.uc.AdminReviewRAGQueryLog(r.Context(), &biz.ReviewCampusRAGQueryLogInput{
+		UserID: userID,
+		LogID:  logID,
+		Label:  req.Label,
+		Note:   req.Note,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"log": ragQueryLogToMap(item)})
 }
 
 func (s *CampusService) handleAdminListReports(w http.ResponseWriter, r *http.Request) {
@@ -2801,6 +2856,9 @@ func aiReplyTaskToMap(task *biz.CampusAIReplyTask) map[string]interface{} {
 		"next_retry_at":      formatOptionalTime(task.NextRetryAt),
 		"locked_until":       formatOptionalTime(task.LockedUntil),
 		"answer_comment_id":  strconv.FormatInt(task.AnswerCommentID, 10),
+		"trigger_comment":    commentToMap(task.TriggerComment),
+		"answer_comment":     commentToMap(task.AnswerComment),
+		"rag_log":            ragQueryLogToMap(task.RAGLog),
 		"last_error":         task.LastError,
 		"created_at":         formatTime(task.CreatedAt),
 		"updated_at":         formatTime(task.UpdatedAt),
@@ -2908,6 +2966,10 @@ func ragQueryLogToMap(item *biz.CampusRAGQueryLog) map[string]interface{} {
 		"model":              item.Model,
 		"duration_ms":        item.DurationMs,
 		"error_message":      item.ErrorMessage,
+		"quality_label":      item.QualityLabel,
+		"quality_note":       item.QualityNote,
+		"reviewed_by":        item.ReviewedBy,
+		"reviewed_at":        formatOptionalTime(item.ReviewedAt),
 		"created_at":         formatTime(item.CreatedAt),
 	}
 }

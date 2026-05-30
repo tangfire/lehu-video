@@ -2501,6 +2501,76 @@
     line-height: 1.7;
 }
 
+.admin-ai-quality-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.admin-ai-quality-grid > div,
+.admin-ai-rag-card {
+    padding: 10px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #fbfaf9;
+}
+
+.admin-ai-quality-grid span,
+.admin-ai-rag-head span {
+    display: block;
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-ai-quality-grid p {
+    margin: 6px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.admin-ai-rag-card {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.admin-ai-rag-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.admin-ai-rag-head strong {
+    flex: 0 0 auto;
+    color: var(--admin-primary);
+    font-size: 12px;
+}
+
+.admin-ai-rag-chunks,
+.admin-ai-quality-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.admin-ai-rag-chunks span {
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: #fff;
+    color: #475569;
+    font-size: 12px;
+}
+
+.admin-ai-quality-actions .admin-button {
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 12px;
+}
+
 .admin-ai-error {
     margin-bottom: 10px;
     padding: 9px 10px;
@@ -2523,7 +2593,9 @@
 
 .admin-ai-task-actions {
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
+    gap: 8px;
 }
 
 .admin-status.ai-status-pending {
@@ -3400,6 +3472,12 @@
 
     .admin-ai-task-actions {
         justify-content: flex-start;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .admin-ai-quality-grid {
+        grid-template-columns: 1fr;
     }
 
     .admin-toolbar.knowledge,

@@ -431,6 +431,9 @@ type CampusAIReplyTask struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	ProcessedAt      *time.Time
+	TriggerComment   *CampusForumComment
+	AnswerComment    *CampusForumComment
+	RAGLog           *CampusRAGQueryLog
 }
 
 type CampusOpsAuditSettings struct {
@@ -555,6 +558,10 @@ type CampusRAGQueryLog struct {
 	Model            string
 	DurationMs       int64
 	ErrorMessage     string
+	QualityLabel     string
+	QualityNote      string
+	ReviewedBy       string
+	ReviewedAt       *time.Time
 	CreatedAt        time.Time
 }
 
@@ -852,6 +859,19 @@ type ListCampusAIReplyTasksOutput struct {
 type RetryCampusAIReplyTaskInput struct {
 	UserID string
 	TaskID int64
+}
+
+type ModerateCampusAIReplyInput struct {
+	UserID string
+	TaskID int64
+	Action string
+}
+
+type ReviewCampusRAGQueryLogInput struct {
+	UserID string
+	LogID  int64
+	Label  string
+	Note   string
 }
 
 type GetCampusAuditSettingsInput struct {
@@ -1240,8 +1260,10 @@ type CampusRepo interface {
 	MarkAIReplyTaskRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error
 	CountAIRepliesToday(ctx context.Context, botUserID string) (int64, error)
 	GetAIReplyOverview(ctx context.Context, botUserID string, limit int) (*CampusAIReplyOverview, error)
+	GetAIReplyTaskByID(ctx context.Context, id int64) (bool, *CampusAIReplyTask, error)
 	ListAIReplyTasks(ctx context.Context, status string, offset, limit int) ([]*CampusAIReplyTask, int64, error)
 	ResetAIReplyTask(ctx context.Context, id int64) error
+	AttachAIReplyTaskDetails(ctx context.Context, tasks []*CampusAIReplyTask) error
 	GetOpsSetting(ctx context.Context, key string) (bool, string, string, time.Time, error)
 	SetOpsSetting(ctx context.Context, key, value, updatedBy string) error
 	CreateAIContentAuditTask(ctx context.Context, task *CampusAIContentAuditTask) error
@@ -1259,6 +1281,8 @@ type CampusRepo interface {
 	ListKnowledgeChunks(ctx context.Context, documentID int64, offset, limit int) ([]*CampusKnowledgeChunk, int64, error)
 	CreateRAGQueryLog(ctx context.Context, item *CampusRAGQueryLog) error
 	ListRAGQueryLogs(ctx context.Context, offset, limit int) ([]*CampusRAGQueryLog, int64, error)
+	GetRAGQueryLogByID(ctx context.Context, id int64) (bool, *CampusRAGQueryLog, error)
+	UpdateRAGQueryLogReview(ctx context.Context, id int64, label, note, reviewedBy string) error
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
 	CountUnreadNotifications(ctx context.Context, userID string) (*CampusUnreadNotificationCount, error)
 	MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error
@@ -4179,6 +4203,12 @@ func (uc *CampusUsecase) AdminListAIReplyTasks(ctx context.Context, input *ListC
 	if err != nil {
 		return nil, apperror.Internal(err, "获取 e仔回复任务失败")
 	}
+	if err := uc.repo.AttachAIReplyTaskDetails(ctx, tasks); err != nil {
+		uc.log.WithContext(ctx).Warnf("attach ai reply task details failed: %v", err)
+	}
+	if err := uc.assembler.HydrateComments(ctx, collectAIReplyTaskComments(tasks), input.UserID); err != nil {
+		uc.log.WithContext(ctx).Warnf("hydrate ai reply task comments failed: %v", err)
+	}
 	return &ListCampusAIReplyTasksOutput{Tasks: tasks, Total: total}, nil
 }
 
@@ -4193,6 +4223,98 @@ func (uc *CampusUsecase) AdminRetryAIReplyTask(ctx context.Context, input *Retry
 		return apperror.Internal(err, "重试 e仔回复任务失败")
 	}
 	return nil
+}
+
+func (uc *CampusUsecase) AdminModerateAIReply(ctx context.Context, input *ModerateCampusAIReplyInput) error {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return apperror.Forbidden("没有后台权限")
+	}
+	if input.TaskID <= 0 {
+		return apperror.InvalidArgument("任务 ID 无效")
+	}
+	action := strings.TrimSpace(strings.ToLower(input.Action))
+	if action != "withdraw" && action != "delete" {
+		return apperror.InvalidArgument("操作无效")
+	}
+	ok, task, err := uc.repo.GetAIReplyTaskByID(ctx, input.TaskID)
+	if err != nil {
+		return apperror.Internal(err, "查询 e仔回复任务失败")
+	}
+	if !ok || task == nil {
+		return apperror.NotFound("e仔回复任务不存在")
+	}
+	if err := uc.repo.AttachAIReplyTaskDetails(ctx, []*CampusAIReplyTask{task}); err != nil {
+		return apperror.Internal(err, "查询 e仔回复详情失败")
+	}
+	if task.AnswerCommentID <= 0 {
+		return apperror.InvalidArgument("这条任务还没有 e仔回复")
+	}
+	if err := uc.repo.DeleteComment(ctx, task.AnswerCommentID); err != nil {
+		return apperror.Internal(err, "撤回 e仔回复失败")
+	}
+	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
+		ID:         uc.idGen.NextID(),
+		TargetType: "ai_reply",
+		TargetID:   input.TaskID,
+		UserID:     input.UserID,
+		Provider:   "manual",
+		Result:     "withdraw",
+		Reason:     fmt.Sprintf("answer_comment_id=%d", task.AnswerCommentID),
+	})
+	return nil
+}
+
+func (uc *CampusUsecase) AdminReviewRAGQueryLog(ctx context.Context, input *ReviewCampusRAGQueryLogInput) (*CampusRAGQueryLog, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	label := normalizeRAGQualityLabel(input.Label)
+	if label == "" {
+		return nil, apperror.InvalidArgument("标注结果无效")
+	}
+	note := trimLimit(strings.TrimSpace(input.Note), 500)
+	if err := uc.repo.UpdateRAGQueryLogReview(ctx, input.LogID, label, note, input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存 RAG 标注失败")
+	}
+	ok, item, err := uc.repo.GetRAGQueryLogByID(ctx, input.LogID)
+	if err != nil {
+		return nil, apperror.Internal(err, "读取 RAG 标注失败")
+	}
+	if !ok {
+		return nil, apperror.NotFound("RAG 查询日志不存在")
+	}
+	return item, nil
+}
+
+func collectAIReplyTaskComments(tasks []*CampusAIReplyTask) []*CampusForumComment {
+	comments := make([]*CampusForumComment, 0, len(tasks)*2)
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		if task.TriggerComment != nil {
+			comments = append(comments, task.TriggerComment)
+		}
+		if task.AnswerComment != nil {
+			comments = append(comments, task.AnswerComment)
+		}
+	}
+	return comments
+}
+
+func normalizeRAGQualityLabel(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "good", "ok", "pass":
+		return "good"
+	case "needs_fix", "fix", "weak":
+		return "needs_fix"
+	case "wrong", "bad":
+		return "wrong"
+	case "unsafe", "risk":
+		return "unsafe"
+	default:
+		return ""
+	}
 }
 
 func (uc *CampusUsecase) AdminListKnowledgeDocuments(ctx context.Context, input *ListCampusKnowledgeDocumentsInput) (*ListCampusKnowledgeDocumentsOutput, error) {
