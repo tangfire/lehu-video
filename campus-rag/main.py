@@ -467,6 +467,18 @@ def chunk_confidence(item: Dict[str, Any], query: str) -> float:
     return clamp01(confidence)
 
 
+def chunk_explain(item: Dict[str, Any], query: str, rrf_score: float) -> Dict[str, float]:
+    dense_score = clamp01(item.get("_dense_score", 0.0))
+    sparse_score = clamp01(item.get("_sparse_score", 0.0))
+    lexical_score = overlap_score(query, item.get("content") or "")
+    return {
+        "dense_score": round(dense_score, 4),
+        "sparse_score": round(sparse_score, 4),
+        "lexical_overlap": round(lexical_score, 4),
+        "rrf_score": round(float(rrf_score or 0), 6),
+    }
+
+
 def rrf_fuse(dense: List[Dict[str, Any]], sparse: List[Dict[str, Any]], top_k: int, query_text: str) -> List[Dict[str, Any]]:
     scores: Dict[str, float] = {}
     payloads: Dict[str, Dict[str, Any]] = {}
@@ -489,6 +501,7 @@ def rrf_fuse(dense: List[Dict[str, Any]], sparse: List[Dict[str, Any]], top_k: i
         if confidence < MIN_CHUNK_CONFIDENCE:
             continue
         item["score"] = round(confidence, 4)
+        item["explain"] = chunk_explain(item, query_text, score)
         item.pop("_dense_score", None)
         item.pop("_sparse_score", None)
         item.pop("_rrf_score", None)

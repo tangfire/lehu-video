@@ -2761,6 +2761,31 @@
     margin-bottom: 12px;
 }
 
+.admin-form-grid.compact {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.admin-form-grid.compact label {
+    display: grid;
+    gap: 6px;
+}
+
+.admin-form-grid.compact label span {
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.admin-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
 .admin-rag-result {
     display: grid;
     gap: 10px;
@@ -3481,7 +3506,8 @@
     }
 
     .admin-toolbar.knowledge,
-    .admin-knowledge-doc {
+    .admin-knowledge-doc,
+    .admin-form-grid.compact {
         grid-template-columns: 1fr;
     }
 

@@ -500,6 +500,29 @@ CREATE TABLE IF NOT EXISTS `campus_rag_query_log` (
   INDEX `idx_campus_rag_log_quality` (`quality_label`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园e仔RAG查询日志';
 
+CREATE TABLE IF NOT EXISTS `campus_rag_eval_case` (
+  `id` BIGINT NOT NULL,
+  `question` VARCHAR(1000) NOT NULL DEFAULT '',
+  `expected_document_id` BIGINT NOT NULL DEFAULT 0,
+  `expected_source` VARCHAR(120) NOT NULL DEFAULT '',
+  `expected_keywords` JSON DEFAULT NULL,
+  `category` VARCHAR(32) NOT NULL DEFAULT 'general',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1启用 0停用',
+  `source_log_id` BIGINT NOT NULL DEFAULT 0,
+  `note` VARCHAR(500) NOT NULL DEFAULT '',
+  `last_run_at` DATETIME(3) DEFAULT NULL,
+  `last_score` DOUBLE NOT NULL DEFAULT 0,
+  `last_hit` BOOLEAN NOT NULL DEFAULT FALSE,
+  `last_confidence` DOUBLE NOT NULL DEFAULT 0,
+  `last_result` JSON DEFAULT NULL,
+  `created_by` BIGINT NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  INDEX `idx_campus_rag_eval_status` (`status`, `updated_at`),
+  INDEX `idx_campus_rag_eval_log` (`source_log_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园e仔RAG评测集';
+
 CREATE TABLE IF NOT EXISTS `campus_access_log` (
   `id` BIGINT NOT NULL,
   `user_id` BIGINT NOT NULL DEFAULT 0 COMMENT '游客为0',

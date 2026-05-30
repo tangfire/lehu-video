@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { FiBookOpen, FiCpu, FiRefreshCw, FiShield, FiSliders, FiZap } from 'react-icons/fi';
+import { FiBookOpen, FiCpu, FiRefreshCw, FiShield, FiSliders, FiTarget, FiZap } from 'react-icons/fi';
 import AdminAIReplies from './AdminAIReplies';
 import AdminAuditSettings from './AdminAuditSettings';
 import AdminEzaiPersona from './AdminEzaiPersona';
@@ -12,6 +12,7 @@ const tabs = [
     { key: 'persona', label: '人设设定', icon: <FiSliders /> },
     { key: 'knowledge', label: '知识库', icon: <FiBookOpen /> },
     { key: 'test', label: '知识库测试', icon: <FiZap /> },
+    { key: 'eval', label: 'RAG评测', icon: <FiTarget /> },
     { key: 'audit', label: '审核设置', icon: <FiShield /> },
     { key: 'failed', label: '失败任务', icon: <FiRefreshCw /> },
 ];
@@ -35,7 +36,7 @@ const AdminAssistant = () => {
         setSearchParams(next, { replace: true });
     };
 
-    const knowledgeMode = activeTab === 'test' ? 'test' : 'documents';
+    const knowledgeMode = activeTab === 'test' ? 'test' : activeTab === 'eval' ? 'eval' : 'documents';
 
     return (
         <div className="admin-merged-page assistant">
@@ -58,7 +59,7 @@ const AdminAssistant = () => {
                 {activeTab === 'persona' && <AdminEzaiPersona />}
                 {activeTab === 'failed' && <AdminAIReplies mode="tasks" initialStatus="failed" />}
                 {activeTab === 'audit' && <AdminAuditSettings />}
-                {(activeTab === 'knowledge' || activeTab === 'test') && <AdminKnowledge mode={knowledgeMode} />}
+                {(activeTab === 'knowledge' || activeTab === 'test' || activeTab === 'eval') && <AdminKnowledge mode={knowledgeMode} />}
             </div>
         </div>
     );

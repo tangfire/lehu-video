@@ -67,13 +67,21 @@ type CampusRAGQueryResponse struct {
 }
 
 type CampusRAGQueryChunk struct {
-	ChunkID    string  `json:"chunk_id"`
-	DocumentID string  `json:"document_id"`
-	Title      string  `json:"title"`
-	Category   string  `json:"category"`
-	Content    string  `json:"content"`
-	Source     string  `json:"source"`
-	Score      float64 `json:"score"`
+	ChunkID    string                 `json:"chunk_id"`
+	DocumentID string                 `json:"document_id"`
+	Title      string                 `json:"title"`
+	Category   string                 `json:"category"`
+	Content    string                 `json:"content"`
+	Source     string                 `json:"source"`
+	Score      float64                `json:"score"`
+	Explain    *CampusRAGChunkExplain `json:"explain,omitempty"`
+}
+
+type CampusRAGChunkExplain struct {
+	DenseScore     float64 `json:"dense_score"`
+	SparseScore    float64 `json:"sparse_score"`
+	LexicalOverlap float64 `json:"lexical_overlap"`
+	RRFScore       float64 `json:"rrf_score"`
 }
 
 func NewCampusRAGClient(logger log.Logger) CampusRAGClient {

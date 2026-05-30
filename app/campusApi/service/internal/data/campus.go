@@ -402,6 +402,28 @@ type campusRAGQueryLogModel struct {
 
 func (campusRAGQueryLogModel) TableName() string { return "campus_rag_query_log" }
 
+type campusRAGEvalCaseModel struct {
+	ID                 int64           `gorm:"column:id"`
+	Question           string          `gorm:"column:question"`
+	ExpectedDocumentID int64           `gorm:"column:expected_document_id"`
+	ExpectedSource     string          `gorm:"column:expected_source"`
+	ExpectedKeywords   json.RawMessage `gorm:"column:expected_keywords"`
+	Category           string          `gorm:"column:category"`
+	Status             int32           `gorm:"column:status"`
+	SourceLogID        int64           `gorm:"column:source_log_id"`
+	Note               string          `gorm:"column:note"`
+	LastRunAt          *time.Time      `gorm:"column:last_run_at"`
+	LastScore          float64         `gorm:"column:last_score"`
+	LastHit            bool            `gorm:"column:last_hit"`
+	LastConfidence     float64         `gorm:"column:last_confidence"`
+	LastResult         json.RawMessage `gorm:"column:last_result"`
+	CreatedBy          int64           `gorm:"column:created_by"`
+	CreatedAt          time.Time       `gorm:"column:created_at"`
+	UpdatedAt          time.Time       `gorm:"column:updated_at"`
+}
+
+func (campusRAGEvalCaseModel) TableName() string { return "campus_rag_eval_case" }
+
 type campusAccessLogModel struct {
 	ID          int64     `gorm:"column:id"`
 	UserID      int64     `gorm:"column:user_id"`
@@ -2493,6 +2515,87 @@ func (r *campusRepo) UpdateRAGQueryLogReview(ctx context.Context, id int64, labe
 		}).Error
 }
 
+func (r *campusRepo) CreateRAGEvalCase(ctx context.Context, item *biz.CampusRAGEvalCase) error {
+	if item == nil {
+		return nil
+	}
+	row := toRAGEvalCaseModel(item)
+	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) UpdateRAGEvalCase(ctx context.Context, item *biz.CampusRAGEvalCase) error {
+	if item == nil {
+		return nil
+	}
+	keywords, _ := json.Marshal(item.ExpectedKeywords)
+	return r.data.db.WithContext(ctx).Model(&campusRAGEvalCaseModel{}).
+		Where("id = ?", item.ID).
+		Updates(map[string]interface{}{
+			"question":             trimLimitData(item.Question, 1000),
+			"expected_document_id": item.ExpectedDocumentID,
+			"expected_source":      trimLimitData(item.ExpectedSource, 120),
+			"expected_keywords":    keywords,
+			"category":             trimLimitData(item.Category, 32),
+			"status":               item.Status,
+			"note":                 trimLimitData(item.Note, 500),
+			"updated_at":           time.Now(),
+		}).Error
+}
+
+func (r *campusRepo) ListRAGEvalCases(ctx context.Context, status int32, offset, limit int) ([]*biz.CampusRAGEvalCase, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	db := r.data.db.WithContext(ctx).Model(&campusRAGEvalCaseModel{})
+	if status >= 0 {
+		db = db.Where("status = ?", status)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusRAGEvalCaseModel
+	if err := db.Order("updated_at DESC, id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*biz.CampusRAGEvalCase, 0, len(rows))
+	for i := range rows {
+		out = append(out, toBizRAGEvalCase(&rows[i]))
+	}
+	return out, total, nil
+}
+
+func (r *campusRepo) GetRAGEvalCaseByID(ctx context.Context, id int64) (bool, *biz.CampusRAGEvalCase, error) {
+	var row campusRAGEvalCaseModel
+	err := r.data.db.WithContext(ctx).Model(&campusRAGEvalCaseModel{}).
+		Where("id = ?", id).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	return true, toBizRAGEvalCase(&row), nil
+}
+
+func (r *campusRepo) UpdateRAGEvalCaseResult(ctx context.Context, id int64, result *biz.CampusRAGEvalResult) error {
+	if result == nil {
+		return nil
+	}
+	raw, _ := json.Marshal(result)
+	return r.data.db.WithContext(ctx).Model(&campusRAGEvalCaseModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"last_run_at":     result.RunAt,
+			"last_score":      result.Score,
+			"last_hit":        result.Hit,
+			"last_confidence": result.Confidence,
+			"last_result":     raw,
+			"updated_at":      time.Now(),
+		}).Error
+}
+
 func (r *campusRepo) ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*biz.CampusNotification, int64, error) {
 	db := r.data.db.WithContext(ctx).Model(&campusNotificationModel{}).
 		Where("recipient_id = ? AND is_deleted = ?", parseID(userID), false)
@@ -3493,6 +3596,76 @@ func toBizRAGQueryLog(row *campusRAGQueryLogModel) *biz.CampusRAGQueryLog {
 		ReviewedBy:       fmt.Sprintf("%d", row.ReviewedBy),
 		ReviewedAt:       row.ReviewedAt,
 		CreatedAt:        row.CreatedAt,
+	}
+}
+
+func toRAGEvalCaseModel(in *biz.CampusRAGEvalCase) campusRAGEvalCaseModel {
+	now := time.Now()
+	if !in.CreatedAt.IsZero() {
+		now = in.CreatedAt
+	}
+	updatedAt := now
+	if !in.UpdatedAt.IsZero() {
+		updatedAt = in.UpdatedAt
+	}
+	keywords, _ := json.Marshal(in.ExpectedKeywords)
+	lastResult, _ := json.Marshal(in.LastResult)
+	status := in.Status
+	if status != 0 {
+		status = 1
+	}
+	return campusRAGEvalCaseModel{
+		ID:                 in.ID,
+		Question:           trimLimitData(in.Question, 1000),
+		ExpectedDocumentID: in.ExpectedDocumentID,
+		ExpectedSource:     trimLimitData(in.ExpectedSource, 120),
+		ExpectedKeywords:   keywords,
+		Category:           trimLimitData(in.Category, 32),
+		Status:             status,
+		SourceLogID:        in.SourceLogID,
+		Note:               trimLimitData(in.Note, 500),
+		LastRunAt:          in.LastRunAt,
+		LastScore:          in.LastScore,
+		LastHit:            in.LastHit,
+		LastConfidence:     in.LastConfidence,
+		LastResult:         lastResult,
+		CreatedBy:          parseID(in.CreatedBy),
+		CreatedAt:          now,
+		UpdatedAt:          updatedAt,
+	}
+}
+
+func toBizRAGEvalCase(row *campusRAGEvalCaseModel) *biz.CampusRAGEvalCase {
+	if row == nil {
+		return nil
+	}
+	keywords := make([]string, 0)
+	_ = json.Unmarshal(row.ExpectedKeywords, &keywords)
+	var lastResult *biz.CampusRAGEvalResult
+	if len(row.LastResult) > 0 {
+		var parsed biz.CampusRAGEvalResult
+		if err := json.Unmarshal(row.LastResult, &parsed); err == nil {
+			lastResult = &parsed
+		}
+	}
+	return &biz.CampusRAGEvalCase{
+		ID:                 row.ID,
+		Question:           row.Question,
+		ExpectedDocumentID: row.ExpectedDocumentID,
+		ExpectedSource:     row.ExpectedSource,
+		ExpectedKeywords:   keywords,
+		Category:           row.Category,
+		Status:             row.Status,
+		SourceLogID:        row.SourceLogID,
+		Note:               row.Note,
+		LastRunAt:          row.LastRunAt,
+		LastScore:          row.LastScore,
+		LastHit:            row.LastHit,
+		LastConfidence:     row.LastConfidence,
+		LastResult:         lastResult,
+		CreatedBy:          fmt.Sprintf("%d", row.CreatedBy),
+		CreatedAt:          row.CreatedAt,
+		UpdatedAt:          row.UpdatedAt,
 	}
 }
 

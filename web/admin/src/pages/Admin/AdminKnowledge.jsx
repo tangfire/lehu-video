@@ -38,6 +38,15 @@ const initialManual = {
     expired_at: '',
 };
 
+const initialEvalCase = {
+    question: '',
+    expected_document_id: '',
+    expected_source: '',
+    expected_keywords_text: '',
+    category: 'general',
+    note: '',
+};
+
 const formatDateTimeLocal = (value) => {
     if (!value) return '';
     return value.replace(' ', 'T').slice(0, 16);
@@ -63,6 +72,9 @@ const AdminKnowledge = ({ mode = 'full' }) => {
     const [uploadMeta, setUploadMeta] = useState({ title: '', source: '学校官方资料', category: 'general', effective_at: '', expired_at: '' });
     const [testQuery, setTestQuery] = useState('');
     const [testResult, setTestResult] = useState(null);
+    const [evalCases, setEvalCases] = useState([]);
+    const [evalForm, setEvalForm] = useState(initialEvalCase);
+    const [evalSummary, setEvalSummary] = useState(null);
     const [ragHealth, setRagHealth] = useState(null);
     const [loading, setLoading] = useState(false);
     const [working, setWorking] = useState('');
@@ -99,6 +111,15 @@ const AdminKnowledge = ({ mode = 'full' }) => {
         }
     }, []);
 
+    const loadEvalCases = useCallback(async () => {
+        try {
+            const data = await campusAdminApi.listRagEvalCases({ page: 1, size: 30 });
+            setEvalCases(data.cases || []);
+        } catch (err) {
+            setError(err.message || '获取 RAG 评测集失败');
+        }
+    }, []);
+
     const loadRagHealth = useCallback(async () => {
         try {
             const data = await campusAdminApi.aiReplySummary();
@@ -112,6 +133,7 @@ const AdminKnowledge = ({ mode = 'full' }) => {
         loadDocuments(1);
         loadLogs();
         loadRagHealth();
+        if (mode === 'eval') loadEvalCases();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const activeCount = useMemo(() => documents.filter((item) => item.status === 'active').length, [documents]);
@@ -246,6 +268,75 @@ const AdminKnowledge = ({ mode = 'full' }) => {
             await loadLogs();
         } catch (err) {
             setError(err.message || '知识库测试失败');
+        } finally {
+            setWorking('');
+        }
+    };
+
+    const createEvalCase = async () => {
+        if (!evalForm.question.trim()) {
+            setError('请输入评测问题');
+            return;
+        }
+        setWorking('eval-create');
+        setError('');
+        try {
+            const keywords = evalForm.expected_keywords_text
+                .split(/[,，\n]/)
+                .map((item) => item.trim())
+                .filter(Boolean);
+            await campusAdminApi.createRagEvalCase({
+                question: evalForm.question,
+                expected_document_id: Number(evalForm.expected_document_id || 0),
+                expected_source: evalForm.expected_source,
+                expected_keywords: keywords,
+                category: evalForm.category,
+                note: evalForm.note,
+            });
+            setEvalForm(initialEvalCase);
+            setToast('评测用例已加入');
+            await loadEvalCases();
+        } catch (err) {
+            setError(err.message || '创建评测用例失败');
+        } finally {
+            setWorking('');
+        }
+    };
+
+    const createEvalFromLog = async (item) => {
+        if (!item?.query) return;
+        setWorking(`log-${item.id}`);
+        setError('');
+        try {
+            const firstChunk = (item.hit_chunks || [])[0] || {};
+            await campusAdminApi.createRagEvalCase({
+                question: item.query,
+                expected_document_id: Number(firstChunk.document_id || 0),
+                expected_source: firstChunk.source || '',
+                expected_keywords: [],
+                category: firstChunk.category || 'general',
+                source_log_id: Number(item.id || 0),
+                note: item.quality_label ? `来自真实日志：${item.quality_label}` : '来自真实 e仔查询日志',
+            });
+            setToast('已从日志加入评测集');
+            await loadEvalCases();
+        } catch (err) {
+            setError(err.message || '加入评测集失败');
+        } finally {
+            setWorking('');
+        }
+    };
+
+    const runEvalCases = async () => {
+        setWorking('eval-run');
+        setError('');
+        try {
+            const data = await campusAdminApi.runRagEvalCases({ case_ids: [] });
+            setEvalSummary(data.summary || null);
+            setToast('评测完成');
+            await loadEvalCases();
+        } catch (err) {
+            setError(err.message || '运行评测失败');
         } finally {
             setWorking('');
         }
@@ -473,6 +564,11 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                                 <article key={chunk.chunk_id}>
                                     <strong>{chunk.title || '未命名资料'}</strong>
                                     <span>{chunk.source} · {chunk.score}</span>
+                                    {chunk.explain && (
+                                        <span>
+                                            dense {Number(chunk.explain.dense_score || 0).toFixed(2)} · BM25 {Number(chunk.explain.sparse_score || 0).toFixed(2)} · 词面 {Number(chunk.explain.lexical_overlap || 0).toFixed(2)}
+                                        </span>
+                                    )}
                                     <p>{excerpt(chunk.content, 180)}</p>
                                 </article>
                             ))}
@@ -517,6 +613,125 @@ const AdminKnowledge = ({ mode = 'full' }) => {
                     </table>
                 </div>
             </section>}
+
+            {mode === 'eval' && <div className="admin-knowledge-grid bottom single">
+                <section className="admin-panel">
+                    <div className="admin-panel-head">
+                        <div>
+                            <h2>RAG 评测集</h2>
+                            <p>固定问题集，批量检查召回质量。</p>
+                        </div>
+                        <button className="admin-button primary" type="button" disabled={working === 'eval-run'} onClick={runEvalCases}>
+                            <FiZap />
+                            运行评测
+                        </button>
+                    </div>
+                    <div className="admin-ai-quality-grid">
+                        <div>
+                            <span>用例数</span>
+                            <strong>{compactNumber(evalCases.length)}</strong>
+                        </div>
+                        <div>
+                            <span>最近通过</span>
+                            <strong>{evalSummary ? `${evalSummary.passed || 0}/${evalSummary.total || 0}` : '-'}</strong>
+                        </div>
+                        <div>
+                            <span>平均分</span>
+                            <strong>{evalSummary ? Number(evalSummary.average || 0).toFixed(2) : '-'}</strong>
+                        </div>
+                    </div>
+                    <div className="admin-form-grid compact">
+                        <label>
+                            <span>问题</span>
+                            <input className="admin-input" value={evalForm.question} onChange={(e) => setEvalForm({ ...evalForm, question: e.target.value })} placeholder="例如：校园网怎么开通？" />
+                        </label>
+                        <label>
+                            <span>期望文档 ID</span>
+                            <input className="admin-input" value={evalForm.expected_document_id} onChange={(e) => setEvalForm({ ...evalForm, expected_document_id: e.target.value })} placeholder="可选" />
+                        </label>
+                        <label>
+                            <span>期望来源</span>
+                            <input className="admin-input" value={evalForm.expected_source} onChange={(e) => setEvalForm({ ...evalForm, expected_source: e.target.value })} placeholder="可选，如 学校官网" />
+                        </label>
+                        <label>
+                            <span>关键词</span>
+                            <input className="admin-input" value={evalForm.expected_keywords_text} onChange={(e) => setEvalForm({ ...evalForm, expected_keywords_text: e.target.value })} placeholder="逗号分隔" />
+                        </label>
+                        <label>
+                            <span>分类</span>
+                            <select className="admin-input" value={evalForm.category} onChange={(e) => setEvalForm({ ...evalForm, category: e.target.value })}>
+                                {categories.map((item) => <option key={item[0]} value={item[0]}>{item[1]}</option>)}
+                            </select>
+                        </label>
+                        <label>
+                            <span>备注</span>
+                            <input className="admin-input" value={evalForm.note} onChange={(e) => setEvalForm({ ...evalForm, note: e.target.value })} placeholder="可选" />
+                        </label>
+                    </div>
+                    <div className="admin-row-actions">
+                        <button className="admin-button primary" type="button" disabled={working === 'eval-create'} onClick={createEvalCase}>加入评测集</button>
+                        <button className="admin-button" type="button" onClick={loadEvalCases}>刷新</button>
+                    </div>
+                    <div className="admin-table-wrap">
+                        <table className="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>问题</th>
+                                    <th>期望</th>
+                                    <th>最近结果</th>
+                                    <th>命中片段</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {!evalCases.length && <tr><td colSpan="4"><div className="admin-empty compact">暂无评测用例</div></td></tr>}
+                                {evalCases.map((item) => (
+                                    <tr key={item.id}>
+                                        <td className="admin-title-cell">{excerpt(item.question, 90)}</td>
+                                        <td>{item.expected_document_id !== '0' ? `文档 ${item.expected_document_id}` : item.expected_source || (item.expected_keywords || []).join('、') || '按置信度'}</td>
+                                        <td>
+                                            <span className={`admin-status ${item.last_hit ? 'status-1' : ''}`}>{item.last_run_at ? (item.last_hit ? '通过' : '未命中') : '未运行'}</span>
+                                            <span> {Number(item.last_score || 0).toFixed(2)} / {Number(item.last_confidence || 0).toFixed(2)}</span>
+                                        </td>
+                                        <td>{excerpt(((item.last_result?.top_chunks || [])[0]?.title || (item.last_result?.error_message || '')), 80)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section className="admin-panel">
+                    <div className="admin-panel-head">
+                        <div>
+                            <h2>真实日志转评测</h2>
+                            <p>把线上问题沉淀为回归集。</p>
+                        </div>
+                    </div>
+                    <div className="admin-table-wrap">
+                        <table className="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>问题</th>
+                                    <th>质量</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {!logs.length && <tr><td colSpan="4"><div className="admin-empty compact">暂无查询日志</div></td></tr>}
+                                {logs.map((item) => (
+                                    <tr key={item.id}>
+                                        <td>{item.created_at}</td>
+                                        <td className="admin-title-cell">{excerpt(item.query, 90)}</td>
+                                        <td>{item.quality_label || '未标注'} · {Number(item.confidence || 0).toFixed(2)}</td>
+                                        <td><button className="admin-button" type="button" disabled={working === `log-${item.id}`} onClick={() => createEvalFromLog(item)}>加入评测</button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>}
         </div>
     );
 };

@@ -23,6 +23,7 @@ Grafana / Loki / Alloy / Prometheus / 飞书告警
 - 引入 Redis 热点读缓存和真实 IP 限流，对帖子列表、帖子详情、分类、后台 summary、安全 overview 等接口做短 TTL 缓存，Redis 异常时回落 MySQL。
 - 搭建 Grafana + Loki + Alloy + Prometheus 可观测体系，支持按 `request_id` 搜索容器日志、健康面板定位故障组件，并通过飞书群机器人接收 P0/P1 告警。
 - 实现 e仔 AI/RAG 知识库链路：后台上传/录入资料，RAG 服务解析切片并写入 Qdrant，评论区 `@e仔` 时结合帖子上下文和知识库生成回复，并在后台支持质量标注和撤回。
+- 设计 RAG 质量评测闭环：真实查询日志沉淀为评测集，批量运行固定问题集，记录命中率、平均分、失败样例，并展示 dense/BM25/词面重合等召回解释字段。
 - 设计运营后台能力，包括内容审核、举报反馈、权限管理、安全面板、e仔人设配置、知识库测试、朋友圈九图素材包和审核策略配置。
 - 围绕 300 人试运营做成本控制：2核4G 轻量服务器 + 1核1G 云 MySQL + 本机 Redis，视频关闭，图片走 COS/CDN，访问日志 7 天保留。
 
@@ -39,4 +40,5 @@ Grafana / Loki / Alloy / Prometheus / 飞书告警
 - 单机 Docker 部署仍可以是微服务，因为服务有独立容器、独立进程、独立健康检查、独立日志和服务间通信。
 - 首发没有拆 `forum-service`、`comment-service`、`notification-service`，是为了避免过度工程；这些模块在当前规模下强相关，留在 `campus-api` 更利于事务和排障。
 - RAG 独立成 Python 服务，是因为模型、embedding、Qdrant 检索和文档解析与 Go 业务服务技术栈不同。
+- RAG 不是只做“向量库问答”，而是有真实日志、人工标注、评测集和批量回归评测，能支撑后续切片策略、阈值、embedding 模型和 reranker 的可控迭代。
 - 生产公开图片不用本机 MinIO，是因为轻量服务器带宽小，COS/CDN 能把媒体流量从 API 服务器剥离出去。

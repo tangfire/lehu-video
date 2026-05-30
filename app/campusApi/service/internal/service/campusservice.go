@@ -116,6 +116,10 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/admin/knowledge/test-query", s.wrap(s.authRequired(s.handleAdminTestKnowledgeQuery)))
 	r.GET("/v1/campus/admin/knowledge/query-logs", s.wrap(s.authRequired(s.handleAdminListRAGQueryLogs)))
 	r.PUT("/v1/campus/admin/knowledge/query-logs/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewRAGQueryLog)))
+	r.GET("/v1/campus/admin/knowledge/eval-cases", s.wrap(s.authRequired(s.handleAdminListRAGEvalCases)))
+	r.POST("/v1/campus/admin/knowledge/eval-cases", s.wrap(s.authRequired(s.handleAdminCreateRAGEvalCase)))
+	r.PUT("/v1/campus/admin/knowledge/eval-cases/{id}", s.wrap(s.authRequired(s.handleAdminUpdateRAGEvalCase)))
+	r.POST("/v1/campus/admin/knowledge/eval-cases/run", s.wrap(s.authRequired(s.handleAdminRunRAGEvalCases)))
 	r.POST("/v1/campus/admin/knowledge/upload", s.wrap(s.authRequired(s.handleAdminUploadKnowledgeFile)))
 	r.GET("/v1/campus/admin/reports", s.wrap(s.authRequired(s.handleAdminListReports)))
 	r.POST("/v1/campus/admin/reports/{id}/review", s.wrap(s.authRequired(s.handleAdminReviewReport)))
@@ -799,6 +803,21 @@ type aiReplyModerateRequest struct {
 type ragQueryLogReviewRequest struct {
 	Label string `json:"label"`
 	Note  string `json:"note"`
+}
+
+type ragEvalCaseRequest struct {
+	Question           string   `json:"question"`
+	ExpectedDocumentID int64    `json:"expected_document_id"`
+	ExpectedSource     string   `json:"expected_source"`
+	ExpectedKeywords   []string `json:"expected_keywords"`
+	Category           string   `json:"category"`
+	Status             int32    `json:"status"`
+	SourceLogID        int64    `json:"source_log_id"`
+	Note               string   `json:"note"`
+}
+
+type ragEvalRunRequest struct {
+	CaseIDs []int64 `json:"case_ids"`
 }
 
 type blockIPRequest struct {
@@ -1911,6 +1930,109 @@ func (s *CampusService) handleAdminReviewRAGQueryLog(w http.ResponseWriter, r *h
 	writeJSON(w, r, map[string]interface{}{"log": ragQueryLogToMap(item)})
 }
 
+func (s *CampusService) handleAdminListRAGEvalCases(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	status := int32(-1)
+	if q.Get("status") != "" {
+		status = int32(queryInt(q.Get("status"), -1))
+	}
+	out, err := s.uc.AdminListRAGEvalCases(r.Context(), &biz.ListCampusRAGEvalCasesInput{
+		UserID: userID,
+		Status: status,
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Cases))
+	for _, item := range out.Cases {
+		items = append(items, ragEvalCaseToMap(item))
+	}
+	writeJSON(w, r, map[string]interface{}{"cases": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleAdminCreateRAGEvalCase(w http.ResponseWriter, r *http.Request) {
+	var req ragEvalCaseRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	item, err := s.uc.AdminCreateRAGEvalCase(r.Context(), &biz.CreateCampusRAGEvalCaseInput{
+		UserID:             userID,
+		Question:           req.Question,
+		ExpectedDocumentID: req.ExpectedDocumentID,
+		ExpectedSource:     req.ExpectedSource,
+		ExpectedKeywords:   req.ExpectedKeywords,
+		Category:           req.Category,
+		SourceLogID:        req.SourceLogID,
+		Note:               req.Note,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"case": ragEvalCaseToMap(item)})
+}
+
+func (s *CampusService) handleAdminUpdateRAGEvalCase(w http.ResponseWriter, r *http.Request) {
+	caseID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var req ragEvalCaseRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	item, err := s.uc.AdminUpdateRAGEvalCase(r.Context(), &biz.UpdateCampusRAGEvalCaseInput{
+		UserID:             userID,
+		CaseID:             caseID,
+		Question:           req.Question,
+		ExpectedDocumentID: req.ExpectedDocumentID,
+		ExpectedSource:     req.ExpectedSource,
+		ExpectedKeywords:   req.ExpectedKeywords,
+		Category:           req.Category,
+		Status:             req.Status,
+		Note:               req.Note,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"case": ragEvalCaseToMap(item)})
+}
+
+func (s *CampusService) handleAdminRunRAGEvalCases(w http.ResponseWriter, r *http.Request) {
+	var req ragEvalRunRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminRunRAGEvalCases(r.Context(), &biz.RunCampusRAGEvalCasesInput{
+		UserID:  userID,
+		CaseIDs: req.CaseIDs,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	results := make([]map[string]interface{}, 0, len(out.Results))
+	for _, item := range out.Results {
+		results = append(results, ragEvalResultToMap(item))
+	}
+	writeJSON(w, r, map[string]interface{}{
+		"results": results,
+		"summary": map[string]interface{}{
+			"total":   out.Total,
+			"passed":  out.Passed,
+			"average": out.Average,
+		},
+	})
+}
+
 func (s *CampusService) handleAdminListReports(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
@@ -2934,7 +3056,7 @@ func ragQueryChunkToMap(chunk *biz.CampusRAGQueryChunk) map[string]interface{} {
 	if chunk == nil {
 		return nil
 	}
-	return map[string]interface{}{
+	out := map[string]interface{}{
 		"chunk_id":    chunk.ChunkID,
 		"document_id": chunk.DocumentID,
 		"title":       chunk.Title,
@@ -2943,6 +3065,15 @@ func ragQueryChunkToMap(chunk *biz.CampusRAGQueryChunk) map[string]interface{} {
 		"source":      chunk.Source,
 		"score":       chunk.Score,
 	}
+	if chunk.Explain != nil {
+		out["explain"] = map[string]interface{}{
+			"dense_score":     chunk.Explain.DenseScore,
+			"sparse_score":    chunk.Explain.SparseScore,
+			"lexical_overlap": chunk.Explain.LexicalOverlap,
+			"rrf_score":       chunk.Explain.RRFScore,
+		}
+	}
+	return out
 }
 
 func ragQueryLogToMap(item *biz.CampusRAGQueryLog) map[string]interface{} {
@@ -2971,6 +3102,52 @@ func ragQueryLogToMap(item *biz.CampusRAGQueryLog) map[string]interface{} {
 		"reviewed_by":        item.ReviewedBy,
 		"reviewed_at":        formatOptionalTime(item.ReviewedAt),
 		"created_at":         formatTime(item.CreatedAt),
+	}
+}
+
+func ragEvalCaseToMap(item *biz.CampusRAGEvalCase) map[string]interface{} {
+	if item == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":                   strconv.FormatInt(item.ID, 10),
+		"question":             item.Question,
+		"expected_document_id": strconv.FormatInt(item.ExpectedDocumentID, 10),
+		"expected_source":      item.ExpectedSource,
+		"expected_keywords":    item.ExpectedKeywords,
+		"category":             item.Category,
+		"status":               item.Status,
+		"source_log_id":        strconv.FormatInt(item.SourceLogID, 10),
+		"note":                 item.Note,
+		"last_run_at":          formatOptionalTime(item.LastRunAt),
+		"last_score":           item.LastScore,
+		"last_hit":             item.LastHit,
+		"last_confidence":      item.LastConfidence,
+		"last_result":          ragEvalResultToMap(item.LastResult),
+		"created_by":           item.CreatedBy,
+		"created_at":           formatTime(item.CreatedAt),
+		"updated_at":           formatTime(item.UpdatedAt),
+	}
+}
+
+func ragEvalResultToMap(item *biz.CampusRAGEvalResult) map[string]interface{} {
+	if item == nil {
+		return nil
+	}
+	chunks := make([]map[string]interface{}, 0, len(item.TopChunks))
+	for _, chunk := range item.TopChunks {
+		chunks = append(chunks, ragQueryChunkToMap(chunk))
+	}
+	return map[string]interface{}{
+		"case_id":        strconv.FormatInt(item.CaseID, 10),
+		"need_knowledge": item.NeedKnowledge,
+		"confidence":     item.Confidence,
+		"hit":            item.Hit,
+		"score":          item.Score,
+		"matched_by":     item.MatchedBy,
+		"top_chunks":     chunks,
+		"error_message":  item.ErrorMessage,
+		"run_at":         formatTime(item.RunAt),
 	}
 }
 

@@ -565,6 +565,38 @@ type CampusRAGQueryLog struct {
 	CreatedAt        time.Time
 }
 
+type CampusRAGEvalCase struct {
+	ID                 int64
+	Question           string
+	ExpectedDocumentID int64
+	ExpectedSource     string
+	ExpectedKeywords   []string
+	Category           string
+	Status             int32
+	SourceLogID        int64
+	Note               string
+	LastRunAt          *time.Time
+	LastScore          float64
+	LastHit            bool
+	LastConfidence     float64
+	LastResult         *CampusRAGEvalResult
+	CreatedBy          string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type CampusRAGEvalResult struct {
+	CaseID        int64
+	NeedKnowledge bool
+	Confidence    float64
+	Hit           bool
+	Score         float64
+	MatchedBy     []string
+	TopChunks     []*CampusRAGQueryChunk
+	ErrorMessage  string
+	RunAt         time.Time
+}
+
 type CampusAccessLog struct {
 	ID          int64
 	UserID      string
@@ -979,6 +1011,53 @@ type ListCampusRAGQueryLogsOutput struct {
 	Total int64
 }
 
+type ListCampusRAGEvalCasesInput struct {
+	UserID string
+	Status int32
+	Page   int32
+	Size   int32
+}
+
+type ListCampusRAGEvalCasesOutput struct {
+	Cases []*CampusRAGEvalCase
+	Total int64
+}
+
+type CreateCampusRAGEvalCaseInput struct {
+	UserID             string
+	Question           string
+	ExpectedDocumentID int64
+	ExpectedSource     string
+	ExpectedKeywords   []string
+	Category           string
+	SourceLogID        int64
+	Note               string
+}
+
+type UpdateCampusRAGEvalCaseInput struct {
+	UserID             string
+	CaseID             int64
+	Question           string
+	ExpectedDocumentID int64
+	ExpectedSource     string
+	ExpectedKeywords   []string
+	Category           string
+	Status             int32
+	Note               string
+}
+
+type RunCampusRAGEvalCasesInput struct {
+	UserID  string
+	CaseIDs []int64
+}
+
+type RunCampusRAGEvalCasesOutput struct {
+	Results []*CampusRAGEvalResult
+	Total   int64
+	Passed  int64
+	Average float64
+}
+
 type ListCampusReportsInput struct {
 	UserID string
 	Status int32
@@ -1283,6 +1362,11 @@ type CampusRepo interface {
 	ListRAGQueryLogs(ctx context.Context, offset, limit int) ([]*CampusRAGQueryLog, int64, error)
 	GetRAGQueryLogByID(ctx context.Context, id int64) (bool, *CampusRAGQueryLog, error)
 	UpdateRAGQueryLogReview(ctx context.Context, id int64, label, note, reviewedBy string) error
+	CreateRAGEvalCase(ctx context.Context, item *CampusRAGEvalCase) error
+	UpdateRAGEvalCase(ctx context.Context, item *CampusRAGEvalCase) error
+	ListRAGEvalCases(ctx context.Context, status int32, offset, limit int) ([]*CampusRAGEvalCase, int64, error)
+	GetRAGEvalCaseByID(ctx context.Context, id int64) (bool, *CampusRAGEvalCase, error)
+	UpdateRAGEvalCaseResult(ctx context.Context, id int64, result *CampusRAGEvalResult) error
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
 	CountUnreadNotifications(ctx context.Context, userID string) (*CampusUnreadNotificationCount, error)
 	MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error
@@ -4536,6 +4620,235 @@ func (uc *CampusUsecase) AdminListRAGQueryLogs(ctx context.Context, input *ListC
 		return nil, apperror.Internal(err, "获取 RAG 查询日志失败")
 	}
 	return &ListCampusRAGQueryLogsOutput{Logs: logs, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminListRAGEvalCases(ctx context.Context, input *ListCampusRAGEvalCasesInput) (*ListCampusRAGEvalCasesOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	cases, total, err := uc.repo.ListRAGEvalCases(ctx, input.Status, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取 RAG 评测集失败")
+	}
+	return &ListCampusRAGEvalCasesOutput{Cases: cases, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminCreateRAGEvalCase(ctx context.Context, input *CreateCampusRAGEvalCaseInput) (*CampusRAGEvalCase, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	question := trimLimit(strings.TrimSpace(input.Question), 1000)
+	if len([]rune(question)) < 2 {
+		return nil, apperror.InvalidArgument("请输入评测问题")
+	}
+	item := &CampusRAGEvalCase{
+		ID:                 uc.idGen.NextID(),
+		Question:           question,
+		ExpectedDocumentID: input.ExpectedDocumentID,
+		ExpectedSource:     trimLimit(input.ExpectedSource, 120),
+		ExpectedKeywords:   normalizeRAGExpectedKeywords(input.ExpectedKeywords),
+		Category:           normalizeKnowledgeCategory(input.Category),
+		Status:             1,
+		SourceLogID:        input.SourceLogID,
+		Note:               trimLimit(input.Note, 500),
+		CreatedBy:          input.UserID,
+	}
+	if item.Category == "" {
+		item.Category = "general"
+	}
+	if err := uc.repo.CreateRAGEvalCase(ctx, item); err != nil {
+		return nil, apperror.Internal(err, "创建 RAG 评测用例失败")
+	}
+	return item, nil
+}
+
+func (uc *CampusUsecase) AdminUpdateRAGEvalCase(ctx context.Context, input *UpdateCampusRAGEvalCaseInput) (*CampusRAGEvalCase, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	ok, item, err := uc.repo.GetRAGEvalCaseByID(ctx, input.CaseID)
+	if err != nil {
+		return nil, apperror.Internal(err, "查询 RAG 评测用例失败")
+	}
+	if !ok || item == nil {
+		return nil, apperror.NotFound("RAG 评测用例不存在")
+	}
+	question := trimLimit(strings.TrimSpace(input.Question), 1000)
+	if len([]rune(question)) < 2 {
+		return nil, apperror.InvalidArgument("请输入评测问题")
+	}
+	item.Question = question
+	item.ExpectedDocumentID = input.ExpectedDocumentID
+	item.ExpectedSource = trimLimit(input.ExpectedSource, 120)
+	item.ExpectedKeywords = normalizeRAGExpectedKeywords(input.ExpectedKeywords)
+	item.Category = normalizeKnowledgeCategory(input.Category)
+	if item.Category == "" {
+		item.Category = "general"
+	}
+	if input.Status == 0 {
+		item.Status = 0
+	} else {
+		item.Status = 1
+	}
+	item.Note = trimLimit(input.Note, 500)
+	if err := uc.repo.UpdateRAGEvalCase(ctx, item); err != nil {
+		return nil, apperror.Internal(err, "更新 RAG 评测用例失败")
+	}
+	return item, nil
+}
+
+func (uc *CampusUsecase) AdminRunRAGEvalCases(ctx context.Context, input *RunCampusRAGEvalCasesInput) (*RunCampusRAGEvalCasesOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	cases := make([]*CampusRAGEvalCase, 0)
+	if len(input.CaseIDs) > 0 {
+		for _, id := range input.CaseIDs {
+			if id <= 0 {
+				continue
+			}
+			ok, item, err := uc.repo.GetRAGEvalCaseByID(ctx, id)
+			if err != nil {
+				return nil, apperror.Internal(err, "查询 RAG 评测用例失败")
+			}
+			if ok && item != nil {
+				cases = append(cases, item)
+			}
+		}
+	} else {
+		var err error
+		cases, _, err = uc.repo.ListRAGEvalCases(ctx, 1, 0, 50)
+		if err != nil {
+			return nil, apperror.Internal(err, "获取 RAG 评测集失败")
+		}
+	}
+	results := make([]*CampusRAGEvalResult, 0, len(cases))
+	var passed int64
+	var sum float64
+	for _, item := range cases {
+		if item == nil || item.Status == 0 {
+			continue
+		}
+		result := uc.runRAGEvalCase(ctx, item)
+		results = append(results, result)
+		sum += result.Score
+		if result.Hit {
+			passed++
+		}
+		if err := uc.repo.UpdateRAGEvalCaseResult(ctx, item.ID, result); err != nil {
+			uc.log.WithContext(ctx).Warnf("update rag eval result failed: case_id=%d err=%v", item.ID, err)
+		}
+	}
+	avg := 0.0
+	if len(results) > 0 {
+		avg = sum / float64(len(results))
+	}
+	return &RunCampusRAGEvalCasesOutput{Results: results, Total: int64(len(results)), Passed: passed, Average: avg}, nil
+}
+
+func (uc *CampusUsecase) runRAGEvalCase(ctx context.Context, item *CampusRAGEvalCase) *CampusRAGEvalResult {
+	result := &CampusRAGEvalResult{CaseID: item.ID, RunAt: time.Now(), MatchedBy: []string{}}
+	resp, err := uc.rag.Query(ctx, &CampusRAGQueryRequest{Query: item.Question, TopK: 5})
+	if err != nil {
+		result.ErrorMessage = trimLimit(err.Error(), 500)
+		return result
+	}
+	if resp == nil {
+		return result
+	}
+	result.NeedKnowledge = resp.NeedKnowledge
+	result.Confidence = resp.Confidence
+	result.TopChunks = resp.Chunks
+	result.Score, result.Hit, result.MatchedBy = scoreRAGEvalResult(item, resp)
+	return result
+}
+
+func scoreRAGEvalResult(item *CampusRAGEvalCase, resp *CampusRAGQueryResponse) (float64, bool, []string) {
+	if item == nil || resp == nil {
+		return 0, false, nil
+	}
+	matched := make([]string, 0, 3)
+	score := 0.0
+	for index, chunk := range resp.Chunks {
+		if chunk == nil {
+			continue
+		}
+		rankWeight := 1.0
+		if index > 0 {
+			rankWeight = 0.75
+		}
+		if item.ExpectedDocumentID > 0 && chunk.DocumentID == fmt.Sprintf("%d", item.ExpectedDocumentID) {
+			score += 0.65 * rankWeight
+			matched = append(matched, "document")
+		}
+		if item.ExpectedSource != "" && strings.Contains(strings.ToLower(chunk.Source), strings.ToLower(item.ExpectedSource)) {
+			score += 0.2 * rankWeight
+			matched = append(matched, "source")
+		}
+		if len(item.ExpectedKeywords) > 0 {
+			keywordScore := keywordMatchScore(item.ExpectedKeywords, chunk.Content+" "+chunk.Title+" "+chunk.Source)
+			if keywordScore > 0 {
+				score += 0.25 * keywordScore * rankWeight
+				matched = append(matched, "keywords")
+			}
+		}
+	}
+	if len(resp.Chunks) > 0 && item.ExpectedDocumentID == 0 && item.ExpectedSource == "" && len(item.ExpectedKeywords) == 0 {
+		score = resp.Confidence
+		if score >= 0.52 {
+			matched = append(matched, "confidence")
+		}
+	}
+	if score > 1 {
+		score = 1
+	}
+	return score, score >= 0.6, dedupeStrings(matched)
+}
+
+func keywordMatchScore(expected []string, text string) float64 {
+	if len(expected) == 0 {
+		return 0
+	}
+	lowerText := strings.ToLower(text)
+	matched := 0
+	for _, keyword := range expected {
+		value := strings.ToLower(strings.TrimSpace(keyword))
+		if value != "" && strings.Contains(lowerText, value) {
+			matched++
+		}
+	}
+	return float64(matched) / float64(len(expected))
+}
+
+func normalizeRAGExpectedKeywords(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		keyword := trimLimit(strings.TrimSpace(value), 40)
+		if keyword == "" || seen[keyword] {
+			continue
+		}
+		seen[keyword] = true
+		out = append(out, keyword)
+		if len(out) >= 12 {
+			break
+		}
+	}
+	return out
+}
+
+func dedupeStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
 }
 
 func (uc *CampusUsecase) enqueueKnowledgeIndex(ctx context.Context, doc *CampusKnowledgeDocument) {

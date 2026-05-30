@@ -132,6 +132,10 @@ export const campusAdminApi = {
     testKnowledgeQuery: (data) => request.post('/campus/admin/knowledge/test-query', data),
     listKnowledgeQueryLogs: (params) => request.get('/campus/admin/knowledge/query-logs', { params }),
     reviewKnowledgeQueryLog: (id, data) => request.put(`/campus/admin/knowledge/query-logs/${id}/review`, data),
+    listRagEvalCases: (params) => request.get('/campus/admin/knowledge/eval-cases', { params }),
+    createRagEvalCase: (data) => request.post('/campus/admin/knowledge/eval-cases', data),
+    updateRagEvalCase: (id, data) => request.put(`/campus/admin/knowledge/eval-cases/${id}`, data),
+    runRagEvalCases: (data) => request.post('/campus/admin/knowledge/eval-cases/run', data),
     uploadKnowledgeFile: (file) => {
         const formData = new FormData();
         formData.append('file', file);

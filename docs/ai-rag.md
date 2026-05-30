@@ -38,11 +38,13 @@ flowchart LR
 | e仔人设 | 运营后台 `/admin/assistant?tab=persona` | 配置名字、角色、性格、语气、安全边界、默认回复 |
 | 知识库 | 运营后台 `/admin/assistant?tab=knowledge` | 上传或手动录入校园资料，并索引到 RAG |
 | 知识库测试 | 运营后台 `/admin/assistant?tab=test` | 只测试“这个问题会不会查库、命中哪些片段、置信度多少” |
+| RAG 评测 | 运营后台 `/admin/assistant?tab=eval` | 保存固定问题集，批量检查召回命中率和置信度 |
 
 后台里“人设预览”和“知识库测试”不是同一个东西：
 
 - 人设预览：模拟评论区 `@e仔` 的完整回答链路，可以选择是否检索知识库、是否真的调用模型，会展示 system prompt、user prompt、最终回复和降级原因。
 - 知识库测试：只测检索，不测大模型回复。它主要回答“这条问题能不能从知识库里找到资料”。
+- RAG 评测：把真实问题或人工问题固化为回归用例，批量跑检索，观察命中率、平均分、Top 命中片段和失败样例。
 
 ### 和 AI 审核的区别
 
@@ -149,6 +151,7 @@ MINIO_PUBLIC_HOST_REWRITE=localhost:19000=minio:9000
 | MySQL `campus_knowledge_chunk` | 切片内容、摘要、关键词、Qdrant point id | 后台预览和问题排查 |
 | Qdrant `campus_knowledge` | 切片向量和 payload | 线上语义检索 |
 | MySQL `campus_rag_query_log` | 问题、命中片段、置信度、回答、错误、耗时 | 后台查看最近查询和排障 |
+| MySQL `campus_rag_eval_case` | 固定评测问题、期望文档/来源/关键词、最近评测结果 | RAG 回归评测和质量追踪 |
 
 支持两种入库方式：
 
@@ -245,8 +248,81 @@ flowchart TD
 - dense 和 sparse 用 RRF 融合排序。
 - `CAMPUS_RAG_MIN_CHUNK_CONFIDENCE=0.48` 以下的片段会被过滤。
 - Go 后端实际拼进回答 prompt 时，要求最高置信度至少约 `0.52`，并最多取 4 个片段。
+- 返回给后台的命中片段会带解释字段：`dense_score`、`sparse_score`、`lexical_overlap`、`rrf_score`。运营可以看出命中主要来自语义相似、关键词匹配还是词面重合。
 
 这意味着“知识库测试里有低分候选”不等于 e仔一定会引用它。e仔回答会更保守。
+
+## RAG 工程闭环
+
+现在这套 RAG 不只是一条查询链路，而是一个可迭代闭环：
+
+```mermaid
+flowchart LR
+    Query[真实 @e仔 问题] --> Log[(campus_rag_query_log)]
+    Log --> Review[后台质量标注]
+    Review --> Eval[(campus_rag_eval_case)]
+    Manual[人工补充问题] --> Eval
+    Eval --> Run[批量运行评测]
+    Run --> Metrics[命中率/平均分/失败样例]
+    Metrics --> Improve[补资料/拆文档/调阈值/改切片]
+    Improve --> Reindex[重建索引]
+    Reindex --> Run
+```
+
+### 真实日志
+
+每次 e仔自动回复都会写入 `campus_rag_query_log`：
+
+- 用户问题、帖子和触发评论。
+- 是否需要知识库、最终置信度、命中的片段。
+- e仔最终回答、模型、耗时、错误信息。
+- 人工质量标注：`good / needs_fix / wrong / unsafe`。
+
+这些日志有两个作用：
+
+- 排查线上问题：e仔为什么这么答，命中了哪些资料，是否模型或 RAG 出错。
+- 构建评测集：把高频问题、错误问题、边界问题沉淀成固定回归用例。
+
+### 评测集
+
+`campus_rag_eval_case` 保存固定评测问题。每个用例可以设置三类期望：
+
+| 字段 | 含义 |
+| --- | --- |
+| `expected_document_id` | 最严格，要求命中特定知识库文档 |
+| `expected_source` | 要求命中来源包含某个来源名，比如学校官网、教务通知 |
+| `expected_keywords` | 要求命中片段包含关键事实词 |
+
+如果三类期望都不填，评测会退化成“看置信度是否足够高”。这适合刚开始资料不多、只想先观察召回质量的阶段。
+
+批量运行评测时，后端会调用现有 RAG Query，不走 e仔大模型，不产生评论。每个用例会记录：
+
+- `last_score`：0 到 1 的评测分。
+- `last_hit`：分数大于等于 0.6 视为通过。
+- `last_confidence`：RAG 返回的最高置信度。
+- `last_result`：本次命中的 Top 片段和错误信息。
+
+### 怎么用它优化知识库
+
+日常运营可以按这个节奏做：
+
+1. 看“回复状态”，把 `wrong`、`unsafe`、`needs_fix` 的真实问题加入评测集。
+2. 手动补充一些高频问题，例如宿舍、校园网、快递、报到材料、校车。
+3. 每次新增或修改资料后，进入“RAG评测”运行全部评测。
+4. 如果命中率下降，先看失败用例的 Top 片段和解释字段。
+5. 根据原因处理：
+
+| 失败现象 | 优先处理 |
+| --- | --- |
+| 没有片段命中 | 补资料或检查文档是否 active/过期 |
+| 命中了错误校区资料 | 补 `campus_code` metadata，后续按校区过滤 |
+| BM25 高但语义不准 | 拆文档、改标题、增加关键词 |
+| dense 高但关键词不匹配 | 提高阈值或加入 reranker |
+| 回答编造 | 强化人设安全规则和无资料默认回复 |
+
+### 这块的工程价值
+
+这套闭环的价值在于：每次改 RAG 不再靠“感觉试几句”，而是能用固定用例回归。后续如果要换 embedding 模型、加 reranker、调整切片长度、按校区过滤，都可以先跑评测集，看通过率和失败样例再决定是否上线。
 
 ## e仔回复流程
 
@@ -382,6 +458,6 @@ go test ./app/campusApi/service/internal/biz -run 'Ezai|RAG|Knowledge'
 - 知识库文件第一阶段仍是后台低频文件链路，后续可以迁到私有 COS，和公开图片 COS/CDN 分开。
 - `campus_rag_query_log` 首发继续保存在云 MySQL，用于 e仔回复复盘、知识库命中分析和质量标注；数据量变大后再按 30 到 90 天清理。
 - 现在 RAG 只返回片段，不在用户侧展示引用来源；后续可以在后台保留引用，在用户侧谨慎展示“资料来源”。
-- 当前没有 RAG 质量人工标注，后续可以在后台给命中结果标“有用/无用”，再优化阈值和切片。
+- 当前已经支持 RAG 查询日志人工标注和评测集回归；后续可以继续保存每次评测 run 的历史趋势，而不是只保留最近一次结果。
 - 当前是单 collection，后续如果资料规模大，可以按学校、年份、资料类型拆 collection 或加更细分类。
 - 现在不做图片理解。图片帖里用户问“图里这个是什么”时，e仔只能依据标题和正文回答。
