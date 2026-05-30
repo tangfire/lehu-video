@@ -117,7 +117,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 必须确认：
 
 - 外部只通过 HTTPS 访问。
-- MySQL、Redis、Consul、MinIO、Qdrant、Prometheus 不暴露公网。
+- 生产默认不启动本地 MySQL/MinIO；Redis、Consul、Qdrant、Prometheus 不暴露公网。
 - Grafana 使用强密码。
 
 ## GitHub Actions 部署

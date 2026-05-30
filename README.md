@@ -54,14 +54,14 @@ flowchart LR
 - 媒体链路：生产公开图片不走服务器出网，`base` 返回 COS 上传地址和 CDN 访问地址，避免轻量服务器带宽被图片占满。
 - e仔链路：评论区 `@e仔` 先落任务；需要校园事实时查 RAG；命中资料后再生成官方账号回复；未配置模型时降级，不影响社区主链路。
 - 值班 Agent 链路：举报、重要反馈、待人工确认审核和每日巡检会通过 `alert-webhook` 推飞书；发帖审核规则先行，低风险不调模型，中高风险才调 Agent 并做人机确认。
-- 排障链路：用户拿到 `request_id` 后，在 Grafana 日志搜索定位入口日志；健康面板用于判断 API、MySQL、Redis、RAG 等组件是否可用。
+- 排障链路：用户拿到 `request_id` 后，在 Grafana 日志搜索定位入口日志；健康面板用于判断 API、Redis、RAG、Agent 等组件是否可用，生产云 MySQL 由 `api_ready` 间接覆盖。
 
 图里的监控链路可以这样理解：
 
-- `MinIO`：本地开发默认对象存储。生产公开图片走腾讯云 COS + CDN，MinIO 不再承载用户公开图片流量。
+- `MinIO`：本地开发默认对象存储。生产公开图片走腾讯云 COS + CDN，生产 compose 默认不启动本地 MinIO。
 - `Alloy`：采集 Docker 容器日志，送到 `Loki`。
 - `Loki`：存日志。Grafana 通过 Loki 查 `request_id`、接口路径、错误日志。
-- `health-exporter`：主动探测 API、MySQL、Redis、RAG、Agent、飞书桥接、Qdrant 等目标是否可用，并把结果变成指标。
+- `health-exporter`：主动探测 API、Redis、RAG、Agent、飞书桥接、Qdrant 等目标是否可用，并把结果变成指标；生产云 MySQL 不单独 TCP 探测，先看 `api_ready`。
 - `alert-webhook`：接收 Grafana 告警和值班 Agent 运营通知，发到飞书群；生产不要暴露公网。
 - `Prometheus`：定时抓取并保存这些健康指标，例如某个目标当前是 up 还是 down、连续 down 了多久。
 - `Grafana`：同时查询 Loki 和 Prometheus；Loki 用来看“为什么报错”，Prometheus 用来看“哪里挂了”和触发告警。
@@ -119,7 +119,9 @@ cp .env.production.example .env.production
 docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-生产覆盖文件会收紧端口：MySQL、Redis、Consul、MinIO、Qdrant、Prometheus、base、campus-user 不再暴露到宿主机；API、运营后台、Grafana 只绑定 `127.0.0.1`，建议由 Caddy/Nginx 反向代理统一暴露 HTTPS。
+生产覆盖文件默认不启动本地 MySQL、MinIO 和 `minio-init`，业务使用云 MySQL 与 COS/CDN；Redis、Consul、Qdrant、Prometheus、base、campus-user 不暴露到宿主机。API、运营后台、Grafana 只绑定 `127.0.0.1`，建议由 Caddy/Nginx 反向代理统一暴露 HTTPS。
+
+如果临时要在生产 compose 里启用本地 MySQL/MinIO，需要显式加 `COMPOSE_PROFILES=local-stateful`，并自行把 DSN/storage provider 切回本地。
 
 本地地址：
 
@@ -175,7 +177,7 @@ lehu_campus_db
 campus
 ```
 
-生产公开媒体不再建议走服务器本机 MinIO。帖子图片、头像、反馈图片、运营发帖图片使用腾讯云 COS + CDN：
+生产公开媒体不走服务器本机 MinIO。帖子图片、头像、反馈图片、运营发帖图片使用腾讯云 COS + CDN：
 
 ```bash
 export LEHU_STORAGE_PROVIDER=cos
@@ -370,4 +372,4 @@ RUN_HEALTH_CHECK=1 bash scripts/release-check.sh
 2核4G 轻量服务器 + 1核1G 云 MySQL + 本机 Redis
 ```
 
-业务数据统一放同一个云 MySQL，不做双 MySQL 拆库；Redis 用于真实 IP 限流和热点读缓存；普通容器日志走 Loki，`campus_access_log` 默认只保留 7 天。不要降到 2G 内存。后续如果图片量、同时在线、慢查询或 MySQL CPU 明显升高，再升级服务器或云 MySQL。
+业务数据统一放同一个云 MySQL，不做双 MySQL 拆库；生产 compose 默认不启动本地 MySQL/MinIO；Redis 用于真实 IP 限流和热点读缓存；普通容器日志走 Loki，`campus_access_log` 默认只保留 7 天。不要降到 2G 内存。后续如果图片量、同时在线、慢查询或 MySQL CPU 明显升高，再升级服务器或云 MySQL。

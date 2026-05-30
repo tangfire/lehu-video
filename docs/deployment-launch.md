@@ -20,7 +20,8 @@ docker compose up -d --build
 
 生产覆盖文件会收紧端口：
 
-- MySQL、Redis、Consul、MinIO、Qdrant、Prometheus、base、campus-user 不暴露到公网。
+- 本地 MySQL、MinIO、`minio-init` 默认不启动，只保留在 `local-stateful` profile。
+- Redis、Consul、Qdrant、Prometheus、base、campus-user 不暴露到公网。
 - API、运营后台、Grafana 绑定宿主机 `127.0.0.1`。
 - 外部 HTTPS 由 Caddy/Nginx 反向代理接入。
 
