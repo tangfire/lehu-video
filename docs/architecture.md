@@ -1,6 +1,6 @@
 # lehu-campus Architecture
 
-校园 e站当前采用轻量微服务架构：Go Kratos 服务通过 gRPC + Consul 做内部通信，Python `campus-rag` 通过 HTTP 提供知识库能力，观测链路随同一套 Docker 部署。旧项目栈已经从默认项目中移除。
+校园 e站当前采用轻量微服务架构：Go Kratos 服务通过 gRPC + Consul 做内部通信，Python `campus-rag` 提供知识库能力，Python `campus-agent` 使用 LangGraph 提供运营 Copilot Agent，观测链路随同一套 Docker 部署。旧项目栈已经从默认项目中移除。
 
 ## Design Goals
 
@@ -19,6 +19,7 @@
 - `base`: 账号、验证码、文件签名上传和对象存储确认，本地使用 MinIO，生产公开媒体使用腾讯云 COS + CDN。
 - `campus-user`: 用户资料服务，提供创建用户、资料查询/更新、搜索、统计和最后在线时间能力。
 - `campus-rag`: 知识库解析、切片、embedding、Qdrant 检索。
+- `campus-agent`: 运营 Copilot Agent，使用 LangGraph + LangChain tool 调用 `campus-api` 只读工具接口，生成巡检和治理建议。
 - `mysql / redis / minio / qdrant / consul`: 校园业务基础依赖。MinIO 主要用于本地开发和低频内部文件过渡。
 - `grafana / loki / alloy / prometheus / health-exporter`: 浏览器内日志搜索和健康监控。
 
@@ -33,6 +34,8 @@ flowchart LR
     API --> MySQL[(MySQL)]
     API --> Redis[(Redis)]
     API -->|HTTP 内网| Rag[campus-rag]
+    API -->|HTTP 内网| Agent[campus-agent]
+    Agent -->|internal tools| API
     Rag --> Qdrant[(Qdrant)]
     Base --> MinIO[(MinIO local)]
     Base --> COS[COS]
@@ -50,6 +53,8 @@ flowchart LR
 - `api -> base`：gRPC，服务发现名 `campus-estation.base.service`。
 - `api -> campus-user`：gRPC，服务发现名 `campus-estation.user.service`。
 - `api -> campus-rag`：Docker 内网 HTTP，默认 `http://campus-rag:8090`。
+- `api -> campus-agent`：Docker 内网 HTTP，默认 `http://campus-agent:8091`。
+- `campus-agent -> api`：内部只读工具接口，使用 `X-Campus-Agent-Token`。
 - 前端只调用 `api` 的 HTTP 接口，不直接访问内部微服务。
 
 ## Data

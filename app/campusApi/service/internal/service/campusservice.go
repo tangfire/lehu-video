@@ -93,6 +93,9 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.PUT("/v1/campus/admin/ezai/persona", s.wrap(s.authRequired(s.handleAdminUpdateEzaiPersona)))
 	r.POST("/v1/campus/admin/ezai/persona/preview", s.wrap(s.authRequired(s.handleAdminPreviewEzaiPersona)))
 	r.POST("/v1/campus/admin/stats/reconcile", s.wrap(s.authRequired(s.handleAdminReconcileStats)))
+	r.GET("/v1/campus/admin/copilot/runs", s.wrap(s.authRequired(s.handleAdminListAgentRuns)))
+	r.POST("/v1/campus/admin/copilot/runs", s.wrap(s.authRequired(s.handleAdminCreateAgentRun)))
+	r.GET("/v1/campus/admin/copilot/runs/{id}", s.wrap(s.authRequired(s.handleAdminGetAgentRun)))
 	r.GET("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminListPosts)))
 	r.POST("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminCreatePost)))
 	r.POST("/v1/campus/admin/posts/batch", s.wrap(s.authRequired(s.handleAdminBatchPosts)))
@@ -131,6 +134,16 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/users", s.wrap(s.authRequired(s.handleAdminListUsers)))
 	r.PUT("/v1/campus/admin/users/{id}/role", s.wrap(s.authRequired(s.handleAdminUpdateUserRole)))
 	r.POST("/v1/campus/admin/notifications", s.wrap(s.authRequired(s.handleAdminCreateNotification)))
+	r.GET("/v1/campus/internal/copilot/tools/admin-summary", s.wrap(s.handleCopilotToolAdminSummary))
+	r.GET("/v1/campus/internal/copilot/tools/security-overview", s.wrap(s.handleCopilotToolSecurityOverview))
+	r.GET("/v1/campus/internal/copilot/tools/ai-reply-overview", s.wrap(s.handleCopilotToolAIReplyOverview))
+	r.GET("/v1/campus/internal/copilot/tools/ai-reply-tasks", s.wrap(s.handleCopilotToolAIReplyTasks))
+	r.GET("/v1/campus/internal/copilot/tools/rag-query-logs", s.wrap(s.handleCopilotToolRAGQueryLogs))
+	r.GET("/v1/campus/internal/copilot/tools/rag-eval-cases", s.wrap(s.handleCopilotToolRAGEvalCases))
+	r.GET("/v1/campus/internal/copilot/tools/moderation-posts", s.wrap(s.handleCopilotToolModerationPosts))
+	r.GET("/v1/campus/internal/copilot/tools/moderation-comments", s.wrap(s.handleCopilotToolModerationComments))
+	r.GET("/v1/campus/internal/copilot/tools/reports", s.wrap(s.handleCopilotToolReports))
+	r.GET("/v1/campus/internal/copilot/tools/feedback", s.wrap(s.handleCopilotToolFeedback))
 }
 
 func (s *CampusService) wrap(handler http.HandlerFunc) khttp.HandlerFunc {
@@ -820,6 +833,11 @@ type ragEvalRunRequest struct {
 	CaseIDs []int64 `json:"case_ids"`
 }
 
+type agentRunRequest struct {
+	RunType  string `json:"run_type"`
+	Question string `json:"question"`
+}
+
 type blockIPRequest struct {
 	IP     string `json:"ip"`
 	Reason string `json:"reason"`
@@ -1325,6 +1343,258 @@ func (s *CampusService) handleAdminSummary(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"summary": adminSummaryToMap(summary)})
+}
+
+func (s *CampusService) handleAdminListAgentRuns(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	userID, _ := s.userIDFromRequest(r)
+	out, err := s.uc.AdminListAgentRuns(r.Context(), &biz.ListCampusAgentRunsInput{
+		UserID: userID,
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	runs := make([]map[string]interface{}, 0, len(out.Runs))
+	for _, item := range out.Runs {
+		runs = append(runs, agentRunToMap(item))
+	}
+	writeJSON(w, r, map[string]interface{}{"runs": runs, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleAdminCreateAgentRun(w http.ResponseWriter, r *http.Request) {
+	var req agentRunRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	run, err := s.uc.AdminCreateAgentRun(r.Context(), &biz.CreateCampusAgentRunInput{
+		UserID:   userID,
+		RunType:  req.RunType,
+		Question: req.Question,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"run": agentRunToMap(run)})
+}
+
+func (s *CampusService) handleAdminGetAgentRun(w http.ResponseWriter, r *http.Request) {
+	runID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	run, err := s.uc.AdminGetAgentRun(r.Context(), &biz.GetCampusAgentRunInput{UserID: userID, RunID: runID})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"run": agentRunToMap(run)})
+}
+
+func (s *CampusService) handleCopilotToolAdminSummary(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	summary, err := s.uc.AdminSummary(r.Context(), s.copilotOperatorUserID(r))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"summary": adminSummaryToMap(summary)})
+}
+
+func (s *CampusService) handleCopilotToolSecurityOverview(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	overview, err := s.uc.AdminSecurityOverview(r.Context(), &biz.ListCampusSecurityInput{UserID: s.copilotOperatorUserID(r)})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"security": securityOverviewToMap(overview)})
+}
+
+func (s *CampusService) handleCopilotToolAIReplyOverview(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	overview, err := s.uc.AdminAIReplyOverview(r.Context(), s.copilotOperatorUserID(r))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"overview": aiReplyOverviewToMap(overview)})
+}
+
+func (s *CampusService) handleCopilotToolAIReplyTasks(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	out, err := s.uc.AdminListAIReplyTasks(r.Context(), &biz.ListCampusAIReplyTasksInput{
+		UserID: s.copilotOperatorUserID(r),
+		Status: q.Get("status"),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 10)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Tasks))
+	for _, task := range out.Tasks {
+		items = append(items, aiReplyTaskToMap(task))
+	}
+	writeJSON(w, r, map[string]interface{}{"tasks": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleCopilotToolRAGQueryLogs(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	out, err := s.uc.AdminListRAGQueryLogs(r.Context(), &biz.ListCampusRAGQueryLogsInput{
+		UserID: s.copilotOperatorUserID(r),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	labels := splitCSVSet(q.Get("quality_label"))
+	maxConfidence, hasMaxConfidence := queryFloat(q.Get("max_confidence"))
+	needKnowledge := q.Get("need_knowledge")
+	items := make([]map[string]interface{}, 0, len(out.Logs))
+	for _, item := range out.Logs {
+		if len(labels) > 0 && !labels[item.QualityLabel] {
+			continue
+		}
+		if hasMaxConfidence && item.Confidence > maxConfidence {
+			continue
+		}
+		if needKnowledge != "" && item.NeedKnowledge != (needKnowledge == "true" || needKnowledge == "1") {
+			continue
+		}
+		items = append(items, ragQueryLogToMap(item))
+	}
+	writeJSON(w, r, map[string]interface{}{"logs": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleCopilotToolRAGEvalCases(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	out, err := s.uc.AdminListRAGEvalCases(r.Context(), &biz.ListCampusRAGEvalCasesInput{
+		UserID: s.copilotOperatorUserID(r),
+		Status: int32(queryInt(q.Get("status"), -1)),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 20)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Cases))
+	for _, item := range out.Cases {
+		items = append(items, ragEvalCaseToMap(item))
+	}
+	writeJSON(w, r, map[string]interface{}{"cases": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleCopilotToolModerationPosts(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	out, err := s.uc.ListModerationPosts(r.Context(), &biz.ListCampusModerationInput{
+		UserID: s.copilotOperatorUserID(r),
+		Status: int32(queryInt(q.Get("status"), int(biz.CampusAuditStatusPending))),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 10)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Posts))
+	for _, post := range out.Posts {
+		items = append(items, postToMap(post))
+	}
+	writeJSON(w, r, map[string]interface{}{"posts": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleCopilotToolModerationComments(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	out, err := s.uc.ListModerationComments(r.Context(), &biz.ListCampusModerationInput{
+		UserID: s.copilotOperatorUserID(r),
+		Status: int32(queryInt(q.Get("status"), int(biz.CampusAuditStatusPending))),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 10)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Comments))
+	for _, comment := range out.Comments {
+		items = append(items, commentToMap(comment))
+	}
+	writeJSON(w, r, map[string]interface{}{"comments": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleCopilotToolReports(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	out, err := s.uc.AdminListReports(r.Context(), &biz.ListCampusReportsInput{
+		UserID: s.copilotOperatorUserID(r),
+		Status: int32(queryInt(q.Get("status"), -1)),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 10)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Reports))
+	for _, report := range out.Reports {
+		items = append(items, reportToMap(report))
+	}
+	writeJSON(w, r, map[string]interface{}{"reports": items, "page_stats": map[string]interface{}{"total": out.Total}})
+}
+
+func (s *CampusService) handleCopilotToolFeedback(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAgentToken(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	out, err := s.uc.AdminListFeedback(r.Context(), &biz.ListCampusFeedbackInput{
+		UserID: s.copilotOperatorUserID(r),
+		Status: int32(queryInt(q.Get("status"), -1)),
+		Page:   int32(queryInt(q.Get("page"), 1)),
+		Size:   int32(queryInt(q.Get("size"), 10)),
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	items := make([]map[string]interface{}, 0, len(out.Feedbacks))
+	for _, item := range out.Feedbacks {
+		items = append(items, feedbackToMap(item))
+	}
+	writeJSON(w, r, map[string]interface{}{"feedback": items, "page_stats": map[string]interface{}{"total": out.Total}})
 }
 
 type auditSettingsRequest struct {
@@ -2408,6 +2678,37 @@ func pathStringID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return raw, true
 }
 
+func (s *CampusService) requireAgentToken(w http.ResponseWriter, r *http.Request) bool {
+	expected := strings.TrimSpace(os.Getenv("CAMPUS_AGENT_INTERNAL_TOKEN"))
+	if expected == "" {
+		expected = "local-agent-token"
+	}
+	if strings.TrimSpace(r.Header.Get("X-Campus-Agent-Token")) != expected {
+		writeError(w, r, apperror.Unauthorized("Copilot 内部鉴权失败"))
+		return false
+	}
+	return true
+}
+
+func (s *CampusService) copilotOperatorUserID(r *http.Request) string {
+	if r != nil {
+		if value := strings.TrimSpace(r.Header.Get("X-Campus-Agent-Operator-ID")); value != "" {
+			return value
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("CAMPUS_AGENT_OPERATOR_USER_ID")); value != "" {
+		return value
+	}
+	for _, envName := range []string{"LEHU_CAMPUS_ADMIN_USER_IDS", "LEHU_CAMPUS_OPERATOR_USER_IDS"} {
+		for _, raw := range strings.Split(os.Getenv(envName), ",") {
+			if value := strings.TrimSpace(raw); value != "" {
+				return value
+			}
+		}
+	}
+	return "1"
+}
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, out interface{}) bool {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -2487,6 +2788,28 @@ func queryInt(value string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func queryFloat(value string) (float64, bool) {
+	if strings.TrimSpace(value) == "" {
+		return 0, false
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, false
+	}
+	return parsed, true
+}
+
+func splitCSVSet(value string) map[string]bool {
+	out := map[string]bool{}
+	for _, item := range strings.Split(value, ",") {
+		key := strings.TrimSpace(item)
+		if key != "" {
+			out[key] = true
+		}
+	}
+	return out
 }
 
 func imageFileType(filename, detected string) string {
@@ -3148,6 +3471,26 @@ func ragEvalResultToMap(item *biz.CampusRAGEvalResult) map[string]interface{} {
 		"top_chunks":     chunks,
 		"error_message":  item.ErrorMessage,
 		"run_at":         formatTime(item.RunAt),
+	}
+}
+
+func agentRunToMap(item *biz.CampusAgentRun) map[string]interface{} {
+	if item == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":            strconv.FormatInt(item.ID, 10),
+		"run_type":      item.RunType,
+		"question":      item.Question,
+		"status":        item.Status,
+		"summary":       item.Summary,
+		"risk_level":    item.RiskLevel,
+		"result":        item.Result,
+		"tool_trace":    item.ToolTrace,
+		"error_message": item.ErrorMessage,
+		"created_by":    item.CreatedBy,
+		"created_at":    formatTime(item.CreatedAt),
+		"updated_at":    formatTime(item.UpdatedAt),
 	}
 }
 

@@ -12,6 +12,7 @@ import AdminModeration from './pages/Admin/AdminModeration.jsx';
 import AdminAssistant from './pages/Admin/AdminAssistant.jsx';
 import AdminAuditSettings from './pages/Admin/AdminAuditSettings.jsx';
 import AdminMoments from './pages/Admin/AdminMoments.jsx';
+import AdminCopilot from './pages/Admin/AdminCopilot.jsx';
 import './App.css';
 
 function AdminLegacyRedirect({ to, tab }) {
@@ -35,6 +36,7 @@ function App() {
                     <Route path="moderation" element={<AdminModeration />} />
                     <Route path="audit" element={<AdminAuditSettings />} />
                     <Route path="assistant" element={<AdminAssistant />} />
+                    <Route path="copilot" element={<AdminCopilot />} />
                     <Route path="notifications" element={<AdminNotifications />} />
                     <Route path="ai-replies" element={<AdminLegacyRedirect to="/admin/assistant" tab="status" />} />
                     <Route path="knowledge" element={<AdminLegacyRedirect to="/admin/assistant" tab="knowledge" />} />

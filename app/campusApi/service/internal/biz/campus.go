@@ -34,6 +34,10 @@ const (
 	CampusIPBlockStatusActive   int32 = 1
 	CampusIPBlockStatusInactive int32 = 0
 
+	CampusAgentRunStatusRunning = "running"
+	CampusAgentRunStatusDone    = "done"
+	CampusAgentRunStatusFailed  = "failed"
+
 	CampusAuthStatusUnverified int32 = 0
 	CampusAuthStatusVerified   int32 = 1
 
@@ -597,6 +601,21 @@ type CampusRAGEvalResult struct {
 	RunAt         time.Time
 }
 
+type CampusAgentRun struct {
+	ID           int64
+	RunType      string
+	Question     string
+	Status       string
+	Summary      string
+	RiskLevel    string
+	Result       map[string]interface{}
+	ToolTrace    []map[string]interface{}
+	ErrorMessage string
+	CreatedBy    string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type CampusAccessLog struct {
 	ID          int64
 	UserID      string
@@ -1058,6 +1077,28 @@ type RunCampusRAGEvalCasesOutput struct {
 	Average float64
 }
 
+type CreateCampusAgentRunInput struct {
+	UserID   string
+	RunType  string
+	Question string
+}
+
+type GetCampusAgentRunInput struct {
+	UserID string
+	RunID  int64
+}
+
+type ListCampusAgentRunsInput struct {
+	UserID string
+	Page   int32
+	Size   int32
+}
+
+type ListCampusAgentRunsOutput struct {
+	Runs  []*CampusAgentRun
+	Total int64
+}
+
 type ListCampusReportsInput struct {
 	UserID string
 	Status int32
@@ -1367,6 +1408,10 @@ type CampusRepo interface {
 	ListRAGEvalCases(ctx context.Context, status int32, offset, limit int) ([]*CampusRAGEvalCase, int64, error)
 	GetRAGEvalCaseByID(ctx context.Context, id int64) (bool, *CampusRAGEvalCase, error)
 	UpdateRAGEvalCaseResult(ctx context.Context, id int64, result *CampusRAGEvalResult) error
+	CreateAgentRun(ctx context.Context, item *CampusAgentRun) error
+	UpdateAgentRun(ctx context.Context, item *CampusAgentRun) error
+	GetAgentRunByID(ctx context.Context, id int64) (bool, *CampusAgentRun, error)
+	ListAgentRuns(ctx context.Context, offset, limit int) ([]*CampusAgentRun, int64, error)
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
 	CountUnreadNotifications(ctx context.Context, userID string) (*CampusUnreadNotificationCount, error)
 	MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error
@@ -4849,6 +4894,135 @@ func dedupeStrings(values []string) []string {
 		out = append(out, value)
 	}
 	return out
+}
+
+func normalizeAgentRunType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "daily_ops", "rag_gap", "moderation_advice":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return ""
+	}
+}
+
+func (uc *CampusUsecase) AdminCreateAgentRun(ctx context.Context, input *CreateCampusAgentRunInput) (*CampusAgentRun, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	runType := normalizeAgentRunType(input.RunType)
+	if runType == "" {
+		return nil, apperror.InvalidArgument("Copilot 任务类型无效")
+	}
+	run := &CampusAgentRun{
+		ID:        uc.idGen.NextID(),
+		RunType:   runType,
+		Question:  trimLimit(strings.TrimSpace(input.Question), 1000),
+		Status:    CampusAgentRunStatusRunning,
+		RiskLevel: "low",
+		CreatedBy: input.UserID,
+	}
+	if err := uc.repo.CreateAgentRun(ctx, run); err != nil {
+		return nil, apperror.Internal(err, "创建 Copilot 运行记录失败")
+	}
+	if err := uc.invokeAgentRun(ctx, run); err != nil {
+		run.Status = CampusAgentRunStatusFailed
+		run.ErrorMessage = trimLimit(err.Error(), 1000)
+		run.Summary = "Copilot 暂不可用，请稍后重试"
+		_ = uc.repo.UpdateAgentRun(ctx, run)
+		return run, nil
+	}
+	if err := uc.repo.UpdateAgentRun(ctx, run); err != nil {
+		return nil, apperror.Internal(err, "保存 Copilot 结果失败")
+	}
+	return run, nil
+}
+
+func (uc *CampusUsecase) AdminGetAgentRun(ctx context.Context, input *GetCampusAgentRunInput) (*CampusAgentRun, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	ok, run, err := uc.repo.GetAgentRunByID(ctx, input.RunID)
+	if err != nil {
+		return nil, apperror.Internal(err, "查询 Copilot 运行记录失败")
+	}
+	if !ok || run == nil {
+		return nil, apperror.NotFound("Copilot 运行记录不存在")
+	}
+	return run, nil
+}
+
+func (uc *CampusUsecase) AdminListAgentRuns(ctx context.Context, input *ListCampusAgentRunsInput) (*ListCampusAgentRunsOutput, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	page, size := normalizePage(input.Page, input.Size)
+	runs, total, err := uc.repo.ListAgentRuns(ctx, int((page-1)*size), int(size))
+	if err != nil {
+		return nil, apperror.Internal(err, "获取 Copilot 运行记录失败")
+	}
+	return &ListCampusAgentRunsOutput{Runs: runs, Total: total}, nil
+}
+
+func (uc *CampusUsecase) invokeAgentRun(ctx context.Context, run *CampusAgentRun) error {
+	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("CAMPUS_AGENT_SERVICE_URL")), "/")
+	if baseURL == "" {
+		baseURL = "http://campus-agent:8091"
+	}
+	token := strings.TrimSpace(os.Getenv("CAMPUS_AGENT_INTERNAL_TOKEN"))
+	if token == "" {
+		token = "local-agent-token"
+	}
+	body := map[string]interface{}{
+		"run_id":      fmt.Sprintf("%d", run.ID),
+		"run_type":    run.RunType,
+		"question":    run.Question,
+		"operator_id": run.CreatedBy,
+	}
+	raw, _ := json.Marshal(body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/internal/copilot/run", bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Campus-Agent-Token", token)
+	client := &http.Client{Timeout: envDurationBiz("CAMPUS_AGENT_TIMEOUT", 25*time.Second)}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	respRaw, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("agent status=%d body=%s", resp.StatusCode, trimLimit(string(respRaw), 400))
+	}
+	var out struct {
+		Result    map[string]interface{}   `json:"result"`
+		ToolTrace []map[string]interface{} `json:"tool_trace"`
+	}
+	if err := json.Unmarshal(respRaw, &out); err != nil {
+		return err
+	}
+	run.Result = out.Result
+	run.ToolTrace = out.ToolTrace
+	run.Status = CampusAgentRunStatusDone
+	run.Summary = trimLimit(fmt.Sprint(out.Result["summary"]), 500)
+	run.RiskLevel = trimLimit(fmt.Sprint(out.Result["risk_level"]), 16)
+	if run.RiskLevel == "" || run.RiskLevel == "<nil>" {
+		run.RiskLevel = "low"
+	}
+	return nil
+}
+
+func envDurationBiz(key string, fallback time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
 }
 
 func (uc *CampusUsecase) enqueueKnowledgeIndex(ctx context.Context, doc *CampusKnowledgeDocument) {

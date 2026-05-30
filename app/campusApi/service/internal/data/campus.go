@@ -424,6 +424,23 @@ type campusRAGEvalCaseModel struct {
 
 func (campusRAGEvalCaseModel) TableName() string { return "campus_rag_eval_case" }
 
+type campusAgentRunModel struct {
+	ID            int64           `gorm:"column:id"`
+	RunType       string          `gorm:"column:run_type"`
+	Question      string          `gorm:"column:question"`
+	Status        string          `gorm:"column:status"`
+	Summary       string          `gorm:"column:summary"`
+	RiskLevel     string          `gorm:"column:risk_level"`
+	ResultJSON    json.RawMessage `gorm:"column:result_json"`
+	ToolTraceJSON json.RawMessage `gorm:"column:tool_trace_json"`
+	ErrorMessage  string          `gorm:"column:error_message"`
+	CreatedBy     int64           `gorm:"column:created_by"`
+	CreatedAt     time.Time       `gorm:"column:created_at"`
+	UpdatedAt     time.Time       `gorm:"column:updated_at"`
+}
+
+func (campusAgentRunModel) TableName() string { return "campus_agent_run" }
+
 type campusAccessLogModel struct {
 	ID          int64     `gorm:"column:id"`
 	UserID      int64     `gorm:"column:user_id"`
@@ -2596,6 +2613,65 @@ func (r *campusRepo) UpdateRAGEvalCaseResult(ctx context.Context, id int64, resu
 		}).Error
 }
 
+func (r *campusRepo) CreateAgentRun(ctx context.Context, item *biz.CampusAgentRun) error {
+	if item == nil {
+		return nil
+	}
+	row := toAgentRunModel(item)
+	return r.data.db.WithContext(ctx).Create(&row).Error
+}
+
+func (r *campusRepo) UpdateAgentRun(ctx context.Context, item *biz.CampusAgentRun) error {
+	if item == nil {
+		return nil
+	}
+	resultJSON, _ := json.Marshal(item.Result)
+	toolTraceJSON, _ := json.Marshal(item.ToolTrace)
+	return r.data.db.WithContext(ctx).Model(&campusAgentRunModel{}).
+		Where("id = ?", item.ID).
+		Updates(map[string]interface{}{
+			"status":          trimLimitData(item.Status, 24),
+			"summary":         trimLimitData(item.Summary, 500),
+			"risk_level":      trimLimitData(item.RiskLevel, 16),
+			"result_json":     resultJSON,
+			"tool_trace_json": toolTraceJSON,
+			"error_message":   trimLimitData(item.ErrorMessage, 1000),
+			"updated_at":      time.Now(),
+		}).Error
+}
+
+func (r *campusRepo) GetAgentRunByID(ctx context.Context, id int64) (bool, *biz.CampusAgentRun, error) {
+	var row campusAgentRunModel
+	err := r.data.db.WithContext(ctx).Model(&campusAgentRunModel{}).Where("id = ?", id).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	return true, toBizAgentRun(&row), nil
+}
+
+func (r *campusRepo) ListAgentRuns(ctx context.Context, offset, limit int) ([]*biz.CampusAgentRun, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	db := r.data.db.WithContext(ctx).Model(&campusAgentRunModel{})
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []campusAgentRunModel
+	if err := db.Order("created_at DESC, id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*biz.CampusAgentRun, 0, len(rows))
+	for i := range rows {
+		out = append(out, toBizAgentRun(&rows[i]))
+	}
+	return out, total, nil
+}
+
 func (r *campusRepo) ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*biz.CampusNotification, int64, error) {
 	db := r.data.db.WithContext(ctx).Model(&campusNotificationModel{}).
 		Where("recipient_id = ? AND is_deleted = ?", parseID(userID), false)
@@ -3666,6 +3742,65 @@ func toBizRAGEvalCase(row *campusRAGEvalCaseModel) *biz.CampusRAGEvalCase {
 		CreatedBy:          fmt.Sprintf("%d", row.CreatedBy),
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
+	}
+}
+
+func toAgentRunModel(in *biz.CampusAgentRun) campusAgentRunModel {
+	now := time.Now()
+	if !in.CreatedAt.IsZero() {
+		now = in.CreatedAt
+	}
+	updatedAt := now
+	if !in.UpdatedAt.IsZero() {
+		updatedAt = in.UpdatedAt
+	}
+	resultJSON, _ := json.Marshal(in.Result)
+	toolTraceJSON, _ := json.Marshal(in.ToolTrace)
+	status := in.Status
+	if status == "" {
+		status = biz.CampusAgentRunStatusRunning
+	}
+	risk := in.RiskLevel
+	if risk == "" {
+		risk = "low"
+	}
+	return campusAgentRunModel{
+		ID:            in.ID,
+		RunType:       trimLimitData(in.RunType, 32),
+		Question:      trimLimitData(in.Question, 1000),
+		Status:        trimLimitData(status, 24),
+		Summary:       trimLimitData(in.Summary, 500),
+		RiskLevel:     trimLimitData(risk, 16),
+		ResultJSON:    resultJSON,
+		ToolTraceJSON: toolTraceJSON,
+		ErrorMessage:  trimLimitData(in.ErrorMessage, 1000),
+		CreatedBy:     parseID(in.CreatedBy),
+		CreatedAt:     now,
+		UpdatedAt:     updatedAt,
+	}
+}
+
+func toBizAgentRun(row *campusAgentRunModel) *biz.CampusAgentRun {
+	if row == nil {
+		return nil
+	}
+	result := map[string]interface{}{}
+	trace := make([]map[string]interface{}, 0)
+	_ = json.Unmarshal(row.ResultJSON, &result)
+	_ = json.Unmarshal(row.ToolTraceJSON, &trace)
+	return &biz.CampusAgentRun{
+		ID:           row.ID,
+		RunType:      row.RunType,
+		Question:     row.Question,
+		Status:       row.Status,
+		Summary:      row.Summary,
+		RiskLevel:    row.RiskLevel,
+		Result:       result,
+		ToolTrace:    trace,
+		ErrorMessage: row.ErrorMessage,
+		CreatedBy:    fmt.Sprintf("%d", row.CreatedBy),
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
 	}
 }
 

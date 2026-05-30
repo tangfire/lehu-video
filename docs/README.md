@@ -13,7 +13,8 @@
 9. [运营后台使用与功能地图](admin-operations.md)：后台页面、日常运营流程、权限和注意事项。
 10. [e仔 AI 与 RAG 知识库设计](ai-rag.md)：解释 e仔人设、自动回复、本地知识库、向量检索、后台测试和降级策略。
 11. [RAG 质量评测与优化手册](rag-quality-evaluation.md)：解释真实日志、人工标注、评测集、批量评测和召回解释组成的 AI 工程闭环。
-12. [观测与告警](observability-alerting.md)：解释 Grafana、Loki、Alloy、Prometheus、health-exporter 和飞书告警怎么工作、怎么查日志、怎么处理告警。
-13. [微信小程序提审与社区规则](wechat-submission.md)：隐私保护指引、社区规范、合法域名和提审验收清单。
+12. [运营 Copilot Agent 设计](agent-copilot.md)：解释 LangGraph Agent、只读工具调用、human-in-the-loop 和后台运营建议。
+13. [观测与告警](observability-alerting.md)：解释 Grafana、Loki、Alloy、Prometheus、health-exporter 和飞书告警怎么工作、怎么查日志、怎么处理告警。
+14. [微信小程序提审与社区规则](wechat-submission.md)：隐私保护指引、社区规范、合法域名和提审验收清单。
 
 如果只想快速知道“这个项目怎么回事”，先读开发者导览。

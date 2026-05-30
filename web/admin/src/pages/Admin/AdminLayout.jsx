@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { FiBarChart2, FiBell, FiChevronDown, FiCpu, FiEdit3, FiFileText, FiGrid, FiKey, FiShield, FiUsers } from 'react-icons/fi';
+import { FiBarChart2, FiBell, FiChevronDown, FiCpu, FiEdit3, FiFileText, FiGrid, FiKey, FiShield, FiUsers, FiZap } from 'react-icons/fi';
 import { clearUserData, getCurrentUser, isLoggedIn } from '../../api/user';
 import './Admin.css';
 
@@ -12,6 +12,7 @@ const navItems = [
     { to: '/admin/moderation', label: '反馈与举报', icon: <FiBell /> },
     { to: '/admin/audit', label: '审核设置', icon: <FiShield /> },
     { to: '/admin/assistant', label: 'e仔助手', icon: <FiCpu /> },
+    { to: '/admin/copilot', label: '运营Copilot', icon: <FiZap /> },
 ];
 
 const advancedItems = [
@@ -34,6 +35,7 @@ const titleMap = {
     '/admin/moderation': '反馈与举报',
     '/admin/audit': '审核设置',
     '/admin/assistant': 'e仔助手',
+    '/admin/copilot': '运营 Copilot',
     '/admin/notifications': '通知中心',
     '/admin/ai-replies': 'e仔回复',
     '/admin/knowledge': 'e仔知识库',
@@ -53,6 +55,7 @@ const subtitleMap = {
     '/admin/moderation': '举报、反馈、评论。',
     '/admin/audit': '不审、人工审、AI 初审。',
     '/admin/assistant': '人设、知识库、回复任务。',
+    '/admin/copilot': 'LangGraph Agent 只读运营建议。',
     '/admin/notifications': '内测公告、维护提醒。',
     '/admin/ai-replies': '@e仔 回复任务。',
     '/admin/knowledge': '资料、片段、命中测试。',

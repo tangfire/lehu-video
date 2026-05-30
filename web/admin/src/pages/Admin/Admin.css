@@ -2786,6 +2786,140 @@
     margin-top: 14px;
 }
 
+.admin-copilot-page {
+    display: grid;
+    gap: 16px;
+}
+
+.admin-copilot-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    padding: 16px 18px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: var(--admin-surface);
+}
+
+.admin-copilot-hero h2 {
+    margin: 4px 0;
+    font-size: 22px;
+}
+
+.admin-copilot-hero p {
+    margin: 0;
+    color: var(--admin-muted);
+}
+
+.admin-copilot-risk,
+.admin-copilot-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #f4f7fb;
+    color: var(--admin-text);
+    font-weight: 800;
+}
+
+.admin-copilot-risk.risk-medium,
+.admin-copilot-summary.risk-medium {
+    background: #fff7e8;
+    color: #9a5b00;
+}
+
+.admin-copilot-risk.risk-high,
+.admin-copilot-summary.risk-high {
+    background: #fff0f1;
+    color: #ba1a2a;
+}
+
+.admin-copilot-task-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.admin-copilot-task,
+.admin-copilot-run {
+    border: 1px solid var(--admin-line);
+    background: #fff;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: left;
+    display: grid;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--admin-text);
+}
+
+.admin-copilot-task svg {
+    color: var(--admin-primary);
+}
+
+.admin-copilot-task span,
+.admin-copilot-run span,
+.admin-copilot-list span,
+.admin-copilot-trace em {
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-style: normal;
+}
+
+.admin-copilot-task.active,
+.admin-copilot-run.active {
+    border-color: var(--admin-primary);
+    background: #fff7fb;
+}
+
+.admin-copilot-runbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.admin-copilot-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 16px;
+}
+
+.admin-copilot-result,
+.admin-copilot-runs,
+.admin-copilot-list,
+.admin-copilot-trace {
+    display: grid;
+    gap: 10px;
+}
+
+.admin-copilot-summary {
+    justify-content: space-between;
+}
+
+.admin-copilot-list h3,
+.admin-copilot-trace strong {
+    margin: 0;
+    font-size: 13px;
+}
+
+.admin-copilot-list article,
+.admin-copilot-trace div {
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    padding: 10px;
+    display: grid;
+    gap: 4px;
+}
+
+.admin-copilot-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 .admin-rag-result {
     display: grid;
     gap: 10px;
@@ -3507,8 +3641,16 @@
 
     .admin-toolbar.knowledge,
     .admin-knowledge-doc,
-    .admin-form-grid.compact {
+    .admin-form-grid.compact,
+    .admin-copilot-task-grid,
+    .admin-copilot-grid,
+    .admin-copilot-runbar {
         grid-template-columns: 1fr;
+    }
+
+    .admin-copilot-hero {
+        align-items: stretch;
+        flex-direction: column;
     }
 
     .admin-knowledge-doc-actions {
