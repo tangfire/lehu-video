@@ -130,6 +130,7 @@ export const campusAdminApi = {
     deleteComment: (id) => request.delete(`/campus/admin/comments/${id}`),
     reviewComment: (id, data) => request.post(`/campus/moderation/comments/${id}/review`, data),
     aiReplySummary: () => request.get('/campus/admin/ai-replies/summary'),
+    updateAiReplySettings: (data) => request.put('/campus/admin/ai-replies/settings', data),
     listAiReplyTasks: (params) => request.get('/campus/admin/ai-replies/tasks', { params }),
     retryAiReplyTask: (id) => request.post(`/campus/admin/ai-replies/tasks/${id}/retry`),
     moderateAiReplyTask: (id, data) => request.post(`/campus/admin/ai-replies/tasks/${id}/moderate`, data),

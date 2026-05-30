@@ -3430,7 +3430,7 @@ func (r *campusRepo) ListNotifications(ctx context.Context, userID, group string
 		Where("recipient_id = ? AND is_deleted = ?", parseID(userID), false)
 	switch group {
 	case biz.CampusNotificationGroupReply:
-		db = db.Where("event_type IN ?", []string{biz.CampusNotificationTypeComment, biz.CampusNotificationTypeReply})
+		db = db.Where("event_type IN ?", []string{biz.CampusNotificationTypeComment, biz.CampusNotificationTypeReply, biz.CampusNotificationTypeMention})
 	case biz.CampusNotificationGroupInteraction:
 		db = db.Where("event_type IN ?", []string{biz.CampusNotificationTypePostLike, biz.CampusNotificationTypePostCollect, biz.CampusNotificationTypeCommentLike})
 	case biz.CampusNotificationGroupSystem:

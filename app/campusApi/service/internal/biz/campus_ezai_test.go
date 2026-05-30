@@ -53,3 +53,32 @@ func TestShouldUseEzaiNoKnowledgeReply(t *testing.T) {
 		t.Fatalf("should not use no knowledge reply when rag failed")
 	}
 }
+
+func TestContainsEzaiMentionSupportsPersonaAliases(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		alias   string
+		want    bool
+	}{
+		{name: "default half width", content: "请问 @e仔 校园网怎么连", want: true},
+		{name: "default full width", content: "请问 ＠深汕e仔 校园网怎么连", want: true},
+		{name: "persona alias", content: "请问 @测试e仔 校园卡在哪里补", alias: "测试e仔", want: true},
+		{name: "plain name no at", content: "测试e仔在吗", alias: "测试e仔", want: false},
+		{name: "other mention", content: "请问 @同学 校园网怎么连", alias: "测试e仔", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := containsEzaiMention(tc.content, tc.alias); got != tc.want {
+				t.Fatalf("containsEzaiMention() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStripEzaiMentionSupportsPersonaAliases(t *testing.T) {
+	got := stripEzaiMention("请问 @测试e仔 校园卡在哪里补", "测试e仔")
+	if got != "请问 校园卡在哪里补" {
+		t.Fatalf("stripEzaiMention() = %q", got)
+	}
+}

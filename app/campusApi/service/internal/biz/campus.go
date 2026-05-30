@@ -88,6 +88,7 @@ const (
 
 	CampusNotificationTypeComment     = "comment"
 	CampusNotificationTypeReply       = "reply"
+	CampusNotificationTypeMention     = "mention"
 	CampusNotificationTypePostLike    = "post_like"
 	CampusNotificationTypePostCollect = "post_collect"
 	CampusNotificationTypeCommentLike = "comment_like"
@@ -155,6 +156,7 @@ const (
 	campusOpsSettingAIBudgetWarnRatio    = "ai_budget_warn_ratio"
 	campusOpsSettingAuditHighRiskWords   = "audit_high_risk_words"
 	campusOpsSettingAuditReviewWords     = "audit_review_words"
+	campusOpsSettingEzaiAutoReplyEnabled = "ezai_auto_reply_enabled"
 	campusOpsSettingEzaiPersonaName      = "ezai_persona_name"
 	campusOpsSettingEzaiPersonaRole      = "ezai_persona_role"
 	campusOpsSettingEzaiPersonality      = "ezai_persona_personality"
@@ -620,21 +622,24 @@ type CampusAIUsageSummary struct {
 }
 
 type CampusAIReplyOverview struct {
-	Enabled    bool
-	BotUserID  string
-	BotReady   bool
-	BotName    string
-	BotAvatar  string
-	Model      string
-	BaseURL    string
-	RAGHealth  *CampusRAGHealth
-	DailyLimit int64
-	TodayUsed  int64
-	Pending    int64
-	Processing int64
-	Done       int64
-	Failed     int64
-	Recent     []*CampusAIReplyTask
+	Enabled          bool
+	AutoReplyEnabled bool
+	EffectiveEnabled bool
+	ModelConfigured  bool
+	BotUserID        string
+	BotReady         bool
+	BotName          string
+	BotAvatar        string
+	Model            string
+	BaseURL          string
+	RAGHealth        *CampusRAGHealth
+	DailyLimit       int64
+	TodayUsed        int64
+	Pending          int64
+	Processing       int64
+	Done             int64
+	Failed           int64
+	Recent           []*CampusAIReplyTask
 }
 
 type CampusEzaiPersonaConfig struct {
@@ -1114,6 +1119,11 @@ type ModerateCampusAIReplyInput struct {
 	UserID string
 	TaskID int64
 	Action string
+}
+
+type UpdateCampusEzaiSettingsInput struct {
+	UserID           string
+	AutoReplyEnabled bool
 }
 
 type ReviewCampusRAGQueryLogInput struct {
@@ -1803,7 +1813,7 @@ func loadCampusAIReplyConfig() CampusAIReplyConfig {
 	botUserID := firstNonEmpty(os.Getenv("CAMPUS_EZAI_BOT_USER_ID"), os.Getenv("CAMPUS_EZAI_USER_ID"))
 	baseURL := firstNonEmpty(os.Getenv("CAMPUS_AI_BASE_URL"), "https://api.deepseek.com/chat/completions")
 	model := firstNonEmpty(os.Getenv("CAMPUS_AI_MODEL"), "deepseek-v4-flash")
-	enabled := strings.TrimSpace(apiKey) != "" && strings.TrimSpace(botUserID) != "" && !envBoolFalse(os.Getenv("CAMPUS_AI_EZAI_ENABLED"))
+	enabled := strings.TrimSpace(apiKey) != "" && strings.TrimSpace(botUserID) != ""
 	return CampusAIReplyConfig{
 		Enabled:         enabled,
 		BotUserID:       strings.TrimSpace(botUserID),
@@ -1815,6 +1825,29 @@ func loadCampusAIReplyConfig() CampusAIReplyConfig {
 		Temperature:     0.35,
 		Timeout:         12 * time.Second,
 	}
+}
+
+func (uc *CampusUsecase) ezaiModelConfigured() bool {
+	return strings.TrimSpace(uc.aiReplyConfig.APIKey) != "" && strings.TrimSpace(uc.aiReplyConfig.BotUserID) != ""
+}
+
+func (uc *CampusUsecase) ezaiAutoReplyEnabled(ctx context.Context) bool {
+	ok, value, updatedBy, _, err := uc.repo.GetOpsSetting(ctx, campusOpsSettingEzaiAutoReplyEnabled)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("read ezai auto reply setting failed: %v", err)
+		return envBoolDefault(os.Getenv("CAMPUS_AI_EZAI_ENABLED"), true)
+	}
+	if !ok {
+		return envBoolDefault(os.Getenv("CAMPUS_AI_EZAI_ENABLED"), true)
+	}
+	if strings.TrimSpace(updatedBy) == "" && strings.TrimSpace(os.Getenv("CAMPUS_AI_EZAI_ENABLED")) != "" {
+		return envBoolDefault(os.Getenv("CAMPUS_AI_EZAI_ENABLED"), parseBoolSetting(value, true))
+	}
+	return parseBoolSetting(value, true)
+}
+
+func (uc *CampusUsecase) ezaiAutoReplyEffective(ctx context.Context) bool {
+	return uc.ezaiModelConfigured() && uc.ezaiAutoReplyEnabled(ctx)
 }
 
 func envBoolFalse(value string) bool {
@@ -2646,7 +2679,7 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 	if err := uc.repo.CreateCommentWithOutbox(ctx, comment, uc.buildNotificationOutbox(notification, false)); err != nil {
 		return nil, apperror.Internal(err, "发表评论失败")
 	}
-	uc.enqueueEzaiReplyTask(ctx, comment)
+	uc.handleEzaiMention(ctx, comment)
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     input.UserID,
 		EventType:  "comment_create",
@@ -2658,14 +2691,23 @@ func (uc *CampusUsecase) CreateComment(ctx context.Context, input *CreateCampusC
 	return comment, nil
 }
 
-func (uc *CampusUsecase) enqueueEzaiReplyTask(ctx context.Context, comment *CampusForumComment) {
-	if comment == nil || !uc.aiReplyConfig.Enabled {
+func (uc *CampusUsecase) handleEzaiMention(ctx context.Context, comment *CampusForumComment) {
+	if comment == nil {
 		return
 	}
-	if comment.AuthorID == uc.aiReplyConfig.BotUserID || !containsEzaiMention(comment.Content) {
+	botUserID := strings.TrimSpace(uc.aiReplyConfig.BotUserID)
+	if botUserID == "" || comment.AuthorID == botUserID || !uc.containsEzaiMention(ctx, comment.Content) {
 		return
 	}
-	prompt := stripEzaiMention(comment.Content)
+	if !uc.ezaiAutoReplyEnabled(ctx) {
+		uc.notifyEzaiHandoff(ctx, comment.PostID, comment.ID, comment.AuthorID, comment.Content, "auto_reply_disabled")
+		return
+	}
+	if !uc.ezaiModelConfigured() {
+		uc.notifyEzaiHandoff(ctx, comment.PostID, comment.ID, comment.AuthorID, comment.Content, "model_not_configured")
+		return
+	}
+	prompt := uc.stripEzaiMention(ctx, comment.Content)
 	if strings.TrimSpace(prompt) == "" {
 		prompt = comment.Content
 	}
@@ -2685,20 +2727,93 @@ func (uc *CampusUsecase) enqueueEzaiReplyTask(ctx context.Context, comment *Camp
 	}
 	if err := uc.repo.CreateAIReplyTask(ctx, task); err != nil {
 		uc.log.WithContext(ctx).Warnf("queue ezai ai reply task failed: post_id=%d comment_id=%d err=%v", comment.PostID, comment.ID, err)
+		uc.notifyEzaiHandoff(ctx, comment.PostID, comment.ID, comment.AuthorID, comment.Content, "queue_failed")
 	}
 }
 
-func containsEzaiMention(content string) bool {
-	text := strings.ToLower(strings.TrimSpace(content))
-	return strings.Contains(text, "@深汕e仔") ||
-		strings.Contains(text, "＠深汕e仔") ||
-		strings.Contains(text, "@e仔") ||
-		strings.Contains(text, "＠e仔")
+func (uc *CampusUsecase) containsEzaiMention(ctx context.Context, content string) bool {
+	personaName := ""
+	if persona, err := uc.getEzaiPersonaConfig(ctx); err == nil && persona != nil {
+		personaName = persona.Name
+	} else if err != nil {
+		uc.log.WithContext(ctx).Warnf("load ezai persona for mention failed: %v", err)
+	}
+	return containsEzaiMention(content, personaName)
 }
 
-func stripEzaiMention(content string) string {
-	replacer := strings.NewReplacer("@深汕e仔", "", "＠深汕e仔", "", "@e仔", "", "＠e仔", "")
-	return strings.TrimSpace(replacer.Replace(content))
+func containsEzaiMention(content string, aliases ...string) bool {
+	text := strings.ToLower(strings.TrimSpace(content))
+	baseAliases := []string{"深汕e仔", "e仔"}
+	baseAliases = append(baseAliases, aliases...)
+	for _, alias := range baseAliases {
+		alias = strings.TrimSpace(alias)
+		if alias == "" {
+			continue
+		}
+		alias = strings.ToLower(alias)
+		if strings.Contains(text, "@"+alias) || strings.Contains(text, "＠"+alias) {
+			return true
+		}
+	}
+	return false
+}
+
+func (uc *CampusUsecase) stripEzaiMention(ctx context.Context, content string) string {
+	personaName := ""
+	if persona, err := uc.getEzaiPersonaConfig(ctx); err == nil && persona != nil {
+		personaName = persona.Name
+	} else if err != nil {
+		uc.log.WithContext(ctx).Warnf("load ezai persona for strip mention failed: %v", err)
+	}
+	return stripEzaiMention(content, personaName)
+}
+
+func stripEzaiMention(content string, aliases ...string) string {
+	replacements := []string{"@深汕e仔", "", "＠深汕e仔", "", "@e仔", "", "＠e仔", ""}
+	for _, alias := range aliases {
+		alias = strings.TrimSpace(alias)
+		if alias == "" || alias == "深汕e仔" || alias == "e仔" {
+			continue
+		}
+		replacements = append(replacements, "@"+alias, "", "＠"+alias, "")
+	}
+	replacer := strings.NewReplacer(replacements...)
+	cleaned := strings.TrimSpace(replacer.Replace(content))
+	for strings.Contains(cleaned, "  ") {
+		cleaned = strings.ReplaceAll(cleaned, "  ", " ")
+	}
+	return cleaned
+}
+
+func (uc *CampusUsecase) notifyEzaiHandoff(ctx context.Context, postID, triggerCommentID int64, actorID, content, reason string) {
+	botUserID := strings.TrimSpace(uc.aiReplyConfig.BotUserID)
+	if botUserID == "" || strings.TrimSpace(actorID) == "" || actorID == botUserID || postID <= 0 || triggerCommentID <= 0 {
+		return
+	}
+	title := "有人 @e仔 需要回复"
+	detail := "AI 自动回复暂未接手，请用官方账号查看并回复。"
+	if strings.TrimSpace(content) != "" {
+		detail = trimLimit(content, 100)
+	}
+	notification := uc.buildNotificationOutbox(&CampusNotification{
+		RecipientID: botUserID,
+		ActorID:     actorID,
+		EventType:   CampusNotificationTypeMention,
+		TargetType:  "post",
+		TargetID:    postID,
+		DedupeKey:   fmt.Sprintf("campus:ezai-handoff:%d", triggerCommentID),
+		Title:       title,
+		Content:     detail,
+		LinkPage:    "post-detail",
+		LinkParams: map[string]string{
+			"id":      fmt.Sprintf("%d", postID),
+			"comment": fmt.Sprintf("%d", triggerCommentID),
+			"reason":  trimLimit(reason, 60),
+		},
+	}, true)
+	if err := uc.repo.CreateNotificationOutbox(ctx, notification); err != nil {
+		uc.log.WithContext(ctx).Warnf("queue ezai handoff notification failed: post_id=%d comment_id=%d reason=%s err=%v", postID, triggerCommentID, reason, err)
+	}
 }
 
 func (uc *CampusUsecase) ListComments(ctx context.Context, input *ListCampusCommentsInput) (*ListCampusCommentsOutput, error) {
@@ -3215,6 +3330,13 @@ func campusNotificationOutboxBackoff(retryCount int32) time.Duration {
 }
 
 func (uc *CampusUsecase) ProcessPendingAIReplyTasks(ctx context.Context, limit int) error {
+	if !uc.ezaiAutoReplyEffective(ctx) {
+		reason := "ezai auto reply disabled"
+		if uc.ezaiAutoReplyEnabled(ctx) && !uc.ezaiModelConfigured() {
+			reason = "ezai model not configured"
+		}
+		return uc.handoffPendingAIReplyTasks(ctx, limit, reason)
+	}
 	if !uc.aiReplyConfig.Enabled {
 		return nil
 	}
@@ -3232,6 +3354,26 @@ func (uc *CampusUsecase) ProcessPendingAIReplyTasks(ctx context.Context, limit i
 		if err := uc.processAIReplyTask(ctx, item); err != nil {
 			uc.log.WithContext(ctx).Warnf("process ezai ai reply task failed: id=%d err=%v", item.ID, err)
 			uc.markAIReplyTaskRetry(ctx, item, err)
+		}
+	}
+	return nil
+}
+
+func (uc *CampusUsecase) handoffPendingAIReplyTasks(ctx context.Context, limit int, reason string) error {
+	if limit <= 0 {
+		limit = 20
+	}
+	items, err := uc.repo.ClaimAIReplyTasks(ctx, limit, 45*time.Second)
+	if err != nil {
+		return apperror.Internal(err, "领取 e仔回复任务失败")
+	}
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		uc.notifyEzaiHandoff(ctx, item.PostID, item.TriggerCommentID, item.AskerID, item.Prompt, reason)
+		if err := uc.repo.MarkAIReplyTaskRetry(ctx, item.ID, campusAIReplyTaskMaxRetry, nil, trimLimit(reason, 500), true); err != nil {
+			uc.log.WithContext(ctx).Warnf("mark ezai ai reply task handoff failed: id=%d err=%v", item.ID, err)
 		}
 	}
 	return nil
@@ -4522,6 +4664,7 @@ func (uc *CampusUsecase) processAIReplyTask(ctx context.Context, task *CampusAIR
 	}
 	if count >= uc.aiReplyConfig.DailyLimit {
 		next := nextLocalDayStart(time.Now()).Add(5 * time.Minute)
+		uc.notifyEzaiHandoff(ctx, task.PostID, task.TriggerCommentID, task.AskerID, task.Prompt, "daily_limit_reached")
 		return uc.repo.MarkAIReplyTaskRetry(ctx, task.ID, task.RetryCount, &next, "daily ai reply limit reached", false)
 	}
 	if ok, existing, err := uc.repo.GetAnyCommentByID(ctx, task.ID); err != nil {
@@ -4603,10 +4746,11 @@ func (uc *CampusUsecase) generateEzaiAnswer(ctx context.Context, task *CampusAIR
 		return answer, nil
 	}
 	if allowed, skippedReason := uc.aiBudgetAllowsModel(ctx, "ezai_reply", "ai_reply_task", fmt.Sprintf("%d", task.ID)); !allowed {
-		answer := sanitizeEzaiAnswerWithLimit(persona.FallbackReply, persona.MaxReplyChars)
-		uc.recordRAGQueryLog(ctx, task, post, query, ragResp, answer, ragDuration, ragErr)
+		skippedReason = firstNonEmpty(skippedReason, "model_skipped_budget")
+		uc.recordRAGQueryLog(ctx, task, post, query, ragResp, "", ragDuration, ragErr)
 		uc.recordAIUsage(ctx, "ezai_reply", "ai_reply_task", fmt.Sprintf("%d", task.ID), "skipped", skippedReason, nil)
-		return answer, nil
+		uc.notifyEzaiHandoff(ctx, task.PostID, task.TriggerCommentID, task.AskerID, query, skippedReason)
+		return "", fmt.Errorf("%s", skippedReason)
 	}
 	systemPrompt := buildEzaiSystemPrompt(persona, knowledgeContext != "")
 	answer, usage, err := uc.callEzaiChatCompletion(taskCtx, systemPrompt, userPrompt)
@@ -4875,6 +5019,9 @@ func (uc *CampusUsecase) markAIReplyTaskRetry(ctx context.Context, item *CampusA
 	}
 	if err := uc.repo.MarkAIReplyTaskRetry(ctx, item.ID, retryCount, nextRetryAt, trimLimit(processErr.Error(), 500), final); err != nil {
 		uc.log.WithContext(ctx).Warnf("mark ezai ai reply task retry failed: id=%d err=%v", item.ID, err)
+	}
+	if final {
+		uc.notifyEzaiHandoff(ctx, item.PostID, item.TriggerCommentID, item.AskerID, item.Prompt, "task_failed")
 	}
 }
 
@@ -6243,7 +6390,10 @@ func (uc *CampusUsecase) AdminAIReplyOverview(ctx context.Context, userID string
 	if overview == nil {
 		overview = &CampusAIReplyOverview{}
 	}
-	overview.Enabled = uc.aiReplyConfig.Enabled
+	overview.AutoReplyEnabled = uc.ezaiAutoReplyEnabled(ctx)
+	overview.ModelConfigured = uc.ezaiModelConfigured()
+	overview.EffectiveEnabled = uc.ezaiAutoReplyEffective(ctx)
+	overview.Enabled = overview.EffectiveEnabled
 	overview.BotUserID = uc.aiReplyConfig.BotUserID
 	overview.Model = uc.aiReplyConfig.Model
 	overview.BaseURL = uc.aiReplyConfig.BaseURL
@@ -6341,6 +6491,20 @@ func (uc *CampusUsecase) AdminModerateAIReply(ctx context.Context, input *Modera
 		Reason:     fmt.Sprintf("answer_comment_id=%d", task.AnswerCommentID),
 	})
 	return nil
+}
+
+func (uc *CampusUsecase) AdminUpdateEzaiSettings(ctx context.Context, input *UpdateCampusEzaiSettingsInput) (*CampusAIReplyOverview, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	value := "false"
+	if input.AutoReplyEnabled {
+		value = "true"
+	}
+	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingEzaiAutoReplyEnabled, value, input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存 e仔自动回复设置失败")
+	}
+	return uc.AdminAIReplyOverview(ctx, input.UserID)
 }
 
 func (uc *CampusUsecase) AdminReviewRAGQueryLog(ctx context.Context, input *ReviewCampusRAGQueryLogInput) (*CampusRAGQueryLog, error) {

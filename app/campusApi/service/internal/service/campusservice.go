@@ -117,6 +117,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/comments", s.wrap(s.authRequired(s.handleAdminListComments)))
 	r.DELETE("/v1/campus/admin/comments/{id}", s.wrap(s.authRequired(s.handleAdminDeleteComment)))
 	r.GET("/v1/campus/admin/ai-replies/summary", s.wrap(s.authRequired(s.handleAdminAIReplySummary)))
+	r.PUT("/v1/campus/admin/ai-replies/settings", s.wrap(s.authRequired(s.handleAdminUpdateAIReplySettings)))
 	r.GET("/v1/campus/admin/ai-replies/tasks", s.wrap(s.authRequired(s.handleAdminListAIReplyTasks)))
 	r.POST("/v1/campus/admin/ai-replies/tasks/{id}/retry", s.wrap(s.authRequired(s.handleAdminRetryAIReplyTask)))
 	r.POST("/v1/campus/admin/ai-replies/tasks/{id}/moderate", s.wrap(s.authRequired(s.handleAdminModerateAIReplyTask)))
@@ -822,6 +823,10 @@ type knowledgeTestQueryRequest struct {
 
 type aiReplyModerateRequest struct {
 	Action string `json:"action"`
+}
+
+type aiReplySettingsRequest struct {
+	AutoReplyEnabled bool `json:"auto_reply_enabled"`
 }
 
 type ragQueryLogReviewRequest struct {
@@ -2176,6 +2181,23 @@ func (s *CampusService) handleAdminAIReplySummary(w http.ResponseWriter, r *http
 	writeJSON(w, r, map[string]interface{}{"summary": aiReplyOverviewToMap(overview)})
 }
 
+func (s *CampusService) handleAdminUpdateAIReplySettings(w http.ResponseWriter, r *http.Request) {
+	var req aiReplySettingsRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	overview, err := s.uc.AdminUpdateEzaiSettings(r.Context(), &biz.UpdateCampusEzaiSettingsInput{
+		UserID:           userID,
+		AutoReplyEnabled: req.AutoReplyEnabled,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"summary": aiReplyOverviewToMap(overview)})
+}
+
 func (s *CampusService) handleAdminListAIReplyTasks(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
@@ -3494,21 +3516,24 @@ func aiReplyOverviewToMap(overview *biz.CampusAIReplyOverview) map[string]interf
 		recent = append(recent, aiReplyTaskToMap(task))
 	}
 	return map[string]interface{}{
-		"enabled":     overview.Enabled,
-		"bot_user_id": overview.BotUserID,
-		"bot_ready":   overview.BotReady,
-		"bot_name":    overview.BotName,
-		"bot_avatar":  overview.BotAvatar,
-		"model":       overview.Model,
-		"base_url":    overview.BaseURL,
-		"rag_health":  ragHealthToMap(overview.RAGHealth),
-		"daily_limit": overview.DailyLimit,
-		"today_used":  overview.TodayUsed,
-		"pending":     overview.Pending,
-		"processing":  overview.Processing,
-		"done":        overview.Done,
-		"failed":      overview.Failed,
-		"recent":      recent,
+		"enabled":            overview.Enabled,
+		"auto_reply_enabled": overview.AutoReplyEnabled,
+		"effective_enabled":  overview.EffectiveEnabled,
+		"model_configured":   overview.ModelConfigured,
+		"bot_user_id":        overview.BotUserID,
+		"bot_ready":          overview.BotReady,
+		"bot_name":           overview.BotName,
+		"bot_avatar":         overview.BotAvatar,
+		"model":              overview.Model,
+		"base_url":           overview.BaseURL,
+		"rag_health":         ragHealthToMap(overview.RAGHealth),
+		"daily_limit":        overview.DailyLimit,
+		"today_used":         overview.TodayUsed,
+		"pending":            overview.Pending,
+		"processing":         overview.Processing,
+		"done":               overview.Done,
+		"failed":             overview.Failed,
+		"recent":             recent,
 	}
 }
 

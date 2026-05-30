@@ -149,3 +149,21 @@ func TestOpsAlertSummaryToMapIncludesRecentAlerts(t *testing.T) {
 		t.Fatalf("recent = %#v", recent)
 	}
 }
+
+func TestAIReplyOverviewToMapIncludesAutoReplyState(t *testing.T) {
+	got := aiReplyOverviewToMap(&biz.CampusAIReplyOverview{
+		Enabled:          true,
+		AutoReplyEnabled: true,
+		EffectiveEnabled: true,
+		ModelConfigured:  true,
+		BotUserID:        "123",
+		BotReady:         true,
+		BotName:          "深汕e仔",
+	})
+	if got["auto_reply_enabled"] != true || got["effective_enabled"] != true || got["model_configured"] != true {
+		t.Fatalf("auto reply fields missing: %#v", got)
+	}
+	if got["bot_user_id"] != "123" || got["bot_name"] != "深汕e仔" || got["bot_ready"] != true {
+		t.Fatalf("bot fields = %#v", got)
+	}
+}

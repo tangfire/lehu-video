@@ -39,6 +39,7 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
     const [retrying, setRetrying] = useState('');
     const [reviewing, setReviewing] = useState('');
     const [withdrawing, setWithdrawing] = useState('');
+    const [savingSettings, setSavingSettings] = useState(false);
     const [error, setError] = useState('');
     const [toast, setToast] = useState('');
 
@@ -130,6 +131,23 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
         }
     };
 
+    const handleAutoReplyToggle = async () => {
+        if (savingSettings || !summary) return;
+        const nextEnabled = !summary.auto_reply_enabled;
+        setSavingSettings(true);
+        setToast('');
+        setError('');
+        try {
+            const data = await campusAdminApi.updateAiReplySettings({ auto_reply_enabled: nextEnabled });
+            setSummary(data.summary || {});
+            setToast(nextEnabled ? 'e仔自动回复已开启' : 'e仔自动回复已关闭，@e仔 将通知官方账号');
+        } catch (err) {
+            setError(err.message || '保存 e仔设置失败');
+        } finally {
+            setSavingSettings(false);
+        }
+    };
+
     return (
         <div className="admin-ai-page">
             {error && <div className="admin-error">{error}</div>}
@@ -149,20 +167,35 @@ const AdminAIReplies = ({ mode = 'full', initialStatus = 'failed' }) => {
             )}
 
             <section className="admin-ai-health">
-                <div className={`admin-ai-status ${summary?.enabled && summary?.bot_ready ? 'ok' : 'off'}`}>
-                    {summary?.enabled && summary?.bot_ready ? <FiCheckCircle /> : <FiAlertCircle />}
+                <div className={`admin-ai-status ${summary?.bot_ready ? 'ok' : 'off'}`}>
+                    {summary?.bot_ready ? <FiCheckCircle /> : <FiAlertCircle />}
+                    <div className="admin-ai-avatar">
+                        {summary?.bot_avatar
+                            ? <img src={summary.bot_avatar} alt="" />
+                            : <span>{(summary?.bot_name || 'e').slice(0, 1).toUpperCase()}</span>}
+                    </div>
                     <div>
-                        <strong>{summary?.enabled ? (summary?.bot_ready ? '已启用' : '已启用，Bot 账号待确认') : '未启用'}</strong>
+                        <strong>{summary?.bot_ready ? '官方账号已配置' : '官方账号待确认'}</strong>
                         <span>
-                            {summary?.enabled
-                                ? `${summary?.bot_name || '未找到用户昵称'} · Bot 用户 ${summary?.bot_user_id || '-'} · ${summary?.model || '-'}`
-                                : '需要配置 CAMPUS_AI_API_KEY / DEEPSEEK_API_KEY 和 CAMPUS_EZAI_BOT_USER_ID'}
+                            {summary?.bot_user_id
+                                ? `${summary?.bot_name || '未找到用户昵称'} · 用户 ${summary?.bot_user_id}`
+                                : '需要配置 CAMPUS_EZAI_BOT_USER_ID'}
                         </span>
                     </div>
                 </div>
                 <div className="admin-ai-note">
                     <FiCpu />
-                    <span>@e仔 评论触发，必要时先查知识库。</span>
+                    <span>{summary?.auto_reply_enabled ? '@e仔 评论触发，必要时先查知识库。' : '自动回复已关，@e仔 将通知官方账号人工处理。'}</span>
+                </div>
+                <div className={`admin-ai-status ${summary?.effective_enabled ? 'ok' : 'off'}`}>
+                    {summary?.effective_enabled ? <FiCheckCircle /> : <FiAlertCircle />}
+                    <div>
+                        <strong>{summary?.auto_reply_enabled ? (summary?.effective_enabled ? '自动回复已开启' : '自动回复待配置') : '自动回复已关闭'}</strong>
+                        <span>{summary?.model_configured ? `${summary?.model || '-'} · 今日 ${compactNumber(summary?.today_used || 0)}/${compactNumber(summary?.daily_limit || 0)}` : '需要配置模型 key 和官方账号'}</span>
+                    </div>
+                    <button className="admin-button subtle" type="button" disabled={savingSettings || loading} onClick={handleAutoReplyToggle}>
+                        {savingSettings ? '保存中...' : (summary?.auto_reply_enabled ? '关闭' : '开启')}
+                    </button>
                 </div>
                 <div className={`admin-ai-status ${summary?.rag_health?.status === 'ok' ? 'ok' : 'off'}`}>
                     {summary?.rag_health?.status === 'ok' ? <FiCheckCircle /> : <FiAlertCircle />}
