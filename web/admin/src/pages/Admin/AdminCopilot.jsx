@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiActivity, FiArrowRight, FiCpu, FiRefreshCw, FiSearch, FiShield, FiZap } from 'react-icons/fi';
+import { FiActivity, FiArrowRight, FiCpu, FiRefreshCw, FiSearch, FiSend, FiShield, FiZap } from 'react-icons/fi';
 import { campusAdminApi } from '../../api/admin';
 import { excerpt } from './adminUtils';
 import './Admin.css';
@@ -17,18 +17,28 @@ const riskText = {
     high: '高风险',
 };
 
+const feishuText = {
+    pending: '待发送',
+    sent: '已发送',
+    failed: '发送失败',
+    skipped: '未发送',
+};
+
 const AdminCopilot = () => {
     const [runType, setRunType] = useState('daily_ops');
     const [question, setQuestion] = useState('');
     const [runs, setRuns] = useState([]);
     const [current, setCurrent] = useState(null);
+    const [feishu, setFeishu] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [sending, setSending] = useState(false);
     const [error, setError] = useState('');
 
     const loadRuns = useCallback(async () => {
         try {
             const data = await campusAdminApi.listCopilotRuns({ page: 1, size: 10 });
             setRuns(data.runs || []);
+            setFeishu(data.feishu || null);
             if (!current && (data.runs || []).length) setCurrent(data.runs[0]);
         } catch (err) {
             setError(err.message || '获取 Copilot 记录失败');
@@ -56,6 +66,27 @@ const AdminCopilot = () => {
         }
     };
 
+    const sendFeishu = async () => {
+        if (!current || current.status !== 'done') return;
+        setSending(true);
+        setError('');
+        try {
+            const data = await campusAdminApi.sendCopilotRunFeishu(current.id, {});
+            const next = data.run || current;
+            setCurrent(next);
+            setRuns((items) => items.map((item) => (item.id === next.id ? next : item)));
+            await loadRuns();
+        } catch (err) {
+            setError(err.message || '发送飞书失败');
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const feishuReady = Boolean(feishu?.enabled && feishu?.webhook_configured);
+    const sendDisabled = !current || current.status !== 'done' || sending || current.feishu_status === 'sent' || !feishuReady;
+    const sendText = sending ? '发送中' : current?.feishu_status === 'sent' ? '已发送飞书' : !feishuReady ? '飞书未配置' : '发送到飞书';
+
     return (
         <div className="admin-copilot-page">
             {error && <div className="admin-error">{error}</div>}
@@ -69,6 +100,13 @@ const AdminCopilot = () => {
                     <FiCpu />
                     <span>{riskText[current?.risk_level] || '未运行'}</span>
                 </div>
+            </section>
+
+            <section className="admin-copilot-statusbar">
+                <span>飞书：{feishu?.enabled ? '已开启' : '未开启'}</span>
+                <span>日报：{feishu?.daily_enabled ? `${feishu.daily_time || '09:30'} 自动发送` : '未开启'}</span>
+                <span>高风险：{feishu?.high_risk_enabled ? '即时提醒' : '未开启'}</span>
+                <span>Webhook：{feishu?.webhook_configured ? '已配置' : '未配置'}</span>
             </section>
 
             <section className="admin-panel">
@@ -105,9 +143,20 @@ const AdminCopilot = () => {
                                 <strong>{result.summary || current.summary || '暂无摘要'}</strong>
                                 <span>{riskText[result.risk_level || current.risk_level] || '低风险'}</span>
                             </div>
+                            <div className="admin-copilot-meta">
+                                <span>{current.source === 'scheduled' ? '自动日报' : '手动运行'}</span>
+                                <span className={`admin-copilot-feishu ${current.feishu_status || 'pending'}`}>
+                                    飞书：{feishuText[current.feishu_status] || current.feishu_status || '待发送'}
+                                </span>
+                                {current.feishu_sent_at && <span>{current.feishu_sent_at}</span>}
+                            </div>
                             <CopilotList title="关键发现" items={result.findings} kind="finding" />
                             <CopilotList title="建议动作" items={result.recommendations} kind="recommendation" />
                             <div className="admin-copilot-actions">
+                                <button className="admin-button primary" type="button" onClick={sendFeishu} disabled={sendDisabled}>
+                                    {sending ? <FiRefreshCw className="spin" /> : <FiSend />}
+                                    {sendText}
+                                </button>
                                 {(result.next_actions || []).map((item) => (
                                     <Link className="admin-button" to={item.path || '/admin'} key={`${item.label}-${item.path}`}>
                                         {item.label}
@@ -133,7 +182,7 @@ const AdminCopilot = () => {
                         {runs.map((item) => (
                             <button className={`admin-copilot-run ${current?.id === item.id ? 'active' : ''}`} key={item.id} type="button" onClick={() => setCurrent(item)}>
                                 <strong>{excerpt(item.summary || item.run_type, 42)}</strong>
-                                <span>{riskText[item.risk_level] || item.risk_level} · {item.created_at}</span>
+                                <span>{riskText[item.risk_level] || item.risk_level} · {feishuText[item.feishu_status] || item.feishu_status || '待发送'} · {item.created_at}</span>
                             </button>
                         ))}
                     </div>

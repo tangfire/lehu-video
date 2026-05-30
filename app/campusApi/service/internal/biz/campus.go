@@ -38,6 +38,14 @@ const (
 	CampusAgentRunStatusDone    = "done"
 	CampusAgentRunStatusFailed  = "failed"
 
+	CampusAgentRunSourceManual    = "manual"
+	CampusAgentRunSourceScheduled = "scheduled"
+
+	CampusAgentFeishuStatusPending = "pending"
+	CampusAgentFeishuStatusSent    = "sent"
+	CampusAgentFeishuStatusFailed  = "failed"
+	CampusAgentFeishuStatusSkipped = "skipped"
+
 	CampusAuthStatusUnverified int32 = 0
 	CampusAuthStatusVerified   int32 = 1
 
@@ -606,11 +614,15 @@ type CampusAgentRun struct {
 	RunType      string
 	Question     string
 	Status       string
+	Source       string
 	Summary      string
 	RiskLevel    string
 	Result       map[string]interface{}
 	ToolTrace    []map[string]interface{}
 	ErrorMessage string
+	FeishuSentAt *time.Time
+	FeishuStatus string
+	FeishuError  string
 	CreatedBy    string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -1081,11 +1093,19 @@ type CreateCampusAgentRunInput struct {
 	UserID   string
 	RunType  string
 	Question string
+	Source   string
 }
 
 type GetCampusAgentRunInput struct {
 	UserID string
 	RunID  int64
+}
+
+type SendCampusAgentRunFeishuInput struct {
+	UserID string
+	RunID  int64
+	Title  string
+	Reason string
 }
 
 type ListCampusAgentRunsInput struct {
@@ -1410,6 +1430,7 @@ type CampusRepo interface {
 	UpdateRAGEvalCaseResult(ctx context.Context, id int64, result *CampusRAGEvalResult) error
 	CreateAgentRun(ctx context.Context, item *CampusAgentRun) error
 	UpdateAgentRun(ctx context.Context, item *CampusAgentRun) error
+	UpdateAgentRunFeishu(ctx context.Context, id int64, status string, sentAt *time.Time, errorMessage string) error
 	GetAgentRunByID(ctx context.Context, id int64) (bool, *CampusAgentRun, error)
 	ListAgentRuns(ctx context.Context, offset, limit int) ([]*CampusAgentRun, int64, error)
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
@@ -4905,21 +4926,45 @@ func normalizeAgentRunType(value string) string {
 	}
 }
 
+func normalizeAgentRunSource(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case CampusAgentRunSourceScheduled:
+		return CampusAgentRunSourceScheduled
+	default:
+		return CampusAgentRunSourceManual
+	}
+}
+
 func (uc *CampusUsecase) AdminCreateAgentRun(ctx context.Context, input *CreateCampusAgentRunInput) (*CampusAgentRun, error) {
 	if !uc.isCampusOperator(ctx, input.UserID) {
 		return nil, apperror.Forbidden("没有后台权限")
 	}
+	return uc.createAgentRun(ctx, input)
+}
+
+func (uc *CampusUsecase) CreateScheduledAgentRun(ctx context.Context, runType, question string) (*CampusAgentRun, error) {
+	return uc.createAgentRun(ctx, &CreateCampusAgentRunInput{
+		UserID:   scheduledAgentOperatorID(),
+		RunType:  runType,
+		Question: question,
+		Source:   CampusAgentRunSourceScheduled,
+	})
+}
+
+func (uc *CampusUsecase) createAgentRun(ctx context.Context, input *CreateCampusAgentRunInput) (*CampusAgentRun, error) {
 	runType := normalizeAgentRunType(input.RunType)
 	if runType == "" {
 		return nil, apperror.InvalidArgument("Copilot 任务类型无效")
 	}
 	run := &CampusAgentRun{
-		ID:        uc.idGen.NextID(),
-		RunType:   runType,
-		Question:  trimLimit(strings.TrimSpace(input.Question), 1000),
-		Status:    CampusAgentRunStatusRunning,
-		RiskLevel: "low",
-		CreatedBy: input.UserID,
+		ID:           uc.idGen.NextID(),
+		RunType:      runType,
+		Question:     trimLimit(strings.TrimSpace(input.Question), 1000),
+		Status:       CampusAgentRunStatusRunning,
+		Source:       normalizeAgentRunSource(input.Source),
+		RiskLevel:    "low",
+		FeishuStatus: CampusAgentFeishuStatusPending,
+		CreatedBy:    input.UserID,
 	}
 	if err := uc.repo.CreateAgentRun(ctx, run); err != nil {
 		return nil, apperror.Internal(err, "创建 Copilot 运行记录失败")
@@ -4928,11 +4973,18 @@ func (uc *CampusUsecase) AdminCreateAgentRun(ctx context.Context, input *CreateC
 		run.Status = CampusAgentRunStatusFailed
 		run.ErrorMessage = trimLimit(err.Error(), 1000)
 		run.Summary = "Copilot 暂不可用，请稍后重试"
+		run.FeishuStatus = CampusAgentFeishuStatusSkipped
+		run.FeishuError = "agent run failed"
 		_ = uc.repo.UpdateAgentRun(ctx, run)
 		return run, nil
 	}
 	if err := uc.repo.UpdateAgentRun(ctx, run); err != nil {
 		return nil, apperror.Internal(err, "保存 Copilot 结果失败")
+	}
+	if run.Source == CampusAgentRunSourceScheduled && agentDailyReportEnabled() {
+		_ = uc.sendAgentRunToFeishu(ctx, run, "校园 e站运营日报", "daily_report")
+	} else if strings.EqualFold(run.RiskLevel, "high") && agentHighRiskNotifyEnabled() {
+		_ = uc.sendAgentRunToFeishu(ctx, run, "校园 e站高风险运营提醒", "high_risk")
 	}
 	return run, nil
 }
@@ -4961,6 +5013,30 @@ func (uc *CampusUsecase) AdminListAgentRuns(ctx context.Context, input *ListCamp
 		return nil, apperror.Internal(err, "获取 Copilot 运行记录失败")
 	}
 	return &ListCampusAgentRunsOutput{Runs: runs, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminSendAgentRunFeishu(ctx context.Context, input *SendCampusAgentRunFeishuInput) (*CampusAgentRun, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	ok, run, err := uc.repo.GetAgentRunByID(ctx, input.RunID)
+	if err != nil {
+		return nil, apperror.Internal(err, "查询 Copilot 运行记录失败")
+	}
+	if !ok || run == nil {
+		return nil, apperror.NotFound("Copilot 运行记录不存在")
+	}
+	if run.Status != CampusAgentRunStatusDone {
+		return nil, apperror.InvalidArgument("只有已完成的 Copilot 结果可以发送到飞书")
+	}
+	if err := uc.sendAgentRunToFeishu(ctx, run, input.Title, firstNonEmpty(input.Reason, "manual")); err != nil {
+		return nil, apperror.Internal(err, "发送飞书失败")
+	}
+	ok, refreshed, err := uc.repo.GetAgentRunByID(ctx, input.RunID)
+	if err == nil && ok && refreshed != nil {
+		return refreshed, nil
+	}
+	return run, nil
 }
 
 func (uc *CampusUsecase) invokeAgentRun(ctx context.Context, run *CampusAgentRun) error {
@@ -5013,6 +5089,88 @@ func (uc *CampusUsecase) invokeAgentRun(ctx context.Context, run *CampusAgentRun
 	return nil
 }
 
+func (uc *CampusUsecase) sendAgentRunToFeishu(ctx context.Context, run *CampusAgentRun, title, reason string) error {
+	if run == nil || run.ID <= 0 {
+		return nil
+	}
+	if !agentFeishuEnabled() {
+		run.FeishuStatus = CampusAgentFeishuStatusSkipped
+		run.FeishuError = "feishu disabled"
+		_ = uc.repo.UpdateAgentRunFeishu(ctx, run.ID, run.FeishuStatus, nil, run.FeishuError)
+		uc.log.WithContext(ctx).Infof("agent feishu skipped: agent_run_id=%d run_type=%s risk_level=%s reason=%s", run.ID, run.RunType, run.RiskLevel, run.FeishuError)
+		return nil
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("LEHU_ALERT_WEBHOOK_INTERNAL_URL")), "/")
+	if baseURL == "" {
+		baseURL = "http://alert-webhook:9120"
+	}
+	token := strings.TrimSpace(os.Getenv("LEHU_ALERT_WEBHOOK_TOKEN"))
+	if token == "" {
+		token = "local-alert-token"
+	}
+	result := run.Result
+	if result == nil {
+		result = map[string]interface{}{}
+	}
+	payload := map[string]interface{}{
+		"title":           firstNonEmpty(title, "校园 e站运营 Copilot"),
+		"summary":         firstNonEmpty(run.Summary, fmt.Sprint(result["summary"])),
+		"risk_level":      firstNonEmpty(run.RiskLevel, fmt.Sprint(result["risk_level"]), "low"),
+		"findings":        result["findings"],
+		"recommendations": result["recommendations"],
+		"next_actions":    result["next_actions"],
+		"run_id":          fmt.Sprintf("%d", run.ID),
+		"run_type":        run.RunType,
+		"reason":          reason,
+	}
+	raw, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/agent?token="+url.QueryEscape(token), bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: envDurationBiz("LEHU_ALERT_WEBHOOK_TIMEOUT", 8*time.Second)}
+	resp, err := client.Do(req)
+	if err != nil {
+		run.FeishuStatus = CampusAgentFeishuStatusFailed
+		run.FeishuError = trimLimit(err.Error(), 1000)
+		_ = uc.repo.UpdateAgentRunFeishu(ctx, run.ID, run.FeishuStatus, nil, run.FeishuError)
+		uc.log.WithContext(ctx).Warnf("agent feishu failed: agent_run_id=%d run_type=%s risk_level=%s err=%v", run.ID, run.RunType, run.RiskLevel, err)
+		return err
+	}
+	defer resp.Body.Close()
+	respRaw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	var out map[string]interface{}
+	_ = json.Unmarshal(respRaw, &out)
+	status := CampusAgentFeishuStatusSent
+	var sentAt *time.Time
+	now := time.Now()
+	sentAt = &now
+	errorMessage := ""
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		status = CampusAgentFeishuStatusFailed
+		sentAt = nil
+		errorMessage = trimLimit(fmt.Sprintf("status=%d body=%s", resp.StatusCode, string(respRaw)), 1000)
+	} else if resultMap, ok := out["result"].(map[string]interface{}); ok {
+		if reason, _ := resultMap["reason"].(string); reason == "missing_webhook" {
+			status = CampusAgentFeishuStatusSkipped
+			sentAt = nil
+			errorMessage = "missing_webhook"
+		}
+	}
+	run.FeishuStatus = status
+	run.FeishuSentAt = sentAt
+	run.FeishuError = errorMessage
+	if err := uc.repo.UpdateAgentRunFeishu(ctx, run.ID, status, sentAt, errorMessage); err != nil {
+		return err
+	}
+	uc.log.WithContext(ctx).Infof("agent feishu result: agent_run_id=%d run_type=%s risk_level=%s status=%s reason=%s", run.ID, run.RunType, run.RiskLevel, status, firstNonEmpty(errorMessage, reason))
+	if status == CampusAgentFeishuStatusFailed {
+		return fmt.Errorf("feishu send failed: %s", errorMessage)
+	}
+	return nil
+}
+
 func envDurationBiz(key string, fallback time.Duration) time.Duration {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -5023,6 +5181,32 @@ func envDurationBiz(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return parsed
+}
+
+func scheduledAgentOperatorID() string {
+	if value := strings.TrimSpace(os.Getenv("CAMPUS_AGENT_OPERATOR_USER_ID")); value != "" {
+		return value
+	}
+	for _, envName := range []string{"LEHU_CAMPUS_ADMIN_USER_IDS", "LEHU_CAMPUS_OPERATOR_USER_IDS"} {
+		for _, raw := range strings.Split(os.Getenv(envName), ",") {
+			if value := strings.TrimSpace(raw); value != "" {
+				return value
+			}
+		}
+	}
+	return "1"
+}
+
+func agentFeishuEnabled() bool {
+	return !envBoolFalse(os.Getenv("CAMPUS_AGENT_FEISHU_ENABLED"))
+}
+
+func agentDailyReportEnabled() bool {
+	return !envBoolFalse(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_ENABLED"))
+}
+
+func agentHighRiskNotifyEnabled() bool {
+	return !envBoolFalse(os.Getenv("CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED"))
 }
 
 func (uc *CampusUsecase) enqueueKnowledgeIndex(ctx context.Context, doc *CampusKnowledgeDocument) {
@@ -5983,7 +6167,7 @@ func shortHash(input string, n int) string {
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
-		if value != "" {
+		if value != "" && value != "<nil>" {
 			return value
 		}
 	}

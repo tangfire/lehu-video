@@ -148,13 +148,95 @@ def build_feishu_post(payload):
     }
 
 
-def send_feishu(payload):
+def list_items(values, key, limit=5):
+    if not isinstance(values, list):
+        return []
+    out = []
+    for item in values[:limit]:
+        if isinstance(item, dict):
+            text = first_present(item.get(key), item.get("title"), item.get("label"), item.get("source"), item.get("detail"))
+            detail = first_present(item.get("detail"), item.get("priority"), item.get("severity"), item.get("path"), item.get("link"))
+            out.append((truncate(text, 120), truncate(detail, 180)))
+        else:
+            out.append((truncate(item, 120), ""))
+    return out
+
+
+def admin_href(path):
+    path = str(path or "").strip()
+    if not path:
+        return ""
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    base = first_present(env("LEHU_ADMIN_ROOT_URL"), env("ADMIN_ROOT_URL"))
+    if not base:
+        return ""
+    return base.rstrip("/") + "/" + path.lstrip("/")
+
+
+def build_agent_feishu_post(payload):
+    deploy_env = env("LEHU_ALERT_ENV", "local")
+    run_type = truncate(payload.get("run_type") or "-", 40)
+    run_id = truncate(payload.get("run_id") or "-", 40)
+    risk_level = truncate(payload.get("risk_level") or "low", 20)
+    title = truncate(payload.get("title") or f"校园 e站运营 Copilot [{deploy_env}] {risk_level}", 120)
+    summary = truncate(payload.get("summary") or "暂无摘要", 400)
+
+    content = [
+        line("环境：", deploy_env, "    风险：", risk_level, "    类型：", run_type),
+        line("Run ID：", run_id),
+        line("摘要：", summary),
+    ]
+
+    findings = list_items(payload.get("findings"), "title")
+    if findings:
+        content.append(line(""))
+        content.append(line("关键发现"))
+        for index, (text, detail) in enumerate(findings, start=1):
+            content.append(line(index, ". ", text, (" - " + detail) if detail else ""))
+
+    recommendations = list_items(payload.get("recommendations"), "title")
+    if recommendations:
+        content.append(line(""))
+        content.append(line("建议动作"))
+        for index, (text, detail) in enumerate(recommendations, start=1):
+            content.append(line(index, ". ", text, (" - " + detail) if detail else ""))
+
+    actions = payload.get("next_actions")
+    if isinstance(actions, list) and actions:
+        content.append(line(""))
+        content.append(line("后台入口"))
+        for action in actions[:5]:
+            if not isinstance(action, dict):
+                continue
+            label = truncate(action.get("label") or "打开后台", 80)
+            href = admin_href(action.get("href") or action.get("path"))
+            content.append(link_line(label, href))
+
+    content.extend([
+        line(""),
+        line("说明：飞书只做运营通知，删帖、封禁、审核等动作仍需回后台人工确认。"),
+    ])
+
+    return {
+        "msg_type": "post",
+        "content": {
+            "post": {
+                "zh_cn": {
+                    "title": title,
+                    "content": content,
+                }
+            }
+        },
+    }
+
+
+def send_feishu_body(body, original_payload):
     webhook = env("LEHU_ALERT_FEISHU_WEBHOOK")
     if not webhook:
-        print(json.dumps({"event": "feishu_webhook_missing", "payload": payload}, ensure_ascii=False), flush=True)
+        print(json.dumps({"event": "feishu_webhook_missing", "payload": original_payload}, ensure_ascii=False), flush=True)
         return {"delivered": False, "reason": "missing_webhook"}
 
-    body = build_feishu_post(payload)
     secret = env("LEHU_ALERT_FEISHU_SECRET")
     if secret:
         timestamp = str(int(time.time()))
@@ -188,6 +270,14 @@ def send_feishu(payload):
     return {"delivered": ok, "status": status, "body": parsed or raw}
 
 
+def send_feishu(payload):
+    return send_feishu_body(build_feishu_post(payload), payload)
+
+
+def send_agent_feishu(payload):
+    return send_feishu_body(build_agent_feishu_post(payload), payload)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "campus-alert-webhook/1.0"
 
@@ -204,13 +294,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/healthz":
-            self.write_json(200, {"ok": True})
+            self.write_json(200, {"ok": True, "feishu_webhook_configured": bool(env("LEHU_ALERT_FEISHU_WEBHOOK"))})
             return
         self.write_json(404, {"ok": False, "error": "not_found"})
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path != "/grafana":
+        if parsed.path not in ("/grafana", "/agent"):
             self.write_json(404, {"ok": False, "error": "not_found"})
             return
 
@@ -238,8 +328,13 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(400, {"ok": False, "error": "invalid_json"})
             return
 
-        result = send_feishu(payload)
-        print(json.dumps({"event": "grafana_alert", "result": result}, ensure_ascii=False), flush=True)
+        if parsed.path == "/agent":
+            result = send_agent_feishu(payload)
+            event = "agent_notice"
+        else:
+            result = send_feishu(payload)
+            event = "grafana_alert"
+        print(json.dumps({"event": event, "result": result}, ensure_ascii=False), flush=True)
         if result.get("delivered") is False and result.get("reason") != "missing_webhook":
             self.write_json(502, {"ok": False, "result": result})
             return

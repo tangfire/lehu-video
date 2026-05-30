@@ -110,6 +110,7 @@ export const campusAdminApi = {
     listCopilotRuns: (params) => request.get('/campus/admin/copilot/runs', { params }),
     createCopilotRun: (data) => request.post('/campus/admin/copilot/runs', data),
     getCopilotRun: (id) => request.get(`/campus/admin/copilot/runs/${id}`),
+    sendCopilotRunFeishu: (id, data = {}) => request.post(`/campus/admin/copilot/runs/${id}/send-feishu`, data),
     listPosts: (params) => request.get('/campus/admin/posts', { params }),
     createPost: (data) => request.post('/campus/admin/posts', data),
     updatePost: (id, data) => request.put(`/campus/admin/posts/${id}`, data),

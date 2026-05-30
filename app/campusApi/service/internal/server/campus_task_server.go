@@ -2,6 +2,9 @@ package server
 
 import (
 	"context"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,6 +68,11 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 	s.safeProcessAIReplyTasks(ctx)
 	s.safeProcessAIContentAuditTasks(ctx)
 	s.safeCleanupAccessLogs(ctx)
+	var dailyReportTimer *time.Timer
+	if campusAgentDailyReportEnabled() {
+		dailyReportTimer = time.NewTimer(durationUntilNextDailyReport(time.Now()))
+		defer dailyReportTimer.Stop()
+	}
 	recommendTicker := time.NewTicker(5 * time.Minute)
 	reconcileTicker := time.NewTicker(1 * time.Hour)
 	flushTicker := time.NewTicker(10 * time.Second)
@@ -96,6 +104,11 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 			s.safeProcessAIReplyTasks(ctx)
 		case <-aiAuditTicker.C:
 			s.safeProcessAIContentAuditTasks(ctx)
+		case <-dailyReportTimerC(dailyReportTimer):
+			s.safeRunDailyCopilotReport(ctx)
+			if dailyReportTimer != nil {
+				dailyReportTimer.Reset(durationUntilNextDailyReport(time.Now()))
+			}
 		}
 	}
 }
@@ -153,5 +166,69 @@ func (s *CampusTaskServer) safeProcessAIContentAuditTasks(ctx context.Context) {
 	defer cancel()
 	if err := s.uc.ProcessPendingAIContentAuditTasks(taskCtx, 10); err != nil {
 		s.log.Warnf("处理校园 AI 内容审核任务失败: %v", err)
+	}
+}
+
+func (s *CampusTaskServer) safeRunDailyCopilotReport(ctx context.Context) {
+	taskCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	run, err := s.uc.CreateScheduledAgentRun(taskCtx, "daily_ops", "请生成今天校园 e站运营巡检日报，重点关注审核积压、e仔/RAG质量和安全异常。")
+	if err != nil {
+		s.log.Warnf("生成 Copilot 每日巡检失败: %v", err)
+		return
+	}
+	if run != nil {
+		s.log.Infof("Copilot 每日巡检完成: run_id=%d risk=%s feishu=%s", run.ID, run.RiskLevel, run.FeishuStatus)
+	}
+}
+
+func dailyReportTimerC(timer *time.Timer) <-chan time.Time {
+	if timer == nil {
+		return nil
+	}
+	return timer.C
+}
+
+func campusAgentDailyReportEnabled() bool {
+	return !envBoolFalseServer(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_ENABLED"))
+}
+
+func durationUntilNextDailyReport(now time.Time) time.Duration {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.FixedZone("Asia/Shanghai", 8*60*60)
+	}
+	localNow := now.In(loc)
+	hour, minute := parseDailyReportTime(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_TIME"))
+	next := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), hour, minute, 0, 0, loc)
+	if !next.After(localNow) {
+		next = next.Add(24 * time.Hour)
+	}
+	return next.Sub(localNow)
+}
+
+func parseDailyReportTime(value string) (int, int) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = "09:30"
+	}
+	parts := strings.Split(value, ":")
+	if len(parts) != 2 {
+		return 9, 30
+	}
+	hour, errHour := strconv.Atoi(strings.TrimSpace(parts[0]))
+	minute, errMinute := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if errHour != nil || errMinute != nil || hour < 0 || hour > 23 || minute < 0 || minute > 59 {
+		return 9, 30
+	}
+	return hour, minute
+}
+
+func envBoolFalseServer(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "0", "false", "off", "no", "disabled":
+		return true
+	default:
+		return false
 	}
 }

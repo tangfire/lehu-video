@@ -2836,6 +2836,52 @@
     color: #ba1a2a;
 }
 
+.admin-copilot-statusbar,
+.admin-copilot-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.admin-copilot-statusbar {
+    padding: 10px 12px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #fbfcfd;
+}
+
+.admin-copilot-statusbar span,
+.admin-copilot-meta span {
+    color: var(--admin-muted);
+    font-size: 12px;
+}
+
+.admin-copilot-meta {
+    margin-top: -2px;
+}
+
+.admin-copilot-feishu {
+    border-radius: 999px;
+    padding: 3px 8px;
+    background: #f4f7fb;
+}
+
+.admin-copilot-feishu.sent {
+    color: #16794c;
+    background: #ebf8f1;
+}
+
+.admin-copilot-feishu.failed {
+    color: #ba1a2a;
+    background: #fff0f1;
+}
+
+.admin-copilot-feishu.skipped {
+    color: #8a5a00;
+    background: #fff7e8;
+}
+
 .admin-copilot-task-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

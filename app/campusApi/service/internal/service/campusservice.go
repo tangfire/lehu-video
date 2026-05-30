@@ -96,6 +96,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/copilot/runs", s.wrap(s.authRequired(s.handleAdminListAgentRuns)))
 	r.POST("/v1/campus/admin/copilot/runs", s.wrap(s.authRequired(s.handleAdminCreateAgentRun)))
 	r.GET("/v1/campus/admin/copilot/runs/{id}", s.wrap(s.authRequired(s.handleAdminGetAgentRun)))
+	r.POST("/v1/campus/admin/copilot/runs/{id}/send-feishu", s.wrap(s.authRequired(s.handleAdminSendAgentRunFeishu)))
 	r.GET("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminListPosts)))
 	r.POST("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminCreatePost)))
 	r.POST("/v1/campus/admin/posts/batch", s.wrap(s.authRequired(s.handleAdminBatchPosts)))
@@ -838,6 +839,10 @@ type agentRunRequest struct {
 	Question string `json:"question"`
 }
 
+type agentRunFeishuRequest struct {
+	Title string `json:"title"`
+}
+
 type blockIPRequest struct {
 	IP     string `json:"ip"`
 	Reason string `json:"reason"`
@@ -1361,7 +1366,11 @@ func (s *CampusService) handleAdminListAgentRuns(w http.ResponseWriter, r *http.
 	for _, item := range out.Runs {
 		runs = append(runs, agentRunToMap(item))
 	}
-	writeJSON(w, r, map[string]interface{}{"runs": runs, "page_stats": map[string]interface{}{"total": out.Total}})
+	writeJSON(w, r, map[string]interface{}{
+		"runs":       runs,
+		"page_stats": map[string]interface{}{"total": out.Total},
+		"feishu":     agentFeishuSettingsToMap(),
+	})
 }
 
 func (s *CampusService) handleAdminCreateAgentRun(w http.ResponseWriter, r *http.Request) {
@@ -1389,6 +1398,31 @@ func (s *CampusService) handleAdminGetAgentRun(w http.ResponseWriter, r *http.Re
 	}
 	userID, _ := s.userIDFromRequest(r)
 	run, err := s.uc.AdminGetAgentRun(r.Context(), &biz.GetCampusAgentRunInput{UserID: userID, RunID: runID})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"run": agentRunToMap(run)})
+}
+
+func (s *CampusService) handleAdminSendAgentRunFeishu(w http.ResponseWriter, r *http.Request) {
+	runID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var req agentRunFeishuRequest
+	if r.Body != nil && r.ContentLength != 0 {
+		if !decodeJSON(w, r, &req) {
+			return
+		}
+	}
+	userID, _ := s.userIDFromRequest(r)
+	run, err := s.uc.AdminSendAgentRunFeishu(r.Context(), &biz.SendCampusAgentRunFeishuInput{
+		UserID: userID,
+		RunID:  runID,
+		Title:  req.Title,
+		Reason: "manual",
+	})
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -3479,19 +3513,55 @@ func agentRunToMap(item *biz.CampusAgentRun) map[string]interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"id":            strconv.FormatInt(item.ID, 10),
-		"run_type":      item.RunType,
-		"question":      item.Question,
-		"status":        item.Status,
-		"summary":       item.Summary,
-		"risk_level":    item.RiskLevel,
-		"result":        item.Result,
-		"tool_trace":    item.ToolTrace,
-		"error_message": item.ErrorMessage,
-		"created_by":    item.CreatedBy,
-		"created_at":    formatTime(item.CreatedAt),
-		"updated_at":    formatTime(item.UpdatedAt),
+		"id":             strconv.FormatInt(item.ID, 10),
+		"run_type":       item.RunType,
+		"question":       item.Question,
+		"status":         item.Status,
+		"source":         item.Source,
+		"summary":        item.Summary,
+		"risk_level":     item.RiskLevel,
+		"result":         item.Result,
+		"tool_trace":     item.ToolTrace,
+		"error_message":  item.ErrorMessage,
+		"feishu_status":  item.FeishuStatus,
+		"feishu_sent_at": formatOptionalTime(item.FeishuSentAt),
+		"feishu_error":   item.FeishuError,
+		"created_by":     item.CreatedBy,
+		"created_at":     formatTime(item.CreatedAt),
+		"updated_at":     formatTime(item.UpdatedAt),
 	}
+}
+
+func agentFeishuSettingsToMap() map[string]interface{} {
+	feishuEnabled := !envBoolFalseService(os.Getenv("CAMPUS_AGENT_FEISHU_ENABLED"))
+	dailyEnabled := !envBoolFalseService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_ENABLED"))
+	highRiskEnabled := !envBoolFalseService(os.Getenv("CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED"))
+	return map[string]interface{}{
+		"enabled":            feishuEnabled,
+		"daily_enabled":      dailyEnabled,
+		"daily_time":         firstNonEmptyService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_TIME"), "09:30"),
+		"high_risk_enabled":  highRiskEnabled,
+		"webhook_configured": strings.TrimSpace(os.Getenv("LEHU_ALERT_FEISHU_WEBHOOK")) != "",
+	}
+}
+
+func envBoolFalseService(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "0", "false", "off", "no", "disabled":
+		return true
+	default:
+		return false
+	}
+}
+
+func firstNonEmptyService(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" && value != "<nil>" {
+			return value
+		}
+	}
+	return ""
 }
 
 func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {

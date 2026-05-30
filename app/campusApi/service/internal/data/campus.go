@@ -429,11 +429,15 @@ type campusAgentRunModel struct {
 	RunType       string          `gorm:"column:run_type"`
 	Question      string          `gorm:"column:question"`
 	Status        string          `gorm:"column:status"`
+	Source        string          `gorm:"column:source"`
 	Summary       string          `gorm:"column:summary"`
 	RiskLevel     string          `gorm:"column:risk_level"`
 	ResultJSON    json.RawMessage `gorm:"column:result_json"`
 	ToolTraceJSON json.RawMessage `gorm:"column:tool_trace_json"`
 	ErrorMessage  string          `gorm:"column:error_message"`
+	FeishuSentAt  *time.Time      `gorm:"column:feishu_sent_at"`
+	FeishuStatus  string          `gorm:"column:feishu_status"`
+	FeishuError   string          `gorm:"column:feishu_error"`
 	CreatedBy     int64           `gorm:"column:created_by"`
 	CreatedAt     time.Time       `gorm:"column:created_at"`
 	UpdatedAt     time.Time       `gorm:"column:updated_at"`
@@ -2631,12 +2635,27 @@ func (r *campusRepo) UpdateAgentRun(ctx context.Context, item *biz.CampusAgentRu
 		Where("id = ?", item.ID).
 		Updates(map[string]interface{}{
 			"status":          trimLimitData(item.Status, 24),
+			"source":          trimLimitData(item.Source, 24),
 			"summary":         trimLimitData(item.Summary, 500),
 			"risk_level":      trimLimitData(item.RiskLevel, 16),
 			"result_json":     resultJSON,
 			"tool_trace_json": toolTraceJSON,
 			"error_message":   trimLimitData(item.ErrorMessage, 1000),
+			"feishu_sent_at":  item.FeishuSentAt,
+			"feishu_status":   trimLimitData(item.FeishuStatus, 24),
+			"feishu_error":    trimLimitData(item.FeishuError, 1000),
 			"updated_at":      time.Now(),
+		}).Error
+}
+
+func (r *campusRepo) UpdateAgentRunFeishu(ctx context.Context, id int64, status string, sentAt *time.Time, errorMessage string) error {
+	return r.data.db.WithContext(ctx).Model(&campusAgentRunModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"feishu_sent_at": sentAt,
+			"feishu_status":  trimLimitData(status, 24),
+			"feishu_error":   trimLimitData(errorMessage, 1000),
+			"updated_at":     time.Now(),
 		}).Error
 }
 
@@ -3760,6 +3779,14 @@ func toAgentRunModel(in *biz.CampusAgentRun) campusAgentRunModel {
 	if status == "" {
 		status = biz.CampusAgentRunStatusRunning
 	}
+	source := in.Source
+	if source == "" {
+		source = biz.CampusAgentRunSourceManual
+	}
+	feishuStatus := in.FeishuStatus
+	if feishuStatus == "" {
+		feishuStatus = biz.CampusAgentFeishuStatusPending
+	}
 	risk := in.RiskLevel
 	if risk == "" {
 		risk = "low"
@@ -3769,11 +3796,15 @@ func toAgentRunModel(in *biz.CampusAgentRun) campusAgentRunModel {
 		RunType:       trimLimitData(in.RunType, 32),
 		Question:      trimLimitData(in.Question, 1000),
 		Status:        trimLimitData(status, 24),
+		Source:        trimLimitData(source, 24),
 		Summary:       trimLimitData(in.Summary, 500),
 		RiskLevel:     trimLimitData(risk, 16),
 		ResultJSON:    resultJSON,
 		ToolTraceJSON: toolTraceJSON,
 		ErrorMessage:  trimLimitData(in.ErrorMessage, 1000),
+		FeishuSentAt:  in.FeishuSentAt,
+		FeishuStatus:  trimLimitData(feishuStatus, 24),
+		FeishuError:   trimLimitData(in.FeishuError, 1000),
 		CreatedBy:     parseID(in.CreatedBy),
 		CreatedAt:     now,
 		UpdatedAt:     updatedAt,
@@ -3793,11 +3824,15 @@ func toBizAgentRun(row *campusAgentRunModel) *biz.CampusAgentRun {
 		RunType:      row.RunType,
 		Question:     row.Question,
 		Status:       row.Status,
+		Source:       row.Source,
 		Summary:      row.Summary,
 		RiskLevel:    row.RiskLevel,
 		Result:       result,
 		ToolTrace:    trace,
 		ErrorMessage: row.ErrorMessage,
+		FeishuSentAt: row.FeishuSentAt,
+		FeishuStatus: row.FeishuStatus,
+		FeishuError:  row.FeishuError,
 		CreatedBy:    fmt.Sprintf("%d", row.CreatedBy),
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,

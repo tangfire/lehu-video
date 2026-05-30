@@ -143,15 +143,36 @@ CAMPUS_EZAI_BOT_USER_ID=
 SILICONFLOW_API_KEY=
 ```
 
-飞书告警：
+运营 Copilot Agent：
+
+```bash
+CAMPUS_AGENT_INTERNAL_TOKEN=一段随机长token
+CAMPUS_AGENT_SERVICE_URL=http://campus-agent:8091
+CAMPUS_API_INTERNAL_BASE_URL=http://api:8080/v1
+CAMPUS_AGENT_API_KEY=
+CAMPUS_AGENT_BASE_URL=
+CAMPUS_AGENT_MODEL=
+CAMPUS_AGENT_FEISHU_ENABLED=true
+CAMPUS_AGENT_DAILY_REPORT_ENABLED=true
+CAMPUS_AGENT_DAILY_REPORT_TIME=09:30
+CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED=true
+```
+
+`campus-agent` 第一版只读，只生成每日巡检、RAG 缺口和治理建议。生产默认每天 `09:30 Asia/Shanghai` 自动跑一次 `daily_ops` 并发飞书日报；手动运行结果如果是 `high` 风险，会自动发高风险提醒。
+
+飞书告警和 Copilot 运营通知：
 
 ```bash
 LEHU_ALERT_ENV=prod
 LEHU_ALERT_WEBHOOK_TOKEN=一段随机长token
+LEHU_ALERT_WEBHOOK_INTERNAL_URL=http://alert-webhook:9120
 LEHU_ALERT_FEISHU_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
 LEHU_ALERT_FEISHU_SECRET=
 GRAFANA_ROOT_URL=https://grafana.example.com
+LEHU_ADMIN_ROOT_URL=https://admin.example.com
 ```
+
+Grafana 服务健康告警和 Copilot 运营日报复用同一个飞书机器人。Grafana 调 `alert-webhook /grafana`，Copilot 调 `alert-webhook /agent`；飞书里只展示摘要和后台链接，处理动作仍回运营后台完成。
 
 真实 IP 和日志保留：
 
@@ -214,9 +235,10 @@ LEHU_WECHAT_MOCK_LOGIN=true
 | 审核 | 不审核、人工审核、AI 初审开关可保存 |
 | 后台 | 内容工作台、举报反馈、权限管理可用 |
 | e仔 | 人设保存、知识库测试、失败任务页可用 |
+| 运营 Copilot | 三种任务可运行，手动发送飞书可用，高风险结果会触发提醒 |
 | 朋友圈素材 | 可生成素材包，扫码能进帖子详情 |
 | Grafana | 日志搜索和健康监控有数据 |
-| 飞书 | 模拟告警能发到群 |
+| 飞书 | 模拟 Grafana 告警和 Copilot 通知都能发到群 |
 
 命令行 smoke：
 
