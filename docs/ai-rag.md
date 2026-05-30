@@ -53,9 +53,9 @@ flowchart LR
 | 能力 | 表 | 是否用 RAG | 作用 |
 | --- | --- | --- | --- |
 | e仔自动回复 | `campus_ai_reply_task` | 是 | 在评论区回答学生问题 |
-| AI 发帖审核 | `campus_ai_audit_task` | 否 | 对待审核帖子给出 `pass/review` 建议 |
+| AI/Agent 发帖审核 | `campus_ai_audit_task` | 否 | 对待审核帖子给出 `pass/review/reject` 判断 |
 
-AI 审核由后台“审核设置”决定是否启用。它使用 `CAMPUS_AI_AUDIT_API_KEY`、`CAMPUS_AI_AUDIT_BASE_URL`、`CAMPUS_AI_AUDIT_MODEL` 这些配置；如果没有单独配置，会回退到 `CAMPUS_AI_API_KEY` 或 `DEEPSEEK_API_KEY`。AI 审核不查知识库，只看帖子类型、标题、正文和图片数量，明显低风险才自动通过，不确定就留给人工复核。
+AI/Agent 审核由后台“审核设置”决定是否启用。`campus-api` 只负责任务队列和最终写库，会调用 `campus-agent /internal/moderation/audit` 获取 `decision/confidence/risk_level/reason/evidence`。模型 key 配在 `campus-agent` 的 `CAMPUS_AGENT_*` 或通用 `CAMPUS_AI_*` 里；审核不查知识库，只看帖子类型、标题、正文和图片数量。低风险高置信自动通过，不确定或高风险会保留待审核并推飞书确认。
 
 ## 配置项
 

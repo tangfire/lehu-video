@@ -41,7 +41,7 @@ const AdminCopilot = () => {
             setFeishu(data.feishu || null);
             if (!current && (data.runs || []).length) setCurrent(data.runs[0]);
         } catch (err) {
-            setError(err.message || '获取 Copilot 记录失败');
+            setError(err.message || '获取 Agent 记录失败');
         }
     }, [current]);
 
@@ -60,7 +60,7 @@ const AdminCopilot = () => {
             setCurrent(data.run || null);
             await loadRuns();
         } catch (err) {
-            setError(err.message || '运行 Copilot 失败');
+            setError(err.message || '运行 Agent 失败');
         } finally {
             setLoading(false);
         }
@@ -93,8 +93,8 @@ const AdminCopilot = () => {
             <section className="admin-copilot-hero">
                 <div>
                     <span className="admin-kicker">LANGGRAPH AGENT</span>
-                    <h2>运营 Copilot</h2>
-                    <p>只读分析，工具调用，运营确认后再处理。</p>
+                    <h2>值班 Agent</h2>
+                    <p>巡检、举报反馈提醒、审核人工闭环。</p>
                 </div>
                 <div className={`admin-copilot-risk risk-${current?.risk_level || 'low'}`}>
                     <FiCpu />
@@ -106,6 +106,9 @@ const AdminCopilot = () => {
                 <span>飞书：{feishu?.enabled ? '已开启' : '未开启'}</span>
                 <span>日报：{feishu?.daily_enabled ? `${feishu.daily_time || '09:30'} 自动发送` : '未开启'}</span>
                 <span>高风险：{feishu?.high_risk_enabled ? '即时提醒' : '未开启'}</span>
+                <span>举报：{feishu?.report_notify_enabled ? '即时提醒' : '未开启'}</span>
+                <span>反馈：{feishu?.feedback_notify_types || '未配置'}</span>
+                <span>审核：{feishu?.audit_callback_enabled ? `按钮确认 · ${feishu.audit_auto_pass_confidence || '0.85'}` : '回后台处理'}</span>
                 <span>Webhook：{feishu?.webhook_configured ? '已配置' : '未配置'}</span>
             </section>
 
@@ -123,7 +126,7 @@ const AdminCopilot = () => {
                     <input className="admin-input" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={`补充关注点：例如 帮我看一下${selected.title}有没有异常`} />
                     <button className="admin-button primary" type="button" onClick={runCopilot} disabled={loading}>
                         {loading ? <FiRefreshCw className="spin" /> : <FiZap />}
-                        运行 Copilot
+                        运行 Agent
                     </button>
                 </div>
             </section>
@@ -136,7 +139,7 @@ const AdminCopilot = () => {
                             <p>{current ? `${current.run_type} · ${current.updated_at}` : '暂无运行记录'}</p>
                         </div>
                     </div>
-                    {!current && <div className="admin-empty compact">选择任务后运行 Copilot</div>}
+                    {!current && <div className="admin-empty compact">选择任务后运行 Agent</div>}
                     {current && (
                         <div className="admin-copilot-result">
                             <div className={`admin-copilot-summary risk-${current.risk_level || 'low'}`}>

@@ -12,7 +12,7 @@ const navItems = [
     { to: '/admin/moderation', label: '反馈与举报', icon: <FiBell /> },
     { to: '/admin/audit', label: '审核设置', icon: <FiShield /> },
     { to: '/admin/assistant', label: 'e仔助手', icon: <FiCpu /> },
-    { to: '/admin/copilot', label: '运营Copilot', icon: <FiZap /> },
+    { to: '/admin/copilot', label: '值班Agent', icon: <FiZap /> },
 ];
 
 const advancedItems = [
@@ -35,7 +35,7 @@ const titleMap = {
     '/admin/moderation': '反馈与举报',
     '/admin/audit': '审核设置',
     '/admin/assistant': 'e仔助手',
-    '/admin/copilot': '运营 Copilot',
+    '/admin/copilot': '值班 Agent',
     '/admin/notifications': '通知中心',
     '/admin/ai-replies': 'e仔回复',
     '/admin/knowledge': 'e仔知识库',
@@ -55,7 +55,7 @@ const subtitleMap = {
     '/admin/moderation': '举报、反馈、评论。',
     '/admin/audit': '不审、人工审、AI 初审。',
     '/admin/assistant': '人设、知识库、回复任务。',
-    '/admin/copilot': 'LangGraph Agent 只读运营建议。',
+    '/admin/copilot': '日报、提醒、审核闭环。',
     '/admin/notifications': '内测公告、维护提醒。',
     '/admin/ai-replies': '@e仔 回复任务。',
     '/admin/knowledge': '资料、片段、命中测试。',

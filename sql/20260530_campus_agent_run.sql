@@ -20,4 +20,4 @@ CREATE TABLE IF NOT EXISTS `campus_agent_run` (
   INDEX `idx_campus_agent_run_status` (`status`, `created_at`),
   INDEX `idx_campus_agent_run_creator` (`created_by`, `created_at`),
   INDEX `idx_campus_agent_run_feishu` (`feishu_status`, `updated_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='运营Copilot Agent运行记录';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='运营值班Agent运行记录';

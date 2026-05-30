@@ -65,6 +65,7 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 	defer close(s.done)
 	s.safeRefreshRecommendPool(ctx)
 	s.safeProcessNotificationOutbox(ctx)
+	s.safeProcessOpsAlerts(ctx)
 	s.safeProcessAIReplyTasks(ctx)
 	s.safeProcessAIContentAuditTasks(ctx)
 	s.safeCleanupAccessLogs(ctx)
@@ -77,12 +78,14 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 	reconcileTicker := time.NewTicker(1 * time.Hour)
 	flushTicker := time.NewTicker(10 * time.Second)
 	notificationTicker := time.NewTicker(2 * time.Second)
+	opsAlertTicker := time.NewTicker(5 * time.Second)
 	aiReplyTicker := time.NewTicker(5 * time.Second)
 	aiAuditTicker := time.NewTicker(5 * time.Second)
 	defer recommendTicker.Stop()
 	defer reconcileTicker.Stop()
 	defer flushTicker.Stop()
 	defer notificationTicker.Stop()
+	defer opsAlertTicker.Stop()
 	defer aiReplyTicker.Stop()
 	defer aiAuditTicker.Stop()
 	for {
@@ -100,12 +103,14 @@ func (s *CampusTaskServer) run(ctx context.Context) {
 			}
 		case <-notificationTicker.C:
 			s.safeProcessNotificationOutbox(ctx)
+		case <-opsAlertTicker.C:
+			s.safeProcessOpsAlerts(ctx)
 		case <-aiReplyTicker.C:
 			s.safeProcessAIReplyTasks(ctx)
 		case <-aiAuditTicker.C:
 			s.safeProcessAIContentAuditTasks(ctx)
 		case <-dailyReportTimerC(dailyReportTimer):
-			s.safeRunDailyCopilotReport(ctx)
+			s.safeRunDailyAgentReport(ctx)
 			if dailyReportTimer != nil {
 				dailyReportTimer.Reset(durationUntilNextDailyReport(time.Now()))
 			}
@@ -153,6 +158,14 @@ func (s *CampusTaskServer) safeProcessNotificationOutbox(ctx context.Context) {
 	}
 }
 
+func (s *CampusTaskServer) safeProcessOpsAlerts(ctx context.Context) {
+	taskCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	if err := s.uc.ProcessPendingOpsAlerts(taskCtx, 20); err != nil {
+		s.log.Warnf("处理校园运营值班提醒失败: %v", err)
+	}
+}
+
 func (s *CampusTaskServer) safeProcessAIReplyTasks(ctx context.Context) {
 	taskCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
@@ -169,16 +182,16 @@ func (s *CampusTaskServer) safeProcessAIContentAuditTasks(ctx context.Context) {
 	}
 }
 
-func (s *CampusTaskServer) safeRunDailyCopilotReport(ctx context.Context) {
+func (s *CampusTaskServer) safeRunDailyAgentReport(ctx context.Context) {
 	taskCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	run, err := s.uc.CreateScheduledAgentRun(taskCtx, "daily_ops", "请生成今天校园 e站运营巡检日报，重点关注审核积压、e仔/RAG质量和安全异常。")
 	if err != nil {
-		s.log.Warnf("生成 Copilot 每日巡检失败: %v", err)
+		s.log.Warnf("生成值班 Agent 每日巡检失败: %v", err)
 		return
 	}
 	if run != nil {
-		s.log.Infof("Copilot 每日巡检完成: run_id=%d risk=%s feishu=%s", run.ID, run.RiskLevel, run.FeishuStatus)
+		s.log.Infof("值班 Agent 每日巡检完成: run_id=%d risk=%s feishu=%s", run.ID, run.RiskLevel, run.FeishuStatus)
 	}
 }
 

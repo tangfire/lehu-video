@@ -445,6 +445,45 @@ type campusAgentRunModel struct {
 
 func (campusAgentRunModel) TableName() string { return "campus_agent_run" }
 
+type campusOpsAlertModel struct {
+	ID           int64           `gorm:"column:id"`
+	AlertType    string          `gorm:"column:alert_type"`
+	Priority     string          `gorm:"column:priority"`
+	TargetType   string          `gorm:"column:target_type"`
+	TargetID     int64           `gorm:"column:target_id"`
+	DedupeKey    string          `gorm:"column:dedupe_key"`
+	Title        string          `gorm:"column:title"`
+	Summary      string          `gorm:"column:summary"`
+	PayloadJSON  json.RawMessage `gorm:"column:payload_json"`
+	Status       string          `gorm:"column:status"`
+	FeishuStatus string          `gorm:"column:feishu_status"`
+	FeishuError  string          `gorm:"column:feishu_error"`
+	RetryCount   int32           `gorm:"column:retry_count"`
+	NextRetryAt  *time.Time      `gorm:"column:next_retry_at"`
+	LockedUntil  *time.Time      `gorm:"column:locked_until"`
+	SentAt       *time.Time      `gorm:"column:sent_at"`
+	CreatedAt    time.Time       `gorm:"column:created_at"`
+	UpdatedAt    time.Time       `gorm:"column:updated_at"`
+}
+
+func (campusOpsAlertModel) TableName() string { return "campus_ops_alert" }
+
+type campusOpsActionTokenModel struct {
+	ID         int64      `gorm:"column:id"`
+	TokenHash  string     `gorm:"column:token_hash"`
+	Action     string     `gorm:"column:action"`
+	TargetType string     `gorm:"column:target_type"`
+	TargetID   int64      `gorm:"column:target_id"`
+	Reason     string     `gorm:"column:reason"`
+	Status     string     `gorm:"column:status"`
+	ExpiresAt  time.Time  `gorm:"column:expires_at"`
+	UsedAt     *time.Time `gorm:"column:used_at"`
+	CreatedAt  time.Time  `gorm:"column:created_at"`
+	UpdatedAt  time.Time  `gorm:"column:updated_at"`
+}
+
+func (campusOpsActionTokenModel) TableName() string { return "campus_ops_action_token" }
+
 type campusAccessLogModel struct {
 	ID          int64     `gorm:"column:id"`
 	UserID      int64     `gorm:"column:user_id"`
@@ -2691,6 +2730,153 @@ func (r *campusRepo) ListAgentRuns(ctx context.Context, offset, limit int) ([]*b
 	return out, total, nil
 }
 
+func (r *campusRepo) CreateOpsAlert(ctx context.Context, item *biz.CampusOpsAlert) error {
+	if item == nil {
+		return nil
+	}
+	row := toOpsAlertModel(item)
+	return r.data.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "dedupe_key"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"priority":      row.Priority,
+			"title":         row.Title,
+			"summary":       row.Summary,
+			"payload_json":  row.PayloadJSON,
+			"status":        biz.CampusOpsAlertStatusPending,
+			"feishu_status": biz.CampusAgentFeishuStatusPending,
+			"feishu_error":  "",
+			"next_retry_at": nil,
+			"locked_until":  nil,
+			"updated_at":    time.Now(),
+		}),
+	}).Create(&row).Error
+}
+
+func (r *campusRepo) ClaimOpsAlerts(ctx context.Context, limit int, lockFor time.Duration) ([]*biz.CampusOpsAlert, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if lockFor <= 0 {
+		lockFor = 30 * time.Second
+	}
+	now := time.Now()
+	lockedUntil := now.Add(lockFor)
+	var rows []campusOpsAlertModel
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("((status = ? AND (next_retry_at IS NULL OR next_retry_at <= ?)) OR (status = ? AND (locked_until IS NULL OR locked_until < ?)))",
+				biz.CampusOpsAlertStatusPending, now, biz.CampusOpsAlertStatusProcessing, now).
+			Order("created_at ASC, id ASC").
+			Limit(limit).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		ids := make([]int64, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		return tx.Model(&campusOpsAlertModel{}).
+			Where("id IN ?", ids).
+			Updates(map[string]interface{}{
+				"status":       biz.CampusOpsAlertStatusProcessing,
+				"locked_until": lockedUntil,
+				"updated_at":   now,
+			}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*biz.CampusOpsAlert, 0, len(rows))
+	for i := range rows {
+		rows[i].Status = biz.CampusOpsAlertStatusProcessing
+		rows[i].LockedUntil = &lockedUntil
+		out = append(out, toBizOpsAlert(&rows[i]))
+	}
+	return out, nil
+}
+
+func (r *campusRepo) MarkOpsAlertSent(ctx context.Context, id int64, feishuStatus, feishuError string, sentAt *time.Time) error {
+	status := biz.CampusOpsAlertStatusSent
+	if feishuStatus == biz.CampusAgentFeishuStatusSkipped {
+		status = biz.CampusOpsAlertStatusSkipped
+	}
+	return r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":        status,
+			"feishu_status": trimLimitData(feishuStatus, 24),
+			"feishu_error":  trimLimitData(feishuError, 1000),
+			"sent_at":       sentAt,
+			"locked_until":  nil,
+			"next_retry_at": nil,
+			"updated_at":    time.Now(),
+		}).Error
+}
+
+func (r *campusRepo) MarkOpsAlertRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error {
+	status := biz.CampusOpsAlertStatusPending
+	if final {
+		status = biz.CampusOpsAlertStatusFailed
+	}
+	return r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":        status,
+			"retry_count":   retryCount,
+			"next_retry_at": nextRetryAt,
+			"locked_until":  nil,
+			"feishu_status": biz.CampusAgentFeishuStatusFailed,
+			"feishu_error":  trimLimitData(lastError, 1000),
+			"updated_at":    time.Now(),
+		}).Error
+}
+
+func (r *campusRepo) CreateOpsActionToken(ctx context.Context, item *biz.CampusOpsActionToken) error {
+	if item == nil {
+		return nil
+	}
+	return r.data.db.WithContext(ctx).Create(toOpsActionTokenModel(item)).Error
+}
+
+func (r *campusRepo) UseOpsActionToken(ctx context.Context, tokenHash string, now time.Time) (bool, *biz.CampusOpsActionToken, error) {
+	var out *biz.CampusOpsActionToken
+	used := false
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row campusOpsActionTokenModel
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("token_hash = ?", tokenHash).
+			First(&row).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		out = toBizOpsActionToken(&row)
+		if row.Status != biz.CampusOpsActionTokenStatusActive || !row.ExpiresAt.After(now) {
+			return nil
+		}
+		if err := tx.Model(&campusOpsActionTokenModel{}).
+			Where("id = ? AND status = ?", row.ID, biz.CampusOpsActionTokenStatusActive).
+			Updates(map[string]interface{}{
+				"status":     biz.CampusOpsActionTokenStatusUsed,
+				"used_at":    now,
+				"updated_at": now,
+			}).Error; err != nil {
+			return err
+		}
+		used = true
+		row.Status = biz.CampusOpsActionTokenStatusUsed
+		row.UsedAt = &now
+		row.UpdatedAt = now
+		out = toBizOpsActionToken(&row)
+		return nil
+	})
+	return used, out, err
+}
+
 func (r *campusRepo) ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*biz.CampusNotification, int64, error) {
 	db := r.data.db.WithContext(ctx).Model(&campusNotificationModel{}).
 		Where("recipient_id = ? AND is_deleted = ?", parseID(userID), false)
@@ -3836,6 +4022,111 @@ func toBizAgentRun(row *campusAgentRunModel) *biz.CampusAgentRun {
 		CreatedBy:    fmt.Sprintf("%d", row.CreatedBy),
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func toOpsAlertModel(in *biz.CampusOpsAlert) *campusOpsAlertModel {
+	now := time.Now()
+	payload, _ := json.Marshal(in.Payload)
+	status := in.Status
+	if status == "" {
+		status = biz.CampusOpsAlertStatusPending
+	}
+	feishuStatus := in.FeishuStatus
+	if feishuStatus == "" {
+		feishuStatus = biz.CampusAgentFeishuStatusPending
+	}
+	priority := in.Priority
+	if priority == "" {
+		priority = biz.CampusOpsAlertPriorityNormal
+	}
+	return &campusOpsAlertModel{
+		ID:           in.ID,
+		AlertType:    trimLimitData(in.AlertType, 48),
+		Priority:     trimLimitData(priority, 24),
+		TargetType:   trimLimitData(in.TargetType, 32),
+		TargetID:     in.TargetID,
+		DedupeKey:    trimLimitData(in.DedupeKey, 160),
+		Title:        trimLimitData(in.Title, 160),
+		Summary:      trimLimitData(in.Summary, 800),
+		PayloadJSON:  payload,
+		Status:       trimLimitData(status, 24),
+		FeishuStatus: trimLimitData(feishuStatus, 24),
+		FeishuError:  trimLimitData(in.FeishuError, 1000),
+		RetryCount:   in.RetryCount,
+		NextRetryAt:  in.NextRetryAt,
+		LockedUntil:  in.LockedUntil,
+		SentAt:       in.SentAt,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+}
+
+func toBizOpsAlert(row *campusOpsAlertModel) *biz.CampusOpsAlert {
+	if row == nil {
+		return nil
+	}
+	payload := map[string]interface{}{}
+	_ = json.Unmarshal(row.PayloadJSON, &payload)
+	return &biz.CampusOpsAlert{
+		ID:           row.ID,
+		AlertType:    row.AlertType,
+		Priority:     row.Priority,
+		TargetType:   row.TargetType,
+		TargetID:     row.TargetID,
+		DedupeKey:    row.DedupeKey,
+		Title:        row.Title,
+		Summary:      row.Summary,
+		Payload:      payload,
+		Status:       row.Status,
+		FeishuStatus: row.FeishuStatus,
+		FeishuError:  row.FeishuError,
+		RetryCount:   row.RetryCount,
+		NextRetryAt:  row.NextRetryAt,
+		LockedUntil:  row.LockedUntil,
+		SentAt:       row.SentAt,
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func toOpsActionTokenModel(in *biz.CampusOpsActionToken) *campusOpsActionTokenModel {
+	now := time.Now()
+	status := in.Status
+	if status == "" {
+		status = biz.CampusOpsActionTokenStatusActive
+	}
+	return &campusOpsActionTokenModel{
+		ID:         in.ID,
+		TokenHash:  trimLimitData(in.TokenHash, 64),
+		Action:     trimLimitData(in.Action, 32),
+		TargetType: trimLimitData(in.TargetType, 32),
+		TargetID:   in.TargetID,
+		Reason:     trimLimitData(in.Reason, 255),
+		Status:     trimLimitData(status, 24),
+		ExpiresAt:  in.ExpiresAt,
+		UsedAt:     in.UsedAt,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+}
+
+func toBizOpsActionToken(row *campusOpsActionTokenModel) *biz.CampusOpsActionToken {
+	if row == nil {
+		return nil
+	}
+	return &biz.CampusOpsActionToken{
+		ID:         row.ID,
+		TokenHash:  row.TokenHash,
+		Action:     row.Action,
+		TargetType: row.TargetType,
+		TargetID:   row.TargetID,
+		Reason:     row.Reason,
+		Status:     row.Status,
+		ExpiresAt:  row.ExpiresAt,
+		UsedAt:     row.UsedAt,
+		CreatedAt:  row.CreatedAt,
+		UpdatedAt:  row.UpdatedAt,
 	}
 }
 

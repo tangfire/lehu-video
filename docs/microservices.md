@@ -25,7 +25,7 @@ flowchart LR
 | `base` | 账号、验证码、文件预签名、对象存储确认、COS/MinIO provider | gRPC，被 `campus-api` 调用 |
 | `campus-user` | 用户资料、用户搜索、批量查询、统计、最后在线时间 | gRPC，被 `campus-api` 调用 |
 | `campus-rag` | 文档解析、切片、embedding、BM25/向量检索、Qdrant 访问 | HTTP，被 `campus-api` 调用 |
-| `campus-agent` | LangGraph 运营 Copilot、只读工具调用、巡检/治理/知识库缺口建议 | HTTP，被 `campus-api` 调用 |
+| `campus-agent` | LangGraph 运营值班 Agent、工具调用、巡检/治理/知识库缺口建议、发帖初审判断 | HTTP，被 `campus-api` 调用 |
 | `admin-web` | 运营后台静态站点 | HTTP，经反代访问 `campus-api` |
 
 `base` 和 `campus-user` 通过 Consul 注册服务名：

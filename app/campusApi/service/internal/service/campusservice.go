@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
@@ -78,6 +79,8 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.DELETE("/v1/campus/forum/comments/{id}", s.wrap(s.authRequired(s.handleDeleteComment)))
 	r.POST("/v1/campus/forum/comments/{id}/report", s.wrap(s.authRequired(s.handleReportComment)))
 	r.POST("/v1/campus/feedback", s.wrap(s.authRequired(s.handleCreateFeedback)))
+	r.GET("/v1/campus/feishu/card/callback", s.wrap(s.handleFeishuCardCallback))
+	r.POST("/v1/campus/feishu/card/callback", s.wrap(s.handleFeishuCardCallback))
 	r.GET("/v1/campus/notifications", s.wrap(s.authRequired(s.handleListNotifications)))
 	r.GET("/v1/campus/notifications/unread-count", s.wrap(s.authRequired(s.handleUnreadNotificationCount)))
 	r.POST("/v1/campus/notifications/read-all", s.wrap(s.authRequired(s.handleMarkAllNotificationsRead)))
@@ -1430,6 +1433,52 @@ func (s *CampusService) handleAdminSendAgentRunFeishu(w http.ResponseWriter, r *
 	writeJSON(w, r, map[string]interface{}{"run": agentRunToMap(run)})
 }
 
+func (s *CampusService) handleFeishuCardCallback(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimSpace(r.URL.Query().Get("token"))
+	action := strings.TrimSpace(r.URL.Query().Get("action"))
+	reason := strings.TrimSpace(r.URL.Query().Get("reason"))
+	if r.Method == http.MethodPost && r.Body != nil {
+		var raw map[string]interface{}
+		if err := json.NewDecoder(io.LimitReader(r.Body, campusMultipartExtraBytes)).Decode(&raw); err == nil {
+			if challenge, _ := raw["challenge"].(string); challenge != "" {
+				writeJSON(w, r, map[string]interface{}{"challenge": challenge})
+				return
+			}
+			if !verifyFeishuCallbackToken(raw) {
+				writeError(w, r, apperror.Unauthorized("飞书回调校验失败"))
+				return
+			}
+			if token == "" {
+				token = firstNonEmptyService(findStringInMap(raw, "token"), findStringInMap(raw, "action_token"))
+			}
+			if action == "" {
+				action = firstNonEmptyService(findStringInMap(raw, "action"), findStringInMap(raw, "action_type"))
+			}
+			if reason == "" {
+				reason = findStringInMap(raw, "reason")
+			}
+		}
+	}
+	message, err := s.uc.HandleFeishuCardAction(r.Context(), &biz.HandleFeishuCardActionInput{
+		Token:  token,
+		Action: action,
+		Reason: reason,
+	})
+	if err != nil {
+		if r.Method == http.MethodGet {
+			writeFeishuActionPage(w, false, apperror.From(err).Message)
+			return
+		}
+		writeError(w, r, err)
+		return
+	}
+	if r.Method == http.MethodGet {
+		writeFeishuActionPage(w, true, message)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"ok": true, "message": message})
+}
+
 func (s *CampusService) handleCopilotToolAdminSummary(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAgentToken(w, r) {
 		return
@@ -2718,7 +2767,7 @@ func (s *CampusService) requireAgentToken(w http.ResponseWriter, r *http.Request
 		expected = "local-agent-token"
 	}
 	if strings.TrimSpace(r.Header.Get("X-Campus-Agent-Token")) != expected {
-		writeError(w, r, apperror.Unauthorized("Copilot 内部鉴权失败"))
+		writeError(w, r, apperror.Unauthorized("Agent 内部鉴权失败"))
 		return false
 	}
 	return true
@@ -3537,11 +3586,16 @@ func agentFeishuSettingsToMap() map[string]interface{} {
 	dailyEnabled := !envBoolFalseService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_ENABLED"))
 	highRiskEnabled := !envBoolFalseService(os.Getenv("CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED"))
 	return map[string]interface{}{
-		"enabled":            feishuEnabled,
-		"daily_enabled":      dailyEnabled,
-		"daily_time":         firstNonEmptyService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_TIME"), "09:30"),
-		"high_risk_enabled":  highRiskEnabled,
-		"webhook_configured": strings.TrimSpace(os.Getenv("LEHU_ALERT_FEISHU_WEBHOOK")) != "",
+		"enabled":                    feishuEnabled,
+		"daily_enabled":              dailyEnabled,
+		"daily_time":                 firstNonEmptyService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_TIME"), "09:30"),
+		"high_risk_enabled":          highRiskEnabled,
+		"ops_events_enabled":         !envBoolFalseService(os.Getenv("CAMPUS_OPS_FEISHU_EVENTS_ENABLED")),
+		"report_notify_enabled":      !envBoolFalseService(os.Getenv("CAMPUS_OPS_FEISHU_REPORT_NOTIFY")),
+		"feedback_notify_types":      firstNonEmptyService(os.Getenv("CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES"), "contact,cooperation,bug,content"),
+		"audit_callback_enabled":     !envBoolFalseService(os.Getenv("LEHU_FEISHU_CARD_CALLBACK_ENABLED")),
+		"audit_auto_pass_confidence": firstNonEmptyService(os.Getenv("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE"), "0.85"),
+		"webhook_configured":         strings.TrimSpace(os.Getenv("LEHU_ALERT_FEISHU_WEBHOOK")) != "",
 	}
 }
 
@@ -3562,6 +3616,78 @@ func firstNonEmptyService(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func verifyFeishuCallbackToken(payload map[string]interface{}) bool {
+	expected := strings.TrimSpace(os.Getenv("LEHU_FEISHU_CARD_VERIFY_TOKEN"))
+	if expected == "" {
+		return true
+	}
+	actual, _ := payload["token"].(string)
+	return strings.TrimSpace(actual) == expected
+}
+
+func findStringInMap(value interface{}, key string) string {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return ""
+	}
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		if item, ok := typed[key]; ok {
+			if text, ok := item.(string); ok {
+				return strings.TrimSpace(text)
+			}
+		}
+		for _, item := range typed {
+			if text := findStringInMap(item, key); text != "" {
+				return text
+			}
+		}
+	case []interface{}:
+		for _, item := range typed {
+			if text := findStringInMap(item, key); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
+func writeFeishuActionPage(w http.ResponseWriter, ok bool, message string) {
+	statusText := "处理完成"
+	accent := "#16a34a"
+	if !ok {
+		statusText = "处理失败"
+		accent = "#dc2626"
+	}
+	body := fmt.Sprintf(`<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>%s</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f6f7f9;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.box{width:min(420px,calc(100vw - 32px));background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:28px;box-shadow:0 12px 32px rgba(15,23,42,.08)}
+.mark{width:42px;height:42px;border-radius:50%%;display:grid;place-items:center;background:%s;color:white;font-weight:700;margin-bottom:16px}
+h1{font-size:20px;line-height:1.3;margin:0 0 10px}
+p{font-size:15px;line-height:1.7;margin:0;color:#4b5563}
+</style>
+</head>
+<body><main class="box"><div class="mark">%s</div><h1>%s</h1><p>%s</p></main></body>
+</html>`,
+		html.EscapeString(statusText),
+		accent,
+		map[bool]string{true: "OK", false: "!"}[ok],
+		html.EscapeString(statusText),
+		html.EscapeString(firstNonEmptyService(message, "请回到运营后台确认处理状态。")),
+	)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	_, _ = w.Write([]byte(body))
 }
 
 func adminSummaryToMap(summary *biz.CampusAdminSummary) map[string]interface{} {

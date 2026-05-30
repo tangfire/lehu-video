@@ -175,11 +175,15 @@ def admin_href(path):
 
 
 def build_agent_feishu_post(payload):
+    actions = payload.get("actions")
+    if isinstance(actions, list) and actions:
+        return build_agent_feishu_card(payload)
+
     deploy_env = env("LEHU_ALERT_ENV", "local")
     run_type = truncate(payload.get("run_type") or "-", 40)
     run_id = truncate(payload.get("run_id") or "-", 40)
     risk_level = truncate(payload.get("risk_level") or "low", 20)
-    title = truncate(payload.get("title") or f"校园 e站运营 Copilot [{deploy_env}] {risk_level}", 120)
+    title = truncate(payload.get("title") or f"校园 e站运营值班 Agent [{deploy_env}] {risk_level}", 120)
     summary = truncate(payload.get("summary") or "暂无摘要", 400)
 
     content = [
@@ -215,7 +219,7 @@ def build_agent_feishu_post(payload):
 
     content.extend([
         line(""),
-        line("说明：飞书只做运营通知，删帖、封禁、审核等动作仍需回后台人工确认。"),
+        line("说明：日报、举报和反馈只做提醒；发帖审核卡片可使用一次性链接通过/拒绝，其余治理动作回后台处理。"),
     ])
 
     return {
@@ -227,6 +231,85 @@ def build_agent_feishu_post(payload):
                     "content": content,
                 }
             }
+        },
+    }
+
+
+def card_template(risk_level):
+    risk = str(risk_level or "").lower()
+    if risk == "high":
+        return "red"
+    if risk == "medium":
+        return "orange"
+    return "green"
+
+
+def markdown_escape(value):
+    return str(value or "").replace("\n", " ").strip()
+
+
+def build_agent_feishu_card(payload):
+    deploy_env = env("LEHU_ALERT_ENV", "local")
+    run_type = truncate(payload.get("run_type") or "-", 40)
+    run_id = truncate(payload.get("run_id") or "-", 40)
+    risk_level = truncate(payload.get("risk_level") or "low", 20)
+    title = truncate(payload.get("title") or f"校园 e站运营值班 [{deploy_env}]", 120)
+    summary = truncate(payload.get("summary") or "暂无摘要", 500)
+    elements = [
+        {
+            "tag": "div",
+            "text": {
+                "tag": "lark_md",
+                "content": f"**环境**：{deploy_env}    **风险**：{risk_level}    **类型**：{run_type}\n**ID**：{run_id}\n**摘要**：{markdown_escape(summary)}",
+            },
+        }
+    ]
+
+    findings = list_items(payload.get("findings"), "title", limit=4)
+    if findings:
+        content = "\n".join(f"{idx}. {markdown_escape(text)}{(' - ' + markdown_escape(detail)) if detail else ''}" for idx, (text, detail) in enumerate(findings, start=1))
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": f"**关键发现**\n{content}"}})
+
+    recommendations = list_items(payload.get("recommendations"), "title", limit=3)
+    if recommendations:
+        content = "\n".join(f"{idx}. {markdown_escape(text)}{(' - ' + markdown_escape(detail)) if detail else ''}" for idx, (text, detail) in enumerate(recommendations, start=1))
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": f"**建议动作**\n{content}"}})
+
+    button_items = []
+    for action in payload.get("actions")[:6]:
+        if not isinstance(action, dict):
+            continue
+        label = truncate(action.get("label") or "打开", 20)
+        href = first_present(action.get("url"), admin_href(action.get("href") or action.get("path")))
+        if not href:
+            continue
+        style = str(action.get("style") or "default").lower()
+        button_type = "default"
+        if style in ("primary", "danger"):
+            button_type = style
+        button_items.append({
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": label},
+            "url": href,
+            "type": button_type,
+            "value": {"action": action.get("action") or label, "target_id": payload.get("target_id")},
+        })
+    if button_items:
+        elements.append({"tag": "action", "actions": button_items})
+
+    elements.append({
+        "tag": "note",
+        "elements": [{"tag": "plain_text", "content": "Agent 负责提醒和建议；通过/拒绝按钮使用一次性 token，其他治理动作回后台处理。"}],
+    })
+    return {
+        "msg_type": "interactive",
+        "card": {
+            "config": {"wide_screen_mode": True},
+            "header": {
+                "template": card_template(risk_level),
+                "title": {"tag": "plain_text", "content": title},
+            },
+            "elements": elements,
         },
     }
 

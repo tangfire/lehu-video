@@ -20,10 +20,10 @@ const auditModes = [
     },
     {
         value: 'ai',
-        title: 'AI 初审',
+        title: 'AI/Agent 初审',
         badge: '提效',
-        summary: 'AI 先判，运营复核',
-        detail: '适合发帖量变大后。',
+        summary: '低风险自动过',
+        detail: '不确定进飞书/后台。',
     },
 ];
 
@@ -110,7 +110,7 @@ const AdminAuditSettings = () => {
                     </div>
                     <span className={`admin-ai-pill ${aiReady ? 'ready' : 'missing'}`}>
                         {aiReady ? <FiZap /> : <FiAlertTriangle />}
-                        {aiReady ? 'AI 可用' : 'AI 未配置'}
+                        {aiReady ? 'Agent 可用' : 'Agent 未配置'}
                     </span>
                 </div>
 
@@ -150,7 +150,7 @@ const AdminAuditSettings = () => {
                 {selectedMode === 'ai' && !aiReady && (
                     <div className="admin-audit-warning">
                         <FiAlertTriangle />
-                        <span>AI 未配置时，新帖会保留在待审核队列。</span>
+                        <span>Agent 未配置时，新帖会保留在待审核队列。</span>
                     </div>
                 )}
             </section>

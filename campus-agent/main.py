@@ -29,6 +29,24 @@ class RunRequest(BaseModel):
     operator_id: str = ""
 
 
+class ModerationAuditRequest(BaseModel):
+    post_id: str = ""
+    author_id: str = ""
+    title: str = ""
+    content: str = ""
+    post_type: str = ""
+    media_type: str = ""
+    image_count: int = 0
+
+
+class ModerationAuditResult(BaseModel):
+    decision: str = "review"
+    confidence: float = 0.5
+    risk_level: str = "medium"
+    reason: str = "需要人工复核"
+    evidence: List[str] = Field(default_factory=list)
+
+
 class Finding(BaseModel):
     title: str
     detail: str = ""
@@ -248,7 +266,7 @@ def fallback_result(run_type: str, question: str, tool_results: List[Dict[str, A
         next_actions.append(NextAction(label="去运营发帖", path="/admin/compose"))
 
     risk = "high" if any(item.severity == "high" for item in findings) else "medium" if any(item.severity == "medium" for item in findings) else "low"
-    label = TASK_LABELS.get(run_type, "运营 Copilot")
+    label = TASK_LABELS.get(run_type, "值班 Agent")
     focus = f"；关注点：{question.strip()}" if question.strip() else ""
     return AgentResult(
         summary=f"{label}完成，风险等级 {risk}{focus}。",
@@ -283,7 +301,8 @@ def call_model(run_type: str, question: str, tool_results: List[Dict[str, Any]])
     prompt = {
         "role": "user",
         "content": (
-            "你是校园 e站运营 Copilot，只能基于工具结果给只读建议，不能声称已执行删除、审核、封禁、改配置等操作。"
+            "你是校园 e站运营值班 Agent。巡检、RAG 缺口和治理建议只能基于工具结果给建议，"
+            "不能声称已经执行删除、封禁、改配置等高风险动作。发帖审核由专用审核接口处理。"
             "请输出 JSON：summary,risk_level,findings,recommendations,evidence,next_actions。"
             f"任务类型：{run_type}；运营关注点：{question or '无'}；工具结果："
             + json.dumps(build_tool_trace(tool_results), ensure_ascii=False)
@@ -303,6 +322,71 @@ def call_model(run_type: str, question: str, tool_results: List[Dict[str, Any]])
         if not parsed:
             return None
         return AgentResult(**parsed)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def normalize_moderation_result(data: Dict[str, Any]) -> ModerationAuditResult:
+    decision = str(data.get("decision") or "review").strip().lower()
+    if decision not in ("pass", "review", "reject"):
+        decision = "review"
+    risk = str(data.get("risk_level") or "medium").strip().lower()
+    if risk not in ("low", "medium", "high"):
+        risk = "medium"
+    try:
+        confidence = float(data.get("confidence", 0.5))
+    except (TypeError, ValueError):
+        confidence = 0.5
+    confidence = max(0.0, min(confidence, 1.0))
+    reason = str(data.get("reason") or "需要人工复核").strip()[:120]
+    evidence_raw = data.get("evidence") or []
+    evidence = []
+    if isinstance(evidence_raw, list):
+        evidence = [str(item).strip()[:160] for item in evidence_raw if str(item).strip()][:6]
+    elif isinstance(evidence_raw, str) and evidence_raw.strip():
+        evidence = [evidence_raw.strip()[:160]]
+    return ModerationAuditResult(decision=decision, confidence=confidence, risk_level=risk, reason=reason, evidence=evidence)
+
+
+def heuristic_moderation(req: ModerationAuditRequest) -> ModerationAuditResult:
+    text = f"{req.title}\n{req.content}".lower()
+    high_words = ["赌博", "裸聊", "诈骗", "代考", "代课", "身份证", "银行卡", "毒品", "买卖账号"]
+    medium_words = ["加微信", "兼职", "刷单", "引战", "辱骂", "曝光", "挂人", "联系方式"]
+    for word in high_words:
+        if word in text:
+            return ModerationAuditResult(decision="review", confidence=0.72, risk_level="high", reason=f"疑似包含高风险词：{word}", evidence=[f"keyword:{word}"])
+    for word in medium_words:
+        if word in text:
+            return ModerationAuditResult(decision="review", confidence=0.68, risk_level="medium", reason=f"疑似需要人工确认：{word}", evidence=[f"keyword:{word}"])
+    if len((req.title + req.content).strip()) < 8:
+        return ModerationAuditResult(decision="review", confidence=0.55, risk_level="medium", reason="内容过短，语义不够明确", evidence=["too_short"])
+    return ModerationAuditResult(decision="pass", confidence=0.88, risk_level="low", reason="未发现明显违规风险", evidence=["heuristic_low_risk"])
+
+
+def call_moderation_model(req: ModerationAuditRequest) -> Optional[ModerationAuditResult]:
+    if not API_KEY:
+        return None
+    prompt = (
+        "你是校园社区内容安全审核 Agent。只输出 JSON，字段为 decision, confidence, risk_level, reason, evidence。"
+        "decision 只能是 pass/review/reject；risk_level 只能是 low/medium/high；confidence 是 0 到 1。"
+        "低风险正常校园分享给 pass；不确定、可能引战、隐私、广告、交易、联系方式、挂人曝光给 review；明显严重违规给 reject。"
+        "第一版 reject 也会交给人工，不要因为可疑就轻易 reject。"
+        f"帖子：{json.dumps(req.model_dump(), ensure_ascii=False)}"
+    )
+    try:
+        resp = requests.post(
+            BASE_URL,
+            headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+            json={"model": MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.1, "max_tokens": 360},
+            timeout=HTTP_TIMEOUT,
+        )
+        if resp.status_code >= 400:
+            return None
+        content = (((resp.json().get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+        parsed = parse_model_json(content)
+        if not parsed:
+            return None
+        return normalize_moderation_result(parsed)
     except Exception:  # noqa: BLE001
         return None
 
@@ -334,3 +418,10 @@ def run_copilot(req: RunRequest, x_campus_agent_token: Optional[str] = Header(de
         "result": result.model_dump(),
         "tool_trace": build_tool_trace(tool_results),
     }
+
+
+@app.post("/internal/moderation/audit")
+def moderation_audit(req: ModerationAuditRequest, x_campus_agent_token: Optional[str] = Header(default=None)) -> Dict[str, Any]:
+    check_token(x_campus_agent_token)
+    result = call_moderation_model(req) or heuristic_moderation(req)
+    return result.model_dump()

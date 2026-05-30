@@ -3,7 +3,9 @@ package biz
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -45,6 +47,24 @@ const (
 	CampusAgentFeishuStatusSent    = "sent"
 	CampusAgentFeishuStatusFailed  = "failed"
 	CampusAgentFeishuStatusSkipped = "skipped"
+
+	CampusOpsAlertStatusPending    = "pending"
+	CampusOpsAlertStatusProcessing = "processing"
+	CampusOpsAlertStatusSent       = "sent"
+	CampusOpsAlertStatusSkipped    = "skipped"
+	CampusOpsAlertStatusFailed     = "failed"
+
+	CampusOpsAlertTypeReportCreated       = "report_created"
+	CampusOpsAlertTypeFeedbackImportant   = "feedback_important"
+	CampusOpsAlertTypeAuditReviewRequired = "audit_review_required"
+	CampusOpsAlertTypeAuditHighRisk       = "audit_high_risk"
+
+	CampusOpsAlertPriorityNormal   = "normal"
+	CampusOpsAlertPriorityHigh     = "high"
+	CampusOpsAlertPriorityCritical = "critical"
+
+	CampusOpsActionTokenStatusActive = "active"
+	CampusOpsActionTokenStatusUsed   = "used"
 
 	CampusAuthStatusUnverified int32 = 0
 	CampusAuthStatusVerified   int32 = 1
@@ -102,6 +122,7 @@ const (
 	CampusAIContentAuditDecisionReject = "reject"
 
 	campusAIContentAuditTaskMaxRetry = 3
+	campusOpsAlertMaxRetry           = 5
 
 	CampusKnowledgeDocumentStatusDraft    = "draft"
 	CampusKnowledgeDocumentStatusIndexing = "indexing"
@@ -628,6 +649,46 @@ type CampusAgentRun struct {
 	UpdatedAt    time.Time
 }
 
+type CampusOpsAlert struct {
+	ID           int64
+	AlertType    string
+	Priority     string
+	TargetType   string
+	TargetID     int64
+	DedupeKey    string
+	Title        string
+	Summary      string
+	Payload      map[string]interface{}
+	Status       string
+	FeishuStatus string
+	FeishuError  string
+	RetryCount   int32
+	NextRetryAt  *time.Time
+	LockedUntil  *time.Time
+	SentAt       *time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type CampusOpsActionToken struct {
+	ID         int64
+	TokenHash  string
+	Action     string
+	TargetType string
+	TargetID   int64
+	Reason     string
+	Status     string
+	ExpiresAt  time.Time
+	UsedAt     *time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type CampusOpsActionTokenCreateResult struct {
+	Token string
+	Item  *CampusOpsActionToken
+}
+
 type CampusAccessLog struct {
 	ID          int64
 	UserID      string
@@ -1108,6 +1169,12 @@ type SendCampusAgentRunFeishuInput struct {
 	Reason string
 }
 
+type HandleFeishuCardActionInput struct {
+	Token  string
+	Action string
+	Reason string
+}
+
 type ListCampusAgentRunsInput struct {
 	UserID string
 	Page   int32
@@ -1433,6 +1500,12 @@ type CampusRepo interface {
 	UpdateAgentRunFeishu(ctx context.Context, id int64, status string, sentAt *time.Time, errorMessage string) error
 	GetAgentRunByID(ctx context.Context, id int64) (bool, *CampusAgentRun, error)
 	ListAgentRuns(ctx context.Context, offset, limit int) ([]*CampusAgentRun, int64, error)
+	CreateOpsAlert(ctx context.Context, item *CampusOpsAlert) error
+	ClaimOpsAlerts(ctx context.Context, limit int, lockFor time.Duration) ([]*CampusOpsAlert, error)
+	MarkOpsAlertSent(ctx context.Context, id int64, feishuStatus, feishuError string, sentAt *time.Time) error
+	MarkOpsAlertRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error
+	CreateOpsActionToken(ctx context.Context, item *CampusOpsActionToken) error
+	UseOpsActionToken(ctx context.Context, tokenHash string, now time.Time) (bool, *CampusOpsActionToken, error)
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
 	CountUnreadNotifications(ctx context.Context, userID string) (*CampusUnreadNotificationCount, error)
 	MarkNotificationRead(ctx context.Context, userID string, notificationID int64) error
@@ -1488,13 +1561,9 @@ type CampusAIReplyConfig struct {
 }
 
 type CampusAIContentAuditConfig struct {
-	Enabled         bool
-	APIKey          string
-	BaseURL         string
-	Model           string
-	MaxOutputTokens int
-	Temperature     float64
-	Timeout         time.Duration
+	Enabled bool
+	BaseURL string
+	Timeout time.Duration
 }
 
 func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timetableProvider CampusTimetableProvider, idGen CampusIDGenerator, rag CampusRAGClient, authSecret string, logger log.Logger) *CampusUsecase {
@@ -1525,18 +1594,12 @@ func NewCampusUsecase(repo CampusRepo, base BaseAdapter, core CoreAdapter, timet
 }
 
 func loadCampusAIContentAuditConfig() CampusAIContentAuditConfig {
-	apiKey := firstNonEmpty(os.Getenv("CAMPUS_AI_AUDIT_API_KEY"), os.Getenv("CAMPUS_AI_API_KEY"), os.Getenv("DEEPSEEK_API_KEY"))
-	baseURL := firstNonEmpty(os.Getenv("CAMPUS_AI_AUDIT_BASE_URL"), os.Getenv("CAMPUS_AI_BASE_URL"), "https://api.deepseek.com/chat/completions")
-	model := firstNonEmpty(os.Getenv("CAMPUS_AI_AUDIT_MODEL"), os.Getenv("CAMPUS_AI_MODEL"), "deepseek-chat")
-	enabled := strings.TrimSpace(apiKey) != "" && !envBoolFalse(os.Getenv("CAMPUS_AI_AUDIT_ENABLED"))
+	baseURL := firstNonEmpty(os.Getenv("CAMPUS_AGENT_SERVICE_URL"), "http://campus-agent:8091")
+	enabled := !envBoolFalse(os.Getenv("CAMPUS_AGENT_AUDIT_ENABLED"))
 	return CampusAIContentAuditConfig{
-		Enabled:         enabled,
-		APIKey:          strings.TrimSpace(apiKey),
-		BaseURL:         strings.TrimSpace(baseURL),
-		Model:           strings.TrimSpace(model),
-		MaxOutputTokens: int(envInt64("CAMPUS_AI_AUDIT_MAX_OUTPUT_TOKENS", 180)),
-		Temperature:     0.1,
-		Timeout:         10 * time.Second,
+		Enabled: enabled,
+		BaseURL: strings.TrimSpace(baseURL),
+		Timeout: envDurationBiz("CAMPUS_AGENT_AUDIT_TIMEOUT", 10*time.Second),
 	}
 }
 
@@ -2979,7 +3042,24 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 	}
 	result, raw, err := uc.auditPostWithAI(ctx, post)
 	if err != nil {
-		return err
+		reason := "审核 Agent 不可用，需要人工处理"
+		rawResult, _ := json.Marshal(map[string]interface{}{
+			"decision":   CampusAIContentAuditDecisionReview,
+			"risk_level": "high",
+			"reason":     reason,
+			"error":      err.Error(),
+		})
+		_ = uc.enqueueAuditOpsAlert(ctx, post, CampusAIContentAuditDecisionReview, "high", reason, []string{"agent_error:" + trimLimit(err.Error(), 180)})
+		_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
+			ID:         uc.idGen.NextID(),
+			TargetType: "post",
+			TargetID:   post.ID,
+			UserID:     post.AuthorID,
+			Provider:   "agent",
+			Result:     CampusAIContentAuditDecisionReview,
+			Reason:     reason,
+		})
+		return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionReview, "high", reason, string(rawResult))
 	}
 	decision := normalizeAIContentAuditDecision(result.Decision)
 	if decision == "" {
@@ -2987,28 +3067,36 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 	}
 	riskLevel := normalizeAIContentAuditRiskLevel(result.RiskLevel)
 	reason := trimLimit(firstNonEmpty(result.Reason, "AI 审核建议人工复核"), 240)
-	switch decision {
-	case CampusAIContentAuditDecisionPass:
-		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, "AI 审核通过"); err != nil {
+	confidence := result.Confidence
+	if confidence < 0 || confidence > 1 {
+		confidence = 0
+	}
+	autoPass := decision == CampusAIContentAuditDecisionPass && riskLevel == "low" && confidence >= agentAuditAutoPassConfidence()
+	switch {
+	case autoPass:
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, "Agent 审核通过"); err != nil {
 			return err
 		}
 		uc.notifyPostAuditResult(ctx, post, true, "你的帖子已通过审核")
-	case CampusAIContentAuditDecisionReject:
+	case decision == CampusAIContentAuditDecisionReject:
 		decision = CampusAIContentAuditDecisionReview
 		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusPending, reason); err != nil {
 			return err
 		}
+		_ = uc.enqueueAuditOpsAlert(ctx, post, CampusAIContentAuditDecisionReject, riskLevel, reason, result.Evidence)
 	default:
+		decision = CampusAIContentAuditDecisionReview
 		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusPending, reason); err != nil {
 			return err
 		}
+		_ = uc.enqueueAuditOpsAlert(ctx, post, decision, riskLevel, reason, result.Evidence)
 	}
 	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
 		ID:         uc.idGen.NextID(),
 		TargetType: "post",
 		TargetID:   post.ID,
 		UserID:     post.AuthorID,
-		Provider:   "ai",
+		Provider:   "agent",
 		Result:     decision,
 		Reason:     reason,
 	})
@@ -3016,67 +3104,52 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 }
 
 type aiContentAuditResult struct {
-	Decision  string `json:"decision"`
-	RiskLevel string `json:"risk_level"`
-	Reason    string `json:"reason"`
+	Decision   string   `json:"decision"`
+	Confidence float64  `json:"confidence"`
+	RiskLevel  string   `json:"risk_level"`
+	Reason     string   `json:"reason"`
+	Evidence   []string `json:"evidence"`
 }
 
 func (uc *CampusUsecase) auditPostWithAI(ctx context.Context, post *CampusForumPost) (*aiContentAuditResult, string, error) {
 	cfg := uc.aiAuditConfig
 	taskCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
-	systemPrompt := "你是校园社区内容安全审核员。请审核同学发布的帖子是否适合在校园社区展示。重点识别违法违规、辱骂人身攻击、隐私泄露、广告诈骗、色情暴力、代考代课、危险物品、骚扰引战和虚假信息。只输出 JSON，不要输出多余文字。decision 只能是 pass/review/reject；risk_level 只能是 low/medium/high；reason 用中文 40 字以内。低风险正常校园分享给 pass；不确定或可能违规给 review；明显严重违规才给 reject。"
-	userPrompt := fmt.Sprintf("帖子类型：%s\n标题：%s\n正文：%s\n图片数量：%d",
-		post.PostType,
-		trimLimit(post.Title, 120),
-		trimLimit(post.Content, 1800),
-		len(post.Images),
-	)
+	baseURL := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	if baseURL == "" {
+		baseURL = "http://campus-agent:8091"
+	}
 	body, _ := json.Marshal(map[string]interface{}{
-		"model": cfg.Model,
-		"messages": []map[string]string{
-			{"role": "system", "content": systemPrompt},
-			{"role": "user", "content": userPrompt},
-		},
-		"max_tokens":  cfg.MaxOutputTokens,
-		"temperature": cfg.Temperature,
+		"post_id":     fmt.Sprintf("%d", post.ID),
+		"author_id":   post.AuthorID,
+		"title":       trimLimit(post.Title, 160),
+		"content":     trimLimit(post.Content, 2400),
+		"post_type":   post.PostType,
+		"media_type":  post.MediaType,
+		"image_count": len(post.Images),
 	})
-	req, err := http.NewRequestWithContext(taskCtx, http.MethodPost, cfg.BaseURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(taskCtx, http.MethodPost, baseURL+"/internal/moderation/audit", bytes.NewReader(body))
 	if err != nil {
 		return nil, "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-	resp, err := http.DefaultClient.Do(req)
+	token := strings.TrimSpace(os.Getenv("CAMPUS_AGENT_INTERNAL_TOKEN"))
+	if token == "" {
+		token = "local-agent-token"
+	}
+	req.Header.Set("X-Campus-Agent-Token", token)
+	resp, err := (&http.Client{Timeout: cfg.Timeout}).Do(req)
 	if err != nil {
 		return nil, "", err
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, string(raw), fmt.Errorf("ai audit api status=%d body=%s", resp.StatusCode, trimLimit(string(raw), 300))
+		return nil, string(raw), fmt.Errorf("agent audit status=%d body=%s", resp.StatusCode, trimLimit(string(raw), 300))
 	}
-	var out struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, string(raw), err
-	}
-	if len(out.Choices) == 0 {
-		return nil, string(raw), fmt.Errorf("ai audit api returned empty choices")
-	}
-	content := strings.TrimSpace(out.Choices[0].Message.Content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
 	var result aiContentAuditResult
-	if err := json.Unmarshal([]byte(content), &result); err != nil {
-		return &aiContentAuditResult{Decision: CampusAIContentAuditDecisionReview, RiskLevel: "medium", Reason: "AI 返回格式异常，需人工复核"}, string(raw), nil
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return &aiContentAuditResult{Decision: CampusAIContentAuditDecisionReview, Confidence: 0, RiskLevel: "medium", Reason: "Agent 返回格式异常，需人工复核"}, string(raw), nil
 	}
 	return &result, string(raw), nil
 }
@@ -3097,6 +3170,10 @@ func (uc *CampusUsecase) markAIContentAuditTaskRetry(ctx context.Context, item *
 	}
 	if final && item.TargetType == "post" {
 		_ = uc.repo.UpdatePostStatus(ctx, item.TargetID, CampusAuditStatusPending, "AI 审核失败，等待人工复核")
+		ok, post, err := uc.repo.GetAnyPostByID(ctx, item.TargetID)
+		if err == nil && ok && post != nil {
+			_ = uc.enqueueAuditOpsAlert(ctx, post, CampusAIContentAuditDecisionReview, "high", "审核 Agent 连续失败，需要人工处理", []string{trimLimit(processErr.Error(), 180)})
+		}
 	}
 }
 
@@ -3151,6 +3228,329 @@ func (uc *CampusUsecase) notifyPostAuditResult(ctx context.Context, post *Campus
 	if err := uc.repo.CreateNotificationOutbox(ctx, outbox); err != nil {
 		uc.log.WithContext(ctx).Warnf("queue post audit notification failed: post_id=%d err=%v", post.ID, err)
 	}
+}
+
+func (uc *CampusUsecase) enqueueOpsAlert(ctx context.Context, alertType, priority, targetType string, targetID int64, dedupeKey, title, summary string, payload map[string]interface{}) error {
+	if !opsFeishuEventsEnabled() || targetID <= 0 {
+		return nil
+	}
+	alertType = strings.TrimSpace(alertType)
+	targetType = strings.TrimSpace(targetType)
+	if alertType == "" || targetType == "" {
+		return nil
+	}
+	if priority == "" {
+		priority = CampusOpsAlertPriorityNormal
+	}
+	if dedupeKey == "" {
+		dedupeKey = fmt.Sprintf("%s:%s:%d", alertType, targetType, targetID)
+	}
+	return uc.repo.CreateOpsAlert(ctx, &CampusOpsAlert{
+		ID:           uc.idGen.NextID(),
+		AlertType:    alertType,
+		Priority:     priority,
+		TargetType:   targetType,
+		TargetID:     targetID,
+		DedupeKey:    dedupeKey,
+		Title:        trimLimit(title, 160),
+		Summary:      trimLimit(summary, 800),
+		Payload:      payload,
+		Status:       CampusOpsAlertStatusPending,
+		FeishuStatus: CampusAgentFeishuStatusPending,
+	})
+}
+
+func (uc *CampusUsecase) enqueueReportOpsAlert(ctx context.Context, report *CampusForumReport) {
+	if report == nil || !opsFeishuReportNotifyEnabled() {
+		return
+	}
+	summary := fmt.Sprintf("用户 %s 举报了 %s %d：%s", report.ReporterID, report.TargetType, report.TargetID, firstNonEmpty(report.Reason, "未填写原因"))
+	payload := map[string]interface{}{
+		"report_id":   fmt.Sprintf("%d", report.ID),
+		"target_type": report.TargetType,
+		"target_id":   fmt.Sprintf("%d", report.TargetID),
+		"reporter_id": report.ReporterID,
+		"reason":      report.Reason,
+		"detail":      report.Detail,
+	}
+	if err := uc.enqueueOpsAlert(ctx, CampusOpsAlertTypeReportCreated, CampusOpsAlertPriorityHigh, "report", report.ID,
+		fmt.Sprintf("report:%d", report.ID),
+		"校园 e站收到新举报", summary, payload); err != nil {
+		uc.log.WithContext(ctx).Warnf("enqueue report ops alert failed: report_id=%d err=%v", report.ID, err)
+	}
+}
+
+func (uc *CampusUsecase) enqueueFeedbackOpsAlert(ctx context.Context, feedback *CampusFeedback) {
+	if feedback == nil || !opsFeishuFeedbackTypeEnabled(feedback.FeedbackType) {
+		return
+	}
+	summary := fmt.Sprintf("%s 类型反馈：%s", feedback.FeedbackType, trimLimit(feedback.Content, 120))
+	payload := map[string]interface{}{
+		"feedback_id":   fmt.Sprintf("%d", feedback.ID),
+		"feedback_type": feedback.FeedbackType,
+		"user_id":       feedback.UserID,
+		"contact":       feedback.Contact,
+		"content":       feedback.Content,
+		"image_count":   len(feedback.Images),
+	}
+	if err := uc.enqueueOpsAlert(ctx, CampusOpsAlertTypeFeedbackImportant, CampusOpsAlertPriorityHigh, "feedback", feedback.ID,
+		fmt.Sprintf("feedback:%d", feedback.ID),
+		"校园 e站收到重要反馈", summary, payload); err != nil {
+		uc.log.WithContext(ctx).Warnf("enqueue feedback ops alert failed: feedback_id=%d err=%v", feedback.ID, err)
+	}
+}
+
+func (uc *CampusUsecase) enqueueAuditOpsAlert(ctx context.Context, post *CampusForumPost, decision, riskLevel, reason string, evidence []string) error {
+	if post == nil || post.ID <= 0 {
+		return nil
+	}
+	riskLevel = normalizeAIContentAuditRiskLevel(riskLevel)
+	priority := CampusOpsAlertPriorityHigh
+	alertType := CampusOpsAlertTypeAuditReviewRequired
+	if riskLevel == "high" || decision == CampusAIContentAuditDecisionReject {
+		priority = CampusOpsAlertPriorityCritical
+		alertType = CampusOpsAlertTypeAuditHighRisk
+	}
+	actions := []map[string]interface{}{}
+	if feishuCardCallbackEnabled() {
+		approveToken, approveErr := uc.createOpsActionToken(ctx, "approve", "post", post.ID, "飞书通过")
+		if approveErr != nil {
+			uc.log.WithContext(ctx).Warnf("create feishu approve token failed: post_id=%d err=%v", post.ID, approveErr)
+		}
+		rejectToken, rejectErr := uc.createOpsActionToken(ctx, "reject", "post", post.ID, reason)
+		if rejectErr != nil {
+			uc.log.WithContext(ctx).Warnf("create feishu reject token failed: post_id=%d err=%v", post.ID, rejectErr)
+		}
+		if approveToken != "" {
+			actions = append(actions, map[string]interface{}{"label": "通过", "style": "primary", "url": buildFeishuActionURL(approveToken, "approve")})
+		}
+		if rejectToken != "" {
+			actions = append(actions, map[string]interface{}{"label": "拒绝", "style": "danger", "url": buildFeishuActionURL(rejectToken, "reject")})
+		}
+	}
+	actions = append(actions, map[string]interface{}{"label": "打开后台", "style": "default", "url": adminURL("/admin/posts?status=0")})
+	summary := fmt.Sprintf("帖子「%s」需要人工审核：%s", trimLimit(post.Title, 50), firstNonEmpty(reason, "Agent 建议人工复核"))
+	payload := map[string]interface{}{
+		"post_id":     fmt.Sprintf("%d", post.ID),
+		"author_id":   post.AuthorID,
+		"title":       post.Title,
+		"content":     trimLimit(post.Content, 500),
+		"decision":    decision,
+		"risk_level":  riskLevel,
+		"reason":      reason,
+		"evidence":    evidence,
+		"actions":     actions,
+		"admin_path":  "/admin/posts?status=0",
+		"callback_ok": feishuCardCallbackEnabled(),
+	}
+	return uc.enqueueOpsAlert(ctx, alertType, priority, "post", post.ID,
+		fmt.Sprintf("audit:%d", post.ID),
+		"校园 e站帖子需要人工审核", summary, payload)
+}
+
+func (uc *CampusUsecase) createOpsActionToken(ctx context.Context, action, targetType string, targetID int64, reason string) (string, error) {
+	if targetID <= 0 {
+		return "", nil
+	}
+	token, err := generateOpsActionToken()
+	if err != nil {
+		return "", err
+	}
+	item := &CampusOpsActionToken{
+		ID:         uc.idGen.NextID(),
+		TokenHash:  hashOpsActionToken(token),
+		Action:     strings.TrimSpace(strings.ToLower(action)),
+		TargetType: strings.TrimSpace(strings.ToLower(targetType)),
+		TargetID:   targetID,
+		Reason:     trimLimit(reason, 255),
+		Status:     CampusOpsActionTokenStatusActive,
+		ExpiresAt:  time.Now().Add(envDurationBiz("CAMPUS_OPS_ACTION_TOKEN_TTL", 24*time.Hour)),
+	}
+	if err := uc.repo.CreateOpsActionToken(ctx, item); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+func (uc *CampusUsecase) ProcessPendingOpsAlerts(ctx context.Context, limit int) error {
+	if !opsFeishuEventsEnabled() {
+		return nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	items, err := uc.repo.ClaimOpsAlerts(ctx, limit, 30*time.Second)
+	if err != nil {
+		return apperror.Internal(err, "领取运营提醒失败")
+	}
+	var firstErr error
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		if err := uc.processOpsAlert(ctx, item); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			uc.markOpsAlertRetry(ctx, item, err)
+		}
+	}
+	return firstErr
+}
+
+func (uc *CampusUsecase) processOpsAlert(ctx context.Context, alert *CampusOpsAlert) error {
+	if alert == nil || alert.ID <= 0 {
+		return nil
+	}
+	if !agentFeishuEnabled() {
+		return uc.repo.MarkOpsAlertSent(ctx, alert.ID, CampusAgentFeishuStatusSkipped, "feishu disabled", nil)
+	}
+	payload := uc.opsAlertFeishuPayload(alert)
+	status, sentAt, errorMessage, err := sendAgentPayloadToFeishu(ctx, payload)
+	if err != nil {
+		return err
+	}
+	return uc.repo.MarkOpsAlertSent(ctx, alert.ID, status, errorMessage, sentAt)
+}
+
+func (uc *CampusUsecase) opsAlertFeishuPayload(alert *CampusOpsAlert) map[string]interface{} {
+	payload := alert.Payload
+	if payload == nil {
+		payload = map[string]interface{}{}
+	}
+	nextActions := []map[string]interface{}{}
+	if path, _ := payload["admin_path"].(string); path != "" {
+		nextActions = append(nextActions, map[string]interface{}{"label": "打开后台", "path": path, "href": adminURL(path)})
+	}
+	if len(nextActions) == 0 {
+		switch alert.AlertType {
+		case CampusOpsAlertTypeReportCreated:
+			nextActions = append(nextActions, map[string]interface{}{"label": "处理举报", "path": "/admin/moderation?tab=reports&status=0", "href": adminURL("/admin/moderation?tab=reports&status=0")})
+		case CampusOpsAlertTypeFeedbackImportant:
+			nextActions = append(nextActions, map[string]interface{}{"label": "查看反馈", "path": "/admin/moderation?tab=feedback&status=0", "href": adminURL("/admin/moderation?tab=feedback&status=0")})
+		default:
+			nextActions = append(nextActions, map[string]interface{}{"label": "审核帖子", "path": "/admin/posts?status=0", "href": adminURL("/admin/posts?status=0")})
+		}
+	}
+	findings := []map[string]interface{}{{"title": alert.Summary, "detail": alert.TargetType, "severity": alert.Priority}}
+	if evidence, ok := payload["evidence"].([]string); ok {
+		for _, item := range evidence {
+			findings = append(findings, map[string]interface{}{"title": trimLimit(item, 80), "severity": "medium"})
+		}
+	}
+	out := map[string]interface{}{
+		"title":           firstNonEmpty(alert.Title, "校园 e站运营值班提醒"),
+		"summary":         alert.Summary,
+		"risk_level":      opsPriorityToRisk(alert.Priority),
+		"findings":        findings,
+		"recommendations": []map[string]interface{}{{"title": "请回后台确认处理", "detail": "Agent 只负责提醒和建议，最终动作由运营确认。", "priority": alert.Priority}},
+		"next_actions":    nextActions,
+		"run_id":          fmt.Sprintf("ops-%d", alert.ID),
+		"run_type":        alert.AlertType,
+		"alert_type":      alert.AlertType,
+		"target_type":     alert.TargetType,
+		"target_id":       fmt.Sprintf("%d", alert.TargetID),
+		"actions":         payload["actions"],
+		"reason":          "ops_alert",
+	}
+	return out
+}
+
+func (uc *CampusUsecase) markOpsAlertRetry(ctx context.Context, item *CampusOpsAlert, processErr error) {
+	if item == nil || processErr == nil {
+		return
+	}
+	retryCount := item.RetryCount + 1
+	final := retryCount >= campusOpsAlertMaxRetry
+	var nextRetryAt *time.Time
+	if !final {
+		next := time.Now().Add(campusOpsAlertBackoff(retryCount))
+		nextRetryAt = &next
+	}
+	if err := uc.repo.MarkOpsAlertRetry(ctx, item.ID, retryCount, nextRetryAt, trimLimit(processErr.Error(), 1000), final); err != nil {
+		uc.log.WithContext(ctx).Warnf("mark ops alert retry failed: id=%d err=%v", item.ID, err)
+	}
+}
+
+func campusOpsAlertBackoff(retryCount int32) time.Duration {
+	switch retryCount {
+	case 1:
+		return 15 * time.Second
+	case 2:
+		return time.Minute
+	case 3:
+		return 5 * time.Minute
+	case 4:
+		return 15 * time.Minute
+	default:
+		return 30 * time.Minute
+	}
+}
+
+func (uc *CampusUsecase) HandleFeishuCardAction(ctx context.Context, input *HandleFeishuCardActionInput) (string, error) {
+	if !feishuCardCallbackEnabled() {
+		return "", apperror.Forbidden("飞书审批回调未启用")
+	}
+	token := strings.TrimSpace(input.Token)
+	if token == "" {
+		return "", apperror.InvalidArgument("审批 token 不能为空")
+	}
+	used, item, err := uc.repo.UseOpsActionToken(ctx, hashOpsActionToken(token), time.Now())
+	if err != nil {
+		return "", apperror.Internal(err, "校验审批 token 失败")
+	}
+	if item == nil {
+		return "", apperror.NotFound("审批 token 不存在")
+	}
+	if !used {
+		return "", apperror.Conflict("审批 token 已使用或已过期")
+	}
+	if item.TargetType != "post" {
+		return "", apperror.InvalidArgument("审批对象不支持")
+	}
+	ok, post, err := uc.repo.GetAnyPostByID(ctx, item.TargetID)
+	if err != nil {
+		return "", apperror.Internal(err, "查询帖子失败")
+	}
+	if !ok || post == nil {
+		return "", apperror.NotFound("帖子不存在")
+	}
+	if post.Status != CampusAuditStatusPending {
+		return "这条帖子已经被处理，无需重复操作", nil
+	}
+	action := strings.TrimSpace(strings.ToLower(item.Action))
+	reason := firstNonEmpty(input.Reason, item.Reason, "飞书 Agent 审批")
+	switch action {
+	case "approve", "pass", "visible":
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, reason); err != nil {
+			return "", apperror.Internal(err, "通过帖子失败")
+		}
+		post.Status = CampusAuditStatusVisible
+		post.AuditReason = reason
+		uc.notifyPostAuditResult(ctx, post, true, "你的帖子已通过审核")
+	case "reject":
+		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusRejected, reason); err != nil {
+			return "", apperror.Internal(err, "拒绝帖子失败")
+		}
+		post.Status = CampusAuditStatusRejected
+		post.AuditReason = reason
+		uc.notifyPostAuditResult(ctx, post, false, "你的帖子未通过审核")
+	default:
+		return "", apperror.InvalidArgument("审批动作无效")
+	}
+	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
+		ID:         uc.idGen.NextID(),
+		TargetType: "post",
+		TargetID:   post.ID,
+		UserID:     scheduledAgentOperatorID(),
+		Provider:   "feishu_agent",
+		Result:     action,
+		Reason:     reason,
+	})
+	if action == "reject" {
+		return "已拒绝帖子", nil
+	}
+	return "已通过帖子", nil
 }
 
 func (uc *CampusUsecase) processAIReplyTask(ctx context.Context, task *CampusAIReplyTask) error {
@@ -3644,6 +4044,15 @@ func (uc *CampusUsecase) ReportContent(ctx context.Context, input *ReportCampusC
 	}); err != nil {
 		return apperror.Internal(err, "提交举报失败")
 	}
+	uc.enqueueReportOpsAlert(ctx, &CampusForumReport{
+		ID:         stableReportAlertID(targetType, input.TargetID, input.UserID),
+		TargetType: targetType,
+		TargetID:   input.TargetID,
+		ReporterID: input.UserID,
+		Reason:     reason,
+		Detail:     detail,
+		Status:     CampusAuditStatusPending,
+	})
 	return nil
 }
 
@@ -4954,7 +5363,7 @@ func (uc *CampusUsecase) CreateScheduledAgentRun(ctx context.Context, runType, q
 func (uc *CampusUsecase) createAgentRun(ctx context.Context, input *CreateCampusAgentRunInput) (*CampusAgentRun, error) {
 	runType := normalizeAgentRunType(input.RunType)
 	if runType == "" {
-		return nil, apperror.InvalidArgument("Copilot 任务类型无效")
+		return nil, apperror.InvalidArgument("Agent 任务类型无效")
 	}
 	run := &CampusAgentRun{
 		ID:           uc.idGen.NextID(),
@@ -4967,19 +5376,19 @@ func (uc *CampusUsecase) createAgentRun(ctx context.Context, input *CreateCampus
 		CreatedBy:    input.UserID,
 	}
 	if err := uc.repo.CreateAgentRun(ctx, run); err != nil {
-		return nil, apperror.Internal(err, "创建 Copilot 运行记录失败")
+		return nil, apperror.Internal(err, "创建 Agent 运行记录失败")
 	}
 	if err := uc.invokeAgentRun(ctx, run); err != nil {
 		run.Status = CampusAgentRunStatusFailed
 		run.ErrorMessage = trimLimit(err.Error(), 1000)
-		run.Summary = "Copilot 暂不可用，请稍后重试"
+		run.Summary = "值班 Agent 暂不可用，请稍后重试"
 		run.FeishuStatus = CampusAgentFeishuStatusSkipped
 		run.FeishuError = "agent run failed"
 		_ = uc.repo.UpdateAgentRun(ctx, run)
 		return run, nil
 	}
 	if err := uc.repo.UpdateAgentRun(ctx, run); err != nil {
-		return nil, apperror.Internal(err, "保存 Copilot 结果失败")
+		return nil, apperror.Internal(err, "保存 Agent 结果失败")
 	}
 	if run.Source == CampusAgentRunSourceScheduled && agentDailyReportEnabled() {
 		_ = uc.sendAgentRunToFeishu(ctx, run, "校园 e站运营日报", "daily_report")
@@ -4995,10 +5404,10 @@ func (uc *CampusUsecase) AdminGetAgentRun(ctx context.Context, input *GetCampusA
 	}
 	ok, run, err := uc.repo.GetAgentRunByID(ctx, input.RunID)
 	if err != nil {
-		return nil, apperror.Internal(err, "查询 Copilot 运行记录失败")
+		return nil, apperror.Internal(err, "查询 Agent 运行记录失败")
 	}
 	if !ok || run == nil {
-		return nil, apperror.NotFound("Copilot 运行记录不存在")
+		return nil, apperror.NotFound("Agent 运行记录不存在")
 	}
 	return run, nil
 }
@@ -5010,7 +5419,7 @@ func (uc *CampusUsecase) AdminListAgentRuns(ctx context.Context, input *ListCamp
 	page, size := normalizePage(input.Page, input.Size)
 	runs, total, err := uc.repo.ListAgentRuns(ctx, int((page-1)*size), int(size))
 	if err != nil {
-		return nil, apperror.Internal(err, "获取 Copilot 运行记录失败")
+		return nil, apperror.Internal(err, "获取 Agent 运行记录失败")
 	}
 	return &ListCampusAgentRunsOutput{Runs: runs, Total: total}, nil
 }
@@ -5021,13 +5430,13 @@ func (uc *CampusUsecase) AdminSendAgentRunFeishu(ctx context.Context, input *Sen
 	}
 	ok, run, err := uc.repo.GetAgentRunByID(ctx, input.RunID)
 	if err != nil {
-		return nil, apperror.Internal(err, "查询 Copilot 运行记录失败")
+		return nil, apperror.Internal(err, "查询 Agent 运行记录失败")
 	}
 	if !ok || run == nil {
-		return nil, apperror.NotFound("Copilot 运行记录不存在")
+		return nil, apperror.NotFound("Agent 运行记录不存在")
 	}
 	if run.Status != CampusAgentRunStatusDone {
-		return nil, apperror.InvalidArgument("只有已完成的 Copilot 结果可以发送到飞书")
+		return nil, apperror.InvalidArgument("只有已完成的 Agent 结果可以发送到飞书")
 	}
 	if err := uc.sendAgentRunToFeishu(ctx, run, input.Title, firstNonEmpty(input.Reason, "manual")); err != nil {
 		return nil, apperror.Internal(err, "发送飞书失败")
@@ -5113,7 +5522,7 @@ func (uc *CampusUsecase) sendAgentRunToFeishu(ctx context.Context, run *CampusAg
 		result = map[string]interface{}{}
 	}
 	payload := map[string]interface{}{
-		"title":           firstNonEmpty(title, "校园 e站运营 Copilot"),
+		"title":           firstNonEmpty(title, "校园 e站运营值班 Agent"),
 		"summary":         firstNonEmpty(run.Summary, fmt.Sprint(result["summary"])),
 		"risk_level":      firstNonEmpty(run.RiskLevel, fmt.Sprint(result["risk_level"]), "low"),
 		"findings":        result["findings"],
@@ -5207,6 +5616,150 @@ func agentDailyReportEnabled() bool {
 
 func agentHighRiskNotifyEnabled() bool {
 	return !envBoolFalse(os.Getenv("CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED"))
+}
+
+func opsFeishuEventsEnabled() bool {
+	return !envBoolFalse(os.Getenv("CAMPUS_OPS_FEISHU_EVENTS_ENABLED"))
+}
+
+func opsFeishuReportNotifyEnabled() bool {
+	return !envBoolFalse(os.Getenv("CAMPUS_OPS_FEISHU_REPORT_NOTIFY"))
+}
+
+func opsFeishuFeedbackTypeEnabled(feedbackType string) bool {
+	allowed := strings.TrimSpace(os.Getenv("CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES"))
+	if allowed == "" {
+		allowed = "contact,cooperation,bug,content"
+	}
+	target := strings.TrimSpace(strings.ToLower(feedbackType))
+	for _, item := range strings.Split(allowed, ",") {
+		if strings.TrimSpace(strings.ToLower(item)) == target {
+			return true
+		}
+	}
+	return false
+}
+
+func agentAuditAutoPassConfidence() float64 {
+	value := strings.TrimSpace(os.Getenv("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE"))
+	if value == "" {
+		return 0.85
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil || parsed <= 0 || parsed > 1 {
+		return 0.85
+	}
+	return parsed
+}
+
+func feishuCardCallbackEnabled() bool {
+	return !envBoolFalse(os.Getenv("LEHU_FEISHU_CARD_CALLBACK_ENABLED"))
+}
+
+func generateOpsActionToken() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+func hashOpsActionToken(token string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	return hex.EncodeToString(sum[:])
+}
+
+func buildFeishuActionURL(token, action string) string {
+	base := strings.TrimRight(strings.TrimSpace(os.Getenv("LEHU_PUBLIC_API_BASE_URL")), "/")
+	if base == "" {
+		return adminURL("/admin/posts?status=0")
+	}
+	if strings.HasSuffix(base, "/v1") {
+		base = strings.TrimSuffix(base, "/v1")
+	}
+	return base + "/v1/campus/feishu/card/callback?action=" + url.QueryEscape(action) + "&token=" + url.QueryEscape(token)
+}
+
+func adminURL(path string) string {
+	path = strings.TrimSpace(path)
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+	base := firstNonEmpty(os.Getenv("LEHU_ADMIN_ROOT_URL"), os.Getenv("ADMIN_ROOT_URL"))
+	if base == "" {
+		return path
+	}
+	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(path, "/")
+}
+
+func opsPriorityToRisk(priority string) string {
+	switch strings.ToLower(strings.TrimSpace(priority)) {
+	case CampusOpsAlertPriorityCritical:
+		return "high"
+	case CampusOpsAlertPriorityHigh:
+		return "medium"
+	default:
+		return "low"
+	}
+}
+
+func sendAgentPayloadToFeishu(ctx context.Context, payload map[string]interface{}) (string, *time.Time, string, error) {
+	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("LEHU_ALERT_WEBHOOK_INTERNAL_URL")), "/")
+	if baseURL == "" {
+		baseURL = "http://alert-webhook:9120"
+	}
+	token := strings.TrimSpace(os.Getenv("LEHU_ALERT_WEBHOOK_TOKEN"))
+	if token == "" {
+		token = "local-alert-token"
+	}
+	raw, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/agent?token="+url.QueryEscape(token), bytes.NewReader(raw))
+	if err != nil {
+		return CampusAgentFeishuStatusFailed, nil, err.Error(), err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: envDurationBiz("LEHU_ALERT_WEBHOOK_TIMEOUT", 8*time.Second)}).Do(req)
+	if err != nil {
+		return CampusAgentFeishuStatusFailed, nil, trimLimit(err.Error(), 1000), err
+	}
+	defer resp.Body.Close()
+	respRaw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	var out map[string]interface{}
+	_ = json.Unmarshal(respRaw, &out)
+	status := CampusAgentFeishuStatusSent
+	now := time.Now()
+	sentAt := &now
+	errorMessage := ""
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		status = CampusAgentFeishuStatusFailed
+		sentAt = nil
+		errorMessage = trimLimit(fmt.Sprintf("status=%d body=%s", resp.StatusCode, string(respRaw)), 1000)
+	} else if resultMap, ok := out["result"].(map[string]interface{}); ok {
+		if reason, _ := resultMap["reason"].(string); reason == "missing_webhook" {
+			status = CampusAgentFeishuStatusSkipped
+			sentAt = nil
+			errorMessage = "missing_webhook"
+		}
+	}
+	if status == CampusAgentFeishuStatusFailed {
+		return status, sentAt, errorMessage, fmt.Errorf("feishu send failed: %s", errorMessage)
+	}
+	return status, sentAt, errorMessage, nil
+}
+
+func stableReportAlertID(targetType string, targetID int64, userID string) int64 {
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%s", targetType, targetID, userID)))
+	var out int64
+	for i := 0; i < 7; i++ {
+		out = (out << 8) | int64(sum[i])
+	}
+	if out < 0 {
+		out = -out
+	}
+	if out == 0 {
+		return targetID
+	}
+	return out
 }
 
 func (uc *CampusUsecase) enqueueKnowledgeIndex(ctx context.Context, doc *CampusKnowledgeDocument) {
@@ -5398,6 +5951,7 @@ func (uc *CampusUsecase) CreateFeedback(ctx context.Context, input *CreateCampus
 	if err := uc.repo.CreateFeedback(ctx, feedback); err != nil {
 		return nil, apperror.Internal(err, "提交反馈失败")
 	}
+	uc.enqueueFeedbackOpsAlert(ctx, feedback)
 	uc.trackEvent(ctx, &TrackCampusEventInput{
 		UserID:     input.UserID,
 		EventType:  "feedback_create",

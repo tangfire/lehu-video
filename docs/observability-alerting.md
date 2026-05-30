@@ -16,7 +16,7 @@ flowchart LR
     Grafana -->|查健康指标| Prometheus
 
     Grafana -->|Alerting webhook /grafana| Alert[alert-webhook]
-    API[campus-api] -->|Copilot 通知 /agent| Alert
+    API[campus-api] -->|值班 Agent 通知 /agent| Alert
     Alert --> Feishu[飞书群机器人]
 ```
 
@@ -24,7 +24,7 @@ flowchart LR
 
 - 查 `request_id`、接口报错、业务日志：看 Grafana 的 Loki 日志。
 - 看 `up/down`、哪个组件挂了、是否触发告警：看 Grafana 的 Prometheus 健康面板。
-- 收手机通知：Grafana Alerting 和运营 Copilot 都通过 `alert-webhook` 发到飞书群。
+- 收手机通知：Grafana Alerting 和运营值班 Agent 都通过 `alert-webhook` 发到飞书群。
 
 这套不是 APM，也不是链路追踪平台。现在先解决首发最重要的问题：服务挂了能知道，用户报错能按 `request_id` 快速定位，运营日报和高风险提醒能自动到飞书。
 
@@ -37,7 +37,7 @@ flowchart LR
 | `Alloy` | 从 Docker 采集容器日志，推送到 Loki | `deploy/observability/alloy/config.alloy` |
 | `Prometheus` | 抓取健康指标并保存，给 Grafana 告警查询 | `deploy/observability/prometheus/prometheus.yml` |
 | `health-exporter` | 主动探测 HTTP/TCP 目标，把结果暴露成 Prometheus 指标 | `deploy/observability/health-exporter/` |
-| `alert-webhook` | 接收 Grafana 告警和 Copilot 运营通知，转换为飞书富文本消息 | `deploy/observability/alert-webhook/alert_webhook.py` |
+| `alert-webhook` | 接收 Grafana 告警和值班 Agent 运营通知，转换为飞书消息 | `deploy/observability/alert-webhook/alert_webhook.py` |
 | 飞书群机器人 | 真正把告警发到手机/电脑飞书 | 飞书群自定义机器人配置 |
 
 ## 本地和生产入口
@@ -209,7 +209,7 @@ LEHU_ADMIN_ROOT_URL=https://admin.example.com
 http://alert-webhook:9120/grafana?token=$LEHU_ALERT_WEBHOOK_TOKEN
 ```
 
-运营 Copilot 调它的地址是：
+运营值班 Agent 调它的地址是：
 
 ```text
 http://alert-webhook:9120/agent?token=$LEHU_ALERT_WEBHOOK_TOKEN
@@ -220,7 +220,7 @@ http://alert-webhook:9120/agent?token=$LEHU_ALERT_WEBHOOK_TOKEN
 | 链路 | 触发方 | 内容 | 用途 |
 | --- | --- | --- | --- |
 | Grafana 告警 | Grafana Alerting | 服务/依赖 down、恢复通知 | 技术排障 |
-| Copilot 通知 | `campus-api` | 每日运营日报、高风险运营提醒、手动发送的 Agent 结果 | 运营处理 |
+| 值班 Agent 通知 | `campus-api` | 每日运营日报、高风险运营提醒、举报/重要反馈提醒、待人工审核提醒、手动发送的 Agent 结果 | 运营处理 |
 
 本地如果没有配置飞书 webhook，`alert-webhook` 不会崩溃，只会把缺少 webhook 的事件打到日志里，方便开发环境启动整套栈。
 
@@ -293,9 +293,9 @@ PY
 
 预期是 `401 unauthorized`。
 
-## 本地测试 Copilot 运营通知
+## 本地测试值班 Agent 运营通知
 
-从容器内投递一条模拟 Copilot 通知：
+从容器内投递一条模拟值班 Agent 通知：
 
 ```bash
 docker compose exec -T alert-webhook python - <<'PY'
@@ -316,7 +316,7 @@ payload = {
         {"title": "补充校历资料", "detail": "RAG 低置信问题集中在考试时间"},
     ],
     "next_actions": [
-        {"label": "打开运营 Copilot", "path": "/admin/copilot"},
+        {"label": "打开值班 Agent", "path": "/admin/copilot"},
     ],
 }
 
@@ -373,6 +373,6 @@ PY
 - Grafana 自己宕机时，Grafana Alerting 不能给自己发告警。后续如果要补齐，可接腾讯云云监控或外部 uptime 探测。
 - 当前没有业务指标告警，例如 5xx 率、上传失败率、AI 回复失败率。这些建议等真实流量稳定后再加。
 - 当前没有短信和电话告警，第一版只发飞书群机器人。
-- Copilot 飞书通知只负责运营摘要和跳转入口，不在飞书里做审核、删帖、封禁等写操作。
+- 值班 Agent 飞书通知负责运营摘要、举报/反馈提醒和待审核帖子的人机确认；删帖、封禁、举报处理仍回运营后台完成。
 - Prometheus 不是用来查 `request_id` 的。`request_id` 查 Loki，健康状态查 Prometheus。
 - Loki 只保留近期日志；关键访问记录在 MySQL `campus_access_log` 中按 7 天保留期清理。
