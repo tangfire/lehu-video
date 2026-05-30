@@ -1,6 +1,6 @@
 # lehu-campus Architecture
 
-校园 e站当前只保留校园业务需要的 Kratos 服务和观测链路，旧项目栈已经从默认项目中移除。
+校园 e站当前采用轻量微服务架构：Go Kratos 服务通过 gRPC + Consul 做内部通信，Python `campus-rag` 通过 HTTP 提供知识库能力，观测链路随同一套 Docker 部署。旧项目栈已经从默认项目中移除。
 
 ## Design Goals
 
@@ -9,12 +9,13 @@
 - 浏览器内排障：健康面板定位组件状态，Grafana/Loki 按 `request_id` 查入口和下游日志。
 - 渐进增强：首发只做文字/图片社区；视频、私有文件 COS、业务指标告警后续再按真实流量增加。
 - 数据安全：运行中数据库不自动 drop 历史表，新环境只按 `sql/campus.sql` 初始化干净校园表。
+- 架构表达：保留 API 网关、基础服务、用户资料服务、AI/RAG 服务的独立容器边界，既利于故障隔离，也便于后续扩展和简历展示。
 
-上线部署见 `docs/deployment-launch.md`；媒体存储见 `docs/media-storage.md`；e仔 AI 和 RAG 知识库见 `docs/ai-rag.md`；观测与飞书告警见 `docs/observability-alerting.md`。
+上线部署见 `docs/deployment-launch.md`；微服务边界见 `docs/microservices.md`；媒体存储见 `docs/media-storage.md`；e仔 AI 和 RAG 知识库见 `docs/ai-rag.md`；观测与飞书告警见 `docs/observability-alerting.md`。
 
 ## Services
 
-- `api`: 校园 e站 HTTP 入口，负责 JWT、运营后台、小程序接口、e仔任务编排和健康检查。
+- `api`: 校园 e站 API 网关和 HTTP 入口，负责 JWT、运营后台、小程序接口、e仔任务编排和健康检查。
 - `base`: 账号、验证码、文件签名上传和对象存储确认，本地使用 MinIO，生产公开媒体使用腾讯云 COS + CDN。
 - `campus-user`: 用户资料服务，提供创建用户、资料查询/更新、搜索、统计和最后在线时间能力。
 - `campus-rag`: 知识库解析、切片、embedding、Qdrant 检索。
@@ -25,13 +26,13 @@
 
 ```mermaid
 flowchart LR
-    MiniProgram[微信小程序] --> API[api]
-    Admin[admin-web] --> API
-    API --> Base[base]
-    API --> User[campus-user]
+    MiniProgram[微信小程序] -->|HTTPS/JSON| API[api]
+    Admin[admin-web] -->|HTTPS/JSON| API
+    API -->|gRPC + Consul| Base[base]
+    API -->|gRPC + Consul| User[campus-user]
     API --> MySQL[(MySQL)]
     API --> Redis[(Redis)]
-    API --> Rag[campus-rag]
+    API -->|HTTP 内网| Rag[campus-rag]
     Rag --> Qdrant[(Qdrant)]
     Base --> MinIO[(MinIO local)]
     Base --> COS[COS]
@@ -43,6 +44,13 @@ flowchart LR
     Grafana -->|query metrics| Prometheus
     Grafana --> Alert[alert-webhook]
 ```
+
+内部通信协议：
+
+- `api -> base`：gRPC，服务发现名 `campus-estation.base.service`。
+- `api -> campus-user`：gRPC，服务发现名 `campus-estation.user.service`。
+- `api -> campus-rag`：Docker 内网 HTTP，默认 `http://campus-rag:8090`。
+- 前端只调用 `api` 的 HTTP 接口，不直接访问内部微服务。
 
 ## Data
 

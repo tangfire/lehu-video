@@ -1,16 +1,17 @@
 # 校园 e站开发者导览
 
-这份文档写给第一次接手本项目的人。项目经历过从旧短视频系统到“校园 e站”的重构，所以代码里还保留少量历史命名，例如 Go module 仍是 `lehu-video`。当前产品边界已经收口为校园社区、小程序、运营后台、e仔/RAG、监控与告警。
+这份文档写给第一次接手本项目的人。项目经历过从旧短视频系统到“校园 e站”的重构，所以代码里还保留少量历史命名，例如 Go module 仍是 `lehu-video`。当前产品边界已经收口为校园社区、小程序、运营后台、e仔/RAG、监控与告警，并保留轻量微服务架构。
 
 ## 先建立心智模型
 
-校园 e站不是一个短视频产品。第一阶段只做文字/图片校园社区，不开放视频，不做 IM chat，不跑 Kafka。
+校园 e站不是一个短视频产品。第一阶段只做文字/图片校园社区，不开放视频，不做 IM chat，不跑 Kafka。后端采用轻量微服务拆分，核心服务通过 Docker 容器独立运行。
 
 核心思路：
 
 - 小程序是学生端，负责浏览、发帖、评论、收藏、反馈、通知、课表和 e仔互动。
 - 运营后台是运营端，负责内容供给、审核、反馈举报、用户权限、e仔人设、知识库、朋友圈素材和系统通知。
-- Go 后端负责业务、权限、审核、数据写入和任务编排。
+- Go 后端按职责拆分为 `campus-api`、`base`、`campus-user`，其中 `campus-api` 是 API 网关和业务编排层。
+- `campus-api` 通过 gRPC + Consul 调用 `base` 和 `campus-user`。
 - Python `campus-rag` 只负责知识库解析、embedding 和向量检索。
 - 公开图片生产走 COS + CDN，不走服务器本机带宽。
 - Grafana 是统一排障入口：Loki 查日志，Prometheus 看健康和告警。
@@ -20,19 +21,21 @@
 1. `README.md`：启动、生产配置、监控和告警。
 2. `docs/developer-guide.md`：当前这份文档，理解项目怎么设计。
 3. `docs/architecture.md`：更偏架构图和运行拓扑。
-4. `docs/deployment-launch.md`：上线部署、环境变量、验收和常见问题。
-5. `docs/media-storage.md`：COS/CDN、MinIO、本地和生产上传链路。
-6. `docs/data-model.md`：核心表和数据流。
-7. `docs/api-map.md`：HTTP 路由按功能分组。
-8. `docs/admin-operations.md`：运营后台页面和日常工作流。
-9. `docs/ai-rag.md`：专门理解 e仔 AI、本地知识库和 RAG 检索。
-10. `docs/observability-alerting.md`：专门理解 Grafana、Loki、Alloy、Prometheus 和飞书告警。
-11. `docs/wechat-submission.md`：小程序提审、隐私和社区规范。
-12. `docker-compose.yml` / `docker-compose.prod.yml`：理解本地与生产差异。
-13. `app/campusApi/service/internal/service/campusservice.go`：看 HTTP 路由总入口。
-14. `app/campusApi/service/internal/biz/campus.go`：看校园业务主用例。
-15. `sql/campus.sql`：看新库表结构。
-16. `web/admin/src/App.jsx`：看运营后台页面入口。
+4. `docs/microservices.md`：理解微服务边界、gRPC/Consul 和不继续拆的原因。
+5. `docs/resume-highlights.md`：把项目整理成简历和面试表达。
+6. `docs/deployment-launch.md`：上线部署、环境变量、验收和常见问题。
+7. `docs/media-storage.md`：COS/CDN、MinIO、本地和生产上传链路。
+8. `docs/data-model.md`：核心表和数据流。
+9. `docs/api-map.md`：HTTP 路由按功能分组。
+10. `docs/admin-operations.md`：运营后台页面和日常工作流。
+11. `docs/ai-rag.md`：专门理解 e仔 AI、本地知识库和 RAG 检索。
+12. `docs/observability-alerting.md`：专门理解 Grafana、Loki、Alloy、Prometheus 和飞书告警。
+13. `docs/wechat-submission.md`：小程序提审、隐私和社区规范。
+14. `docker-compose.yml` / `docker-compose.prod.yml`：理解本地与生产差异。
+15. `app/campusApi/service/internal/service/campusservice.go`：看 HTTP 路由总入口。
+16. `app/campusApi/service/internal/biz/campus.go`：看校园业务主用例。
+17. `sql/campus.sql`：看新库表结构。
+18. `web/admin/src/App.jsx`：看运营后台页面入口。
 
 ## 目录怎么读
 
@@ -71,13 +74,13 @@ app/campusApi/service/internal/data/campus.go
 
 ```mermaid
 flowchart LR
-    MiniProgram[微信小程序] --> API[campus-api]
-    Admin[admin-web] --> API
-    API --> Base[base]
-    API --> User[campus-user]
+    MiniProgram[微信小程序] -->|HTTPS/JSON| API[campus-api]
+    Admin[admin-web] -->|HTTPS/JSON| API
+    API -->|gRPC + Consul| Base[base]
+    API -->|gRPC + Consul| User[campus-user]
     API --> MySQL[(MySQL)]
     API --> Redis[(Redis)]
-    API --> Rag[campus-rag]
+    API -->|HTTP 内网| Rag[campus-rag]
     Rag --> Qdrant[(Qdrant)]
     Base --> MinIO[(MinIO local)]
     Base --> COS[COS]

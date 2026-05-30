@@ -1,20 +1,20 @@
 # lehu-campus 校园 e站
 
-校园 e站后端以小程序社区、课表、运营后台、e仔 AI/RAG 和浏览器内排障为主。旧项目栈已经从当前项目移除。
+校园 e站后端以小程序社区、课表、运营后台、e仔 AI/RAG 和浏览器内排障为主。项目保留轻量微服务架构：Go Kratos 服务通过 gRPC + Consul 做内部通信，Python RAG 服务通过 HTTP 接入，所有服务以 Docker 容器部署。
 
 ## 架构与设计
 
-校园 e站第一阶段按“小团队可运维、低成本首发、浏览器内排障”设计。当前项目只服务校园社区，不再包含旧短视频、IM chat、Kafka、WebSocket 运行栈。
+校园 e站第一阶段按“小团队可运维、低成本首发、浏览器内排障、轻量微服务拆分”设计。当前项目只服务校园社区，不再包含旧短视频、IM chat、Kafka、WebSocket 运行栈。
 
 ```mermaid
 flowchart LR
-    MiniProgram[微信小程序] --> API[校园 API]
-    Admin[运营后台] --> API
-    API --> Base[base 账号/文件]
-    API --> User[campus-user 用户资料]
+    MiniProgram[微信小程序] -->|HTTPS/JSON| API[campus-api API 网关]
+    Admin[运营后台] -->|HTTPS/JSON| API
+    API -->|gRPC + Consul| Base[base 账号/文件]
+    API -->|gRPC + Consul| User[campus-user 用户资料]
     API --> MySQL[(MySQL)]
     API --> Redis[(Redis)]
-    API --> Rag[campus-rag]
+    API -->|HTTP 内网| Rag[campus-rag]
     Rag --> Qdrant[(Qdrant)]
     Base --> MinIO[(MinIO 本地开发)]
     Base --> COS[腾讯云 COS]
@@ -30,12 +30,19 @@ flowchart LR
 
 核心服务职责：
 
-- `api`：统一 HTTP 入口，承载小程序接口、运营后台接口、审核、通知、e仔任务编排和健康检查。
+- `api`：统一 HTTP 入口和 API 网关，承载小程序接口、运营后台接口、审核、通知、e仔任务编排和健康检查。
 - `base`：账号、验证码、文件预签名上传、对象存储确认。本地用 MinIO，生产公开媒体用 COS + CDN。
 - `campus-user`：用户资料、搜索、统计和在线时间。
 - `campus-rag`：知识库文档解析、切片、embedding 和 Qdrant 检索。
 - `admin-web`：运营后台，随主项目一起构建和部署。
 - `grafana / loki / alloy / prometheus / health-exporter / alert-webhook`：日志搜索、健康监控和飞书告警。
+
+微服务通信关系：
+
+- 小程序和运营后台只访问 `campus-api` 的 HTTP API。
+- `campus-api` 通过 gRPC + Consul 调用 `base` 和 `campus-user`。
+- `campus-api` 通过 Docker 内网 HTTP 调用 `campus-rag`。
+- `base`、`campus-user`、`campus-api` 是独立 Go Kratos 容器；`campus-rag` 是独立 Python 容器。
 
 关键链路：
 
@@ -61,7 +68,7 @@ flowchart LR
 - 监控采用 Grafana + Loki + Prometheus + Alloy，尽量在浏览器内完成查日志、看健康和收告警。
 - 运行中数据库不自动 drop 历史表；新库初始化以 `sql/campus.sql` 为准。
 
-第一次接手项目建议先读 [docs/README.md](docs/README.md) 和 [docs/developer-guide.md](docs/developer-guide.md)，更细的服务拓扑见 [docs/architecture.md](docs/architecture.md)。
+第一次接手项目建议先读 [docs/README.md](docs/README.md) 和 [docs/developer-guide.md](docs/developer-guide.md)，更细的服务拓扑见 [docs/architecture.md](docs/architecture.md)，微服务边界与简历表达见 [docs/microservices.md](docs/microservices.md) 和 [docs/resume-highlights.md](docs/resume-highlights.md)。
 
 ## 本地 Docker 启动
 
