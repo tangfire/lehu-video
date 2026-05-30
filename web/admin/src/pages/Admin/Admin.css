@@ -612,6 +612,11 @@
     font-weight: 850;
 }
 
+.admin-agent-budget-inputs .admin-inline-hint {
+    align-self: end;
+    line-height: 1.4;
+}
+
 .admin-agent-keyword-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

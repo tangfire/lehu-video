@@ -145,6 +145,7 @@ const (
 	campusOpsSettingPostAuditMode        = "post_audit_mode"
 	campusOpsSettingAgentEnabled         = "agent_enabled"
 	campusOpsSettingAgentAuditEnabled    = "agent_audit_enabled"
+	campusOpsSettingAgentAuditAutoPass   = "agent_audit_auto_pass_confidence"
 	campusOpsSettingFeishuOpsEnabled     = "feishu_ops_enabled"
 	campusOpsSettingDailyReportEnabled   = "daily_report_enabled"
 	campusOpsSettingHighRiskNotify       = "high_risk_notify_enabled"
@@ -501,28 +502,29 @@ type CampusOpsAuditSettings struct {
 }
 
 type CampusAgentSettings struct {
-	AgentEnabled               bool
-	AgentAuditEnabled          bool
-	FeishuOpsEnabled           bool
-	DailyReportEnabled         bool
-	HighRiskNotifyEnabled      bool
-	ReportNotifyEnabled        bool
-	FeedbackNotifyEnabled      bool
-	AIBudgetEnabled            bool
-	AIMonthlyBudgetCNY         float64
-	AIDailyBudgetCNY           float64
-	AIBudgetWarnRatio          string
-	AuditHighRiskWords         string
-	AuditReviewWords           string
-	TodayAICostCNY             float64
-	MonthAICostCNY             float64
-	AIBudgetStatus             string
-	WebhookConfigured          bool
-	PublicAPIBaseURLConfigured bool
-	AgentServiceConfigured     bool
-	AgentModelConfigured       bool
-	UpdatedBy                  string
-	UpdatedAt                  time.Time
+	AgentEnabled                 bool
+	AgentAuditEnabled            bool
+	AgentAuditAutoPassConfidence float64
+	FeishuOpsEnabled             bool
+	DailyReportEnabled           bool
+	HighRiskNotifyEnabled        bool
+	ReportNotifyEnabled          bool
+	FeedbackNotifyEnabled        bool
+	AIBudgetEnabled              bool
+	AIMonthlyBudgetCNY           float64
+	AIDailyBudgetCNY             float64
+	AIBudgetWarnRatio            string
+	AuditHighRiskWords           string
+	AuditReviewWords             string
+	TodayAICostCNY               float64
+	MonthAICostCNY               float64
+	AIBudgetStatus               string
+	WebhookConfigured            bool
+	PublicAPIBaseURLConfigured   bool
+	AgentServiceConfigured       bool
+	AgentModelConfigured         bool
+	UpdatedBy                    string
+	UpdatedAt                    time.Time
 }
 
 type CampusOpsAlertSummary struct {
@@ -1151,20 +1153,21 @@ type GetCampusOpsAlertSummaryInput struct {
 }
 
 type UpdateCampusAgentSettingsInput struct {
-	UserID                string
-	AgentEnabled          bool
-	AgentAuditEnabled     bool
-	FeishuOpsEnabled      bool
-	DailyReportEnabled    bool
-	HighRiskNotifyEnabled bool
-	ReportNotifyEnabled   bool
-	FeedbackNotifyEnabled bool
-	AIBudgetEnabled       bool
-	AIMonthlyBudgetCNY    float64
-	AIDailyBudgetCNY      float64
-	AIBudgetWarnRatio     string
-	AuditHighRiskWords    string
-	AuditReviewWords      string
+	UserID                       string
+	AgentEnabled                 bool
+	AgentAuditEnabled            bool
+	AgentAuditAutoPassConfidence float64
+	FeishuOpsEnabled             bool
+	DailyReportEnabled           bool
+	HighRiskNotifyEnabled        bool
+	ReportNotifyEnabled          bool
+	FeedbackNotifyEnabled        bool
+	AIBudgetEnabled              bool
+	AIMonthlyBudgetCNY           float64
+	AIDailyBudgetCNY             float64
+	AIBudgetWarnRatio            string
+	AuditHighRiskWords           string
+	AuditReviewWords             string
 }
 
 type GetCampusEzaiPersonaInput struct {
@@ -3599,7 +3602,7 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 		}
 		uc.recordAIUsage(ctx, "content_audit", "post", fmt.Sprintf("%d", post.ID), usageStatus, usageError, result.ModelUsage)
 	}
-	autoPass := ruleRiskLevel != "high" && decision == CampusAIContentAuditDecisionPass && riskLevel == "low" && confidence >= agentAuditAutoPassConfidence()
+	autoPass := ruleRiskLevel != "high" && decision == CampusAIContentAuditDecisionPass && riskLevel == "low" && confidence >= uc.agentAuditAutoPassConfidence(ctx)
 	switch {
 	case autoPass:
 		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, ""); err != nil {
@@ -5440,6 +5443,9 @@ func (uc *CampusUsecase) AdminUpdateAgentSettings(ctx context.Context, input *Up
 	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAIBudgetWarnRatio, warnRatio, input.UserID); err != nil {
 		return nil, apperror.Internal(err, "保存 AI 预算预警阈值失败")
 	}
+	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAgentAuditAutoPass, formatFloatSetting(clampRatioFloat(input.AgentAuditAutoPassConfidence, defaultAgentAuditAutoPassConfidence())), input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存 AI 自动通过阈值失败")
+	}
 	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAuditHighRiskWords, formatAuditWords(normalizeAuditWords(input.AuditHighRiskWords, defaultAuditHighRiskWords)), input.UserID); err != nil {
 		return nil, apperror.Internal(err, "保存高风险关键词失败")
 	}
@@ -5452,30 +5458,32 @@ func (uc *CampusUsecase) AdminUpdateAgentSettings(ctx context.Context, input *Up
 func (uc *CampusUsecase) getCampusAgentSettings(ctx context.Context) *CampusAgentSettings {
 	todayCost, monthCost, budgetStatus := uc.aiBudgetSnapshot(ctx)
 	settings := &CampusAgentSettings{
-		AgentEnabled:               uc.boolOpsSetting(ctx, campusOpsSettingAgentEnabled, "CAMPUS_AGENT_ENABLED", true),
-		AgentAuditEnabled:          uc.boolOpsSetting(ctx, campusOpsSettingAgentAuditEnabled, "CAMPUS_AGENT_AUDIT_ENABLED", uc.aiAuditConfig.Enabled),
-		FeishuOpsEnabled:           uc.feishuOpsEnabled(ctx),
-		DailyReportEnabled:         uc.boolOpsSetting(ctx, campusOpsSettingDailyReportEnabled, "CAMPUS_AGENT_DAILY_REPORT_ENABLED", true),
-		HighRiskNotifyEnabled:      uc.boolOpsSetting(ctx, campusOpsSettingHighRiskNotify, "CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED", true),
-		ReportNotifyEnabled:        uc.boolOpsSetting(ctx, campusOpsSettingReportNotify, "CAMPUS_OPS_FEISHU_REPORT_NOTIFY", true),
-		FeedbackNotifyEnabled:      uc.boolOpsSetting(ctx, campusOpsSettingFeedbackNotify, "CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY", true),
-		AIBudgetEnabled:            uc.boolOpsSetting(ctx, campusOpsSettingAIBudgetEnabled, "CAMPUS_AI_BUDGET_ENABLED", true),
-		AIMonthlyBudgetCNY:         uc.floatOpsSetting(ctx, campusOpsSettingAIMonthlyBudgetCNY, "CAMPUS_AI_MONTHLY_BUDGET_CNY", defaultAIMonthlyBudgetCNY()),
-		AIDailyBudgetCNY:           uc.floatOpsSetting(ctx, campusOpsSettingAIDailyBudgetCNY, "CAMPUS_AI_DAILY_BUDGET_CNY", defaultAIDailyBudgetCNY()),
-		AIBudgetWarnRatio:          uc.stringOpsSetting(ctx, campusOpsSettingAIBudgetWarnRatio, "CAMPUS_AI_BUDGET_WARN_RATIO", defaultAIBudgetWarnRatio()),
-		AuditHighRiskWords:         formatAuditWords(uc.auditHighRiskWords(ctx)),
-		AuditReviewWords:           formatAuditWords(uc.auditReviewWords(ctx)),
-		TodayAICostCNY:             todayCost,
-		MonthAICostCNY:             monthCost,
-		AIBudgetStatus:             budgetStatus,
-		WebhookConfigured:          strings.TrimSpace(os.Getenv("LEHU_ALERT_FEISHU_WEBHOOK")) != "",
-		PublicAPIBaseURLConfigured: strings.TrimSpace(os.Getenv("LEHU_PUBLIC_API_BASE_URL")) != "",
-		AgentServiceConfigured:     strings.TrimSpace(firstNonEmpty(os.Getenv("CAMPUS_AGENT_SERVICE_URL"), "http://campus-agent:8091")) != "",
-		AgentModelConfigured:       campusAgentModelConfigured(),
+		AgentEnabled:                 uc.boolOpsSetting(ctx, campusOpsSettingAgentEnabled, "CAMPUS_AGENT_ENABLED", true),
+		AgentAuditEnabled:            uc.boolOpsSetting(ctx, campusOpsSettingAgentAuditEnabled, "CAMPUS_AGENT_AUDIT_ENABLED", uc.aiAuditConfig.Enabled),
+		AgentAuditAutoPassConfidence: uc.agentAuditAutoPassConfidence(ctx),
+		FeishuOpsEnabled:             uc.feishuOpsEnabled(ctx),
+		DailyReportEnabled:           uc.boolOpsSetting(ctx, campusOpsSettingDailyReportEnabled, "CAMPUS_AGENT_DAILY_REPORT_ENABLED", true),
+		HighRiskNotifyEnabled:        uc.boolOpsSetting(ctx, campusOpsSettingHighRiskNotify, "CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED", true),
+		ReportNotifyEnabled:          uc.boolOpsSetting(ctx, campusOpsSettingReportNotify, "CAMPUS_OPS_FEISHU_REPORT_NOTIFY", true),
+		FeedbackNotifyEnabled:        uc.boolOpsSetting(ctx, campusOpsSettingFeedbackNotify, "CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY", true),
+		AIBudgetEnabled:              uc.boolOpsSetting(ctx, campusOpsSettingAIBudgetEnabled, "CAMPUS_AI_BUDGET_ENABLED", true),
+		AIMonthlyBudgetCNY:           uc.floatOpsSetting(ctx, campusOpsSettingAIMonthlyBudgetCNY, "CAMPUS_AI_MONTHLY_BUDGET_CNY", defaultAIMonthlyBudgetCNY()),
+		AIDailyBudgetCNY:             uc.floatOpsSetting(ctx, campusOpsSettingAIDailyBudgetCNY, "CAMPUS_AI_DAILY_BUDGET_CNY", defaultAIDailyBudgetCNY()),
+		AIBudgetWarnRatio:            uc.stringOpsSetting(ctx, campusOpsSettingAIBudgetWarnRatio, "CAMPUS_AI_BUDGET_WARN_RATIO", defaultAIBudgetWarnRatio()),
+		AuditHighRiskWords:           formatAuditWords(uc.auditHighRiskWords(ctx)),
+		AuditReviewWords:             formatAuditWords(uc.auditReviewWords(ctx)),
+		TodayAICostCNY:               todayCost,
+		MonthAICostCNY:               monthCost,
+		AIBudgetStatus:               budgetStatus,
+		WebhookConfigured:            strings.TrimSpace(os.Getenv("LEHU_ALERT_FEISHU_WEBHOOK")) != "",
+		PublicAPIBaseURLConfigured:   strings.TrimSpace(os.Getenv("LEHU_PUBLIC_API_BASE_URL")) != "",
+		AgentServiceConfigured:       strings.TrimSpace(firstNonEmpty(os.Getenv("CAMPUS_AGENT_SERVICE_URL"), "http://campus-agent:8091")) != "",
+		AgentModelConfigured:         campusAgentModelConfigured(),
 	}
 	keys := []string{
 		campusOpsSettingAgentEnabled,
 		campusOpsSettingAgentAuditEnabled,
+		campusOpsSettingAgentAuditAutoPass,
 		campusOpsSettingFeishuOpsEnabled,
 		campusOpsSettingDailyReportEnabled,
 		campusOpsSettingHighRiskNotify,
@@ -5592,6 +5600,13 @@ func clampPositiveFloat(value, fallback float64) float64 {
 	return value
 }
 
+func clampRatioFloat(value, fallback float64) float64 {
+	if value <= 0 || value > 1 {
+		return fallback
+	}
+	return value
+}
+
 func defaultAIMonthlyBudgetCNY() float64 {
 	return envFloatBiz("CAMPUS_AI_MONTHLY_BUDGET_CNY", 5)
 }
@@ -5602,6 +5617,10 @@ func defaultAIDailyBudgetCNY() float64 {
 
 func defaultAIBudgetWarnRatio() string {
 	return firstNonEmpty(os.Getenv("CAMPUS_AI_BUDGET_WARN_RATIO"), "0.7,0.9")
+}
+
+func defaultAgentAuditAutoPassConfidence() float64 {
+	return envFloatBiz("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE", 0.85)
 }
 
 func normalizeAuditWords(value string, fallback []string) []string {
@@ -7528,16 +7547,11 @@ func opsFeishuFeedbackTypeEnabled(feedbackType string) bool {
 	return false
 }
 
-func agentAuditAutoPassConfidence() float64 {
-	value := strings.TrimSpace(os.Getenv("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE"))
-	if value == "" {
-		return 0.9
-	}
-	parsed, err := strconv.ParseFloat(value, 64)
-	if err != nil || parsed <= 0 || parsed > 1 {
-		return 0.9
-	}
-	return parsed
+func (uc *CampusUsecase) agentAuditAutoPassConfidence(ctx context.Context) float64 {
+	return clampRatioFloat(
+		uc.floatOpsSetting(ctx, campusOpsSettingAgentAuditAutoPass, "CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE", defaultAgentAuditAutoPassConfidence()),
+		defaultAgentAuditAutoPassConfidence(),
+	)
 }
 
 func feishuCardCallbackEnabled() bool {

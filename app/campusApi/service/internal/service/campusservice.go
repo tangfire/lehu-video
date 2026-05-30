@@ -1751,19 +1751,20 @@ type auditSettingsRequest struct {
 }
 
 type agentSettingsRequest struct {
-	AgentEnabled          bool    `json:"agent_enabled"`
-	AgentAuditEnabled     bool    `json:"agent_audit_enabled"`
-	FeishuOpsEnabled      bool    `json:"feishu_ops_enabled"`
-	DailyReportEnabled    bool    `json:"daily_report_enabled"`
-	HighRiskNotifyEnabled bool    `json:"high_risk_notify_enabled"`
-	ReportNotifyEnabled   bool    `json:"report_notify_enabled"`
-	FeedbackNotifyEnabled bool    `json:"feedback_notify_enabled"`
-	AIBudgetEnabled       bool    `json:"ai_budget_enabled"`
-	AIMonthlyBudgetCNY    float64 `json:"ai_monthly_budget_cny"`
-	AIDailyBudgetCNY      float64 `json:"ai_daily_budget_cny"`
-	AIBudgetWarnRatio     string  `json:"ai_budget_warn_ratio"`
-	AuditHighRiskWords    string  `json:"audit_high_risk_words"`
-	AuditReviewWords      string  `json:"audit_review_words"`
+	AgentEnabled                 bool    `json:"agent_enabled"`
+	AgentAuditEnabled            bool    `json:"agent_audit_enabled"`
+	AgentAuditAutoPassConfidence float64 `json:"agent_audit_auto_pass_confidence"`
+	FeishuOpsEnabled             bool    `json:"feishu_ops_enabled"`
+	DailyReportEnabled           bool    `json:"daily_report_enabled"`
+	HighRiskNotifyEnabled        bool    `json:"high_risk_notify_enabled"`
+	ReportNotifyEnabled          bool    `json:"report_notify_enabled"`
+	FeedbackNotifyEnabled        bool    `json:"feedback_notify_enabled"`
+	AIBudgetEnabled              bool    `json:"ai_budget_enabled"`
+	AIMonthlyBudgetCNY           float64 `json:"ai_monthly_budget_cny"`
+	AIDailyBudgetCNY             float64 `json:"ai_daily_budget_cny"`
+	AIBudgetWarnRatio            string  `json:"ai_budget_warn_ratio"`
+	AuditHighRiskWords           string  `json:"audit_high_risk_words"`
+	AuditReviewWords             string  `json:"audit_review_words"`
 }
 
 type ezaiPersonaRequest struct {
@@ -1831,20 +1832,21 @@ func (s *CampusService) handleAdminUpdateAgentSettings(w http.ResponseWriter, r 
 	}
 	userID, _ := s.userIDFromRequest(r)
 	settings, err := s.uc.AdminUpdateAgentSettings(r.Context(), &biz.UpdateCampusAgentSettingsInput{
-		UserID:                userID,
-		AgentEnabled:          req.AgentEnabled,
-		AgentAuditEnabled:     req.AgentAuditEnabled,
-		FeishuOpsEnabled:      req.FeishuOpsEnabled,
-		DailyReportEnabled:    req.DailyReportEnabled,
-		HighRiskNotifyEnabled: req.HighRiskNotifyEnabled,
-		ReportNotifyEnabled:   req.ReportNotifyEnabled,
-		FeedbackNotifyEnabled: req.FeedbackNotifyEnabled,
-		AIBudgetEnabled:       req.AIBudgetEnabled,
-		AIMonthlyBudgetCNY:    req.AIMonthlyBudgetCNY,
-		AIDailyBudgetCNY:      req.AIDailyBudgetCNY,
-		AIBudgetWarnRatio:     req.AIBudgetWarnRatio,
-		AuditHighRiskWords:    req.AuditHighRiskWords,
-		AuditReviewWords:      req.AuditReviewWords,
+		UserID:                       userID,
+		AgentEnabled:                 req.AgentEnabled,
+		AgentAuditEnabled:            req.AgentAuditEnabled,
+		AgentAuditAutoPassConfidence: req.AgentAuditAutoPassConfidence,
+		FeishuOpsEnabled:             req.FeishuOpsEnabled,
+		DailyReportEnabled:           req.DailyReportEnabled,
+		HighRiskNotifyEnabled:        req.HighRiskNotifyEnabled,
+		ReportNotifyEnabled:          req.ReportNotifyEnabled,
+		FeedbackNotifyEnabled:        req.FeedbackNotifyEnabled,
+		AIBudgetEnabled:              req.AIBudgetEnabled,
+		AIMonthlyBudgetCNY:           req.AIMonthlyBudgetCNY,
+		AIDailyBudgetCNY:             req.AIDailyBudgetCNY,
+		AIBudgetWarnRatio:            req.AIBudgetWarnRatio,
+		AuditHighRiskWords:           req.AuditHighRiskWords,
+		AuditReviewWords:             req.AuditReviewWords,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -3848,36 +3850,37 @@ func agentSettingsToMap(settings *biz.CampusAgentSettings) map[string]interface{
 		settings = &biz.CampusAgentSettings{}
 	}
 	return map[string]interface{}{
-		"agent_enabled":                  settings.AgentEnabled,
-		"agent_audit_enabled":            settings.AgentAuditEnabled,
-		"feishu_ops_enabled":             settings.FeishuOpsEnabled,
-		"daily_report_enabled":           settings.DailyReportEnabled,
-		"high_risk_notify_enabled":       settings.HighRiskNotifyEnabled,
-		"report_notify_enabled":          settings.ReportNotifyEnabled,
-		"feedback_notify_enabled":        settings.FeedbackNotifyEnabled,
-		"ai_budget_enabled":              settings.AIBudgetEnabled,
-		"ai_monthly_budget_cny":          settings.AIMonthlyBudgetCNY,
-		"ai_daily_budget_cny":            settings.AIDailyBudgetCNY,
-		"ai_budget_warn_ratio":           settings.AIBudgetWarnRatio,
-		"audit_high_risk_words":          settings.AuditHighRiskWords,
-		"audit_review_words":             settings.AuditReviewWords,
-		"today_ai_cost_cny":              settings.TodayAICostCNY,
-		"month_ai_cost_cny":              settings.MonthAICostCNY,
-		"budget_status":                  settings.AIBudgetStatus,
-		"enabled":                        settings.FeishuOpsEnabled,
-		"daily_enabled":                  settings.DailyReportEnabled,
-		"daily_time":                     firstNonEmptyService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_TIME"), "09:30"),
-		"high_risk_enabled":              settings.HighRiskNotifyEnabled,
-		"ops_events_enabled":             settings.FeishuOpsEnabled,
-		"feedback_notify_types":          firstNonEmptyService(os.Getenv("CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES"), "contact,cooperation,bug,content"),
-		"audit_callback_enabled":         !envBoolFalseService(os.Getenv("LEHU_FEISHU_CARD_CALLBACK_ENABLED")),
-		"audit_auto_pass_confidence":     firstNonEmptyService(os.Getenv("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE"), "0.9"),
-		"webhook_configured":             settings.WebhookConfigured,
-		"public_api_base_url_configured": settings.PublicAPIBaseURLConfigured,
-		"agent_service_configured":       settings.AgentServiceConfigured,
-		"agent_model_configured":         settings.AgentModelConfigured,
-		"updated_by":                     settings.UpdatedBy,
-		"updated_at":                     formatTime(settings.UpdatedAt),
+		"agent_enabled":                    settings.AgentEnabled,
+		"agent_audit_enabled":              settings.AgentAuditEnabled,
+		"agent_audit_auto_pass_confidence": settings.AgentAuditAutoPassConfidence,
+		"feishu_ops_enabled":               settings.FeishuOpsEnabled,
+		"daily_report_enabled":             settings.DailyReportEnabled,
+		"high_risk_notify_enabled":         settings.HighRiskNotifyEnabled,
+		"report_notify_enabled":            settings.ReportNotifyEnabled,
+		"feedback_notify_enabled":          settings.FeedbackNotifyEnabled,
+		"ai_budget_enabled":                settings.AIBudgetEnabled,
+		"ai_monthly_budget_cny":            settings.AIMonthlyBudgetCNY,
+		"ai_daily_budget_cny":              settings.AIDailyBudgetCNY,
+		"ai_budget_warn_ratio":             settings.AIBudgetWarnRatio,
+		"audit_high_risk_words":            settings.AuditHighRiskWords,
+		"audit_review_words":               settings.AuditReviewWords,
+		"today_ai_cost_cny":                settings.TodayAICostCNY,
+		"month_ai_cost_cny":                settings.MonthAICostCNY,
+		"budget_status":                    settings.AIBudgetStatus,
+		"enabled":                          settings.FeishuOpsEnabled,
+		"daily_enabled":                    settings.DailyReportEnabled,
+		"daily_time":                       firstNonEmptyService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_TIME"), "09:30"),
+		"high_risk_enabled":                settings.HighRiskNotifyEnabled,
+		"ops_events_enabled":               settings.FeishuOpsEnabled,
+		"feedback_notify_types":            firstNonEmptyService(os.Getenv("CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES"), "contact,cooperation,bug,content"),
+		"audit_callback_enabled":           !envBoolFalseService(os.Getenv("LEHU_FEISHU_CARD_CALLBACK_ENABLED")),
+		"audit_auto_pass_confidence":       settings.AgentAuditAutoPassConfidence,
+		"webhook_configured":               settings.WebhookConfigured,
+		"public_api_base_url_configured":   settings.PublicAPIBaseURLConfigured,
+		"agent_service_configured":         settings.AgentServiceConfigured,
+		"agent_model_configured":           settings.AgentModelConfigured,
+		"updated_by":                       settings.UpdatedBy,
+		"updated_at":                       formatTime(settings.UpdatedAt),
 	}
 }
 

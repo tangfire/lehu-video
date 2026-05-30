@@ -42,14 +42,15 @@ const agentSwitches = [
 const normalizeAgentSettings = (settings = {}) => ({
     agent_enabled: Boolean(settings.agent_enabled),
     agent_audit_enabled: Boolean(settings.agent_audit_enabled),
+    agent_audit_auto_pass_confidence: Number(settings.agent_audit_auto_pass_confidence || settings.audit_auto_pass_confidence || 0.85),
     feishu_ops_enabled: Boolean(settings.feishu_ops_enabled),
     daily_report_enabled: Boolean(settings.daily_report_enabled),
     high_risk_notify_enabled: Boolean(settings.high_risk_notify_enabled),
     report_notify_enabled: Boolean(settings.report_notify_enabled),
     feedback_notify_enabled: Boolean(settings.feedback_notify_enabled),
     ai_budget_enabled: settings.ai_budget_enabled !== false,
-    ai_monthly_budget_cny: Number(settings.ai_monthly_budget_cny || 20),
-    ai_daily_budget_cny: Number(settings.ai_daily_budget_cny || 2),
+    ai_monthly_budget_cny: Number(settings.ai_monthly_budget_cny || 5),
+    ai_daily_budget_cny: Number(settings.ai_daily_budget_cny || 0.5),
     ai_budget_warn_ratio: settings.ai_budget_warn_ratio || '0.7,0.9',
     audit_high_risk_words: settings.audit_high_risk_words || '',
     audit_review_words: settings.audit_review_words || '',
@@ -141,6 +142,7 @@ const AdminAuditSettings = () => {
             const data = await campusAdminApi.updateAgentSettings({
                 agent_enabled: agentDraft.agent_enabled,
                 agent_audit_enabled: agentDraft.agent_audit_enabled,
+                agent_audit_auto_pass_confidence: Number(agentDraft.agent_audit_auto_pass_confidence || 0.85),
                 feishu_ops_enabled: agentDraft.feishu_ops_enabled,
                 daily_report_enabled: agentDraft.daily_report_enabled,
                 high_risk_notify_enabled: agentDraft.high_risk_notify_enabled,
@@ -303,6 +305,21 @@ const AdminAuditSettings = () => {
                                 placeholder="加微信,兼职,引战,二维码"
                             />
                         </label>
+                    </div>
+                    <div className="admin-agent-budget-inputs">
+                        <label>
+                            <span>自动通过阈值</span>
+                            <input
+                                className="admin-input"
+                                type="number"
+                                min="0.5"
+                                max="1"
+                                step="0.01"
+                                value={agentDraft.agent_audit_auto_pass_confidence}
+                                onChange={(e) => updateAgentDraft('agent_audit_auto_pass_confidence', e.target.value)}
+                            />
+                        </label>
+                        <span className="admin-inline-hint">建议 0.85-0.9；越低越少人工，越高越稳。</span>
                     </div>
                 </div>
 

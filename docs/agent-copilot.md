@@ -86,13 +86,15 @@ flowchart LR
 
 审核关键词在 `/admin/audit` 的“审核关键词”面板配置，存入 `campus_ops_setting`。`audit_high_risk_words` 命中后保留待审并推高优先级提醒，不允许 Agent 自动洗白；`audit_review_words` 命中后进入 Agent/人工复核。`campus-api` 本地规则和 `campus-agent /internal/moderation/audit` 使用同一份词表，配置为空或读取失败时回退默认词表。
 
+自动通过置信度阈值同样在 `/admin/audit` 配置，存入 `agent_audit_auto_pass_confidence`，默认 `0.85`。运营可以在冷启动阶段适当降低人工量，发现误放后再调高。
+
 策略：
 
 | 判断结果 | 系统行为 |
 | --- | --- |
-| 本地规则 `low` 且 Agent `pass + low + confidence >= 0.9` | 自动设为可见，不打扰作者 |
-| 本地规则 `medium/uncertain` 且 Agent `pass + low + confidence >= 0.9` | 自动设为可见 |
-| Agent `review/reject/medium/high` 或 `confidence < 0.9` | 保持待审核，生成飞书审批卡片 |
+| 本地规则 `low` 且 Agent `pass + low + confidence >= 后台阈值` | 自动设为可见，不打扰作者 |
+| 本地规则 `medium/uncertain` 且 Agent `pass + low + confidence >= 后台阈值` | 自动设为可见 |
+| Agent `review/reject/medium/high` 或 `confidence < 后台阈值` | 保持待审核，生成飞书审批卡片 |
 | 本地规则 `high` | 即使 Agent 复核为低风险，也保持待审核并推飞书 |
 | 预算超限或 Agent 不可用 | 规则低风险兜底通过，其他内容保留待审核并飞书提醒 |
 
@@ -187,7 +189,7 @@ CAMPUS_OPS_FEISHU_REPORT_NOTIFY=true
 CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY=true
 CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES=contact,cooperation,bug,content
 CAMPUS_AGENT_AUDIT_ENABLED=true
-CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE=0.9
+CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE=0.85
 CAMPUS_AI_AUDIT_BATCH_SIZE=2
 CAMPUS_AI_AUDIT_TASK_TIMEOUT=10s
 CAMPUS_AGENT_RUN_STALE_AFTER=10m

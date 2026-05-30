@@ -119,9 +119,13 @@ func TestPostToMapAddsClientFriendlyPublishState(t *testing.T) {
 
 func TestAgentSettingsToMapIncludesAuditWords(t *testing.T) {
 	got := agentSettingsToMap(&biz.CampusAgentSettings{
-		AuditHighRiskWords: "暗号甲,暗号乙",
-		AuditReviewWords:   "暗号丙",
+		AgentAuditAutoPassConfidence: 0.86,
+		AuditHighRiskWords:           "暗号甲,暗号乙",
+		AuditReviewWords:             "暗号丙",
 	})
+	if got["agent_audit_auto_pass_confidence"] != 0.86 {
+		t.Fatalf("agent_audit_auto_pass_confidence = %v", got["agent_audit_auto_pass_confidence"])
+	}
 	if got["audit_high_risk_words"] != "暗号甲,暗号乙" {
 		t.Fatalf("audit_high_risk_words = %v", got["audit_high_risk_words"])
 	}
