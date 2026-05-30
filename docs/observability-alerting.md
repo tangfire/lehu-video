@@ -310,9 +310,9 @@ PY
 | Loki 日志 | `168h`，约 7 天 |
 | Prometheus 指标 | `15d` |
 | Docker json log | 每容器 `20m * 3` |
-| MySQL `campus_access_log` | 默认 15 天，可用 `LEHU_ACCESS_LOG_RETENTION_DAYS` 调整 |
+| MySQL `campus_access_log` | 默认 7 天，可用 `LEHU_ACCESS_LOG_RETENTION_DAYS` 调整 |
 
-这些设置是为了控制轻量服务器磁盘。日常排障以 Grafana/Loki 为主；Docker 原生日志只保留很少，避免无限增长。
+这些设置是为了控制轻量服务器磁盘和 1核1G 云 MySQL 压力。日常排障以 Grafana/Loki 为主；Docker 原生日志只保留很少，避免无限增长。普通容器日志不写 MySQL。
 
 ## 已知边界
 
@@ -320,4 +320,4 @@ PY
 - 当前没有业务指标告警，例如 5xx 率、上传失败率、AI 回复失败率。这些建议等真实流量稳定后再加。
 - 当前没有短信和电话告警，第一版只发飞书群机器人。
 - Prometheus 不是用来查 `request_id` 的。`request_id` 查 Loki，健康状态查 Prometheus。
-- Loki 只保留近期日志；长期审计不依赖 Loki，关键访问记录在 MySQL `campus_access_log` 中按保留期清理。
+- Loki 只保留近期日志；关键访问记录在 MySQL `campus_access_log` 中按 7 天保留期清理。

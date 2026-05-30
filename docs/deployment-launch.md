@@ -35,17 +35,21 @@ docker compose up -d --build
 首发建议：
 
 ```text
-2核4G / 100GB / 7Mbps / 1000GB/月
+2核4G 轻量服务器 + 1核1G 云 MySQL + 本机 Redis
 ```
 
 这个配置建立在这些前提上：
 
 - 首发只做文字和图片，不开放视频。
 - 公开图片走腾讯云 COS + CDN，不走服务器本机出网。
-- 日志和访问记录都有保留期，不无限增长。
-- 400 首批用户不是同时高并发刷图。
+- 业务数据统一放同一个云 MySQL，不做双 MySQL 拆库。
+- Redis 承担真实 IP 限流和热点读缓存，降低首页刷帖和后台统计对 MySQL 的重复查询。
+- 普通容器日志走 Loki；MySQL 里的 `campus_access_log` 默认只保留 7 天。
+- 300 人试运营不是同时高并发刷图。
 
-不建议 2G 内存，因为 MySQL、Redis、Grafana、Loki、Prometheus、Qdrant、RAG 和 Go 服务一起跑会很紧。
+不建议 2G 内存。即使 MySQL 拆到云数据库，Redis、Grafana、Loki、Prometheus、Qdrant、RAG 和 Go 服务一起跑也会很紧。
+
+数据库建议使用同地域、可内网连接的 1核1G 云 MySQL。核心用户数据、帖子、评论、点赞、收藏、通知、审核、权限、文件记录、e仔/RAG 质量数据都放云 MySQL；不要为了日志再拆一套 Docker MySQL，跨库统计和排障复杂度不划算。后续如果日活、慢查询或 MySQL CPU 明显升高，再升级到 2核4G 云 MySQL。
 
 ### 域名
 
@@ -82,7 +86,7 @@ GRAFANA_ADMIN_PASSWORD=...
 数据库和 Redis：
 
 ```bash
-LEHU_MYSQL_DSN=root:密码@tcp(mysql:3306)/lehu_campus_db?parseTime=True&loc=Local
+LEHU_MYSQL_DSN=业务账号:密码@tcp(云MySQL内网地址:3306)/lehu_campus_db?parseTime=True&loc=Local
 LEHU_REDIS_ADDR=redis:6379
 LEHU_REDIS_PASSWORD=...
 LEHU_REDIS_DB=0
@@ -153,7 +157,7 @@ GRAFANA_ROOT_URL=https://grafana.example.com
 
 ```bash
 LEHU_TRUSTED_PROXY_CIDRS=127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
-LEHU_ACCESS_LOG_RETENTION_DAYS=15
+LEHU_ACCESS_LOG_RETENTION_DAYS=7
 ```
 
 ## 启动前检查

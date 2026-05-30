@@ -438,7 +438,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 - API、运营后台、Grafana 通过反向代理暴露 HTTPS。
 - 微信公众平台配置 API request 域名、COS 上传域名、CDN 下载域名。
 - Grafana 飞书告警 token/webhook 配好。
-- `campus_access_log` 保留期合理，例如 7 到 15 天。
+- `campus_access_log` 保留期合理，首发生产默认 7 天。
 
 ## 改需求时该从哪里下手
 
@@ -482,7 +482,8 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 - `api/helloworld` 仍是 Kratos 模板残留，可以后续删除，降低误导。
 - 本地 compose 仍启动 MinIO；生产公开媒体不用 MinIO。后续如果 RAG 文件也迁私有 COS，可以考虑生产不启动 MinIO。
 - 业务指标告警暂时只做健康类。等真实用户稳定后，再加 5xx 率、上传失败率、AI 失败率等业务告警。
-- `campus_access_log` 写 MySQL，已经有保留期清理；流量变大后可考虑只保留摘要或迁日志系统。
+- `campus_access_log` 写云 MySQL，已经有 7 天保留期清理；流量变大后可考虑只保留异常/限流/封禁摘要，普通请求继续依赖 Loki。
+- 首发不要拆双 MySQL。核心业务表、文件记录、审核权限和 e仔/RAG 质量数据统一在云 MySQL；如果 1核1G 云 MySQL 出现持续 CPU 或慢查询压力，优先升级到 2核4G 云 MySQL。
 
 ## 一句话总结
 

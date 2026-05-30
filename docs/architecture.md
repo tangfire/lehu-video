@@ -46,7 +46,9 @@ flowchart LR
 
 ## Data
 
-默认数据库为 `lehu_campus_db`，初始化脚本为 `sql/campus.sql`。该脚本只包含账号、用户、文件、校园社区、通知、审核、安全、e仔/RAG 表。
+默认数据库为 `lehu_campus_db`，初始化脚本为 `sql/campus.sql`。首发建议使用同地域、内网连接的 1核1G 云 MySQL；账号、用户、文件、校园社区、通知、审核、安全、e仔/RAG 表全部放同一个云 MySQL，不做双 MySQL 拆库。
+
+核心用户数据、帖子、评论、点赞、收藏、通知、审核、权限、文件记录、e仔/RAG 质量数据都以 MySQL 为最终数据源。普通容器日志走 Loki，不写 MySQL；`campus_access_log` 只保留短期访问记录，生产默认 7 天。
 
 公开媒体首发使用腾讯云 COS + CDN，bucket 和文件域仍保持 `campus`，文件 object key 仍是 `public/{file_id}.{ext}` 这一类格式，不改数据库结构。生产设置 `LEHU_STORAGE_PROVIDER=cos` 后，`base` 会用 COS 生成上传预签名 URL，并把确认后的公开 URL 拼成 `COS_PUBLIC_CDN_BASE_URL/{object_key}`。
 
@@ -103,6 +105,6 @@ flowchart LR
 - 生产只暴露 API、运营后台、Grafana 到宿主机 loopback，外部流量通过反向代理接入 HTTPS。
 - MySQL、Redis、Consul、MinIO、Qdrant、Prometheus、base、campus-user 不直接暴露公网。
 - `LEHU_ENABLE_LEGACY_UPLOAD=false`，禁止图片上传退回 API 中转。
-- `LEHU_ACCESS_LOG_RETENTION_DAYS=15`，避免 `campus_access_log` 无限增长。
+- `LEHU_ACCESS_LOG_RETENTION_DAYS=7`，避免 `campus_access_log` 在 1核1G 云 MySQL 上无限增长。
 - `LEHU_REDIS_CACHE_ENABLED=true`，Redis 用于真实 IP 限流和短 TTL 热点读缓存；验证码能力保留在旧账号基础服务里，小程序主链路不依赖它。
 - Docker json log 使用大小和份数限制；长期排障以 Loki 留存为准。

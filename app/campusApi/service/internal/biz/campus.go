@@ -5421,7 +5421,7 @@ func (uc *CampusUsecase) persistCampusAccessLogs(ctx context.Context, logs []*Ca
 }
 
 func (uc *CampusUsecase) CleanupExpiredAccessLogs(ctx context.Context) (int64, error) {
-	days := envInt64("LEHU_ACCESS_LOG_RETENTION_DAYS", 15)
+	days := envInt64("LEHU_ACCESS_LOG_RETENTION_DAYS", 7)
 	if days <= 0 {
 		return 0, nil
 	}

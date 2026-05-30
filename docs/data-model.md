@@ -77,7 +77,7 @@ sql/campus.sql
 | `campus_ip_block` | IP 封禁 |
 | `campus_event` | 行为事件，例如访问、发布、互动 |
 
-`campus_access_log` 会按 `LEHU_ACCESS_LOG_RETENTION_DAYS` 定期清理，默认 15 天。
+`campus_access_log` 会按 `LEHU_ACCESS_LOG_RETENTION_DAYS` 定期清理，生产默认 7 天。普通容器日志走 Loki，不进入 MySQL；首发不做双 MySQL 拆库，所有业务表继续使用同一个云 MySQL。
 
 ### e仔/RAG
 
@@ -89,6 +89,8 @@ sql/campus.sql
 | `campus_rag_query_log` | RAG 查询日志 |
 
 Qdrant 里也会保存知识库切片向量。MySQL 的 `campus_knowledge_chunk` 更偏后台预览和排查，Qdrant 才是线上语义检索主要索引。
+
+`campus_rag_query_log` 首发继续保存在云 MySQL，用于 e仔回复复盘、知识库命中分析和质量标注。后续如果数据量明显增长，再单独增加 30 到 90 天保留期。
 
 ### 课表
 
