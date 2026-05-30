@@ -3480,7 +3480,7 @@ func (r *campusRepo) CountUnreadNotifications(ctx context.Context, userID string
 	if err := base().Count(&result.Total).Error; err != nil {
 		return nil, err
 	}
-	if err := base().Where("event_type IN ?", []string{biz.CampusNotificationTypeComment, biz.CampusNotificationTypeReply}).Count(&result.Reply).Error; err != nil {
+	if err := base().Where("event_type IN ?", []string{biz.CampusNotificationTypeComment, biz.CampusNotificationTypeReply, biz.CampusNotificationTypeMention}).Count(&result.Reply).Error; err != nil {
 		return nil, err
 	}
 	if err := base().Where("event_type IN ?", []string{biz.CampusNotificationTypePostLike, biz.CampusNotificationTypePostCollect, biz.CampusNotificationTypeCommentLike}).Count(&result.Interaction).Error; err != nil {

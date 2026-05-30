@@ -319,7 +319,7 @@ CREATE TABLE IF NOT EXISTS `campus_notification` (
   `id` BIGINT NOT NULL,
   `recipient_id` BIGINT NOT NULL COMMENT '接收用户',
   `actor_id` BIGINT NOT NULL DEFAULT 0 COMMENT '触发用户，系统通知为运营用户或0',
-  `event_type` VARCHAR(32) NOT NULL COMMENT 'comment/reply/post_like/post_collect/comment_like/system',
+  `event_type` VARCHAR(32) NOT NULL COMMENT 'comment/reply/mention/post_like/post_collect/comment_like/system',
   `target_type` VARCHAR(32) NOT NULL DEFAULT '',
   `target_id` BIGINT NOT NULL DEFAULT 0,
   `dedupe_key` VARCHAR(191) DEFAULT NULL COMMENT '互动通知幂等键，系统通知为空',
@@ -335,6 +335,7 @@ CREATE TABLE IF NOT EXISTS `campus_notification` (
   UNIQUE KEY `uk_campus_notification_dedupe` (`dedupe_key`),
   INDEX `idx_campus_notification_user_created` (`recipient_id`, `is_deleted`, `created_at`, `id`),
   INDEX `idx_campus_notification_user_unread` (`recipient_id`, `read_at`, `is_deleted`, `created_at`),
+  INDEX `idx_campus_notification_user_event_created` (`recipient_id`, `event_type`, `is_deleted`, `created_at`, `id`),
   INDEX `idx_campus_notification_event` (`event_type`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园站内消息通知';
 
@@ -342,7 +343,7 @@ CREATE TABLE IF NOT EXISTS `campus_notification_outbox` (
   `id` BIGINT NOT NULL,
   `recipient_id` BIGINT NOT NULL DEFAULT 0 COMMENT '互动通知接收用户，系统群发为0',
   `actor_id` BIGINT NOT NULL DEFAULT 0 COMMENT '触发用户或运营用户',
-  `event_type` VARCHAR(32) NOT NULL COMMENT 'comment/reply/post_like/post_collect/comment_like/system',
+  `event_type` VARCHAR(32) NOT NULL COMMENT 'comment/reply/mention/post_like/post_collect/comment_like/system',
   `target_type` VARCHAR(32) NOT NULL DEFAULT '',
   `target_id` BIGINT NOT NULL DEFAULT 0,
   `dedupe_key` VARCHAR(191) DEFAULT NULL COMMENT '投递幂等键',
@@ -587,6 +588,7 @@ CREATE TABLE IF NOT EXISTS `campus_rag_eval_case` (
   `category` VARCHAR(32) NOT NULL DEFAULT 'general',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1启用 0停用',
   `source_log_id` BIGINT NOT NULL DEFAULT 0,
+  `source_log_key` BIGINT GENERATED ALWAYS AS (IF(`source_log_id` > 0, `source_log_id`, NULL)) STORED,
   `note` VARCHAR(500) NOT NULL DEFAULT '',
   `last_run_at` DATETIME(3) DEFAULT NULL,
   `last_score` DOUBLE NOT NULL DEFAULT 0,
@@ -597,6 +599,7 @@ CREATE TABLE IF NOT EXISTS `campus_rag_eval_case` (
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_campus_rag_eval_source_log` (`source_log_key`),
   INDEX `idx_campus_rag_eval_status` (`status`, `updated_at`),
   INDEX `idx_campus_rag_eval_log` (`source_log_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校园e仔RAG评测集';
