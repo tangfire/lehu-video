@@ -644,6 +644,10 @@ func (r *campusRepo) ListTimetableCourses(ctx context.Context, userID, term stri
 }
 
 func (r *campusRepo) ListCategories(ctx context.Context) ([]*biz.CampusForumCategory, error) {
+	var cached []*biz.CampusForumCategory
+	if r.getCacheJSON(ctx, campusCategoriesCacheKey(), &cached) {
+		return cached, nil
+	}
 	var rows []campusForumCategoryModel
 	if err := r.data.db.WithContext(ctx).
 		Where("is_deleted = ?", false).
@@ -655,6 +659,7 @@ func (r *campusRepo) ListCategories(ctx context.Context) ([]*biz.CampusForumCate
 	for i := range rows {
 		out = append(out, toBizCategory(&rows[i]))
 	}
+	r.setCacheJSON(ctx, campusCategoriesCacheKey(), out, campusCategoriesCacheTTL())
 	return out, nil
 }
 
@@ -695,10 +700,27 @@ func (r *campusRepo) CreatePost(ctx context.Context, post *biz.CampusForumPost) 
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
-	return r.data.db.WithContext(ctx).Create(&row).Error
+	if err := r.data.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return err
+	}
+	r.invalidatePostReadCaches(ctx, post.ID, true)
+	return nil
 }
 
 func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuery) ([]*biz.CampusForumPost, int64, error) {
+	cacheable := r.shouldCachePostList(query)
+	cacheKey := ""
+	if cacheable {
+		cacheKey = r.postListCacheKey(ctx, query)
+		var cached campusPostListCache
+		if r.getCacheJSON(ctx, cacheKey, &cached) {
+			posts, err := r.ListPostsByIDs(ctx, cached.IDs, query.Statuses)
+			if err == nil {
+				return posts, cached.Total, nil
+			}
+			r.log.WithContext(ctx).Warnf("load cached post ids failed: key=%s err=%v", cacheKey, err)
+		}
+	}
 	db := r.data.db.WithContext(ctx).Model(&campusForumPostModel{})
 	if !query.IncludeDeleted {
 		db = db.Where("campus_forum_post.is_deleted = ?", false)
@@ -755,12 +777,26 @@ func (r *campusRepo) ListPosts(ctx context.Context, query biz.ListCampusPostQuer
 	if err := r.fillPostCategoryNames(ctx, posts); err != nil {
 		return nil, 0, err
 	}
+	if cacheable {
+		ids := make([]int64, 0, len(posts))
+		for _, post := range posts {
+			if post != nil {
+				ids = append(ids, post.ID)
+			}
+		}
+		r.setCacheJSON(ctx, cacheKey, campusPostListCache{IDs: ids, Total: total}, campusPostListCacheTTL())
+	}
 	return posts, total, nil
 }
 
 func (r *campusRepo) ListTopImagePostsByDate(ctx context.Context, start, end time.Time, limit int) ([]*biz.CampusForumPost, error) {
 	if limit <= 0 {
 		limit = 30
+	}
+	cacheKey := r.momentsCandidatesCacheKey(ctx, start, end, limit)
+	var cachedIDs []int64
+	if r.getCacheJSON(ctx, cacheKey, &cachedIDs) {
+		return r.ListPostsByIDs(ctx, cachedIDs, []int32{biz.CampusAuditStatusVisible})
 	}
 	order := campusPostOrder(biz.CampusPostSortHot, false)
 	var rows []campusForumPostModel
@@ -783,6 +819,13 @@ func (r *campusRepo) ListTopImagePostsByDate(ctx context.Context, start, end tim
 	if err := r.fillPostCategoryNames(ctx, posts); err != nil {
 		return nil, err
 	}
+	ids := make([]int64, 0, len(posts))
+	for _, post := range posts {
+		if post != nil {
+			ids = append(ids, post.ID)
+		}
+	}
+	r.setCacheJSON(ctx, cacheKey, ids, campusMomentsCandidatesCacheTTL())
 	return posts, nil
 }
 
@@ -847,6 +890,10 @@ func (r *campusRepo) ListPostsByIDs(ctx context.Context, postIDs []int64, status
 }
 
 func (r *campusRepo) GetPostByID(ctx context.Context, postID int64) (bool, *biz.CampusForumPost, error) {
+	var cached biz.CampusForumPost
+	if r.getCacheJSON(ctx, campusPostDetailCacheKey(postID), &cached) {
+		return true, &cached, nil
+	}
 	var row campusForumPostModel
 	err := r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
 		Where("id = ? AND is_deleted = ? AND status = ?", postID, false, biz.CampusAuditStatusVisible).
@@ -861,6 +908,7 @@ func (r *campusRepo) GetPostByID(ctx context.Context, postID int64) (bool, *biz.
 	if err := r.fillPostCategoryNames(ctx, []*biz.CampusForumPost{post}); err != nil {
 		return false, nil, err
 	}
+	r.setCacheJSON(ctx, campusPostDetailCacheKey(postID), post, campusPostDetailCacheTTL())
 	return true, post, nil
 }
 
@@ -883,7 +931,7 @@ func (r *campusRepo) GetAnyPostByID(ctx context.Context, postID int64) (bool, *b
 }
 
 func (r *campusRepo) DeletePost(ctx context.Context, postID int64) error {
-	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&campusForumPostModel{}).
 			Where("id = ? AND is_deleted = ?", postID, false).
 			Updates(map[string]interface{}{
@@ -902,23 +950,32 @@ func (r *campusRepo) DeletePost(ctx context.Context, postID int64) error {
 				"updated_at": time.Now(),
 			}).Error
 	})
+	if err != nil {
+		return err
+	}
+	r.invalidatePostReadCaches(ctx, postID, true)
+	return nil
 }
 
 func (r *campusRepo) UpdatePostStatus(ctx context.Context, postID int64, status int32, reason string) error {
-	return r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
+	if err := r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
 		Where("id = ?", postID).
 		Updates(map[string]interface{}{
 			"status":       status,
 			"audit_reason": reason,
 			"is_deleted":   status == biz.CampusAuditStatusDeleted,
 			"updated_at":   time.Now(),
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+	r.invalidatePostReadCaches(ctx, postID, true)
+	return nil
 }
 
 func (r *campusRepo) UpdatePostByAdmin(ctx context.Context, post *biz.CampusForumPost) error {
 	images, _ := json.Marshal(post.Images)
 	extra, _ := json.Marshal(post.Extra)
-	return r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
+	if err := r.data.db.WithContext(ctx).Model(&campusForumPostModel{}).
 		Where("id = ?", post.ID).
 		Updates(map[string]interface{}{
 			"category_code": post.CategoryCode,
@@ -937,7 +994,11 @@ func (r *campusRepo) UpdatePostByAdmin(ctx context.Context, post *biz.CampusForu
 			"sort_weight":   post.SortWeight,
 			"is_deleted":    post.Status == biz.CampusAuditStatusDeleted,
 			"updated_at":    time.Now(),
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+	r.invalidatePostReadCaches(ctx, post.ID, true)
+	return nil
 }
 
 func (r *campusRepo) CreateComment(ctx context.Context, comment *biz.CampusForumComment) error {
@@ -960,7 +1021,7 @@ func (r *campusRepo) CreateCommentWithOutbox(ctx context.Context, comment *biz.C
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
 	}
-	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
@@ -983,6 +1044,12 @@ func (r *campusRepo) CreateCommentWithOutbox(ctx context.Context, comment *biz.C
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	r.invalidatePostDetailCache(ctx, comment.PostID)
+	r.deleteCacheKeys(ctx, campusAdminSummaryCacheKey())
+	return nil
 }
 
 func (r *campusRepo) ListComments(ctx context.Context, query biz.ListCampusCommentQuery) ([]*biz.CampusForumComment, int64, error) {
@@ -1201,13 +1268,15 @@ func (r *campusRepo) GetAnyCommentByID(ctx context.Context, commentID int64) (bo
 }
 
 func (r *campusRepo) DeleteComment(ctx context.Context, commentID int64) error {
-	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var postID int64
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var comment campusForumCommentModel
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND is_deleted = ?", commentID, false).
 			First(&comment).Error; err != nil {
 			return err
 		}
+		postID = comment.PostID
 		decrement := int64(1)
 		if comment.ParentID == 0 && comment.Status == biz.CampusAuditStatusVisible {
 			var replyCount int64
@@ -1254,16 +1323,24 @@ func (r *campusRepo) DeleteComment(ctx context.Context, commentID int64) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	r.invalidatePostDetailCache(ctx, postID)
+	r.deleteCacheKeys(ctx, campusAdminSummaryCacheKey())
+	return nil
 }
 
 func (r *campusRepo) UpdateCommentStatus(ctx context.Context, commentID int64, status int32, reason string) error {
-	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var postID int64
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var comment campusForumCommentModel
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ?", commentID).
 			First(&comment).Error; err != nil {
 			return err
 		}
+		postID = comment.PostID
 		wasVisible := comment.Status == biz.CampusAuditStatusVisible && !comment.IsDeleted
 		willVisible := status == biz.CampusAuditStatusVisible
 		if err := tx.Model(&campusForumCommentModel{}).
@@ -1295,6 +1372,14 @@ func (r *campusRepo) UpdateCommentStatus(ctx context.Context, commentID int64, s
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if postID > 0 {
+		r.invalidatePostDetailCache(ctx, postID)
+		r.deleteCacheKeys(ctx, campusAdminSummaryCacheKey())
+	}
+	return nil
 }
 
 func (r *campusRepo) GetCommentLikeStatus(ctx context.Context, userID string, commentIDs []int64) (map[int64]bool, error) {
@@ -1404,7 +1489,7 @@ func (r *campusRepo) AddPostLike(ctx context.Context, id int64, userID string, p
 
 func (r *campusRepo) AddPostLikeWithOutbox(ctx context.Context, id int64, userID string, postID int64, outbox *biz.CampusNotificationOutbox) error {
 	parsedUserID := parseID(userID)
-	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing campusForumPostLikeModel
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("post_id = ? AND user_id = ?", postID, parsedUserID).
@@ -1445,11 +1530,15 @@ func (r *campusRepo) AddPostLikeWithOutbox(ctx context.Context, id int64, userID
 			return err
 		}
 		return createNotificationOutboxWithTx(tx, outbox)
-	})
+	}); err != nil {
+		return err
+	}
+	r.invalidatePostDetailCache(ctx, postID)
+	return nil
 }
 
 func (r *campusRepo) RemovePostLike(ctx context.Context, userID string, postID int64) error {
-	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&campusForumPostLikeModel{}).
 			Where("post_id = ? AND user_id = ? AND is_deleted = ?", postID, parseID(userID), false).
 			Updates(map[string]interface{}{"is_deleted": true, "updated_at": time.Now()})
@@ -1462,7 +1551,11 @@ func (r *campusRepo) RemovePostLike(ctx context.Context, userID string, postID i
 				UpdateColumn("like_count", gorm.Expr("GREATEST(like_count - ?, 0)", 1)).Error
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	r.invalidatePostDetailCache(ctx, postID)
+	return nil
 }
 
 func (r *campusRepo) GetPostCollectionStatus(ctx context.Context, userID string, postIDs []int64) (map[int64]bool, error) {
@@ -1488,7 +1581,7 @@ func (r *campusRepo) AddPostCollection(ctx context.Context, id int64, userID str
 
 func (r *campusRepo) AddPostCollectionWithOutbox(ctx context.Context, id int64, userID string, postID int64, outbox *biz.CampusNotificationOutbox) error {
 	parsedUserID := parseID(userID)
-	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing campusForumPostCollectionModel
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("post_id = ? AND user_id = ?", postID, parsedUserID).
@@ -1529,11 +1622,15 @@ func (r *campusRepo) AddPostCollectionWithOutbox(ctx context.Context, id int64, 
 			return err
 		}
 		return createNotificationOutboxWithTx(tx, outbox)
-	})
+	}); err != nil {
+		return err
+	}
+	r.invalidatePostDetailCache(ctx, postID)
+	return nil
 }
 
 func (r *campusRepo) RemovePostCollection(ctx context.Context, userID string, postID int64) error {
-	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&campusForumPostCollectionModel{}).
 			Where("post_id = ? AND user_id = ? AND is_deleted = ?", postID, parseID(userID), false).
 			Updates(map[string]interface{}{"is_deleted": true, "updated_at": time.Now()})
@@ -1546,7 +1643,11 @@ func (r *campusRepo) RemovePostCollection(ctx context.Context, userID string, po
 				UpdateColumn("collected_count", gorm.Expr("GREATEST(collected_count - ?, 0)", 1)).Error
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	r.invalidatePostDetailCache(ctx, postID)
+	return nil
 }
 
 func (r *campusRepo) CreateReport(ctx context.Context, in *biz.CampusForumReport) error {
@@ -2413,7 +2514,10 @@ func (r *campusRepo) CreateAccessLog(ctx context.Context, in *biz.CampusAccessLo
 		Blocked:     in.Blocked,
 		CreatedAt:   time.Now(),
 	}
-	return r.data.db.WithContext(ctx).Create(&row).Error
+	if err := r.data.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *campusRepo) CreateAccessLogs(ctx context.Context, logs []*biz.CampusAccessLog) error {
@@ -2447,7 +2551,10 @@ func (r *campusRepo) CreateAccessLogs(ctx context.Context, logs []*biz.CampusAcc
 	if len(rows) == 0 {
 		return nil
 	}
-	return r.data.db.WithContext(ctx).CreateInBatches(rows, 100).Error
+	if err := r.data.db.WithContext(ctx).CreateInBatches(rows, 100).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *campusRepo) DeleteAccessLogsBefore(ctx context.Context, before time.Time) (int64, error) {
@@ -2461,6 +2568,10 @@ func (r *campusRepo) DeleteAccessLogsBefore(ctx context.Context, before time.Tim
 }
 
 func (r *campusRepo) GetSecurityOverview(ctx context.Context) (*biz.CampusSecurityOverview, error) {
+	var cached biz.CampusSecurityOverview
+	if r.getCacheJSON(ctx, campusSecurityOverviewCacheKey(), &cached) {
+		return &cached, nil
+	}
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	overview := &biz.CampusSecurityOverview{}
@@ -2547,6 +2658,7 @@ func (r *campusRepo) GetSecurityOverview(ctx context.Context) (*biz.CampusSecuri
 	for i := range blockRows {
 		overview.BlockedIPs = append(overview.BlockedIPs, toBizIPBlock(&blockRows[i]))
 	}
+	r.setCacheJSON(ctx, campusSecurityOverviewCacheKey(), overview, campusSecurityOverviewCacheTTL())
 	return overview, nil
 }
 
@@ -2560,7 +2672,7 @@ func (r *campusRepo) BlockIP(ctx context.Context, block *biz.CampusIPBlock) erro
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	return r.data.db.WithContext(ctx).Clauses(clause.OnConflict{
+	if err := r.data.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "ip"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"reason":     block.Reason,
@@ -2568,16 +2680,24 @@ func (r *campusRepo) BlockIP(ctx context.Context, block *biz.CampusIPBlock) erro
 			"created_by": parseID(block.CreatedBy),
 			"updated_at": time.Now(),
 		}),
-	}).Create(&row).Error
+	}).Create(&row).Error; err != nil {
+		return err
+	}
+	r.deleteCacheKeys(ctx, campusSecurityOverviewCacheKey())
+	return nil
 }
 
 func (r *campusRepo) UnblockIP(ctx context.Context, ip string) error {
-	return r.data.db.WithContext(ctx).Model(&campusIPBlockModel{}).
+	if err := r.data.db.WithContext(ctx).Model(&campusIPBlockModel{}).
 		Where("ip = ?", ip).
 		Updates(map[string]interface{}{
 			"status":     biz.CampusIPBlockStatusInactive,
 			"updated_at": time.Now(),
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+	r.deleteCacheKeys(ctx, campusSecurityOverviewCacheKey())
+	return nil
 }
 
 func (r *campusRepo) CreateAuditLog(ctx context.Context, in *biz.CampusAuditLog) error {
@@ -2647,6 +2767,10 @@ func (r *campusRepo) TrackEvents(ctx context.Context, events []*biz.TrackCampusE
 }
 
 func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSummary, error) {
+	var cached biz.CampusAdminSummary
+	if r.getCacheJSON(ctx, campusAdminSummaryCacheKey(), &cached) {
+		return &cached, nil
+	}
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	summary := &biz.CampusAdminSummary{}
@@ -2728,6 +2852,7 @@ func (r *campusRepo) GetAdminSummary(ctx context.Context) (*biz.CampusAdminSumma
 		trends = append(trends, trend)
 	}
 	summary.Trends = trends
+	r.setCacheJSON(ctx, campusAdminSummaryCacheKey(), summary, campusAdminSummaryCacheTTL())
 	return summary, nil
 }
 

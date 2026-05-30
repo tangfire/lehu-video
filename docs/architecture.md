@@ -104,4 +104,5 @@ flowchart LR
 - MySQL、Redis、Consul、MinIO、Qdrant、Prometheus、base、campus-user 不直接暴露公网。
 - `LEHU_ENABLE_LEGACY_UPLOAD=false`，禁止图片上传退回 API 中转。
 - `LEHU_ACCESS_LOG_RETENTION_DAYS=15`，避免 `campus_access_log` 无限增长。
+- `LEHU_REDIS_CACHE_ENABLED=true`，Redis 用于验证码、限流和短 TTL 热点读缓存，降低首页刷帖与后台统计对 MySQL 的重复查询。
 - Docker json log 使用大小和份数限制；长期排障以 Loki 留存为准。

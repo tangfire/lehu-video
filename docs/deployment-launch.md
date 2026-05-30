@@ -86,7 +86,16 @@ LEHU_MYSQL_DSN=root:密码@tcp(mysql:3306)/lehu_campus_db?parseTime=True&loc=Loc
 LEHU_REDIS_ADDR=redis:6379
 LEHU_REDIS_PASSWORD=...
 LEHU_REDIS_DB=0
+LEHU_REDIS_CACHE_ENABLED=true
+LEHU_CACHE_POST_LIST_TTL=10s
+LEHU_CACHE_POST_DETAIL_TTL=30s
+LEHU_CACHE_ADMIN_SUMMARY_TTL=60s
+LEHU_CACHE_SECURITY_OVERVIEW_TTL=60s
+LEHU_CACHE_CATEGORIES_TTL=30m
+LEHU_CACHE_MOMENTS_CANDIDATES_TTL=3m
 ```
+
+Redis 上线承担三类职责：验证码、真实 IP 限流、热点读缓存。热点缓存只覆盖公开帖子流、帖子详情、分类、后台 summary、安全 overview、朋友圈候选；MySQL 仍是最终数据源，Redis 异常时接口回落 MySQL。
 
 公开媒体存储：
 
