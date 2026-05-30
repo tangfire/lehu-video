@@ -388,9 +388,10 @@ PY
 如果举报、反馈或审核卡片没有到飞书，按顺序看：
 
 1. `/admin/audit` 里的飞书运营通知、举报提醒、重要反馈提醒是否开启。
-2. `LEHU_ALERT_FEISHU_WEBHOOK` 是否同时存在于 `api` 和 `alert-webhook` 容器环境。
-3. `campus_ops_alert` 里对应事件的 `status / retry_count / last_error`。
-4. Grafana 日志里 `campus-api` 的 `ops_alert` 和 `campus-alert-webhook` 的 `agent_notice`。
+2. `/admin/copilot` 的“飞书提醒队列”是否有失败、待发送堆积或最近错误。
+3. `LEHU_ALERT_FEISHU_WEBHOOK` 是否同时存在于 `api` 和 `alert-webhook` 容器环境。
+4. `campus_ops_alert` 里对应事件的 `status / retry_count / feishu_error`。
+5. Grafana 日志里 `campus-api` 的 `ops_alert` 和 `campus-alert-webhook` 的 `agent_notice`。
 
 ## 留存和成本
 

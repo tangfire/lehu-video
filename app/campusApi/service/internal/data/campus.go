@@ -3091,6 +3091,56 @@ func (r *campusRepo) MarkOpsAlertRetry(ctx context.Context, id int64, retryCount
 		}).Error
 }
 
+func (r *campusRepo) GetOpsAlertSummary(ctx context.Context, todayStart time.Time, recentLimit int) (*biz.CampusOpsAlertSummary, error) {
+	if recentLimit <= 0 {
+		recentLimit = 10
+	}
+	out := &biz.CampusOpsAlertSummary{}
+	if err := r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).Where("status = ?", biz.CampusOpsAlertStatusPending).Count(&out.PendingCount).Error; err != nil {
+		return nil, err
+	}
+	if err := r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).Where("status = ?", biz.CampusOpsAlertStatusProcessing).Count(&out.ProcessingCount).Error; err != nil {
+		return nil, err
+	}
+	if err := r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).Where("status = ?", biz.CampusOpsAlertStatusFailed).Count(&out.FailedCount).Error; err != nil {
+		return nil, err
+	}
+	if err := r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).Where("status = ? AND sent_at >= ?", biz.CampusOpsAlertStatusSent, todayStart).Count(&out.SentTodayCount).Error; err != nil {
+		return nil, err
+	}
+	var sentRow campusOpsAlertModel
+	if err := r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).
+		Where("status = ? AND sent_at IS NOT NULL", biz.CampusOpsAlertStatusSent).
+		Order("sent_at DESC, id DESC").
+		First(&sentRow).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	} else if err == nil {
+		out.LastSentAt = sentRow.SentAt
+	}
+	var failedRow campusOpsAlertModel
+	if err := r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).
+		Where("status = ? OR feishu_status = ?", biz.CampusOpsAlertStatusFailed, biz.CampusAgentFeishuStatusFailed).
+		Order("updated_at DESC, id DESC").
+		First(&failedRow).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	} else if err == nil {
+		out.LastFailedAt = &failedRow.UpdatedAt
+		out.LastError = failedRow.FeishuError
+	}
+	var rows []campusOpsAlertModel
+	if err := r.data.db.WithContext(ctx).Model(&campusOpsAlertModel{}).
+		Order("updated_at DESC, id DESC").
+		Limit(recentLimit).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out.RecentAlerts = make([]*biz.CampusOpsAlert, 0, len(rows))
+	for i := range rows {
+		out.RecentAlerts = append(out.RecentAlerts, toBizOpsAlert(&rows[i]))
+	}
+	return out, nil
+}
+
 func (r *campusRepo) CreateOpsActionToken(ctx context.Context, item *biz.CampusOpsActionToken) error {
 	if item == nil {
 		return nil

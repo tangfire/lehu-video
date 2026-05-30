@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"lehu-video/app/campusApi/service/internal/biz"
 )
@@ -113,5 +114,38 @@ func TestPostToMapAddsClientFriendlyPublishState(t *testing.T) {
 				t.Fatalf("public_visible = %v, want %v", got["public_visible"], tc.publicShow)
 			}
 		})
+	}
+}
+
+func TestAgentSettingsToMapIncludesAuditWords(t *testing.T) {
+	got := agentSettingsToMap(&biz.CampusAgentSettings{
+		AuditHighRiskWords: "暗号甲,暗号乙",
+		AuditReviewWords:   "暗号丙",
+	})
+	if got["audit_high_risk_words"] != "暗号甲,暗号乙" {
+		t.Fatalf("audit_high_risk_words = %v", got["audit_high_risk_words"])
+	}
+	if got["audit_review_words"] != "暗号丙" {
+		t.Fatalf("audit_review_words = %v", got["audit_review_words"])
+	}
+}
+
+func TestOpsAlertSummaryToMapIncludesRecentAlerts(t *testing.T) {
+	now := time.Date(2026, 5, 30, 9, 30, 0, 0, time.UTC)
+	got := opsAlertSummaryToMap(&biz.CampusOpsAlertSummary{
+		PendingCount:   1,
+		FailedCount:    2,
+		SentTodayCount: 3,
+		LastError:      "missing_webhook",
+		RecentAlerts: []*biz.CampusOpsAlert{
+			{ID: 7, AlertType: biz.CampusOpsAlertTypeReportCreated, TargetType: "post", TargetID: 8, Status: biz.CampusOpsAlertStatusFailed, FeishuStatus: biz.CampusAgentFeishuStatusFailed, RetryCount: 2, CreatedAt: now},
+		},
+	})
+	if got["pending_count"] != int64(1) || got["failed_count"] != int64(2) {
+		t.Fatalf("counts = %#v", got)
+	}
+	recent := got["recent_alerts"].([]map[string]interface{})
+	if len(recent) != 1 || recent[0]["id"] != "7" || recent[0]["target_id"] != "8" {
+		t.Fatalf("recent = %#v", recent)
 	}
 }

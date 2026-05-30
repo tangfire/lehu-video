@@ -113,6 +113,7 @@ export const campusAdminApi = {
     createCopilotRun: (data) => request.post('/campus/admin/copilot/runs', data),
     getCopilotRun: (id) => request.get(`/campus/admin/copilot/runs/${id}`),
     sendCopilotRunFeishu: (id, data = {}) => request.post(`/campus/admin/copilot/runs/${id}/send-feishu`, data),
+    getCopilotOpsAlertsSummary: () => request.get('/campus/admin/copilot/ops-alerts/summary'),
     getAIUsageSummary: (params) => request.get('/campus/admin/ai-usage/summary', { params }),
     listAIUsageLogs: (params) => request.get('/campus/admin/ai-usage/logs', { params }),
     listPosts: (params) => request.get('/campus/admin/posts', { params }),

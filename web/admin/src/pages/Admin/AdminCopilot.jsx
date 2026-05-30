@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiActivity, FiArrowRight, FiCpu, FiRefreshCw, FiSearch, FiSend, FiShield, FiZap } from 'react-icons/fi';
+import { FiActivity, FiAlertCircle, FiArrowRight, FiBell, FiCpu, FiRefreshCw, FiSearch, FiSend, FiShield, FiZap } from 'react-icons/fi';
 import { campusAdminApi } from '../../api/admin';
 import { excerpt } from './adminUtils';
 import './Admin.css';
@@ -24,21 +24,42 @@ const feishuText = {
     skipped: '未发送',
 };
 
+const alertStatusText = {
+    pending: '待发送',
+    processing: '发送中',
+    sent: '已发送',
+    skipped: '已跳过',
+    failed: '失败',
+};
+
+const alertTypeText = {
+    report_created: '举报',
+    feedback_important: '反馈',
+    audit_review_required: '待审',
+    audit_high_risk: '高风险',
+    ai_budget_warning: '预算',
+};
+
 const AdminCopilot = () => {
     const [runType, setRunType] = useState('daily_ops');
     const [question, setQuestion] = useState('');
     const [runs, setRuns] = useState([]);
     const [current, setCurrent] = useState(null);
     const [feishu, setFeishu] = useState(null);
+    const [opsAlerts, setOpsAlerts] = useState(null);
     const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);
     const [error, setError] = useState('');
 
     const loadRuns = useCallback(async () => {
         try {
-            const data = await campusAdminApi.listCopilotRuns({ page: 1, size: 10 });
+            const [data, alertData] = await Promise.all([
+                campusAdminApi.listCopilotRuns({ page: 1, size: 10 }),
+                campusAdminApi.getCopilotOpsAlertsSummary(),
+            ]);
             setRuns(data.runs || []);
             setFeishu(data.feishu || null);
+            setOpsAlerts(alertData.summary || null);
             if (!current && (data.runs || []).length) setCurrent(data.runs[0]);
         } catch (err) {
             setError(err.message || '获取 Agent 记录失败');
@@ -86,6 +107,8 @@ const AdminCopilot = () => {
     const feishuReady = Boolean(feishu?.enabled && feishu?.webhook_configured);
     const sendDisabled = !current || current.status !== 'done' || sending || current.feishu_status === 'sent' || !feishuReady;
     const sendText = sending ? '发送中' : current?.feishu_status === 'sent' ? '已发送飞书' : !feishuReady ? '飞书未配置' : '发送到飞书';
+    const alertCounts = opsAlerts || {};
+    const hasAlertFailures = Number(alertCounts.failed_count || 0) > 0 || Boolean(alertCounts.last_error);
 
     return (
         <div className="admin-copilot-page">
@@ -110,6 +133,38 @@ const AdminCopilot = () => {
                 <span>反馈：{feishu?.feedback_notify_types || '未配置'}</span>
                 <span>审核：{feishu?.audit_callback_enabled ? `按钮确认 · ${feishu.audit_auto_pass_confidence || '0.85'}` : '回后台处理'}</span>
                 <span>Webhook：{feishu?.webhook_configured ? '已配置' : '未配置'}</span>
+            </section>
+
+            <section className={`admin-panel admin-ops-alert-panel ${hasAlertFailures ? 'has-failures' : ''}`}>
+                <div className="admin-panel-head">
+                    <div>
+                        <h2>飞书提醒队列</h2>
+                        <p>{alertCounts.last_sent_at ? `最近发送 ${alertCounts.last_sent_at}` : '暂无发送记录'}</p>
+                    </div>
+                    <button className="admin-button" type="button" onClick={loadRuns}><FiRefreshCw />刷新</button>
+                </div>
+                <div className="admin-ops-alert-stats">
+                    <AlertStat icon={<FiBell />} label="待发送" value={alertCounts.pending_count || 0} />
+                    <AlertStat icon={<FiRefreshCw />} label="发送中" value={alertCounts.processing_count || 0} />
+                    <AlertStat icon={<FiAlertCircle />} label="失败" value={alertCounts.failed_count || 0} danger={hasAlertFailures} />
+                    <AlertStat icon={<FiSend />} label="今日已发" value={alertCounts.sent_today_count || 0} />
+                </div>
+                {hasAlertFailures && (
+                    <div className="admin-ops-alert-error">
+                        <FiAlertCircle />
+                        <span>{alertCounts.last_failed_at ? `${alertCounts.last_failed_at} · ` : ''}{alertCounts.last_error || '有提醒发送失败'}</span>
+                    </div>
+                )}
+                <div className="admin-ops-alert-list">
+                    {(alertCounts.recent_alerts || []).map((item) => (
+                        <article className={`admin-ops-alert-row ${item.status === 'failed' || item.feishu_status === 'failed' ? 'failed' : ''}`} key={item.id}>
+                            <strong>{alertTypeText[item.alert_type] || item.alert_type} · {item.title || '值班提醒'}</strong>
+                            <span>{excerpt(item.summary || item.feishu_error || '', 96)}</span>
+                            <em>{alertStatusText[item.status] || item.status} · 重试 {item.retry_count || 0} · {item.created_at}</em>
+                        </article>
+                    ))}
+                    {!(alertCounts.recent_alerts || []).length && <div className="admin-empty compact">暂无提醒记录</div>}
+                </div>
             </section>
 
             <section className="admin-panel">
@@ -204,6 +259,14 @@ const AdminCopilot = () => {
         </div>
     );
 };
+
+const AlertStat = ({ icon, label, value, danger }) => (
+    <div className={`admin-ops-alert-stat ${danger ? 'danger' : ''}`}>
+        {icon}
+        <span>{label}</span>
+        <strong>{value}</strong>
+    </div>
+);
 
 const CopilotList = ({ title, items = [], kind }) => (
     <div className={`admin-copilot-list ${kind}`}>

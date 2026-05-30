@@ -8,6 +8,7 @@ from main import (
     TASK_TOOLS,
     AgentResult,
     ModerationAuditRequest,
+    build_agent_context,
     fallback_result,
     heuristic_moderation,
     normalize_moderation_result,
@@ -53,6 +54,27 @@ class CampusAgentTest(unittest.TestCase):
         self.assertEqual(result.decision, "review")
         self.assertEqual(result.risk_level, "high")
         self.assertIn("keyword:代考", result.evidence)
+
+    def test_heuristic_moderation_uses_request_words(self):
+        result = heuristic_moderation(ModerationAuditRequest(title="校园墙", content="这里有暗号甲", high_risk_words=["暗号甲"], review_words=["暗号乙"]))
+        self.assertEqual(result.risk_level, "high")
+        self.assertIn("keyword:暗号甲", result.evidence)
+
+    def test_build_agent_context_extracts_top_items(self):
+        context = build_agent_context([
+            {"tool": "reports", "ok": True, "data": {"reports": [
+                {"id": "1", "target_type": "post", "target_id": "9", "reason": "广告", "detail": "二维码引流", "reporter": {"id": "u1"}, "created_at": "now"},
+                {"id": "2", "target_type": "comment", "target_id": "8", "reason": "辱骂"},
+                {"id": "3", "target_type": "post", "target_id": "7", "reason": "挂人"},
+                {"id": "4", "target_type": "post", "target_id": "6", "reason": "多余"},
+            ]}},
+            {"tool": "feedback", "ok": True, "data": {"feedback": [
+                {"id": "5", "feedback_type": "bug", "content": "页面打不开", "contact": "wx", "images": ["a"], "created_at": "now"}
+            ]}},
+        ])
+        self.assertEqual(len(context["reports"]), 3)
+        self.assertEqual(context["reports"][0]["reporter_id"], "u1")
+        self.assertTrue(context["feedback"][0]["contact_present"])
 
     def test_normalize_moderation_result_clamps_invalid_model_output(self):
         result = normalize_moderation_result({

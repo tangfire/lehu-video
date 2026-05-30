@@ -51,6 +51,8 @@ const normalizeAgentSettings = (settings = {}) => ({
     ai_monthly_budget_cny: Number(settings.ai_monthly_budget_cny || 20),
     ai_daily_budget_cny: Number(settings.ai_daily_budget_cny || 2),
     ai_budget_warn_ratio: settings.ai_budget_warn_ratio || '0.7,0.9',
+    audit_high_risk_words: settings.audit_high_risk_words || '',
+    audit_review_words: settings.audit_review_words || '',
     today_ai_cost_cny: Number(settings.today_ai_cost_cny || 0),
     month_ai_cost_cny: Number(settings.month_ai_cost_cny || 0),
     budget_status: settings.budget_status || 'ok',
@@ -148,6 +150,8 @@ const AdminAuditSettings = () => {
                 ai_monthly_budget_cny: Number(agentDraft.ai_monthly_budget_cny || 0),
                 ai_daily_budget_cny: Number(agentDraft.ai_daily_budget_cny || 0),
                 ai_budget_warn_ratio: agentDraft.ai_budget_warn_ratio,
+                audit_high_risk_words: agentDraft.audit_high_risk_words,
+                audit_review_words: agentDraft.audit_review_words,
             });
             const next = normalizeAgentSettings(data.settings || {});
             setAgentSettings(next);
@@ -271,6 +275,35 @@ const AdminAuditSettings = () => {
                             </span>
                         </label>
                     ))}
+                </div>
+
+                <div className="admin-agent-keyword-panel">
+                    <div className="admin-agent-budget-head">
+                        <div>
+                            <strong>审核关键词</strong>
+                            <span>高风险保留待审，需复核进入 Agent/人工判断。</span>
+                        </div>
+                    </div>
+                    <div className="admin-agent-keyword-grid">
+                        <label>
+                            <span>高风险词</span>
+                            <textarea
+                                className="admin-textarea compact"
+                                value={agentDraft.audit_high_risk_words}
+                                onChange={(e) => updateAgentDraft('audit_high_risk_words', e.target.value)}
+                                placeholder="赌博,裸聊,诈骗,代考"
+                            />
+                        </label>
+                        <label>
+                            <span>需复核词</span>
+                            <textarea
+                                className="admin-textarea compact"
+                                value={agentDraft.audit_review_words}
+                                onChange={(e) => updateAgentDraft('audit_review_words', e.target.value)}
+                                placeholder="加微信,兼职,引战,二维码"
+                            />
+                        </label>
+                    </div>
                 </div>
 
                 <div className="admin-agent-budget-panel">

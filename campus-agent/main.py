@@ -21,6 +21,8 @@ MAX_TOOLS = int(os.getenv("CAMPUS_AGENT_MAX_TOOLS", "6"))
 INPUT_PRICE_USD_PER_M = float(os.getenv("CAMPUS_AI_PRICE_INPUT_USD_PER_M", "0.14"))
 OUTPUT_PRICE_USD_PER_M = float(os.getenv("CAMPUS_AI_PRICE_OUTPUT_USD_PER_M", "0.28"))
 USD_CNY_RATE = float(os.getenv("CAMPUS_AI_USD_CNY_RATE", "7.2"))
+DEFAULT_HIGH_RISK_WORDS = ["赌博", "裸聊", "诈骗", "代考", "代课", "身份证", "银行卡", "毒品", "买卖账号", "刷单", "套现"]
+DEFAULT_REVIEW_WORDS = ["加微信", "兼职", "引战", "辱骂", "曝光", "挂人", "联系方式", "私聊", "群号", "二维码"]
 
 app = FastAPI(title=LISTEN_TITLE, version="1.0.0")
 
@@ -42,6 +44,8 @@ class ModerationAuditRequest(BaseModel):
     media_type: str = ""
     image_count: int = 0
     model_allowed: bool = True
+    high_risk_words: List[str] = Field(default_factory=list)
+    review_words: List[str] = Field(default_factory=list)
 
 
 class ModelUsage(BaseModel):
@@ -237,6 +241,102 @@ def build_tool_trace(tool_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     return trace
 
 
+def text_excerpt(value: Any, limit: int = 120) -> str:
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "..."
+
+
+def list_by_tool(tool_results: List[Dict[str, Any]], name: str, key: str) -> List[Dict[str, Any]]:
+    data = data_by_tool(tool_results, name)
+    values = data.get(key) or []
+    return values if isinstance(values, list) else []
+
+
+def item_author_id(item: Dict[str, Any]) -> str:
+    author = item.get("author")
+    if isinstance(author, dict):
+        return str(author.get("id") or author.get("user_id") or "")
+    return str(item.get("author_id") or item.get("user_id") or "")
+
+
+def build_agent_context(tool_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    posts = []
+    for item in list_by_tool(tool_results, "moderation_posts", "posts")[:3]:
+        posts.append({
+            "id": item.get("id"),
+            "title": text_excerpt(item.get("title"), 80),
+            "content_excerpt": text_excerpt(item.get("content"), 160),
+            "author_id": item_author_id(item),
+            "created_at": item.get("created_at", ""),
+        })
+
+    comments = []
+    for item in list_by_tool(tool_results, "moderation_comments", "comments")[:3]:
+        comments.append({
+            "id": item.get("id"),
+            "post_id": item.get("post_id"),
+            "content_excerpt": text_excerpt(item.get("content"), 160),
+            "author_id": item_author_id(item),
+            "created_at": item.get("created_at", ""),
+        })
+
+    reports = []
+    for item in list_by_tool(tool_results, "reports", "reports")[:3]:
+        reporter = item.get("reporter") if isinstance(item.get("reporter"), dict) else {}
+        reports.append({
+            "id": item.get("id"),
+            "target_type": item.get("target_type"),
+            "target_id": item.get("target_id"),
+            "reason": text_excerpt(item.get("reason"), 80),
+            "detail_excerpt": text_excerpt(item.get("detail"), 140),
+            "reporter_id": str(reporter.get("id") or reporter.get("user_id") or ""),
+            "created_at": item.get("created_at", ""),
+        })
+
+    feedback = []
+    for item in list_by_tool(tool_results, "feedback", "feedback")[:3]:
+        images = item.get("images") if isinstance(item.get("images"), list) else []
+        feedback.append({
+            "id": item.get("id"),
+            "feedback_type": item.get("feedback_type"),
+            "content_excerpt": text_excerpt(item.get("content"), 160),
+            "contact_present": bool(str(item.get("contact") or "").strip()),
+            "image_count": len(images),
+            "created_at": item.get("created_at", ""),
+        })
+
+    failed_replies = []
+    for item in list_by_tool(tool_results, "ai_reply_failed", "tasks")[:3]:
+        failed_replies.append({
+            "id": item.get("id"),
+            "post_id": item.get("post_id"),
+            "prompt_excerpt": text_excerpt(item.get("prompt"), 140),
+            "error_message": text_excerpt(item.get("last_error") or item.get("error_message"), 160),
+            "retry_count": item.get("retry_count", 0),
+        })
+
+    rag_logs = []
+    for source in ("rag_bad_logs", "rag_low_confidence"):
+        for item in list_by_tool(tool_results, source, "logs")[:3]:
+            rag_logs.append({
+                "id": item.get("id"),
+                "question_excerpt": text_excerpt(item.get("query") or item.get("question"), 160),
+                "quality_label": item.get("quality_label", ""),
+                "confidence": item.get("confidence", 0),
+                "need_knowledge": bool(item.get("need_knowledge")),
+            })
+    return {
+        "pending_posts": posts,
+        "pending_comments": comments,
+        "reports": reports,
+        "feedback": feedback,
+        "failed_ai_replies": failed_replies,
+        "rag_issues": rag_logs[:6],
+    }
+
+
 def number(data: Dict[str, Any], key: str) -> int:
     try:
         return int(data.get(key) or 0)
@@ -266,16 +366,27 @@ def fallback_result(run_type: str, question: str, tool_results: List[Dict[str, A
     recommendations: List[Recommendation] = []
     evidence: List[Evidence] = []
     next_actions: List[NextAction] = []
+    operation_context = build_agent_context(tool_results)
 
     pending_total = number(summary_data, "pending_reports") + number(summary_data, "pending_feedback") + number(summary_data, "pending_posts") + number(summary_data, "pending_comments")
     if pending_total:
         findings.append(Finding(title="存在运营待办", detail=f"当前待处理内容约 {pending_total} 条", severity="medium"))
         recommendations.append(Recommendation(title="优先清理待审核和举报", detail="先处理举报，再处理待审核帖子和评论。", priority="high"))
         next_actions.append(NextAction(label="去反馈与举报", path="/admin/moderation"))
+    for item in operation_context.get("reports", [])[:2]:
+        findings.append(Finding(title=f"举报待处理：{item.get('target_type')} {item.get('target_id')}", detail=f"{item.get('reason') or '未填写原因'} {item.get('detail_excerpt') or ''}".strip(), severity="medium"))
+        evidence.append(Evidence(source="举报队列", detail=f"report_id={item.get('id')}"))
+    for item in operation_context.get("feedback", [])[:2]:
+        findings.append(Finding(title=f"重要反馈：{item.get('feedback_type')}", detail=item.get("content_excerpt") or "", severity="medium"))
+        evidence.append(Evidence(source="反馈队列", detail=f"feedback_id={item.get('id')}"))
+    for item in operation_context.get("pending_posts", [])[:2]:
+        evidence.append(Evidence(source="待审帖子", detail=f"post_id={item.get('id')} {item.get('title') or item.get('content_excerpt') or ''}"))
     if number(ai, "failed"):
         findings.append(Finding(title="e仔回复失败需要复盘", detail=f"失败任务 {number(ai, 'failed')} 条", severity="medium"))
         recommendations.append(Recommendation(title="查看失败回复原因", detail="优先处理模型/RAG 配置错误和高频问题。", priority="high"))
         next_actions.append(NextAction(label="去e仔回复状态", path="/admin/assistant?tab=failed"))
+    for item in operation_context.get("failed_ai_replies", [])[:2]:
+        evidence.append(Evidence(source="e仔失败任务", detail=f"task_id={item.get('id')} {item.get('error_message') or item.get('prompt_excerpt') or ''}"))
     if bad_logs or low_logs:
         findings.append(Finding(title="RAG 存在可优化问题", detail=f"质量异常 {len(bad_logs)} 条，低置信度 {len(low_logs)} 条", severity="medium"))
         recommendations.append(Recommendation(title="把错误问题沉淀进评测集", detail="补充对应校园资料后运行 RAG 评测。", priority="high"))
@@ -360,8 +471,10 @@ def call_model(run_type: str, question: str, tool_results: List[Dict[str, Any]])
             "你是校园 e站运营值班 Agent。巡检、RAG 缺口和治理建议只能基于工具结果给建议，"
             "不能声称已经执行删除、封禁、改配置等高风险动作。发帖审核由专用审核接口处理。"
             "请输出 JSON：summary,risk_level,findings,recommendations,evidence,next_actions。"
-            f"任务类型：{run_type}；运营关注点：{question or '无'}；工具结果："
+            f"任务类型：{run_type}；运营关注点：{question or '无'}；工具调用："
             + json.dumps(build_tool_trace(tool_results), ensure_ascii=False)
+            + "；业务摘要："
+            + json.dumps(build_agent_context(tool_results), ensure_ascii=False)
         ),
     }
     try:
@@ -406,12 +519,31 @@ def normalize_moderation_result(data: Dict[str, Any]) -> ModerationAuditResult:
     return ModerationAuditResult(decision=decision, confidence=confidence, risk_level=risk, reason=reason, evidence=evidence)
 
 
+def normalize_word_list(values: List[str], fallback: List[str]) -> List[str]:
+    raw = values or fallback
+    out = []
+    seen = set()
+    for item in raw:
+        word = str(item or "").strip()
+        if not word:
+            continue
+        word = word[:32]
+        key = word.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(word)
+        if len(out) >= 80:
+            break
+    return out or list(fallback)
+
+
 def rule_moderation(req: ModerationAuditRequest) -> ModerationAuditResult:
     text = f"{req.title}\n{req.content}".lower()
-    high_words = ["赌博", "裸聊", "诈骗", "代考", "代课", "身份证", "银行卡", "毒品", "买卖账号", "刷单", "套现"]
-    medium_words = ["加微信", "兼职", "引战", "辱骂", "曝光", "挂人", "联系方式", "私聊", "群号", "二维码"]
+    high_words = normalize_word_list(req.high_risk_words, DEFAULT_HIGH_RISK_WORDS)
+    medium_words = normalize_word_list(req.review_words, DEFAULT_REVIEW_WORDS)
     for word in high_words:
-        if word in text:
+        if word.lower() in text:
             return ModerationAuditResult(
                 decision="review",
                 confidence=0.72,
@@ -421,7 +553,7 @@ def rule_moderation(req: ModerationAuditRequest) -> ModerationAuditResult:
                 evidence=[f"keyword:{word}"],
             )
     for word in medium_words:
-        if word in text:
+        if word.lower() in text:
             return ModerationAuditResult(
                 decision="review",
                 confidence=0.68,

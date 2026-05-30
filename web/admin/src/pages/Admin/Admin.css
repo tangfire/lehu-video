@@ -536,7 +536,8 @@
     line-height: 1.35;
 }
 
-.admin-agent-budget-panel {
+.admin-agent-budget-panel,
+.admin-agent-keyword-panel {
     display: grid;
     gap: 10px;
     padding: 12px;
@@ -606,6 +607,23 @@
 }
 
 .admin-agent-budget-inputs span {
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.admin-agent-keyword-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.admin-agent-keyword-grid label {
+    display: grid;
+    gap: 6px;
+}
+
+.admin-agent-keyword-grid span {
     color: var(--admin-muted);
     font-size: 12px;
     font-weight: 850;
@@ -3063,6 +3081,116 @@
     background: #fff7e8;
 }
 
+.admin-ops-alert-panel {
+    display: grid;
+    gap: 12px;
+}
+
+.admin-ops-alert-panel.has-failures {
+    border-color: #fecaca;
+}
+
+.admin-ops-alert-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.admin-ops-alert-stat {
+    min-height: 72px;
+    display: grid;
+    gap: 4px;
+    align-content: center;
+    padding: 10px 12px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #fbfaf9;
+}
+
+.admin-ops-alert-stat svg {
+    color: var(--admin-muted);
+}
+
+.admin-ops-alert-stat span {
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-ops-alert-stat strong {
+    color: var(--admin-text);
+    font-size: 20px;
+}
+
+.admin-ops-alert-stat.danger {
+    border-color: #fecaca;
+    background: #fff5f5;
+}
+
+.admin-ops-alert-stat.danger svg,
+.admin-ops-alert-stat.danger strong {
+    color: var(--admin-danger);
+}
+
+.admin-ops-alert-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    background: #fff5f5;
+    color: #b91c1c;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-ops-alert-error span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.admin-ops-alert-list {
+    display: grid;
+    gap: 8px;
+}
+
+.admin-ops-alert-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.9fr) minmax(0, 1.4fr) minmax(180px, auto);
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.admin-ops-alert-row.failed {
+    border-color: #fecaca;
+    background: #fffafa;
+}
+
+.admin-ops-alert-row strong,
+.admin-ops-alert-row span,
+.admin-ops-alert-row em {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-ops-alert-row strong {
+    font-size: 13px;
+}
+
+.admin-ops-alert-row span,
+.admin-ops-alert-row em {
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-style: normal;
+}
+
 .admin-copilot-task-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3873,6 +4001,9 @@
     .admin-agent-switch-grid,
     .admin-agent-budget-bars,
     .admin-agent-budget-inputs,
+    .admin-agent-keyword-grid,
+    .admin-ops-alert-stats,
+    .admin-ops-alert-row,
     .admin-copilot-task-grid,
     .admin-copilot-grid,
     .admin-copilot-runbar {

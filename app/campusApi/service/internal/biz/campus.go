@@ -150,6 +150,8 @@ const (
 	campusOpsSettingAIMonthlyBudgetCNY   = "ai_monthly_budget_cny"
 	campusOpsSettingAIDailyBudgetCNY     = "ai_daily_budget_cny"
 	campusOpsSettingAIBudgetWarnRatio    = "ai_budget_warn_ratio"
+	campusOpsSettingAuditHighRiskWords   = "audit_high_risk_words"
+	campusOpsSettingAuditReviewWords     = "audit_review_words"
 	campusOpsSettingEzaiPersonaName      = "ezai_persona_name"
 	campusOpsSettingEzaiPersonaRole      = "ezai_persona_role"
 	campusOpsSettingEzaiPersonality      = "ezai_persona_personality"
@@ -160,6 +162,11 @@ const (
 	campusOpsSettingEzaiFallbackReply    = "ezai_persona_fallback_reply"
 	campusOpsSettingEzaiMaxReplyChars    = "ezai_persona_max_reply_chars"
 	campusOpsSettingEzaiPersonaPromptVer = "ezai_persona_prompt_version"
+)
+
+var (
+	defaultAuditHighRiskWords = []string{"赌博", "裸聊", "诈骗", "代考", "代课", "身份证", "银行卡", "毒品", "买卖账号", "刷单", "套现"}
+	defaultAuditReviewWords   = []string{"加微信", "兼职", "引战", "辱骂", "曝光", "挂人", "联系方式", "私聊", "群号", "二维码"}
 )
 
 type CampusIDGenerator interface {
@@ -500,6 +507,8 @@ type CampusAgentSettings struct {
 	AIMonthlyBudgetCNY         float64
 	AIDailyBudgetCNY           float64
 	AIBudgetWarnRatio          string
+	AuditHighRiskWords         string
+	AuditReviewWords           string
 	TodayAICostCNY             float64
 	MonthAICostCNY             float64
 	AIBudgetStatus             string
@@ -509,6 +518,17 @@ type CampusAgentSettings struct {
 	AgentModelConfigured       bool
 	UpdatedBy                  string
 	UpdatedAt                  time.Time
+}
+
+type CampusOpsAlertSummary struct {
+	PendingCount    int64
+	ProcessingCount int64
+	FailedCount     int64
+	SentTodayCount  int64
+	LastSentAt      *time.Time
+	LastFailedAt    *time.Time
+	LastError       string
+	RecentAlerts    []*CampusOpsAlert
 }
 
 type CampusAIContentAuditTask struct {
@@ -1096,6 +1116,10 @@ type GetCampusAgentSettingsInput struct {
 	UserID string
 }
 
+type GetCampusOpsAlertSummaryInput struct {
+	UserID string
+}
+
 type UpdateCampusAgentSettingsInput struct {
 	UserID                string
 	AgentEnabled          bool
@@ -1109,6 +1133,8 @@ type UpdateCampusAgentSettingsInput struct {
 	AIMonthlyBudgetCNY    float64
 	AIDailyBudgetCNY      float64
 	AIBudgetWarnRatio     string
+	AuditHighRiskWords    string
+	AuditReviewWords      string
 }
 
 type GetCampusEzaiPersonaInput struct {
@@ -1645,6 +1671,7 @@ type CampusRepo interface {
 	ClaimOpsAlerts(ctx context.Context, limit int, lockFor time.Duration) ([]*CampusOpsAlert, error)
 	MarkOpsAlertSent(ctx context.Context, id int64, feishuStatus, feishuError string, sentAt *time.Time) error
 	MarkOpsAlertRetry(ctx context.Context, id int64, retryCount int32, nextRetryAt *time.Time, lastError string, final bool) error
+	GetOpsAlertSummary(ctx context.Context, todayStart time.Time, recentLimit int) (*CampusOpsAlertSummary, error)
 	CreateOpsActionToken(ctx context.Context, item *CampusOpsActionToken) error
 	UseOpsActionToken(ctx context.Context, tokenHash string, now time.Time) (bool, *CampusOpsActionToken, error)
 	ListNotifications(ctx context.Context, userID, group string, offset, limit int) ([]*CampusNotification, int64, error)
@@ -2240,7 +2267,7 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 			status = CampusAuditStatusPending
 			auditReason = "等待人工审核"
 		case CampusPostAuditModeAI:
-			ruleResult = classifyCampusPostByRules(title, content)
+			ruleResult = uc.classifyCampusPostByRules(ctx, title, content)
 			if ruleResult.RiskLevel == "low" {
 				status = CampusAuditStatusVisible
 				auditReason = ""
@@ -3206,17 +3233,21 @@ type campusContentRuleResult struct {
 	Evidence  []string
 }
 
-func classifyCampusPostByRules(title, content string) campusContentRuleResult {
+func (uc *CampusUsecase) classifyCampusPostByRules(ctx context.Context, title, content string) campusContentRuleResult {
+	return classifyCampusPostByWords(title, content, uc.auditHighRiskWords(ctx), uc.auditReviewWords(ctx))
+}
+
+func classifyCampusPostByWords(title, content string, highWords, mediumWords []string) campusContentRuleResult {
 	text := strings.ToLower(title + "\n" + content)
-	highWords := []string{"赌博", "裸聊", "诈骗", "代考", "代课", "身份证", "银行卡", "毒品", "买卖账号", "刷单", "套现"}
-	mediumWords := []string{"加微信", "兼职", "引战", "辱骂", "曝光", "挂人", "联系方式", "私聊", "群号", "二维码"}
 	for _, word := range highWords {
-		if strings.Contains(text, word) {
+		word = strings.TrimSpace(word)
+		if word != "" && strings.Contains(text, strings.ToLower(word)) {
 			return campusContentRuleResult{RiskLevel: "high", Decision: CampusAIContentAuditDecisionReview, Reason: "疑似包含高风险词：" + word, Evidence: []string{"keyword:" + word}}
 		}
 	}
 	for _, word := range mediumWords {
-		if strings.Contains(text, word) {
+		word = strings.TrimSpace(word)
+		if word != "" && strings.Contains(text, strings.ToLower(word)) {
 			return campusContentRuleResult{RiskLevel: "medium", Decision: CampusAIContentAuditDecisionReview, Reason: "疑似需要人工确认：" + word, Evidence: []string{"keyword:" + word}}
 		}
 	}
@@ -3267,7 +3298,7 @@ func (uc *CampusUsecase) processAIContentAuditTask(ctx context.Context, task *Ca
 	if post.Status != CampusAuditStatusPending {
 		return uc.repo.MarkAIContentAuditTaskDone(ctx, task.ID, CampusAIContentAuditDecisionReview, "none", "内容已不处于待审核状态", "")
 	}
-	ruleResult := classifyCampusPostByRules(post.Title, post.Content)
+	ruleResult := uc.classifyCampusPostByRules(ctx, post.Title, post.Content)
 	if ruleResult.RiskLevel == "low" {
 		if err := uc.repo.UpdatePostStatus(ctx, post.ID, CampusAuditStatusVisible, ""); err != nil {
 			return err
@@ -3432,14 +3463,16 @@ func (uc *CampusUsecase) auditPostWithAI(ctx context.Context, post *CampusForumP
 		baseURL = "http://campus-agent:8091"
 	}
 	body, _ := json.Marshal(map[string]interface{}{
-		"post_id":       fmt.Sprintf("%d", post.ID),
-		"author_id":     post.AuthorID,
-		"title":         trimLimit(post.Title, 160),
-		"content":       trimLimit(post.Content, 2400),
-		"post_type":     post.PostType,
-		"media_type":    post.MediaType,
-		"image_count":   len(post.Images),
-		"model_allowed": true,
+		"post_id":         fmt.Sprintf("%d", post.ID),
+		"author_id":       post.AuthorID,
+		"title":           trimLimit(post.Title, 160),
+		"content":         trimLimit(post.Content, 2400),
+		"post_type":       post.PostType,
+		"media_type":      post.MediaType,
+		"image_count":     len(post.Images),
+		"model_allowed":   true,
+		"high_risk_words": uc.auditHighRiskWords(ctx),
+		"review_words":    uc.auditReviewWords(ctx),
 	})
 	req, err := http.NewRequestWithContext(taskCtx, http.MethodPost, baseURL+"/internal/moderation/audit", bytes.NewReader(body))
 	if err != nil {
@@ -4797,6 +4830,12 @@ func (uc *CampusUsecase) AdminUpdateAgentSettings(ctx context.Context, input *Up
 	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAIBudgetWarnRatio, warnRatio, input.UserID); err != nil {
 		return nil, apperror.Internal(err, "保存 AI 预算预警阈值失败")
 	}
+	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAuditHighRiskWords, formatAuditWords(normalizeAuditWords(input.AuditHighRiskWords, defaultAuditHighRiskWords)), input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存高风险关键词失败")
+	}
+	if err := uc.repo.SetOpsSetting(ctx, campusOpsSettingAuditReviewWords, formatAuditWords(normalizeAuditWords(input.AuditReviewWords, defaultAuditReviewWords)), input.UserID); err != nil {
+		return nil, apperror.Internal(err, "保存需复核关键词失败")
+	}
 	return uc.getCampusAgentSettings(ctx), nil
 }
 
@@ -4814,6 +4853,8 @@ func (uc *CampusUsecase) getCampusAgentSettings(ctx context.Context) *CampusAgen
 		AIMonthlyBudgetCNY:         uc.floatOpsSetting(ctx, campusOpsSettingAIMonthlyBudgetCNY, "CAMPUS_AI_MONTHLY_BUDGET_CNY", defaultAIMonthlyBudgetCNY()),
 		AIDailyBudgetCNY:           uc.floatOpsSetting(ctx, campusOpsSettingAIDailyBudgetCNY, "CAMPUS_AI_DAILY_BUDGET_CNY", defaultAIDailyBudgetCNY()),
 		AIBudgetWarnRatio:          uc.stringOpsSetting(ctx, campusOpsSettingAIBudgetWarnRatio, "CAMPUS_AI_BUDGET_WARN_RATIO", defaultAIBudgetWarnRatio()),
+		AuditHighRiskWords:         formatAuditWords(uc.auditHighRiskWords(ctx)),
+		AuditReviewWords:           formatAuditWords(uc.auditReviewWords(ctx)),
 		TodayAICostCNY:             todayCost,
 		MonthAICostCNY:             monthCost,
 		AIBudgetStatus:             budgetStatus,
@@ -4834,6 +4875,8 @@ func (uc *CampusUsecase) getCampusAgentSettings(ctx context.Context) *CampusAgen
 		campusOpsSettingAIMonthlyBudgetCNY,
 		campusOpsSettingAIDailyBudgetCNY,
 		campusOpsSettingAIBudgetWarnRatio,
+		campusOpsSettingAuditHighRiskWords,
+		campusOpsSettingAuditReviewWords,
 	}
 	for _, key := range keys {
 		ok, _, updatedBy, updatedAt, err := uc.repo.GetOpsSetting(ctx, key)
@@ -4949,6 +4992,71 @@ func defaultAIDailyBudgetCNY() float64 {
 
 func defaultAIBudgetWarnRatio() string {
 	return firstNonEmpty(os.Getenv("CAMPUS_AI_BUDGET_WARN_RATIO"), "0.7,0.9")
+}
+
+func normalizeAuditWords(value string, fallback []string) []string {
+	value = strings.TrimSpace(value)
+	raw := []string{}
+	if value != "" {
+		raw = strings.FieldsFunc(value, func(r rune) bool {
+			switch r {
+			case ',', '，', ';', '；', '、', '\n', '\r', '\t', ' ':
+				return true
+			default:
+				return false
+			}
+		})
+	}
+	if len(raw) == 0 {
+		raw = fallback
+	}
+	out := make([]string, 0, len(raw))
+	seen := map[string]bool{}
+	for _, item := range raw {
+		word := strings.TrimSpace(item)
+		if word == "" {
+			continue
+		}
+		runes := []rune(word)
+		if len(runes) > 32 {
+			word = string(runes[:32])
+		}
+		key := strings.ToLower(word)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, word)
+		if len(out) >= 80 {
+			break
+		}
+	}
+	if len(out) == 0 && len(fallback) > 0 {
+		return append([]string{}, fallback...)
+	}
+	return out
+}
+
+func formatAuditWords(words []string) string {
+	return strings.Join(normalizeAuditWords(strings.Join(words, ","), []string{}), ",")
+}
+
+func defaultAuditHighRiskWordsValue() string {
+	return strings.Join(defaultAuditHighRiskWords, ",")
+}
+
+func defaultAuditReviewWordsValue() string {
+	return strings.Join(defaultAuditReviewWords, ",")
+}
+
+func (uc *CampusUsecase) auditHighRiskWords(ctx context.Context) []string {
+	value := uc.stringOpsSetting(ctx, campusOpsSettingAuditHighRiskWords, "CAMPUS_AUDIT_HIGH_RISK_WORDS", defaultAuditHighRiskWordsValue())
+	return normalizeAuditWords(value, defaultAuditHighRiskWords)
+}
+
+func (uc *CampusUsecase) auditReviewWords(ctx context.Context) []string {
+	value := uc.stringOpsSetting(ctx, campusOpsSettingAuditReviewWords, "CAMPUS_AUDIT_REVIEW_WORDS", defaultAuditReviewWordsValue())
+	return normalizeAuditWords(value, defaultAuditReviewWords)
 }
 
 func normalizeAIBudgetWarnRatio(value string) string {
@@ -6484,6 +6592,21 @@ func (uc *CampusUsecase) AdminListAgentRuns(ctx context.Context, input *ListCamp
 		return nil, apperror.Internal(err, "获取 Agent 运行记录失败")
 	}
 	return &ListCampusAgentRunsOutput{Runs: runs, Total: total}, nil
+}
+
+func (uc *CampusUsecase) AdminGetOpsAlertSummary(ctx context.Context, input *GetCampusOpsAlertSummaryInput) (*CampusOpsAlertSummary, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	todayStart, _ := campusDayRange(campusLocalNow())
+	out, err := uc.repo.GetOpsAlertSummary(ctx, todayStart, 10)
+	if err != nil {
+		return nil, apperror.Internal(err, "获取飞书提醒队列失败")
+	}
+	if out == nil {
+		out = &CampusOpsAlertSummary{}
+	}
+	return out, nil
 }
 
 func (uc *CampusUsecase) AdminSendAgentRunFeishu(ctx context.Context, input *SendCampusAgentRunFeishuInput) (*CampusAgentRun, error) {

@@ -102,6 +102,7 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.POST("/v1/campus/admin/copilot/runs", s.wrap(s.authRequired(s.handleAdminCreateAgentRun)))
 	r.GET("/v1/campus/admin/copilot/runs/{id}", s.wrap(s.authRequired(s.handleAdminGetAgentRun)))
 	r.POST("/v1/campus/admin/copilot/runs/{id}/send-feishu", s.wrap(s.authRequired(s.handleAdminSendAgentRunFeishu)))
+	r.GET("/v1/campus/admin/copilot/ops-alerts/summary", s.wrap(s.authRequired(s.handleAdminOpsAlertSummary)))
 	r.GET("/v1/campus/admin/ai-usage/summary", s.wrap(s.authRequired(s.handleAdminAIUsageSummary)))
 	r.GET("/v1/campus/admin/ai-usage/logs", s.wrap(s.authRequired(s.handleAdminAIUsageLogs)))
 	r.GET("/v1/campus/admin/posts", s.wrap(s.authRequired(s.handleAdminListPosts)))
@@ -1448,6 +1449,16 @@ func (s *CampusService) handleAdminSendAgentRunFeishu(w http.ResponseWriter, r *
 	writeJSON(w, r, map[string]interface{}{"run": agentRunToMap(run)})
 }
 
+func (s *CampusService) handleAdminOpsAlertSummary(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	summary, err := s.uc.AdminGetOpsAlertSummary(r.Context(), &biz.GetCampusOpsAlertSummaryInput{UserID: userID})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"summary": opsAlertSummaryToMap(summary)})
+}
+
 func (s *CampusService) handleAdminAIUsageSummary(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	userID, _ := s.userIDFromRequest(r)
@@ -1745,6 +1756,8 @@ type agentSettingsRequest struct {
 	AIMonthlyBudgetCNY    float64 `json:"ai_monthly_budget_cny"`
 	AIDailyBudgetCNY      float64 `json:"ai_daily_budget_cny"`
 	AIBudgetWarnRatio     string  `json:"ai_budget_warn_ratio"`
+	AuditHighRiskWords    string  `json:"audit_high_risk_words"`
+	AuditReviewWords      string  `json:"audit_review_words"`
 }
 
 type ezaiPersonaRequest struct {
@@ -1824,6 +1837,8 @@ func (s *CampusService) handleAdminUpdateAgentSettings(w http.ResponseWriter, r 
 		AIMonthlyBudgetCNY:    req.AIMonthlyBudgetCNY,
 		AIDailyBudgetCNY:      req.AIDailyBudgetCNY,
 		AIBudgetWarnRatio:     req.AIBudgetWarnRatio,
+		AuditHighRiskWords:    req.AuditHighRiskWords,
+		AuditReviewWords:      req.AuditReviewWords,
 	})
 	if err != nil {
 		writeError(w, r, err)
@@ -3749,6 +3764,48 @@ func agentRunToMap(item *biz.CampusAgentRun) map[string]interface{} {
 	}
 }
 
+func opsAlertSummaryToMap(item *biz.CampusOpsAlertSummary) map[string]interface{} {
+	if item == nil {
+		item = &biz.CampusOpsAlertSummary{}
+	}
+	recent := make([]map[string]interface{}, 0, len(item.RecentAlerts))
+	for _, alert := range item.RecentAlerts {
+		recent = append(recent, opsAlertToMap(alert))
+	}
+	return map[string]interface{}{
+		"pending_count":    item.PendingCount,
+		"processing_count": item.ProcessingCount,
+		"failed_count":     item.FailedCount,
+		"sent_today_count": item.SentTodayCount,
+		"last_sent_at":     formatOptionalTime(item.LastSentAt),
+		"last_failed_at":   formatOptionalTime(item.LastFailedAt),
+		"last_error":       item.LastError,
+		"recent_alerts":    recent,
+	}
+}
+
+func opsAlertToMap(item *biz.CampusOpsAlert) map[string]interface{} {
+	if item == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id":            strconv.FormatInt(item.ID, 10),
+		"alert_type":    item.AlertType,
+		"priority":      item.Priority,
+		"title":         item.Title,
+		"summary":       item.Summary,
+		"target_type":   item.TargetType,
+		"target_id":     strconv.FormatInt(item.TargetID, 10),
+		"status":        item.Status,
+		"feishu_status": item.FeishuStatus,
+		"feishu_error":  item.FeishuError,
+		"retry_count":   item.RetryCount,
+		"next_retry_at": formatOptionalTime(item.NextRetryAt),
+		"sent_at":       formatOptionalTime(item.SentAt),
+		"created_at":    formatTime(item.CreatedAt),
+	}
+}
+
 func agentSettingsToMap(settings *biz.CampusAgentSettings) map[string]interface{} {
 	if settings == nil {
 		settings = &biz.CampusAgentSettings{}
@@ -3765,6 +3822,8 @@ func agentSettingsToMap(settings *biz.CampusAgentSettings) map[string]interface{
 		"ai_monthly_budget_cny":          settings.AIMonthlyBudgetCNY,
 		"ai_daily_budget_cny":            settings.AIDailyBudgetCNY,
 		"ai_budget_warn_ratio":           settings.AIBudgetWarnRatio,
+		"audit_high_risk_words":          settings.AuditHighRiskWords,
+		"audit_review_words":             settings.AuditReviewWords,
 		"today_ai_cost_cny":              settings.TodayAICostCNY,
 		"month_ai_cost_cny":              settings.MonthAICostCNY,
 		"budget_status":                  settings.AIBudgetStatus,

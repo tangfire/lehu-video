@@ -44,7 +44,7 @@ flowchart LR
 - `call_tools`：通过 LangChain tool 调用 `campus-api` 内部只读接口。
 - `generate_report`：优先调用模型生成结构化 JSON；模型不可用或 JSON 不合法时，返回规则 fallback 报告。
 
-这不是开放式“任意行动”的 Agent，而是受控运营 Agent。好处是可解释、可排障、权限边界清楚。
+这不是开放式“任意行动”的 Agent，而是受控运营 Agent。好处是可解释、可排障、权限边界清楚。Agent 报告会同时使用工具调用 trace 和结构化运营摘要，摘要只保留前几条关键对象，例如待审帖子、举报、重要反馈、e仔失败任务和 RAG 异常问题，避免模型只能输出泛泛建议。
 
 ## 任务类型
 
@@ -80,6 +80,8 @@ flowchart LR
 ## AI/Agent 发帖审核
 
 后台“审核设置”里的 `AI/Agent 初审` 开启后，新帖先走 `campus-api` 本地规则。明显低风险直接自动同步，不调用模型、不发飞书；中风险/不确定/高风险才进入 `campus_ai_audit_task`，由后台任务在预算允许时调用 `campus-agent`。
+
+审核关键词在 `/admin/audit` 的“审核关键词”面板配置，存入 `campus_ops_setting`。`audit_high_risk_words` 命中后保留待审并推高优先级提醒，不允许 Agent 自动洗白；`audit_review_words` 命中后进入 Agent/人工复核。`campus-api` 本地规则和 `campus-agent /internal/moderation/audit` 使用同一份词表，配置为空或读取失败时回退默认词表。
 
 策略：
 
@@ -123,7 +125,7 @@ flowchart LR
 | 重要反馈 | `contact/cooperation/bug/content` 类型即时提醒，普通 `suggestion` 进入日报 |
 | 审核确认 | Agent 拿不准的帖子推飞书卡片，可点通过/拒绝或回后台 |
 
-发送失败不会改写 Agent 的分析结果，只会更新运行记录里的飞书状态。后台列表会展示 `pending/sent/failed/skipped`。
+发送失败不会改写 Agent 的分析结果，只会更新运行记录里的飞书状态。后台列表会展示 `pending/sent/failed/skipped`。`/admin/copilot` 还会展示“飞书提醒队列”：待发送、发送中、失败、今日已发送、最近错误和最近提醒，用来确认飞书值班链路是否真的在工作；失败重试仍由后台任务退避处理，不在页面手动重发。
 
 `campus_agent_run` 记录这些字段：
 
