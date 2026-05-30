@@ -1761,6 +1761,24 @@ func (r *campusRepo) CreateReport(ctx context.Context, in *biz.CampusForumReport
 		Create(&row).Error
 }
 
+func (r *campusRepo) GetReportByID(ctx context.Context, reportID int64) (bool, *biz.CampusForumReport, error) {
+	var row campusForumReportModel
+	err := r.data.db.WithContext(ctx).Model(&campusForumReportModel{}).
+		Where("id = ?", reportID).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	report := toBizReport(&row)
+	if err := r.fillReports(ctx, []*biz.CampusForumReport{report}); err != nil {
+		return false, nil, err
+	}
+	return true, report, nil
+}
+
 func (r *campusRepo) ListReports(ctx context.Context, status int32, offset, limit int) ([]*biz.CampusForumReport, int64, error) {
 	db := r.data.db.WithContext(ctx).Model(&campusForumReportModel{})
 	if status >= 0 {
@@ -1782,6 +1800,26 @@ func (r *campusRepo) ListReports(ctx context.Context, status int32, offset, limi
 		return nil, 0, err
 	}
 	return reports, total, nil
+}
+
+func (r *campusRepo) ListReportsByTarget(ctx context.Context, targetType string, targetID int64, status int32) ([]*biz.CampusForumReport, error) {
+	db := r.data.db.WithContext(ctx).Model(&campusForumReportModel{}).
+		Where("target_type = ? AND target_id = ?", strings.TrimSpace(targetType), targetID)
+	if status >= 0 {
+		db = db.Where("status = ?", status)
+	}
+	var rows []campusForumReportModel
+	if err := db.Order("created_at ASC, id ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	reports := make([]*biz.CampusForumReport, 0, len(rows))
+	for i := range rows {
+		reports = append(reports, toBizReport(&rows[i]))
+	}
+	if err := r.fillReports(ctx, reports); err != nil {
+		return nil, err
+	}
+	return reports, nil
 }
 
 func (r *campusRepo) UpdateReportStatus(ctx context.Context, reportID int64, status int32) error {

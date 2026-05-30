@@ -92,6 +92,8 @@ func (s *CampusService) RegisterRoutes(srv *khttp.Server) {
 	r.GET("/v1/campus/admin/summary", s.wrap(s.authRequired(s.handleAdminSummary)))
 	r.GET("/v1/campus/admin/settings/audit", s.wrap(s.authRequired(s.handleAdminGetAuditSettings)))
 	r.PUT("/v1/campus/admin/settings/audit", s.wrap(s.authRequired(s.handleAdminUpdateAuditSettings)))
+	r.GET("/v1/campus/admin/settings/agent", s.wrap(s.authRequired(s.handleAdminGetAgentSettings)))
+	r.PUT("/v1/campus/admin/settings/agent", s.wrap(s.authRequired(s.handleAdminUpdateAgentSettings)))
 	r.GET("/v1/campus/admin/ezai/persona", s.wrap(s.authRequired(s.handleAdminGetEzaiPersona)))
 	r.PUT("/v1/campus/admin/ezai/persona", s.wrap(s.authRequired(s.handleAdminUpdateEzaiPersona)))
 	r.POST("/v1/campus/admin/ezai/persona/preview", s.wrap(s.authRequired(s.handleAdminPreviewEzaiPersona)))
@@ -1369,10 +1371,15 @@ func (s *CampusService) handleAdminListAgentRuns(w http.ResponseWriter, r *http.
 	for _, item := range out.Runs {
 		runs = append(runs, agentRunToMap(item))
 	}
+	agentSettings, err := s.uc.AdminGetAgentSettings(r.Context(), &biz.GetCampusAgentSettingsInput{UserID: userID})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
 	writeJSON(w, r, map[string]interface{}{
 		"runs":       runs,
 		"page_stats": map[string]interface{}{"total": out.Total},
-		"feishu":     agentFeishuSettingsToMap(),
+		"feishu":     agentSettingsToMap(agentSettings),
 	})
 }
 
@@ -1684,6 +1691,16 @@ type auditSettingsRequest struct {
 	PostAuditMode string `json:"post_audit_mode"`
 }
 
+type agentSettingsRequest struct {
+	AgentEnabled          bool `json:"agent_enabled"`
+	AgentAuditEnabled     bool `json:"agent_audit_enabled"`
+	FeishuOpsEnabled      bool `json:"feishu_ops_enabled"`
+	DailyReportEnabled    bool `json:"daily_report_enabled"`
+	HighRiskNotifyEnabled bool `json:"high_risk_notify_enabled"`
+	ReportNotifyEnabled   bool `json:"report_notify_enabled"`
+	FeedbackNotifyEnabled bool `json:"feedback_notify_enabled"`
+}
+
 type ezaiPersonaRequest struct {
 	Name             string `json:"name"`
 	Role             string `json:"role"`
@@ -1730,6 +1747,39 @@ func (s *CampusService) handleAdminUpdateAuditSettings(w http.ResponseWriter, r 
 		return
 	}
 	writeJSON(w, r, map[string]interface{}{"settings": auditSettingsToMap(settings)})
+}
+
+func (s *CampusService) handleAdminGetAgentSettings(w http.ResponseWriter, r *http.Request) {
+	userID, _ := s.userIDFromRequest(r)
+	settings, err := s.uc.AdminGetAgentSettings(r.Context(), &biz.GetCampusAgentSettingsInput{UserID: userID})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"settings": agentSettingsToMap(settings)})
+}
+
+func (s *CampusService) handleAdminUpdateAgentSettings(w http.ResponseWriter, r *http.Request) {
+	var req agentSettingsRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	userID, _ := s.userIDFromRequest(r)
+	settings, err := s.uc.AdminUpdateAgentSettings(r.Context(), &biz.UpdateCampusAgentSettingsInput{
+		UserID:                userID,
+		AgentEnabled:          req.AgentEnabled,
+		AgentAuditEnabled:     req.AgentAuditEnabled,
+		FeishuOpsEnabled:      req.FeishuOpsEnabled,
+		DailyReportEnabled:    req.DailyReportEnabled,
+		HighRiskNotifyEnabled: req.HighRiskNotifyEnabled,
+		ReportNotifyEnabled:   req.ReportNotifyEnabled,
+		FeedbackNotifyEnabled: req.FeedbackNotifyEnabled,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]interface{}{"settings": agentSettingsToMap(settings)})
 }
 
 func (s *CampusService) handleAdminGetEzaiPersona(w http.ResponseWriter, r *http.Request) {
@@ -3627,21 +3677,32 @@ func agentRunToMap(item *biz.CampusAgentRun) map[string]interface{} {
 	}
 }
 
-func agentFeishuSettingsToMap() map[string]interface{} {
-	feishuEnabled := !envBoolFalseService(os.Getenv("CAMPUS_AGENT_FEISHU_ENABLED"))
-	dailyEnabled := !envBoolFalseService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_ENABLED"))
-	highRiskEnabled := !envBoolFalseService(os.Getenv("CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED"))
+func agentSettingsToMap(settings *biz.CampusAgentSettings) map[string]interface{} {
+	if settings == nil {
+		settings = &biz.CampusAgentSettings{}
+	}
 	return map[string]interface{}{
-		"enabled":                    feishuEnabled,
-		"daily_enabled":              dailyEnabled,
-		"daily_time":                 firstNonEmptyService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_TIME"), "09:30"),
-		"high_risk_enabled":          highRiskEnabled,
-		"ops_events_enabled":         !envBoolFalseService(os.Getenv("CAMPUS_OPS_FEISHU_EVENTS_ENABLED")),
-		"report_notify_enabled":      !envBoolFalseService(os.Getenv("CAMPUS_OPS_FEISHU_REPORT_NOTIFY")),
-		"feedback_notify_types":      firstNonEmptyService(os.Getenv("CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES"), "contact,cooperation,bug,content"),
-		"audit_callback_enabled":     !envBoolFalseService(os.Getenv("LEHU_FEISHU_CARD_CALLBACK_ENABLED")),
-		"audit_auto_pass_confidence": firstNonEmptyService(os.Getenv("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE"), "0.85"),
-		"webhook_configured":         strings.TrimSpace(os.Getenv("LEHU_ALERT_FEISHU_WEBHOOK")) != "",
+		"agent_enabled":                  settings.AgentEnabled,
+		"agent_audit_enabled":            settings.AgentAuditEnabled,
+		"feishu_ops_enabled":             settings.FeishuOpsEnabled,
+		"daily_report_enabled":           settings.DailyReportEnabled,
+		"high_risk_notify_enabled":       settings.HighRiskNotifyEnabled,
+		"report_notify_enabled":          settings.ReportNotifyEnabled,
+		"feedback_notify_enabled":        settings.FeedbackNotifyEnabled,
+		"enabled":                        settings.FeishuOpsEnabled,
+		"daily_enabled":                  settings.DailyReportEnabled,
+		"daily_time":                     firstNonEmptyService(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_TIME"), "09:30"),
+		"high_risk_enabled":              settings.HighRiskNotifyEnabled,
+		"ops_events_enabled":             settings.FeishuOpsEnabled,
+		"feedback_notify_types":          firstNonEmptyService(os.Getenv("CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES"), "contact,cooperation,bug,content"),
+		"audit_callback_enabled":         !envBoolFalseService(os.Getenv("LEHU_FEISHU_CARD_CALLBACK_ENABLED")),
+		"audit_auto_pass_confidence":     firstNonEmptyService(os.Getenv("CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE"), "0.85"),
+		"webhook_configured":             settings.WebhookConfigured,
+		"public_api_base_url_configured": settings.PublicAPIBaseURLConfigured,
+		"agent_service_configured":       settings.AgentServiceConfigured,
+		"agent_model_configured":         settings.AgentModelConfigured,
+		"updated_by":                     settings.UpdatedBy,
+		"updated_at":                     formatTime(settings.UpdatedAt),
 	}
 }
 

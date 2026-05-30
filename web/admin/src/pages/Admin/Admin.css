@@ -442,6 +442,94 @@
     font-weight: 750;
 }
 
+.admin-agent-settings-panel {
+    gap: 12px;
+}
+
+.admin-agent-status-grid,
+.admin-agent-switch-grid {
+    display: grid;
+    gap: 8px;
+}
+
+.admin-agent-status-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-agent-status-chip {
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 10px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #fbfaf9;
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.admin-agent-status-chip.ok {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #15803d;
+}
+
+.admin-agent-status-chip.missing {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.admin-agent-switch-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-agent-switch {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.admin-agent-switch.on {
+    border-color: #c7d2fe;
+    background: #f8fafc;
+}
+
+.admin-agent-switch input {
+    width: 36px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--admin-primary);
+}
+
+.admin-agent-switch strong,
+.admin-agent-switch em {
+    display: block;
+}
+
+.admin-agent-switch strong {
+    color: var(--admin-text);
+    font-size: 14px;
+}
+
+.admin-agent-switch em {
+    margin-top: 2px;
+    color: var(--admin-muted);
+    font-size: 12px;
+    font-style: normal;
+    line-height: 1.35;
+}
+
 .admin-ezai-persona-page {
     display: grid;
     gap: 12px;
@@ -3688,6 +3776,8 @@
     .admin-toolbar.knowledge,
     .admin-knowledge-doc,
     .admin-form-grid.compact,
+    .admin-agent-status-grid,
+    .admin-agent-switch-grid,
     .admin-copilot-task-grid,
     .admin-copilot-grid,
     .admin-copilot-runbar {

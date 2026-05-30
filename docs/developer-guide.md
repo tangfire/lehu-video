@@ -218,12 +218,18 @@ ai      AI 初审，运营复核
 
 新库初始化默认是 `ai`。用户发帖后接口立即返回；公共首页只展示已通过帖子，作者本人可在详情和“我的帖子”看到同步中的内容。小程序应优先展示 `publish_state/client_status_label/client_status_detail`，不要直接展示后台审核原因。
 
+`/admin/audit` 还包含值班 Agent 开关。`Agent 模型能力` 会控制手动 Copilot、每日巡检和 AI 初审是否调用模型；`AI/Agent 初审` 关闭时，`post_audit_mode=ai` 会自动退化为人工待审；`飞书运营通知` 关闭时，举报、反馈、审核待确认、日报和高风险提醒都不再发飞书。环境变量只作为默认值，后台保存后以 `campus_ops_setting` 为准。
+
 相关接口：
 
 ```text
 GET /v1/campus/admin/settings/audit
 PUT /v1/campus/admin/settings/audit
+GET /v1/campus/admin/settings/agent
+PUT /v1/campus/admin/settings/agent
 ```
+
+举报闭环由 `campus-api` 统一发站内消息：用户提交举报后收到“举报已收到”，后台或飞书按钮处理后收到克制结果。指定用户系统消息必须带 `recipient_id`，只有后台群发通知才使用 `audience=all_users`。
 
 ### e仔与 RAG
 

@@ -115,6 +115,8 @@
 | `GET` | `/v1/campus/admin/summary` | 后台数据总览 |
 | `GET` | `/v1/campus/admin/settings/audit` | 获取审核设置 |
 | `PUT` | `/v1/campus/admin/settings/audit` | 保存审核设置 |
+| `GET` | `/v1/campus/admin/settings/agent` | 获取值班 Agent/飞书开关 |
+| `PUT` | `/v1/campus/admin/settings/agent` | 保存值班 Agent/飞书开关 |
 | `POST` | `/v1/campus/admin/stats/reconcile` | 统计重算 |
 
 ### 内容管理

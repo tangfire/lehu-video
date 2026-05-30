@@ -72,6 +72,7 @@ flowchart LR
 - 内部工具接口只接受 `X-Campus-Agent-Token`。
 - 巡检、RAG 缺口、治理建议的工具全部只读。
 - 发帖审核的写操作只由 `campus-api` 执行，`campus-agent` 不直接写库。
+- Agent/飞书值班开关存在 `campus_ops_setting`，环境变量只作为默认值；运营后台保存后以数据库配置为准，不需要重启容器。
 - 飞书按钮使用 `campus_ops_action_token` 一次性 token，默认 24 小时过期，token 绑定目标和动作。
 - 发帖审核支持飞书内“通过/拒绝”；帖子/评论举报支持飞书内“下架内容/忽略举报”；反馈仍只提醒并跳后台处理。
 - 高风险或低置信审核不自动拒绝，只保留待审核并提醒人工确认。
@@ -117,7 +118,7 @@ flowchart LR
 | 每日巡检 | `campus-api` 后台任务默认每天 `09:30 Asia/Shanghai` 创建一次 `daily_ops`，完成后发送飞书日报 |
 | 高风险提醒 | 手动运行完成后如果 `risk_level=high`，自动发送一条高风险提醒 |
 | 手动发送 | 运营在 `/admin/copilot` 对任意 `done` 状态运行记录点击“发送到飞书” |
-| 举报提醒 | 用户举报帖子/评论后写入 `campus_ops_alert`，后台任务 5 秒级扫描并推飞书，可在飞书内下架或忽略 |
+| 举报提醒 | 用户举报帖子/评论后写入 `campus_ops_alert`，后台任务 5 秒级扫描并推飞书，可在飞书内下架或忽略；举报人会收到站内确认和处理结果 |
 | 重要反馈 | `contact/cooperation/bug/content` 类型即时提醒，普通 `suggestion` 进入日报 |
 | 审核确认 | Agent 拿不准的帖子推飞书卡片，可点通过/拒绝或回后台 |
 
@@ -154,13 +155,16 @@ CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
 CAMPUS_AI_MODEL=deepseek-chat
 
 # 值班 Agent 飞书通知
+CAMPUS_AGENT_ENABLED=true
 CAMPUS_AGENT_FEISHU_ENABLED=true
 CAMPUS_AGENT_DAILY_REPORT_ENABLED=true
 CAMPUS_AGENT_DAILY_REPORT_TIME=09:30
 CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED=true
 CAMPUS_OPS_FEISHU_EVENTS_ENABLED=true
 CAMPUS_OPS_FEISHU_REPORT_NOTIFY=true
+CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY=true
 CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES=contact,cooperation,bug,content
+CAMPUS_AGENT_AUDIT_ENABLED=true
 CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE=0.85
 CAMPUS_AI_AUDIT_BATCH_SIZE=2
 CAMPUS_AI_AUDIT_TASK_TIMEOUT=10s
@@ -178,6 +182,13 @@ LEHU_FEISHU_CARD_VERIFY_TOKEN=
 
 本地如果没有配置 `LEHU_ALERT_FEISHU_WEBHOOK`，`alert-webhook` 会返回 `missing_webhook`，Agent 运行会标记为 `skipped`，不会影响后台使用。
 
+上线后建议在运营后台 `/admin/audit` 里确认这些开关：
+
+- `Agent 模型能力`：关闭后手动 Copilot、日报和 AI 初审都不再调用模型。
+- `AI/Agent 初审`：关闭后即使审核模式选 `ai`，新帖也会退化为人工待审。
+- `飞书运营通知`：关闭后举报、反馈、审核待确认、日报和高风险提醒都不再发飞书。
+- `举报提醒`、`重要反馈提醒`、`每日报告`、`高风险提醒`：用于控制具体通知噪音。
+
 ## 排障
 
 | 现象 | 优先看 |
@@ -185,7 +196,8 @@ LEHU_FEISHU_CARD_VERIFY_TOKEN=
 | 后台运行 Agent 失败 | `campus-api` 日志、`campus-agent` 健康状态、`CAMPUS_AGENT_INTERNAL_TOKEN` |
 | 工具调用失败 | 运行详情里的 `tool_trace`，以及 `campus-api` 内部工具接口日志 |
 | 飞书未收到日报 | `CAMPUS_AGENT_DAILY_REPORT_ENABLED`、`CAMPUS_AGENT_DAILY_REPORT_TIME`、`alert-webhook` 日志 |
-| 举报/反馈没提醒 | `CAMPUS_OPS_FEISHU_EVENTS_ENABLED`、`campus_ops_alert` 状态、`alert-webhook` 日志 |
+| 举报/反馈没提醒 | `/admin/audit` 的值班 Agent 开关、`campus_ops_alert` 状态、`alert-webhook` 日志 |
+| 举报人没收到结果 | `campus_notification_outbox`、通知任务日志、举报状态是否已处理 |
 | 飞书按钮不能处理审核 | `LEHU_PUBLIC_API_BASE_URL` 是否公网 HTTPS、`campus_ops_action_token` 是否过期 |
 | 飞书显示未配置 | `api` 和 `alert-webhook` 容器里的 `LEHU_ALERT_FEISHU_WEBHOOK` 是否都已配置 |
 | 飞书链接打不开 | `LEHU_ADMIN_ROOT_URL` 是否是可访问的运营后台 HTTPS 地址 |

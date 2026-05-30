@@ -138,6 +138,13 @@ const (
 	CampusKnowledgeContentTypeText = "text"
 
 	campusOpsSettingPostAuditMode        = "post_audit_mode"
+	campusOpsSettingAgentEnabled         = "agent_enabled"
+	campusOpsSettingAgentAuditEnabled    = "agent_audit_enabled"
+	campusOpsSettingFeishuOpsEnabled     = "feishu_ops_enabled"
+	campusOpsSettingDailyReportEnabled   = "daily_report_enabled"
+	campusOpsSettingHighRiskNotify       = "high_risk_notify_enabled"
+	campusOpsSettingReportNotify         = "report_notify_enabled"
+	campusOpsSettingFeedbackNotify       = "feedback_notify_enabled"
 	campusOpsSettingEzaiPersonaName      = "ezai_persona_name"
 	campusOpsSettingEzaiPersonaRole      = "ezai_persona_role"
 	campusOpsSettingEzaiPersonality      = "ezai_persona_personality"
@@ -474,6 +481,22 @@ type CampusOpsAuditSettings struct {
 	AIEnabled     bool
 	UpdatedBy     string
 	UpdatedAt     time.Time
+}
+
+type CampusAgentSettings struct {
+	AgentEnabled               bool
+	AgentAuditEnabled          bool
+	FeishuOpsEnabled           bool
+	DailyReportEnabled         bool
+	HighRiskNotifyEnabled      bool
+	ReportNotifyEnabled        bool
+	FeedbackNotifyEnabled      bool
+	WebhookConfigured          bool
+	PublicAPIBaseURLConfigured bool
+	AgentServiceConfigured     bool
+	AgentModelConfigured       bool
+	UpdatedBy                  string
+	UpdatedAt                  time.Time
 }
 
 type CampusAIContentAuditTask struct {
@@ -1007,6 +1030,21 @@ type UpdateCampusAuditSettingsInput struct {
 	PostAuditMode string
 }
 
+type GetCampusAgentSettingsInput struct {
+	UserID string
+}
+
+type UpdateCampusAgentSettingsInput struct {
+	UserID                string
+	AgentEnabled          bool
+	AgentAuditEnabled     bool
+	FeishuOpsEnabled      bool
+	DailyReportEnabled    bool
+	HighRiskNotifyEnabled bool
+	ReportNotifyEnabled   bool
+	FeedbackNotifyEnabled bool
+}
+
 type GetCampusEzaiPersonaInput struct {
 	UserID string
 }
@@ -1450,7 +1488,9 @@ type CampusRepo interface {
 	AddPostCollectionWithOutbox(ctx context.Context, id int64, userID string, postID int64, outbox *CampusNotificationOutbox) error
 	RemovePostCollection(ctx context.Context, userID string, postID int64) error
 	CreateReport(ctx context.Context, report *CampusForumReport) error
+	GetReportByID(ctx context.Context, reportID int64) (bool, *CampusForumReport, error)
 	ListReports(ctx context.Context, status int32, offset, limit int) ([]*CampusForumReport, int64, error)
+	ListReportsByTarget(ctx context.Context, targetType string, targetID int64, status int32) ([]*CampusForumReport, error)
 	UpdateReportStatus(ctx context.Context, reportID int64, status int32) error
 	UpdateReportsStatusByTarget(ctx context.Context, targetType string, targetID int64, status int32) error
 	CreateFeedback(ctx context.Context, feedback *CampusFeedback) error
@@ -2074,16 +2114,17 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 			return nil, err
 		}
 		auditSettings = settings
+		agentAuditReady := uc.agentAuditEnabled(ctx)
 		switch settings.PostAuditMode {
 		case CampusPostAuditModeManual:
 			status = CampusAuditStatusPending
 			auditReason = "等待人工审核"
 		case CampusPostAuditModeAI:
 			status = CampusAuditStatusPending
-			if uc.aiAuditConfig.Enabled {
-				auditReason = "等待 AI 审核"
+			if agentAuditReady {
+				auditReason = "等待 AI/Agent 初审"
 			} else {
-				auditReason = "AI 审核未启用，等待人工复核"
+				auditReason = "Agent 初审未启用，等待人工复核"
 			}
 		}
 	}
@@ -2110,9 +2151,14 @@ func (uc *CampusUsecase) CreatePost(ctx context.Context, input *CreateCampusPost
 		return nil, apperror.Internal(err, "发布帖子失败")
 	}
 	if !isOperator && status == CampusAuditStatusPending {
-		if auditSettings != nil && auditSettings.PostAuditMode == CampusPostAuditModeAI && uc.aiAuditConfig.Enabled {
+		if auditSettings != nil && auditSettings.PostAuditMode == CampusPostAuditModeAI && uc.agentAuditEnabled(ctx) {
 			if err := uc.enqueuePostAIContentAudit(ctx, post); err != nil {
 				uc.log.WithContext(ctx).Warnf("queue campus post ai audit failed: post_id=%d err=%v", post.ID, err)
+			}
+		} else {
+			reason := firstNonEmpty(auditReason, "新帖需要人工确认")
+			if err := uc.enqueueAuditOpsAlert(ctx, post, CampusAIContentAuditDecisionReview, "medium", reason, []string{"manual_review"}); err != nil {
+				uc.log.WithContext(ctx).Warnf("queue campus manual audit alert failed: post_id=%d err=%v", post.ID, err)
 			}
 		}
 	}
@@ -2889,7 +2935,7 @@ func (uc *CampusUsecase) ProcessPendingNotificationOutbox(ctx context.Context, l
 }
 
 func (uc *CampusUsecase) processNotificationOutboxItem(ctx context.Context, item *CampusNotificationOutbox) error {
-	if item.EventType == CampusNotificationTypeSystem {
+	if item.EventType == CampusNotificationTypeSystem && strings.TrimSpace(item.Audience) == "all_users" {
 		return uc.deliverSystemNotificationOutbox(ctx, item)
 	}
 	return uc.deliverInteractionNotificationOutbox(ctx, item)
@@ -3016,7 +3062,7 @@ func (uc *CampusUsecase) enqueuePostAIContentAudit(ctx context.Context, post *Ca
 }
 
 func (uc *CampusUsecase) ProcessPendingAIContentAuditTasks(ctx context.Context, limit int) error {
-	if !uc.aiAuditConfig.Enabled {
+	if !uc.agentAuditEnabled(ctx) {
 		return nil
 	}
 	if limit <= 0 {
@@ -3248,8 +3294,62 @@ func (uc *CampusUsecase) notifyPostAuditResult(ctx context.Context, post *Campus
 	}
 }
 
+func (uc *CampusUsecase) queueUserSystemNotification(ctx context.Context, recipientID, targetType string, targetID int64, title, content, linkPage string, linkParams map[string]string, dedupeKey string) {
+	recipientID = strings.TrimSpace(recipientID)
+	if recipientID == "" || recipientID == "0" {
+		return
+	}
+	if dedupeKey == "" {
+		dedupeKey = fmt.Sprintf("campus:system:%s:%d:%s:%s", firstNonEmpty(targetType, "system"), targetID, recipientID, title)
+	}
+	outbox := &CampusNotificationOutbox{
+		ID:          uc.idGen.NextID(),
+		RecipientID: recipientID,
+		ActorID:     "0",
+		EventType:   CampusNotificationTypeSystem,
+		TargetType:  firstNonEmpty(targetType, "system"),
+		TargetID:    targetID,
+		DedupeKey:   trimLimit(dedupeKey, 160),
+		Title:       trimLimit(title, 80),
+		Content:     trimLimit(content, 500),
+		LinkPage:    trimLimit(firstNonEmpty(linkPage, "community"), 64),
+		LinkParams:  sanitizeTrackExtra(linkParams),
+		Status:      CampusNotificationOutboxStatusPending,
+	}
+	if err := uc.repo.CreateNotificationOutbox(ctx, outbox); err != nil {
+		uc.log.WithContext(ctx).Warnf("queue user system notification failed: recipient_id=%s target_type=%s target_id=%d err=%v", recipientID, outbox.TargetType, outbox.TargetID, err)
+	}
+}
+
+func (uc *CampusUsecase) notifyReportReceived(ctx context.Context, targetType string, targetID int64, reporterID string) {
+	uc.queueUserSystemNotification(ctx, reporterID, "report", targetID,
+		"举报已收到",
+		"感谢反馈，我们会尽快查看。",
+		"community",
+		map[string]string{},
+		fmt.Sprintf("campus:report-received:%s:%d:%s", normalizeCampusTargetType(targetType), targetID, strings.TrimSpace(reporterID)),
+	)
+}
+
+func (uc *CampusUsecase) notifyReportResult(ctx context.Context, report *CampusForumReport, status int32) {
+	if report == nil || strings.TrimSpace(report.ReporterID) == "" {
+		return
+	}
+	content := "感谢反馈，暂未发现明显违规，已记录。"
+	if status == CampusAuditStatusVisible {
+		content = "感谢反馈，相关内容已处理。"
+	}
+	uc.queueUserSystemNotification(ctx, report.ReporterID, "report", report.ID,
+		"举报处理结果",
+		content,
+		"community",
+		map[string]string{},
+		fmt.Sprintf("campus:report-result:%s:%d:%s:%d", normalizeCampusTargetType(report.TargetType), report.TargetID, strings.TrimSpace(report.ReporterID), status),
+	)
+}
+
 func (uc *CampusUsecase) enqueueOpsAlert(ctx context.Context, alertType, priority, targetType string, targetID int64, dedupeKey, title, summary string, payload map[string]interface{}) error {
-	if !opsFeishuEventsEnabled() || targetID <= 0 {
+	if !uc.feishuOpsEnabled(ctx) || targetID <= 0 {
 		return nil
 	}
 	alertType = strings.TrimSpace(alertType)
@@ -3279,7 +3379,7 @@ func (uc *CampusUsecase) enqueueOpsAlert(ctx context.Context, alertType, priorit
 }
 
 func (uc *CampusUsecase) enqueueReportOpsAlert(ctx context.Context, report *CampusForumReport) {
-	if report == nil || !opsFeishuReportNotifyEnabled() {
+	if report == nil || !uc.reportNotifyEnabled(ctx) {
 		return
 	}
 	targetType := normalizeCampusTargetType(report.TargetType)
@@ -3329,7 +3429,7 @@ func (uc *CampusUsecase) enqueueReportOpsAlert(ctx context.Context, report *Camp
 }
 
 func (uc *CampusUsecase) enqueueFeedbackOpsAlert(ctx context.Context, feedback *CampusFeedback) {
-	if feedback == nil || !opsFeishuFeedbackTypeEnabled(feedback.FeedbackType) {
+	if feedback == nil || !uc.feedbackNotifyEnabled(ctx) || !opsFeishuFeedbackTypeEnabled(feedback.FeedbackType) {
 		return
 	}
 	summary := fmt.Sprintf("%s 类型反馈：%s", feedback.FeedbackType, trimLimit(feedback.Content, 120))
@@ -3352,10 +3452,16 @@ func (uc *CampusUsecase) enqueueAuditOpsAlert(ctx context.Context, post *CampusF
 	if post == nil || post.ID <= 0 {
 		return nil
 	}
+	if !uc.feishuOpsEnabled(ctx) {
+		return nil
+	}
 	riskLevel = normalizeAIContentAuditRiskLevel(riskLevel)
 	priority := CampusOpsAlertPriorityHigh
 	alertType := CampusOpsAlertTypeAuditReviewRequired
 	if riskLevel == "high" || decision == CampusAIContentAuditDecisionReject {
+		if !uc.highRiskNotifyEnabled(ctx) {
+			return nil
+		}
 		priority = CampusOpsAlertPriorityCritical
 		alertType = CampusOpsAlertTypeAuditHighRisk
 	}
@@ -3421,7 +3527,7 @@ func (uc *CampusUsecase) createOpsActionToken(ctx context.Context, action, targe
 }
 
 func (uc *CampusUsecase) ProcessPendingOpsAlerts(ctx context.Context, limit int) error {
-	if !opsFeishuEventsEnabled() {
+	if !uc.feishuOpsEnabled(ctx) {
 		return nil
 	}
 	if limit <= 0 {
@@ -3450,7 +3556,7 @@ func (uc *CampusUsecase) processOpsAlert(ctx context.Context, alert *CampusOpsAl
 	if alert == nil || alert.ID <= 0 {
 		return nil
 	}
-	if !agentFeishuEnabled() {
+	if !uc.feishuOpsEnabled(ctx) {
 		return uc.repo.MarkOpsAlertSent(ctx, alert.ID, CampusAgentFeishuStatusSkipped, "feishu disabled", nil)
 	}
 	payload := uc.opsAlertFeishuPayload(alert)
@@ -3656,9 +3762,18 @@ func (uc *CampusUsecase) HandleFeishuCardAction(ctx context.Context, input *Hand
 }
 
 func (uc *CampusUsecase) markReportsHandledByTarget(ctx context.Context, targetType string, targetID int64, status int32) error {
+	reports, err := uc.repo.ListReportsByTarget(ctx, targetType, targetID, CampusAuditStatusPending)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("list reports before mark handled failed: target_type=%s target_id=%d err=%v", targetType, targetID, err)
+	}
 	if err := uc.repo.UpdateReportsStatusByTarget(ctx, targetType, targetID, status); err != nil {
 		uc.log.WithContext(ctx).Warnf("mark reports handled failed: target_type=%s target_id=%d status=%d err=%v", targetType, targetID, status, err)
 		return err
+	}
+	for _, report := range reports {
+		if report != nil {
+			uc.notifyReportResult(ctx, report, status)
+		}
 	}
 	return nil
 }
@@ -4166,6 +4281,7 @@ func (uc *CampusUsecase) ReportContent(ctx context.Context, input *ReportCampusC
 	}); err != nil {
 		return apperror.Internal(err, "提交举报失败")
 	}
+	uc.notifyReportReceived(ctx, targetType, input.TargetID, input.UserID)
 	uc.enqueueReportOpsAlert(ctx, &CampusForumReport{
 		ID:         stableReportAlertID(targetType, input.TargetID, input.UserID),
 		TargetType: targetType,
@@ -4339,10 +4455,126 @@ func (uc *CampusUsecase) getCampusAuditSettings(ctx context.Context) (*CampusOps
 	}
 	return &CampusOpsAuditSettings{
 		PostAuditMode: mode,
-		AIEnabled:     uc.aiAuditConfig.Enabled,
+		AIEnabled:     uc.agentAuditEnabled(ctx),
 		UpdatedBy:     updatedBy,
 		UpdatedAt:     updatedAt,
 	}, nil
+}
+
+func (uc *CampusUsecase) AdminGetAgentSettings(ctx context.Context, input *GetCampusAgentSettingsInput) (*CampusAgentSettings, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	return uc.getCampusAgentSettings(ctx), nil
+}
+
+func (uc *CampusUsecase) AdminUpdateAgentSettings(ctx context.Context, input *UpdateCampusAgentSettingsInput) (*CampusAgentSettings, error) {
+	if !uc.isCampusOperator(ctx, input.UserID) {
+		return nil, apperror.Forbidden("没有后台权限")
+	}
+	updates := []struct {
+		key   string
+		value bool
+	}{
+		{campusOpsSettingAgentEnabled, input.AgentEnabled},
+		{campusOpsSettingAgentAuditEnabled, input.AgentAuditEnabled},
+		{campusOpsSettingFeishuOpsEnabled, input.FeishuOpsEnabled},
+		{campusOpsSettingDailyReportEnabled, input.DailyReportEnabled},
+		{campusOpsSettingHighRiskNotify, input.HighRiskNotifyEnabled},
+		{campusOpsSettingReportNotify, input.ReportNotifyEnabled},
+		{campusOpsSettingFeedbackNotify, input.FeedbackNotifyEnabled},
+	}
+	for _, item := range updates {
+		if err := uc.repo.SetOpsSetting(ctx, item.key, boolOpsSettingValue(item.value), input.UserID); err != nil {
+			return nil, apperror.Internal(err, "保存 Agent 设置失败")
+		}
+	}
+	return uc.getCampusAgentSettings(ctx), nil
+}
+
+func (uc *CampusUsecase) getCampusAgentSettings(ctx context.Context) *CampusAgentSettings {
+	settings := &CampusAgentSettings{
+		AgentEnabled:               uc.boolOpsSetting(ctx, campusOpsSettingAgentEnabled, "CAMPUS_AGENT_ENABLED", true),
+		AgentAuditEnabled:          uc.boolOpsSetting(ctx, campusOpsSettingAgentAuditEnabled, "CAMPUS_AGENT_AUDIT_ENABLED", uc.aiAuditConfig.Enabled),
+		FeishuOpsEnabled:           uc.feishuOpsEnabled(ctx),
+		DailyReportEnabled:         uc.boolOpsSetting(ctx, campusOpsSettingDailyReportEnabled, "CAMPUS_AGENT_DAILY_REPORT_ENABLED", true),
+		HighRiskNotifyEnabled:      uc.boolOpsSetting(ctx, campusOpsSettingHighRiskNotify, "CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED", true),
+		ReportNotifyEnabled:        uc.boolOpsSetting(ctx, campusOpsSettingReportNotify, "CAMPUS_OPS_FEISHU_REPORT_NOTIFY", true),
+		FeedbackNotifyEnabled:      uc.boolOpsSetting(ctx, campusOpsSettingFeedbackNotify, "CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY", true),
+		WebhookConfigured:          strings.TrimSpace(os.Getenv("LEHU_ALERT_FEISHU_WEBHOOK")) != "",
+		PublicAPIBaseURLConfigured: strings.TrimSpace(os.Getenv("LEHU_PUBLIC_API_BASE_URL")) != "",
+		AgentServiceConfigured:     strings.TrimSpace(firstNonEmpty(os.Getenv("CAMPUS_AGENT_SERVICE_URL"), "http://campus-agent:8091")) != "",
+		AgentModelConfigured:       campusAgentModelConfigured(),
+	}
+	keys := []string{
+		campusOpsSettingAgentEnabled,
+		campusOpsSettingAgentAuditEnabled,
+		campusOpsSettingFeishuOpsEnabled,
+		campusOpsSettingDailyReportEnabled,
+		campusOpsSettingHighRiskNotify,
+		campusOpsSettingReportNotify,
+		campusOpsSettingFeedbackNotify,
+	}
+	for _, key := range keys {
+		ok, _, updatedBy, updatedAt, err := uc.repo.GetOpsSetting(ctx, key)
+		if err != nil {
+			uc.log.WithContext(ctx).Warnf("read campus agent setting metadata failed: key=%s err=%v", key, err)
+			continue
+		}
+		if ok && updatedAt.After(settings.UpdatedAt) {
+			settings.UpdatedBy = updatedBy
+			settings.UpdatedAt = updatedAt
+		}
+	}
+	return settings
+}
+
+func (uc *CampusUsecase) agentEnabled(ctx context.Context) bool {
+	return uc.boolOpsSetting(ctx, campusOpsSettingAgentEnabled, "CAMPUS_AGENT_ENABLED", true)
+}
+
+func (uc *CampusUsecase) agentAuditEnabled(ctx context.Context) bool {
+	return uc.agentEnabled(ctx) && uc.boolOpsSetting(ctx, campusOpsSettingAgentAuditEnabled, "CAMPUS_AGENT_AUDIT_ENABLED", uc.aiAuditConfig.Enabled)
+}
+
+func (uc *CampusUsecase) feishuOpsEnabled(ctx context.Context) bool {
+	fallback := !envBoolFalse(os.Getenv("CAMPUS_AGENT_FEISHU_ENABLED")) && !envBoolFalse(os.Getenv("CAMPUS_OPS_FEISHU_EVENTS_ENABLED"))
+	return uc.boolOpsSetting(ctx, campusOpsSettingFeishuOpsEnabled, "", fallback)
+}
+
+func (uc *CampusUsecase) dailyReportEnabled(ctx context.Context) bool {
+	return uc.feishuOpsEnabled(ctx) && uc.boolOpsSetting(ctx, campusOpsSettingDailyReportEnabled, "CAMPUS_AGENT_DAILY_REPORT_ENABLED", true)
+}
+
+func (uc *CampusUsecase) highRiskNotifyEnabled(ctx context.Context) bool {
+	return uc.feishuOpsEnabled(ctx) && uc.boolOpsSetting(ctx, campusOpsSettingHighRiskNotify, "CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED", true)
+}
+
+func (uc *CampusUsecase) reportNotifyEnabled(ctx context.Context) bool {
+	return uc.feishuOpsEnabled(ctx) && uc.boolOpsSetting(ctx, campusOpsSettingReportNotify, "CAMPUS_OPS_FEISHU_REPORT_NOTIFY", true)
+}
+
+func (uc *CampusUsecase) feedbackNotifyEnabled(ctx context.Context) bool {
+	return uc.feishuOpsEnabled(ctx) && uc.boolOpsSetting(ctx, campusOpsSettingFeedbackNotify, "CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY", true)
+}
+
+func (uc *CampusUsecase) boolOpsSetting(ctx context.Context, key, envName string, fallback bool) bool {
+	ok, value, _, _, err := uc.repo.GetOpsSetting(ctx, key)
+	if err != nil {
+		uc.log.WithContext(ctx).Warnf("read campus bool setting failed: key=%s err=%v", key, err)
+		return envBoolDefault(os.Getenv(envName), fallback)
+	}
+	if !ok {
+		return envBoolDefault(os.Getenv(envName), fallback)
+	}
+	return parseBoolSetting(value, fallback)
+}
+
+func boolOpsSettingValue(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
 }
 
 func (uc *CampusUsecase) AdminGetEzaiPersona(ctx context.Context, input *GetCampusEzaiPersonaInput) (*CampusEzaiPersonaConfig, error) {
@@ -5478,10 +5710,17 @@ func (uc *CampusUsecase) AdminCreateAgentRun(ctx context.Context, input *CreateC
 	if !uc.isCampusOperator(ctx, input.UserID) {
 		return nil, apperror.Forbidden("没有后台权限")
 	}
+	if !uc.agentEnabled(ctx) {
+		return nil, apperror.Forbidden("值班 Agent 已关闭")
+	}
 	return uc.createAgentRun(ctx, input)
 }
 
 func (uc *CampusUsecase) CreateScheduledAgentRun(ctx context.Context, runType, question string) (*CampusAgentRun, error) {
+	if !uc.agentEnabled(ctx) || !uc.dailyReportEnabled(ctx) {
+		uc.log.WithContext(ctx).Info("scheduled campus agent run skipped: agent or daily report disabled")
+		return nil, nil
+	}
 	return uc.createAgentRun(ctx, &CreateCampusAgentRunInput{
 		UserID:   scheduledAgentOperatorID(),
 		RunType:  runType,
@@ -5531,9 +5770,9 @@ func (uc *CampusUsecase) createAgentRun(ctx context.Context, input *CreateCampus
 	if err := uc.repo.UpdateAgentRun(ctx, run); err != nil {
 		return nil, apperror.Internal(err, "保存 Agent 结果失败")
 	}
-	if run.Source == CampusAgentRunSourceScheduled && agentDailyReportEnabled() {
+	if run.Source == CampusAgentRunSourceScheduled && uc.dailyReportEnabled(ctx) {
 		_ = uc.sendAgentRunToFeishu(ctx, run, "校园 e站运营日报", "daily_report")
-	} else if strings.EqualFold(run.RiskLevel, "high") && agentHighRiskNotifyEnabled() {
+	} else if strings.EqualFold(run.RiskLevel, "high") && uc.highRiskNotifyEnabled(ctx) {
 		_ = uc.sendAgentRunToFeishu(ctx, run, "校园 e站高风险运营提醒", "high_risk")
 	}
 	return run, nil
@@ -5643,7 +5882,7 @@ func (uc *CampusUsecase) sendAgentRunToFeishu(ctx context.Context, run *CampusAg
 	if run == nil || run.ID <= 0 {
 		return nil
 	}
-	if !agentFeishuEnabled() {
+	if !uc.feishuOpsEnabled(ctx) {
 		run.FeishuStatus = CampusAgentFeishuStatusSkipped
 		run.FeishuError = "feishu disabled"
 		_ = uc.repo.UpdateAgentRunFeishu(ctx, run.ID, run.FeishuStatus, nil, run.FeishuError)
@@ -5747,24 +5986,37 @@ func scheduledAgentOperatorID() string {
 	return "1"
 }
 
-func agentFeishuEnabled() bool {
-	return !envBoolFalse(os.Getenv("CAMPUS_AGENT_FEISHU_ENABLED"))
+func envBoolDefault(value string, fallback bool) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return !envBoolFalse(value)
 }
 
-func agentDailyReportEnabled() bool {
-	return !envBoolFalse(os.Getenv("CAMPUS_AGENT_DAILY_REPORT_ENABLED"))
+func parseBoolSetting(value string, fallback bool) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on", "enabled":
+		return true
+	case "0", "false", "no", "off", "disabled":
+		return false
+	default:
+		return fallback
+	}
 }
 
-func agentHighRiskNotifyEnabled() bool {
-	return !envBoolFalse(os.Getenv("CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED"))
-}
-
-func opsFeishuEventsEnabled() bool {
-	return !envBoolFalse(os.Getenv("CAMPUS_OPS_FEISHU_EVENTS_ENABLED"))
-}
-
-func opsFeishuReportNotifyEnabled() bool {
-	return !envBoolFalse(os.Getenv("CAMPUS_OPS_FEISHU_REPORT_NOTIFY"))
+func campusAgentModelConfigured() bool {
+	for _, key := range []string{
+		"CAMPUS_AGENT_API_KEY",
+		"CAMPUS_AI_API_KEY",
+		"DEEPSEEK_API_KEY",
+		"OPENAI_API_KEY",
+	} {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func opsFeishuFeedbackTypeEnabled(feedbackType string) bool {
@@ -6040,6 +6292,13 @@ func (uc *CampusUsecase) AdminReviewReport(ctx context.Context, input *ReviewCam
 	if input.ReportID <= 0 {
 		return apperror.InvalidArgument("举报 ID 无效")
 	}
+	ok, report, err := uc.repo.GetReportByID(ctx, input.ReportID)
+	if err != nil {
+		return apperror.Internal(err, "查询举报失败")
+	}
+	if !ok || report == nil {
+		return apperror.NotFound("举报不存在")
+	}
 	status := int32(1)
 	switch strings.TrimSpace(strings.ToLower(input.Action)) {
 	case "resolve", "handled", "approve", "pass":
@@ -6052,6 +6311,7 @@ func (uc *CampusUsecase) AdminReviewReport(ctx context.Context, input *ReviewCam
 	if err := uc.repo.UpdateReportStatus(ctx, input.ReportID, status); err != nil {
 		return apperror.Internal(err, "处理举报失败")
 	}
+	uc.notifyReportResult(ctx, report, status)
 	_ = uc.repo.CreateAuditLog(ctx, &CampusAuditLog{
 		ID:         uc.idGen.NextID(),
 		TargetType: "report",

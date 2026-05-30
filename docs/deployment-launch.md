@@ -152,12 +152,14 @@ CAMPUS_API_INTERNAL_BASE_URL=http://api:8080/v1
 CAMPUS_AGENT_API_KEY=
 CAMPUS_AGENT_BASE_URL=
 CAMPUS_AGENT_MODEL=
+CAMPUS_AGENT_ENABLED=true
 CAMPUS_AGENT_FEISHU_ENABLED=true
 CAMPUS_AGENT_DAILY_REPORT_ENABLED=true
 CAMPUS_AGENT_DAILY_REPORT_TIME=09:30
 CAMPUS_AGENT_HIGH_RISK_NOTIFY_ENABLED=true
 CAMPUS_OPS_FEISHU_EVENTS_ENABLED=true
 CAMPUS_OPS_FEISHU_REPORT_NOTIFY=true
+CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY=true
 CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES=contact,cooperation,bug,content
 CAMPUS_AGENT_AUDIT_ENABLED=true
 CAMPUS_AGENT_AUDIT_AUTO_PASS_CONFIDENCE=0.85
@@ -168,7 +170,9 @@ CAMPUS_AGENT_RUN_STALE_AFTER=10m
 CAMPUS_AGENT_MAX_CONCURRENT_RUNS=1
 ```
 
-`campus-agent` 承担两类能力：巡检类任务只读，只生成每日巡检、RAG 缺口和治理建议；发帖审核通过 `/internal/moderation/audit` 返回结构化判断。低风险高置信帖子自动同步到首页且不打扰作者，不确定或高风险内容保留待处理并推飞书确认。生产默认每天 `09:30 Asia/Shanghai` 自动跑一次 `daily_ops` 并发飞书日报；举报和重要反馈会进入 5 秒级飞书提醒队列。生产 compose 会把 `campus-agent` 限制在约 `384m / 0.5 CPU`，AI 审核 worker 默认每轮 2 条，避免挤占 API 主链路。
+`campus-agent` 承担两类能力：巡检类任务只读，只生成每日巡检、RAG 缺口和治理建议；发帖审核通过 `/internal/moderation/audit` 返回结构化判断。低风险高置信帖子自动同步到首页且不打扰作者，不确定或高风险内容保留待处理并推飞书确认。生产默认每天 `09:30 Asia/Shanghai` 自动跑一次 `daily_ops` 并发飞书日报；举报和重要反馈会进入 5 秒级飞书提醒队列，举报人会收到站内“已收到”和“处理结果”消息。生产 compose 会把 `campus-agent` 限制在约 `384m / 0.5 CPU`，AI 审核 worker 默认每轮 2 条，避免挤占 API 主链路。
+
+这些环境变量是新库默认值；运营后台 `/admin/audit` 的“值班 Agent 开关”保存后会写入 `campus_ops_setting`，之后以数据库设置为准，不需要重启容器。若后续模型成本过高，可以在后台关闭 `Agent 模型能力` 或只关闭 `AI/Agent 初审`，飞书举报/反馈提醒仍可单独保留。
 
 飞书告警和 Agent 运营通知：
 

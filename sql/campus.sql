@@ -393,6 +393,16 @@ VALUES ('post_audit_mode', 'ai', 0)
 ON DUPLICATE KEY UPDATE `setting_key` = `setting_key`;
 
 INSERT INTO `campus_ops_setting` (`setting_key`, `setting_value`, `updated_by`) VALUES
+('agent_enabled', 'true', 0),
+('agent_audit_enabled', 'true', 0),
+('feishu_ops_enabled', 'true', 0),
+('daily_report_enabled', 'true', 0),
+('high_risk_notify_enabled', 'true', 0),
+('report_notify_enabled', 'true', 0),
+('feedback_notify_enabled', 'true', 0)
+ON DUPLICATE KEY UPDATE `setting_key` = `setting_key`;
+
+INSERT INTO `campus_ops_setting` (`setting_key`, `setting_value`, `updated_by`) VALUES
 ('ezai_persona_name', '深汕e仔', 0),
 ('ezai_persona_role', '深汕校园e站的官方内容小伙伴，不代表学校官方', 0),
 ('ezai_persona_personality', '靠谱、温和、行动派，像熟悉校园的学长学姐', 0),
