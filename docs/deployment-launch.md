@@ -2,6 +2,8 @@
 
 这份文档写给真正要把校园 e站放到服务器上的人。它不解释代码细节，重点是上线前要配什么、怎么启动、怎么验收、出问题先看哪里。
 
+上线当天逐项勾选用 `docs/launch-readiness-checklist.md`；这份文档偏部署说明，那份文档偏 Go/No-Go 验收。
+
 ## 部署形态
 
 生产默认使用两个 Compose 文件叠加：
@@ -27,6 +29,32 @@ docker compose up -d --build
 运营人员 -> HTTPS 反代 -> 127.0.0.1:15173 运营后台
 管理员 -> HTTPS 反代 -> 127.0.0.1:13002 Grafana
 ```
+
+为什么必须反代：
+
+- 微信小程序正式环境要求 HTTPS 合法域名，不能直接请求 `http://IP:端口`。
+- Docker 服务只绑定 `127.0.0.1`，公网不能直接访问内部端口。
+- HTTPS 证书由 Caddy/Nginx 统一申请和续期，后端服务不处理证书。
+- 后台和 Grafana 不裸露端口，后续可以加访问控制。
+- 以后做蓝绿发布时，只需要改反代 upstream，用户访问域名不变。
+
+推荐 Caddy 示例：
+
+```caddyfile
+api.example.com {
+    reverse_proxy 127.0.0.1:18080
+}
+
+admin.example.com {
+    reverse_proxy 127.0.0.1:15173
+}
+
+grafana.example.com {
+    reverse_proxy 127.0.0.1:13002
+}
+```
+
+实际部署时把 `example.com` 换成真实域名，并先把域名 DNS A 记录指向服务器公网 IP。Grafana 域名建议只给自己使用，至少配强密码；如果条件允许，再加 IP 白名单或 Basic Auth。
 
 ## 上线前准备
 

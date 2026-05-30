@@ -74,7 +74,7 @@ flowchart LR
 - 监控采用 Grafana + Loki + Prometheus + Alloy，尽量在浏览器内完成查日志、看健康和收告警。
 - 运行中数据库不自动 drop 历史表；新库初始化以 `sql/campus.sql` 为准。
 
-第一次接手项目建议先读 [docs/README.md](docs/README.md) 和 [docs/product-feature-design.md](docs/product-feature-design.md)，先理解功能边界，再读 [docs/developer-guide.md](docs/developer-guide.md)。更细的服务拓扑见 [docs/architecture.md](docs/architecture.md)，发布策略见 [docs/release-strategy.md](docs/release-strategy.md)，微服务边界与简历表达见 [docs/microservices.md](docs/microservices.md) 和 [docs/resume-highlights.md](docs/resume-highlights.md)。
+第一次接手项目建议先读 [docs/README.md](docs/README.md) 和 [docs/product-feature-design.md](docs/product-feature-design.md)，先理解功能边界，再读 [docs/developer-guide.md](docs/developer-guide.md)。更细的服务拓扑见 [docs/architecture.md](docs/architecture.md)，上线清单见 [docs/launch-readiness-checklist.md](docs/launch-readiness-checklist.md)，发布策略见 [docs/release-strategy.md](docs/release-strategy.md)，微服务边界与简历表达见 [docs/microservices.md](docs/microservices.md) 和 [docs/resume-highlights.md](docs/resume-highlights.md)。
 
 ## 本地 Docker 启动
 
