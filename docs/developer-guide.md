@@ -13,6 +13,7 @@
 - Go 后端按职责拆分为 `campus-api`、`base`、`campus-user`，其中 `campus-api` 是 API 网关和业务编排层。
 - `campus-api` 通过 gRPC + Consul 调用 `base` 和 `campus-user`。
 - Python `campus-rag` 只负责知识库解析、embedding 和向量检索。
+- Python `campus-agent` 是运营值班 Agent，负责巡检、治理建议、RAG 缺口分析和发帖初审判断。
 - 公开图片生产走 COS + CDN，不走服务器本机带宽。
 - Grafana 是统一排障入口：Loki 查日志，Prometheus 看健康和告警。
 
@@ -30,12 +31,13 @@
 10. `docs/admin-operations.md`：运营后台页面和日常工作流。
 11. `docs/ai-rag.md`：专门理解 e仔 AI、本地知识库和 RAG 检索。
 12. `docs/observability-alerting.md`：专门理解 Grafana、Loki、Alloy、Prometheus 和飞书告警。
-13. `docs/wechat-submission.md`：小程序提审、隐私和社区规范。
-14. `docker-compose.yml` / `docker-compose.prod.yml`：理解本地与生产差异。
-15. `app/campusApi/service/internal/service/campusservice.go`：看 HTTP 路由总入口。
-16. `app/campusApi/service/internal/biz/campus.go`：看校园业务主用例。
-17. `sql/campus.sql`：看新库表结构。
-18. `web/admin/src/App.jsx`：看运营后台页面入口。
+13. `docs/agent-copilot.md`：理解运营值班 Agent、飞书主动提醒和 AI 成本保护。
+14. `docs/wechat-submission.md`：小程序提审、隐私和社区规范。
+15. `docker-compose.yml` / `docker-compose.prod.yml`：理解本地与生产差异。
+16. `app/campusApi/service/internal/service/campusservice.go`：看 HTTP 路由总入口。
+17. `app/campusApi/service/internal/biz/campus.go`：看校园业务主用例。
+18. `sql/campus.sql`：看新库表结构。
+19. `web/admin/src/App.jsx`：看运营后台页面入口。
 
 ## 目录怎么读
 
@@ -81,6 +83,8 @@ flowchart LR
     API --> MySQL[(MySQL)]
     API --> Redis[(Redis)]
     API -->|HTTP 内网| Rag[campus-rag]
+    API -->|HTTP 内网| Agent[campus-agent]
+    Agent -->|内部只读工具| API
     Rag --> Qdrant[(Qdrant)]
     Base --> MinIO[(MinIO local)]
     Base --> COS[COS]
@@ -91,6 +95,7 @@ flowchart LR
     Health[health-exporter] --> Prometheus[(Prometheus)]
     Grafana -->|query metrics| Prometheus
     Grafana --> Alert[alert-webhook]
+    API -->|Agent 运营通知| Alert
     Alert --> Feishu[Feishu bot]
 ```
 
@@ -102,9 +107,10 @@ flowchart LR
 | `base` | 账号、验证码、文件预签名上传、MinIO/COS provider | `app/base/service/internal/biz/file.go`、`data/cos.go` |
 | `campus-user` | 用户资料、资料查询、搜索、统计、在线时间 | `app/campusUser/service/internal/*` |
 | `campus-rag` | 文档解析、切片、embedding、Qdrant 检索 | `campus-rag/main.py` |
+| `campus-agent` | LangGraph 运营值班 Agent、巡检、治理建议、发帖初审判断 | `campus-agent/main.py` |
 | `admin-web` | 运营后台 | `web/admin/src/pages/Admin/*` |
 | `health-exporter` | 探测各组件健康状态，暴露给 Prometheus | `deploy/observability/health-exporter/*` |
-| `alert-webhook` | Grafana webhook 转飞书群机器人消息 | `deploy/observability/alert-webhook/*` |
+| `alert-webhook` | Grafana 告警和值班 Agent 运营通知转飞书群机器人消息 | `deploy/observability/alert-webhook/*` |
 
 ## 核心业务模块
 
@@ -220,6 +226,8 @@ ai      AI 初审，运营复核
 
 `/admin/audit` 还包含值班 Agent 开关。`Agent 模型能力` 会控制手动 Copilot、每日巡检和 AI 初审是否调用模型；`AI/Agent 初审` 关闭时，`post_audit_mode=ai` 会自动退化为人工待审；`飞书运营通知` 关闭时，举报、反馈、审核待确认、日报和高风险提醒都不再发飞书。环境变量只作为默认值，后台保存后以 `campus_ops_setting` 为准。
 
+审核链路做了成本保护：本地规则判断为低风险时不调模型、不发飞书，直接公开；只有中风险、不确定或高风险内容才进入 Agent。模型预算超限或 Agent 不可用时，低风险照常公开，其他内容保持作者可见、公共不可见，并推飞书或进入后台人工处理。
+
 相关接口：
 
 ```text
@@ -227,9 +235,18 @@ GET /v1/campus/admin/settings/audit
 PUT /v1/campus/admin/settings/audit
 GET /v1/campus/admin/settings/agent
 PUT /v1/campus/admin/settings/agent
+GET /v1/campus/admin/ai-usage/summary
+GET /v1/campus/admin/ai-usage/logs
 ```
 
 举报闭环由 `campus-api` 统一发站内消息：用户提交举报后收到“举报已收到”，后台或飞书按钮处理后收到克制结果。指定用户系统消息必须带 `recipient_id`，只有后台群发通知才使用 `audience=all_users`。
+
+飞书提醒默认行为：
+
+- 举报帖子/评论：默认即时推飞书。
+- `contact/cooperation/bug/content` 反馈：默认即时推飞书。
+- 普通 `suggestion`：默认不即时推，进入后台和日报。
+- 审核不确定/高风险、AI 预算预警：默认推飞书。
 
 ### e仔与 RAG
 
@@ -304,7 +321,7 @@ lehu_campus_db
 | 社区 | `campus_forum_category`、`campus_forum_post`、`campus_forum_comment`、点赞收藏举报表 |
 | 反馈通知 | `campus_feedback`、`campus_notification`、`campus_notification_outbox` |
 | e仔/RAG | `campus_ai_reply_task`、`campus_knowledge_document`、`campus_knowledge_chunk`、`campus_rag_query_log`、`campus_rag_eval_case` |
-| 审核与安全 | `campus_ops_setting`、`campus_ai_audit_task`、`campus_ai_usage_log`、`campus_access_log`、`campus_ip_block`、`campus_audit_log` |
+| 审核与安全 | `campus_ops_setting`、`campus_ai_audit_task`、`campus_ai_usage_log`、`campus_ops_alert`、`campus_ops_action_token`、`campus_access_log`、`campus_ip_block`、`campus_audit_log` |
 | 埋点 | `campus_event` |
 
 运行中的老库不要自动 drop 历史表。需要清理时，先备份、确认、再人工执行。
@@ -322,6 +339,7 @@ lehu_campus_db
 /admin/moments          朋友圈素材
 /admin/moderation       反馈与举报
 /admin/audit            审核设置
+/admin/copilot          运营值班 Agent
 /admin/assistant        e仔助手
 /admin/notifications    系统通知
 /admin/security         安全中心
@@ -379,7 +397,7 @@ Grafana Alerting -> alert-webhook -> 飞书群机器人
 1. 用户报错时复制 `request_id`。
 2. Grafana 的“校园 e站日志搜索”按 `request_id` 查日志。
 3. 如果接口返回 500，继续按接口路径、服务名、`trace_id` 查。
-4. Grafana 的“校园 e站健康监控”看哪个组件 down。
+4. Grafana 的“校园 e站健康监控”看哪个组件 down，包括 API、RAG、Agent、飞书桥接和核心依赖。
 5. 飞书告警只处理 P0/P1，避免上线初期噪音太多。
 
 常用本地命令：

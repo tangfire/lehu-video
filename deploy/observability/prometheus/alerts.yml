@@ -11,7 +11,7 @@ groups:
           description: "{{ $labels.target }} 已连续 2 分钟健康检查失败。"
 
       - alert: CampusDependencyTargetDown
-        expr: campus_probe_success{name=~"base_health|campus_user_health|campus_rag_health|minio_health|qdrant_tcp|consul_tcp"} == 0
+        expr: campus_probe_success{name=~"base_health|campus_user_health|campus_rag_health|campus_agent_health|alert_webhook_health|minio_health|qdrant_tcp|consul_tcp"} == 0
         for: 3m
         labels:
           severity: warning

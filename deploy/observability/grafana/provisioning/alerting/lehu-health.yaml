@@ -131,7 +131,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: 1 - campus_probe_success{name=~"base_health|campus_user_health|campus_rag_health|minio_health|qdrant_tcp|consul_tcp"}
+              expr: 1 - campus_probe_success{name=~"base_health|campus_user_health|campus_rag_health|campus_agent_health|alert_webhook_health|minio_health|qdrant_tcp|consul_tcp"}
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200

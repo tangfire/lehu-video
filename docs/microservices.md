@@ -43,7 +43,7 @@ campus-estation.user.service
 - `base` 把账号和文件能力独立出来，文件上传、COS/CDN、MinIO 本地开发都集中在一个基础服务里。
 - `campus-user` 把用户资料从社区业务里抽出来，便于用户主页、搜索、统计和后续多校区身份扩展。
 - `campus-rag` 使用 Python、embedding、Qdrant 和模型接口，技术栈天然不同，独立容器最合理。
-- `campus-agent` 使用 Python、LangGraph 和 LangChain tool，独立成 Agent 服务能清晰表达工具调用、人机确认和只读权限边界。
+- `campus-agent` 使用 Python、LangGraph 和 LangChain tool，独立成 Agent 服务能清晰表达工具调用、人机确认和只读权限边界；它不直连 MySQL/Redis，读数据走 `campus-api` 内部工具接口，写动作回到 `campus-api` 校验执行。
 - 观测链路可以按容器和服务名查日志、看健康、发告警，适合项目上线和简历表达。
 
 ## 暂不继续拆的模块
@@ -60,6 +60,6 @@ campus-estation.user.service
 
 可以描述为：
 
-> 基于 Go Kratos + gRPC + Consul 构建校园社区轻量微服务系统，拆分 API 网关、账号文件服务、用户资料服务、AI/RAG 服务和 LangGraph 运营 Agent 服务；使用 Redis 缓存热点读和限流，COS/CDN 承载公开媒体，Grafana + Loki + Prometheus + Alloy 实现日志搜索、健康监控和飞书告警。
+> 基于 Go Kratos + gRPC + Consul 构建校园社区轻量微服务系统，拆分 API 网关、账号文件服务、用户资料服务、AI/RAG 服务和 LangGraph 运营 Agent 服务；使用 Redis 缓存热点读和限流，COS/CDN 承载公开媒体，Grafana + Loki + Prometheus + Alloy 实现日志搜索、健康监控和飞书告警，并通过 Agent 将举报、重要反馈和待人工确认审核推到飞书。
 
 不要描述为“单体项目”。也不建议继续叫“短视频架构”，当前产品和文档统一叫“校园 e站微服务架构”。

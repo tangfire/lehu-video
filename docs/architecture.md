@@ -46,6 +46,8 @@ flowchart LR
     Health[health-exporter] --> Prometheus[(Prometheus)]
     Grafana -->|query metrics| Prometheus
     Grafana --> Alert[alert-webhook]
+    API -->|运营通知| Alert
+    Alert --> Feishu[飞书群机器人]
 ```
 
 内部通信协议：
@@ -55,6 +57,7 @@ flowchart LR
 - `api -> campus-rag`：Docker 内网 HTTP，默认 `http://campus-rag:8090`。
 - `api -> campus-agent`：Docker 内网 HTTP，默认 `http://campus-agent:8091`。
 - `campus-agent -> api`：内部只读工具接口，使用 `X-Campus-Agent-Token`。
+- `campus-api -> alert-webhook`：Docker 内网 HTTP，发送运营日报、举报/反馈提醒、待人工确认审核和 AI 预算提醒。
 - 前端只调用 `api` 的 HTTP 接口，不直接访问内部微服务。
 
 ## Data
@@ -79,7 +82,7 @@ flowchart LR
 
 - `Alloy` 只负责采集容器日志并发送给 `Loki`。
 - `Loki` 只负责存日志和提供日志查询。
-- `health-exporter` 负责探测目标健康状态，包括 HTTP 健康接口和 TCP 依赖。
+- `health-exporter` 负责探测目标健康状态，包括 API、RAG、Agent、飞书桥接等 HTTP 健康接口和 MySQL/Redis/Qdrant 等 TCP 依赖。
 - `Prometheus` 负责定时抓取并保存 `health-exporter` 暴露出来的健康指标。
 - `Grafana` 同时把 `Loki` 和 `Prometheus` 当作数据源：日志搜索查 Loki，健康面板和告警规则查 Prometheus。
 
@@ -93,7 +96,9 @@ flowchart LR
 2. 图片先调用 `/v1/campus/upload/presign` 获取上传地址。
 3. 客户端直传 MinIO 或 COS。
 4. 客户端调用 `/v1/campus/upload/complete` 确认文件。
-5. API 写入校园帖子、审核状态和通知相关数据。
+5. API 写入校园帖子、审核状态和通知相关数据，立即返回发布成功。
+6. 公共首页只展示 `visible` 内容；作者本人可以看到自己的同步中帖子。
+7. 审核规则先行：低风险直接同步；中高风险或不确定内容进入 Agent 初审和飞书人工确认。
 
 ### e仔 Reply
 
@@ -109,8 +114,16 @@ flowchart LR
 1. 用户报错时复制 `request_id`。
 2. Grafana 日志搜索按 `request_id` 找到入口日志。
 3. 如有 `trace_id`，继续搜索同一请求的下游日志。
-4. Grafana 健康监控确认 API、MySQL、Redis、RAG、Qdrant 等目标状态。
+4. Grafana 健康监控确认 API、MySQL、Redis、RAG、Agent、alert-webhook、Qdrant 等目标状态。
 5. 关键目标 down 时由 Grafana Alerting 经过 `alert-webhook` 推送飞书群。
+
+### Ops Duty Agent
+
+1. 用户举报、重要反馈、待人工确认审核和 AI 预算预警进入 `campus_ops_alert`。
+2. `campus-api` 后台任务 5 秒级扫描待发送事件。
+3. 事件经 `alert-webhook /agent` 进入飞书。
+4. 发帖审核卡片可以用一次性 token 通过/拒绝；举报卡片可以下架内容或忽略举报。
+5. 真正写库、通知举报人和审核日志都由 `campus-api` 完成，`campus-agent` 只提供判断和建议。
 
 ## Production Defaults
 
@@ -120,4 +133,5 @@ flowchart LR
 - `LEHU_ENABLE_LEGACY_UPLOAD=false`，禁止图片上传退回 API 中转。
 - `LEHU_ACCESS_LOG_RETENTION_DAYS=7`，避免 `campus_access_log` 在 1核1G 云 MySQL 上无限增长。
 - `LEHU_REDIS_CACHE_ENABLED=true`，Redis 用于真实 IP 限流和短 TTL 热点读缓存；验证码能力保留在旧账号基础服务里，小程序主链路不依赖它。
+- `CAMPUS_AI_BUDGET_ENABLED=true`，AI 调用写入 `campus_ai_usage_log`，默认日预算 2 元、月预算 20 元；低风险审核不调模型。
 - Docker json log 使用大小和份数限制；长期排障以 Loki 留存为准。

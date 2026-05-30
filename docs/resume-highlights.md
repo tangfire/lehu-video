@@ -18,13 +18,14 @@ Grafana / Loki / Alloy / Prometheus / 飞书告警
 
 ## 可写进简历的要点
 
-- 设计并实现 Go Kratos 轻量微服务架构，拆分 `campus-api`、`base`、`campus-user`、`campus-rag`，内部使用 gRPC + Consul 服务发现，外部统一由 API 网关提供 HTTP 接口。
+- 设计并实现轻量微服务架构，拆分 `campus-api`、`base`、`campus-user`、`campus-rag`、`campus-agent`，Go 服务内部使用 gRPC + Consul 服务发现，Python AI/RAG/Agent 服务通过 Docker 内网 HTTP 接入。
 - 设计公开媒体上传链路：前端请求预签名 URL，客户端直传 COS/MinIO，后端确认文件并返回 CDN URL，避免轻量服务器带宽被图片流量占满。
 - 引入 Redis 热点读缓存和真实 IP 限流，对帖子列表、帖子详情、分类、后台 summary、安全 overview 等接口做短 TTL 缓存，Redis 异常时回落 MySQL。
 - 搭建 Grafana + Loki + Alloy + Prometheus 可观测体系，支持按 `request_id` 搜索容器日志、健康面板定位故障组件，并通过飞书群机器人接收 P0/P1 告警。
 - 实现 e仔 AI/RAG 知识库链路：后台上传/录入资料，RAG 服务解析切片并写入 Qdrant，评论区 `@e仔` 时结合帖子上下文和知识库生成回复，并在后台支持质量标注和撤回。
 - 设计 RAG 质量评测闭环：真实查询日志沉淀为评测集，批量运行固定问题集，记录命中率、平均分、失败样例，并展示 dense/BM25/词面重合等召回解释字段。
 - 新增运营值班 Agent：独立 `campus-agent` 服务使用 LangGraph 编排工具调用流程，读取后台统计、审核队列、RAG 日志和安全数据，支持每日巡检、知识库缺口分析、举报/重要反馈飞书提醒，以及发帖审核 human-in-the-loop。
+- 设计 AI 成本保护链路：发帖审核规则先行，低风险不调模型；中高风险才进入 Agent 复核；所有模型调用写入 `campus_ai_usage_log`，后台展示日/月预算并在 70%/90% 触发飞书预警。
 - 设计运营后台能力，包括内容审核、举报反馈、权限管理、安全面板、e仔人设配置、知识库测试、朋友圈九图素材包和审核策略配置。
 - 围绕 300 人试运营做成本控制：2核4G 轻量服务器 + 1核1G 云 MySQL + 本机 Redis，视频关闭，图片走 COS/CDN，访问日志 7 天保留。
 
@@ -32,7 +33,7 @@ Grafana / Loki / Alloy / Prometheus / 飞书告警
 
 1. 先讲产品：校园社区、小程序、运营后台、e仔知识库。
 2. 再讲架构：API 网关 + 基础服务 + 用户资料服务 + RAG 服务，gRPC/Consul/HTTP 如何配合。
-3. 再讲关键链路：发帖、图片上传、e仔回复、后台审核、日志排障。
+3. 再讲关键链路：发帖无感审核、图片上传、e仔回复、Agent 飞书值班、日志排障。
 4. 再讲取舍：为什么首发不开放视频，为什么不继续拆帖子/评论服务，为什么用 COS/CDN 和 Redis。
 5. 最后讲上线：Docker Compose、生产端口收敛、Grafana/Loki/Prometheus、飞书告警、7 天访问日志保留。
 

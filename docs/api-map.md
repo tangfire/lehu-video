@@ -117,6 +117,8 @@
 | `PUT` | `/v1/campus/admin/settings/audit` | 保存审核设置 |
 | `GET` | `/v1/campus/admin/settings/agent` | 获取值班 Agent/飞书开关 |
 | `PUT` | `/v1/campus/admin/settings/agent` | 保存值班 Agent/飞书开关 |
+| `GET` | `/v1/campus/admin/ai-usage/summary` | AI 成本今日/月度汇总 |
+| `GET` | `/v1/campus/admin/ai-usage/logs` | AI 调用明细 |
 | `POST` | `/v1/campus/admin/stats/reconcile` | 统计重算 |
 
 ### 内容管理
@@ -157,7 +159,21 @@
 | `GET` | `/v1/campus/admin/knowledge/documents/{id}/chunks` | 切片列表 |
 | `POST` | `/v1/campus/admin/knowledge/test-query` | 知识库测试 |
 | `GET` | `/v1/campus/admin/knowledge/query-logs` | RAG 查询日志 |
+| `GET` | `/v1/campus/admin/knowledge/eval-cases` | RAG 评测用例 |
+| `POST` | `/v1/campus/admin/knowledge/eval-cases` | 创建 RAG 评测用例 |
+| `PUT` | `/v1/campus/admin/knowledge/eval-cases/{id}` | 更新 RAG 评测用例 |
+| `POST` | `/v1/campus/admin/knowledge/eval-cases/batch` | 批量启用/停用评测用例 |
+| `POST` | `/v1/campus/admin/knowledge/eval-cases/run` | 批量运行 RAG 评测 |
 | `POST` | `/v1/campus/admin/knowledge/upload` | 上传知识库文件 |
+
+### 运营值班 Agent
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| `GET` | `/v1/campus/admin/copilot/runs` | Copilot 运行记录 |
+| `POST` | `/v1/campus/admin/copilot/runs` | 创建每日巡检/RAG缺口/治理建议 |
+| `GET` | `/v1/campus/admin/copilot/runs/{id}` | Copilot 运行详情 |
+| `POST` | `/v1/campus/admin/copilot/runs/{id}/send-feishu` | 手动发送到飞书 |
 
 ### 风险、反馈、安全、用户
 
@@ -174,6 +190,14 @@
 | `PUT` | `/v1/campus/admin/users/{id}/role` | 更新用户角色 |
 | `POST` | `/v1/campus/admin/notifications` | 创建系统通知 |
 
+## 飞书回调
+
+| 方法 | 路径 | 权限 | 用途 |
+| --- | --- | --- | --- |
+| `GET/POST` | `/v1/campus/feishu/card/callback` | 飞书一次性 token | 审核通过/拒绝、举报下架/忽略的按钮回调 |
+
+该接口不走前端 JWT，专门给飞书按钮使用。它会校验一次性 action token 和目标状态，真正写库仍由 `campus-api` 执行。
+
 ## 内部 RAG 接口
 
 这些只在 Docker 内网使用，不给前端直接调用：
@@ -185,6 +209,25 @@
 | `POST` | `/internal/rag/index-document` | `campus-rag` | 文件入库 |
 | `POST` | `/internal/rag/delete-document` | `campus-rag` | 删除文档切片 |
 | `POST` | `/internal/rag/query` | `campus-rag` | 检索知识库 |
+
+## 内部 Agent 工具接口
+
+这些接口只允许 `campus-agent` 通过 `X-Campus-Agent-Token` 调用，不给前端使用：
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| `GET` | `/v1/campus/internal/copilot/tools/admin-summary` | 后台 summary |
+| `GET` | `/v1/campus/internal/copilot/tools/security-overview` | 安全面板 |
+| `GET` | `/v1/campus/internal/copilot/tools/ai-reply-overview` | e仔概览 |
+| `GET` | `/v1/campus/internal/copilot/tools/ai-reply-tasks` | e仔任务 |
+| `GET` | `/v1/campus/internal/copilot/tools/rag-query-logs` | RAG 查询日志 |
+| `GET` | `/v1/campus/internal/copilot/tools/rag-eval-cases` | RAG 评测用例 |
+| `GET` | `/v1/campus/internal/copilot/tools/moderation-posts` | 待审核帖子 |
+| `GET` | `/v1/campus/internal/copilot/tools/moderation-comments` | 待审核评论 |
+| `GET` | `/v1/campus/internal/copilot/tools/reports` | 举报 |
+| `GET` | `/v1/campus/internal/copilot/tools/feedback` | 反馈 |
+
+`campus-agent` 自身还提供 Docker 内网接口：`GET /healthz`、`POST /internal/copilot/run` 和 `POST /internal/moderation/audit`。公网只通过 `campus-api` 访问。
 
 ## 已移除的旧链路
 

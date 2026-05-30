@@ -25,6 +25,16 @@
     "target": "http://campus-rag:8090/healthz"
   },
   {
+    "name": "campus_agent_health",
+    "type": "http",
+    "target": "http://campus-agent:8091/healthz"
+  },
+  {
+    "name": "alert_webhook_health",
+    "type": "http",
+    "target": "http://alert-webhook:9120/healthz"
+  },
+  {
     "name": "minio_health",
     "type": "http",
     "target": "http://minio:9000/minio/health/live"

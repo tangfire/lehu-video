@@ -261,7 +261,7 @@ LEHU_WECHAT_MOCK_LOGIN=true
 | e仔 | 人设保存、知识库测试、失败任务页可用 |
 | 值班 Agent | 三种任务可运行，手动发送飞书可用，举报/重要反馈/审核待确认能触发提醒 |
 | 朋友圈素材 | 可生成素材包，扫码能进帖子详情 |
-| Grafana | 日志搜索和健康监控有数据 |
+| Grafana | 日志搜索和健康监控有数据，`campus_agent_health`、`alert_webhook_health` 为 up |
 | 飞书 | 模拟 Grafana 告警和 Agent 通知都能发到群 |
 
 命令行 smoke：
@@ -291,6 +291,8 @@ API_BASE=https://api.example.com/v1 ./scripts/smoke.sh
 | 小程序登录失败 | `WECHAT_APP_ID`、`WECHAT_APP_SECRET`、微信 request 域名 |
 | 图片上传失败 | COS CORS、COS 密钥、bucket、CDN 域名 |
 | Grafana no data | `health-exporter`、Prometheus datasource、Alloy/Loki |
+| Agent 飞书提醒没收到 | `/admin/audit` 开关、`campus_ops_alert` 状态、`alert-webhook` 日志 |
+| Agent 健康 down | `campus-agent` 容器、内部 token、模型配置；主社区链路应继续可用 |
 | e仔不回复 | `CAMPUS_EZAI_BOT_USER_ID`、模型 key、失败任务页 |
 | RAG 没命中 | 文档状态、切片、`SILICONFLOW_API_KEY`、置信度 |
 

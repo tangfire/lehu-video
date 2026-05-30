@@ -15,6 +15,8 @@ flowchart LR
     API --> MySQL[(MySQL)]
     API --> Redis[(Redis)]
     API -->|HTTP 内网| Rag[campus-rag]
+    API -->|HTTP 内网| Agent[campus-agent 运营值班 Agent]
+    Agent -->|内部只读工具| API
     Rag --> Qdrant[(Qdrant)]
     Base --> MinIO[(MinIO 本地开发)]
     Base --> COS[腾讯云 COS]
@@ -34,6 +36,7 @@ flowchart LR
 - `base`：账号、验证码、文件预签名上传、对象存储确认。本地用 MinIO，生产公开媒体用 COS + CDN。
 - `campus-user`：用户资料、搜索、统计和在线时间。
 - `campus-rag`：知识库文档解析、切片、embedding 和 Qdrant 检索。
+- `campus-agent`：LangGraph 运营值班 Agent，负责每日巡检、RAG 缺口分析、举报/重要反馈飞书提醒和发帖 AI/Agent 初审判断。
 - `admin-web`：运营后台，随主项目一起构建和部署。
 - `grafana / loki / alloy / prometheus / health-exporter / alert-webhook`：日志搜索、健康监控和飞书告警。
 
@@ -42,6 +45,7 @@ flowchart LR
 - 小程序和运营后台只访问 `campus-api` 的 HTTP API。
 - `campus-api` 通过 gRPC + Consul 调用 `base` 和 `campus-user`。
 - `campus-api` 通过 Docker 内网 HTTP 调用 `campus-rag`。
+- `campus-api` 通过 Docker 内网 HTTP 调用 `campus-agent`，Agent 再用内部 token 读取 `campus-api` 只读工具接口。
 - `base`、`campus-user`、`campus-api` 是独立 Go Kratos 容器；`campus-rag` 是独立 Python 容器。
 
 关键链路：
@@ -49,6 +53,7 @@ flowchart LR
 - 发帖链路：小程序/后台调用 API；文字/图片帖写 MySQL；图片先走 `/v1/campus/upload/presign` 直传对象存储，再 `/complete` 确认；后端固定拒绝视频。
 - 媒体链路：生产公开图片不走服务器出网，`base` 返回 COS 上传地址和 CDN 访问地址，避免轻量服务器带宽被图片占满。
 - e仔链路：评论区 `@e仔` 先落任务；需要校园事实时查 RAG；命中资料后再生成官方账号回复；未配置模型时降级，不影响社区主链路。
+- 值班 Agent 链路：举报、重要反馈、待人工确认审核和每日巡检会通过 `alert-webhook` 推飞书；发帖审核规则先行，低风险不调模型，中高风险才调 Agent 并做人机确认。
 - 排障链路：用户拿到 `request_id` 后，在 Grafana 日志搜索定位入口日志；健康面板用于判断 API、MySQL、Redis、RAG 等组件是否可用。
 
 图里的监控链路可以这样理解：
@@ -56,7 +61,8 @@ flowchart LR
 - `MinIO`：本地开发默认对象存储。生产公开图片走腾讯云 COS + CDN，MinIO 不再承载用户公开图片流量。
 - `Alloy`：采集 Docker 容器日志，送到 `Loki`。
 - `Loki`：存日志。Grafana 通过 Loki 查 `request_id`、接口路径、错误日志。
-- `health-exporter`：主动探测 API、MySQL、Redis、RAG、Qdrant 等目标是否可用，并把结果变成指标。
+- `health-exporter`：主动探测 API、MySQL、Redis、RAG、Agent、飞书桥接、Qdrant 等目标是否可用，并把结果变成指标。
+- `alert-webhook`：接收 Grafana 告警和值班 Agent 运营通知，发到飞书群；生产不要暴露公网。
 - `Prometheus`：定时抓取并保存这些健康指标，例如某个目标当前是 up 还是 down、连续 down 了多久。
 - `Grafana`：同时查询 Loki 和 Prometheus；Loki 用来看“为什么报错”，Prometheus 用来看“哪里挂了”和触发告警。
 
@@ -88,7 +94,7 @@ docker compose -p campus-estation-backend down
 
 ```text
 mysql / redis / consul / minio / qdrant / campus-rag
-base / campus-user / api / admin-web
+base / campus-user / api / campus-agent / admin-web
 health-exporter / alert-webhook / prometheus / loki / alloy / grafana
 ```
 
@@ -211,17 +217,22 @@ CAMPUS_RAG_EMBEDDING_MODEL=BAAI/bge-m3
 SILICONFLOW_API_KEY=sk-xxx
 ```
 
-e仔 AI 回复：
+e仔 AI 回复和值班 Agent 默认使用 DeepSeek/OpenAI 兼容接口：
 
 ```text
 DEEPSEEK_API_KEY=sk-xxx
 CAMPUS_EZAI_BOT_USER_ID=123
 CAMPUS_AI_DAILY_LIMIT=200
-CAMPUS_AI_MODEL=deepseek-chat
+CAMPUS_AI_MODEL=deepseek-v4-flash
 CAMPUS_AI_BASE_URL=https://api.deepseek.com/chat/completions
+CAMPUS_AI_BUDGET_ENABLED=true
+CAMPUS_AI_MONTHLY_BUDGET_CNY=20
+CAMPUS_AI_DAILY_BUDGET_CNY=2
 ```
 
 未配置 API Key 时，e仔/RAG 会降级，不影响社区主链路。
+
+值班 Agent 配置见 [docs/agent-copilot.md](docs/agent-copilot.md)。后台 `/admin/audit` 可以直接开关 Agent 模型能力、AI 初审、飞书运营通知和 AI 预算，不需要重启容器。举报默认即时飞书；`contact/cooperation/bug/content` 类型反馈默认即时飞书；普通 `suggestion` 默认只进后台和日报，避免噪音。
 
 ## 监控与日志
 
@@ -294,7 +305,7 @@ LEHU_ALERT_FEISHU_SECRET=飞书机器人签名密钥
 GRAFANA_ROOT_URL=https://grafana.example.com
 ```
 
-飞书群里创建“自定义机器人”，复制 webhook；建议开启“签名校验”，把签名密钥填到 `LEHU_ALERT_FEISHU_SECRET`。当前只报 P0/P1：API/ready、MySQL、Redis、health-exporter 连续 2 分钟不可用发 critical；base、campus-user、RAG、MinIO、Qdrant、Consul 连续 3 分钟不可用发 warning。
+飞书群里创建“自定义机器人”，复制 webhook；建议开启“签名校验”，把签名密钥填到 `LEHU_ALERT_FEISHU_SECRET`。当前只报 P0/P1：API/ready、MySQL、Redis、health-exporter 连续 2 分钟不可用发 critical；base、campus-user、RAG、campus-agent、alert-webhook、MinIO、Qdrant、Consul 连续 3 分钟不可用发 warning。
 
 本地模拟一条 Grafana webhook：
 

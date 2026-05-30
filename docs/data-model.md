@@ -71,6 +71,8 @@ sql/campus.sql
 | 表 | 用途 |
 | --- | --- |
 | `campus_ops_setting` | 运营配置，例如审核模式、值班 Agent/飞书开关、e仔人设 |
+| `campus_ops_alert` | 举报、重要反馈、审核待确认、预算预警等飞书运营事件队列 |
+| `campus_ops_action_token` | 飞书按钮一次性 action token |
 | `campus_ai_audit_task` | AI 发帖审核任务 |
 | `campus_ai_usage_log` | 模型调用 token、预估成本和预算保护账本 |
 | `campus_audit_log` | 审核记录 |
@@ -145,6 +147,8 @@ campus_notification
 
 如果审核模式不是 `off`，帖子会先进入待审核，再由人工或 AI 审核变更状态。待审核帖不进入公共列表，但作者本人可以在自己的详情和“我的帖子”看到，小程序用 `publish_state/client_status_label/client_status_detail` 展示成“同步中/需修改”。
 
+AI 初审是规则先行：低风险直接公开，不调模型；中风险、不确定或高风险才进入 `campus_ai_audit_task`。Agent 结果只提供判断和理由，最终状态仍由 `campus-api` 写入。
+
 ### 图片上传
 
 ```text
@@ -160,6 +164,19 @@ campus_forum_comment -> campus_ai_reply_task -> campus_rag_query_log -> campus_f
 ```
 
 用户评论触发任务，后台任务生成 e仔回复，最后回复仍然是一条普通评论。
+
+### 运营值班事件
+
+```text
+campus_forum_report / campus_feedback / campus_ai_audit_task
+-> campus_ops_alert
+-> alert-webhook /agent
+-> 飞书
+-> campus_ops_action_token
+-> campus-api 处理动作
+```
+
+举报和重要反馈会先入 `campus_ops_alert`，后台任务异步推飞书，不阻塞用户提交。飞书按钮只带一次性 token；通过/拒绝/下架/忽略这些写库动作统一回到 `campus-api` 校验并执行。
 
 ### 知识库入库
 
@@ -180,6 +197,7 @@ campus_knowledge_document -> campus-rag -> Qdrant -> campus_knowledge_chunk
 5. `campus_ops_setting`：后台配置，包括 `post_audit_mode`、Agent/飞书开关、AI 预算和 e仔人设。
 6. `campus_knowledge_document` 和 `campus_knowledge_chunk`：知识库状态。
 7. `campus_ai_usage_log`：模型调用成本是否异常。
-8. `campus_access_log`：请求访问记录。
+8. `campus_ops_alert`：飞书运营提醒是否堆积或发送失败。
+9. `campus_access_log`：请求访问记录。
 
 不要直接改业务表状态，优先通过后台操作。必须手动修数据时，先备份单条记录，再改最小字段。

@@ -142,6 +142,8 @@ make logs-search Q="/v1/campus/forum/posts" SINCE=2h
 | `base_health` | HTTP | `http://base:8020/healthz` | 账号/文件服务活着 |
 | `campus_user_health` | HTTP | `http://campus-user:8030/healthz` | 用户资料服务活着 |
 | `campus_rag_health` | HTTP | `http://campus-rag:8090/healthz` | RAG 服务活着 |
+| `campus_agent_health` | HTTP | `http://campus-agent:8091/healthz` | 运营值班 Agent 服务活着 |
+| `alert_webhook_health` | HTTP | `http://alert-webhook:9120/healthz` | 飞书告警桥接服务活着 |
 | `minio_health` | HTTP | `http://minio:9000/minio/health/live` | 本地 MinIO 活着 |
 | `mysql_tcp` | TCP | `mysql:3306` | MySQL 端口可连 |
 | `redis_tcp` | TCP | `redis:6379` | Redis 端口可连 |
@@ -166,7 +168,7 @@ make logs-search Q="/v1/campus/forum/posts" SINCE=2h
 | 告警 | 条件 | 持续时间 | 级别 | 说明 |
 | --- | --- | --- | --- | --- |
 | `CampusCriticalTargetDown` | `api_health`、`api_ready`、`mysql_tcp`、`redis_tcp` 失败 | `2m` | `critical` | 核心服务或核心依赖不可用 |
-| `CampusDependencyTargetDown` | `base_health`、`campus_user_health`、`campus_rag_health`、`minio_health`、`qdrant_tcp`、`consul_tcp` 失败 | `3m` | `warning` | 非入口依赖不可用，可能影响部分功能 |
+| `CampusDependencyTargetDown` | `base_health`、`campus_user_health`、`campus_rag_health`、`campus_agent_health`、`alert_webhook_health`、`minio_health`、`qdrant_tcp`、`consul_tcp` 失败 | `3m` | `warning` | 非入口依赖不可用，可能影响部分功能 |
 | `CampusHealthExporterDown` | Prometheus 抓不到 `health-exporter` | `2m` | `critical` | 健康面板和告警可能失真 |
 
 通知策略：
@@ -223,6 +225,18 @@ http://alert-webhook:9120/agent?token=$LEHU_ALERT_WEBHOOK_TOKEN
 | 值班 Agent 通知 | `campus-api` | 每日运营日报、高风险运营提醒、举报/重要反馈提醒、待人工审核提醒、手动发送的 Agent 结果 | 运营处理 |
 
 本地如果没有配置飞书 webhook，`alert-webhook` 不会崩溃，只会把缺少 webhook 的事件打到日志里，方便开发环境启动整套栈。
+
+运营事件的即时提醒条件：
+
+| 事件 | 是否即时飞书 | 开关 |
+| --- | --- | --- |
+| 用户举报帖子/评论 | 默认即时提醒 | `/admin/audit` 的“飞书运营通知”和“举报提醒” |
+| 联系我们、合作、Bug、内容问题反馈 | 默认即时提醒 | `/admin/audit` 的“重要反馈提醒”和 `CAMPUS_OPS_FEISHU_FEEDBACK_NOTIFY_TYPES` |
+| 普通建议反馈 | 默认不即时打扰，进入后台和日报 | 可把 `suggestion` 加入反馈提醒类型 |
+| 待人工确认的发帖审核 | 默认即时提醒 | 审核模式、Agent 初审开关、飞书运营通知 |
+| AI 预算 70%/90% 预警 | 默认即时提醒 | AI 成本保护和飞书运营通知 |
+
+注意：`alert_webhook_health` down 时，Grafana 能在健康面板看到桥接服务异常，但桥接服务自己不可用时无法把这条告警送到飞书。这类“通知通道自检”后续可用腾讯云云监控或外部 uptime 探测补一层。
 
 ## 本地测试 Grafana 告警桥接
 
@@ -353,7 +367,30 @@ PY
 | `mysql_tcp` down | MySQL 容器、磁盘、内存 |
 | `redis_tcp` down | Redis 容器、内存 |
 | `campus_rag_health` down | RAG 容器、模型 key、Qdrant |
+| `campus_agent_health` down | `campus-agent` 容器、内部 token、模型配置；社区主链路不应受影响 |
+| `alert_webhook_health` down | 飞书桥接容器或 token 配置；Grafana 面板仍可看，但飞书通知可能不可达 |
 | `up{job="campus-health"} == 0` | `health-exporter` 或 Prometheus 配置 |
+
+## Agent 和 AI 成本排障
+
+值班 Agent、发帖 AI 初审、e仔回复和后台预览的模型调用会写入 MySQL `campus_ai_usage_log`，后台 `/admin/audit` 会展示今日和本月预估成本。当前没有把 token 成本做成 Prometheus 指标，原因是这类数据需要按功能、来源和预算状态看，用后台表格更直观，也避免 Prometheus 存太多业务明细。
+
+常用日志查询：
+
+```logql
+{job="docker", container="campus-api"} |= "ai budget"
+{job="docker", container="campus-api"} |= "content_audit"
+{job="docker", container="campus-api"} |= "ops_alert"
+{job="docker", container="campus-agent"} |= "agent_run"
+{job="docker", container="campus-alert-webhook"} |= "agent_notice"
+```
+
+如果举报、反馈或审核卡片没有到飞书，按顺序看：
+
+1. `/admin/audit` 里的飞书运营通知、举报提醒、重要反馈提醒是否开启。
+2. `LEHU_ALERT_FEISHU_WEBHOOK` 是否同时存在于 `api` 和 `alert-webhook` 容器环境。
+3. `campus_ops_alert` 里对应事件的 `status / retry_count / last_error`。
+4. Grafana 日志里 `campus-api` 的 `ops_alert` 和 `campus-alert-webhook` 的 `agent_notice`。
 
 ## 留存和成本
 
