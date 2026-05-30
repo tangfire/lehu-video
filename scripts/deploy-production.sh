@@ -28,13 +28,13 @@ run git checkout "${DEPLOY_BRANCH}"
 run git reset --hard "${DEPLOY_REMOTE}/${DEPLOY_BRANCH}"
 
 section "pre-deploy check"
-run env ENV_FILE="${ENV_FILE}" RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 RUN_HEALTH_CHECK=0 bash scripts/release-check.sh
+run env ENV_FILE="${ENV_FILE}" RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 RUN_PYTHON_TESTS=0 RUN_HEALTH_CHECK=0 bash scripts/release-check.sh
 
 section "compose deploy"
 run docker compose --env-file "${ENV_FILE}" -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 section "post-deploy health"
-run env ENV_FILE="${ENV_FILE}" RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 RUN_HEALTH_CHECK=1 bash scripts/release-check.sh
+run env ENV_FILE="${ENV_FILE}" RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 RUN_PYTHON_TESTS=0 RUN_HEALTH_CHECK=1 bash scripts/release-check.sh
 
 section "containers"
 run docker compose --env-file "${ENV_FILE}" -f docker-compose.yml -f docker-compose.prod.yml ps

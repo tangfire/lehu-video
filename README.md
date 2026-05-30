@@ -121,6 +121,8 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 
 生产覆盖文件默认不启动本地 MySQL、MinIO 和 `minio-init`，业务使用云 MySQL 与 COS/CDN；Redis、Consul、Qdrant、Prometheus、base、campus-user 不暴露到宿主机。API、运营后台、Grafana 只绑定 `127.0.0.1`，建议由 Caddy/Nginx 反向代理统一暴露 HTTPS。
 
+API 反向代理需要显式拒绝 `/v1/campus/internal/*`，这些路径只给 Docker 内网里的 Agent 工具和 Prometheus 指标使用；公网验收时应确认 `/v1/campus/internal/ops-metrics` 返回 404/403。
+
 如果临时要在生产 compose 里启用本地 MySQL/MinIO，需要显式加 `COMPOSE_PROFILES=local-stateful`，并自行把 DSN/storage provider 切回本地。
 
 本地地址：
@@ -354,10 +356,12 @@ API_BASE=http://127.0.0.1:18080/v1 ./scripts/smoke.sh
 bash scripts/release-check.sh
 ```
 
+这条检查会跑 Go、运营后台构建、Python RAG/Agent 单测和 compose config；真实 `.env.production` 还会拦截占位符、mock 登录、admin allow all、旧图片中转上传等危险配置。
+
 服务器上要连同当前运行服务一起检查：
 
 ```bash
-RUN_HEALTH_CHECK=1 bash scripts/release-check.sh
+RUN_HEALTH_CHECK=1 RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 RUN_PYTHON_TESTS=0 bash scripts/release-check.sh
 ```
 
 更完整的无感更新和轻量蓝绿发布方案见 [docs/release-strategy.md](docs/release-strategy.md)。

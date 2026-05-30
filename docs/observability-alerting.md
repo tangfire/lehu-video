@@ -58,6 +58,7 @@ flowchart LR
 ```
 
 也就是说生产建议用 Caddy/Nginx 反向代理提供 HTTPS；不要直接把 Grafana、Prometheus、Loki、MySQL、Redis 暴露到公网。
+API 域名反代时要显式拒绝 `/v1/campus/internal/*`，避免把 Prometheus 指标和 Agent 内部工具路径暴露到公网；飞书按钮回调 `/v1/campus/feishu/card/callback` 不在该路径下，需要保持公网 HTTPS 可访问。
 
 ## Grafana 里看什么
 

@@ -43,6 +43,8 @@ docker compose up -d --build
 
 ```caddyfile
 api.example.com {
+    @internal path /v1/campus/internal/*
+    respond @internal 404
     reverse_proxy 127.0.0.1:18080
 }
 
@@ -55,7 +57,19 @@ grafana.example.com {
 }
 ```
 
-实际部署时把 `example.com` 换成真实域名，并先把域名 DNS A 记录指向服务器公网 IP。Grafana 域名建议只给自己使用，至少配强密码；如果条件允许，再加 IP 白名单或 Basic Auth。
+Nginx API server 段至少要有这一条拦截：
+
+```nginx
+location ^~ /v1/campus/internal/ {
+    return 404;
+}
+
+location / {
+    proxy_pass http://127.0.0.1:18080;
+}
+```
+
+实际部署时把 `example.com` 换成真实域名，并先把域名 DNS A 记录指向服务器公网 IP。`/v1/campus/internal/*` 是 Docker 内网工具和 Prometheus 指标路径，公网必须显式拒绝；飞书按钮回调 `/v1/campus/feishu/card/callback` 不在 internal 路径下，仍需要公网 HTTPS 可访问。Grafana 域名建议只给自己使用，至少配强密码；如果条件允许，再加 IP 白名单或 Basic Auth。
 
 ## 上线前准备
 
@@ -233,7 +247,7 @@ GRAFANA_ROOT_URL=https://grafana.example.com
 LEHU_ADMIN_ROOT_URL=https://admin.example.com
 LEHU_PUBLIC_API_BASE_URL=https://api.example.com/v1
 LEHU_FEISHU_CARD_CALLBACK_ENABLED=true
-LEHU_FEISHU_CARD_VERIFY_TOKEN=
+LEHU_FEISHU_CARD_VERIFY_TOKEN=飞书事件订阅校验 token
 CAMPUS_OPS_SLA_SCAN_ENABLED=true
 CAMPUS_OPS_SLA_REPORT_OVERDUE=30m
 CAMPUS_OPS_SLA_AUDIT_OVERDUE=2h
@@ -257,6 +271,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 ```
 
 如果生产 config 阶段就报缺少环境变量，要先补 `.env.production`，不要临时改 compose 绕过去。
+`scripts/release-check.sh` 会在真实 `.env.production` 上额外拦截 `change-me`、`example.com`、空关键 token、mock 登录、admin allow all 和旧图片中转上传，失败时不要继续部署；`.env.production.example` 仍允许保留占位符。
 
 ## 启动
 
@@ -296,6 +311,7 @@ LEHU_WECHAT_MOCK_LOGIN=true
 | 模块 | 验收项 |
 | --- | --- |
 | API | `/healthz`、`/readyz` 正常 |
+| 反代安全 | 公网 `/v1/campus/internal/ops-metrics` 返回 404/403，内网 Prometheus `campus-api-ops` 正常 |
 | 小程序登录 | 真实微信登录成功，mock 登录关闭 |
 | 发帖 | 文字帖成功，图片帖成功，视频被拒绝 |
 | 上传 | `/presign` 返回 COS URL，`/complete` 返回 CDN URL |

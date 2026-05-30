@@ -40,11 +40,14 @@ bash scripts/release-check.sh
 - 生产 compose config
 - `go test ./...`
 - `npm --prefix web/admin run build`
+- Python RAG/Agent 单测
+
+Python 单测固定用 3.12；本机没有 `python3.12` 时，脚本会用 Docker 的 `python:3.12-slim` 跑，避免 Python 3.14 这类过新版本导致依赖误报。
 
 如果服务器当前已经跑着生产服务，可以额外检查健康接口：
 
 ```bash
-RUN_HEALTH_CHECK=1 bash scripts/release-check.sh
+RUN_HEALTH_CHECK=1 RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 RUN_PYTHON_TESTS=0 bash scripts/release-check.sh
 ```
 
 如果要跑真实 smoke，会注册测试用户并发一条测试帖：
@@ -67,7 +70,7 @@ ENV_FILE=/path/to/.env.production bash scripts/release-check.sh
 git pull
 bash scripts/release-check.sh
 docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-RUN_HEALTH_CHECK=1 bash scripts/release-check.sh
+RUN_HEALTH_CHECK=1 RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 RUN_PYTHON_TESTS=0 bash scripts/release-check.sh
 ```
 
 发布后立刻看：

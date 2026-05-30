@@ -39,6 +39,7 @@ cp .env.production.example .env.production
 | `CAMPUS_AGENT_INTERNAL_TOKEN` | 随机长 token |
 | `LEHU_ALERT_WEBHOOK_TOKEN` | 随机长 token |
 | `LEHU_ALERT_FEISHU_WEBHOOK` | 飞书群机器人 webhook |
+| `LEHU_FEISHU_CARD_VERIFY_TOKEN` | 飞书按钮回调校验 token；开启回调时不能为空 |
 | `ADMIN_API_BASE_URL` | 真实 API HTTPS 地址 |
 | `LEHU_PUBLIC_API_BASE_URL` | 真实 API HTTPS 地址，给飞书回调用 |
 | `LEHU_ADMIN_ROOT_URL` | 真实后台 HTTPS 地址 |
@@ -118,6 +119,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 
 - 外部只通过 HTTPS 访问。
 - 生产默认不启动本地 MySQL/MinIO；Redis、Consul、Qdrant、Prometheus 不暴露公网。
+- API 反代显式拒绝 `/v1/campus/internal/*`，公网访问 `/v1/campus/internal/ops-metrics` 返回 404/403。
 - Grafana 使用强密码。
 
 ## GitHub Actions 部署
@@ -146,10 +148,13 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 bash scripts/release-check.sh
 ```
 
+这条检查会拦截真实 `.env.production` 里的占位域名/密钥、mock 登录、admin allow all、旧图片中转上传，并把 Go、运营后台、RAG、Agent 测试都纳入上线门槛。
+Python 单测固定使用 3.12；本机没装 `python3.12` 时会通过 Docker 的 `python:3.12-slim` 跑。
+
 服务器运行中健康检查：
 
 ```bash
-RUN_HEALTH_CHECK=1 RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 bash scripts/release-check.sh
+RUN_HEALTH_CHECK=1 RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 RUN_PYTHON_TESTS=0 bash scripts/release-check.sh
 ```
 
 ## 微信小程序提审
@@ -216,7 +221,9 @@ RUN_HEALTH_CHECK=1 RUN_GO_TESTS=0 RUN_ADMIN_BUILD=0 bash scripts/release-check.s
 - `contact/cooperation/bug/content` 反馈能进飞书。
 - 飞书按钮下架/忽略能回调 API。
 - Grafana 健康面板有数据。
+- Grafana「校园 e站值班 Agent」面板有数据，Prometheus target `campus-api-ops` 为 up。
 - Loki 能按 `request_id` 查日志。
+- 公网 `https://api.example.com/v1/campus/internal/ops-metrics` 返回 404/403。
 
 健康面板必须看到这些目标：
 
