@@ -26,19 +26,20 @@
 5. `docs/microservices.md`：理解微服务边界、gRPC/Consul 和不继续拆的原因。
 6. `docs/resume-highlights.md`：把项目整理成简历和面试表达。
 7. `docs/deployment-launch.md`：上线部署、环境变量、验收和常见问题。
-8. `docs/media-storage.md`：COS/CDN、MinIO、本地和生产上传链路。
-9. `docs/data-model.md`：核心表和数据流。
-10. `docs/api-map.md`：HTTP 路由按功能分组。
-11. `docs/admin-operations.md`：运营后台页面和日常工作流。
-12. `docs/ai-rag.md`：专门理解 e仔 AI、本地知识库和 RAG 检索。
-13. `docs/observability-alerting.md`：专门理解 Grafana、Loki、Alloy、Prometheus 和飞书告警。
-14. `docs/agent-copilot.md`：理解运营值班 Agent、飞书主动提醒和 AI 成本保护。
-15. `docs/wechat-submission.md`：小程序提审、隐私和社区规范。
-16. `docker-compose.yml` / `docker-compose.prod.yml`：理解本地与生产差异。
-17. `app/campusApi/service/internal/service/campusservice.go`：看 HTTP 路由总入口。
-18. `app/campusApi/service/internal/biz/campus.go`：看校园业务主用例。
-19. `sql/campus.sql`：看新库表结构。
-20. `web/admin/src/App.jsx`：看运营后台页面入口。
+8. `docs/release-strategy.md`：没有测试环境时怎么发布、回滚和演进轻量蓝绿。
+9. `docs/media-storage.md`：COS/CDN、MinIO、本地和生产上传链路。
+10. `docs/data-model.md`：核心表和数据流。
+11. `docs/api-map.md`：HTTP 路由按功能分组。
+12. `docs/admin-operations.md`：运营后台页面和日常工作流。
+13. `docs/ai-rag.md`：专门理解 e仔 AI、本地知识库和 RAG 检索。
+14. `docs/observability-alerting.md`：专门理解 Grafana、Loki、Alloy、Prometheus 和飞书告警。
+15. `docs/agent-copilot.md`：理解运营值班 Agent、飞书主动提醒和 AI 成本保护。
+16. `docs/wechat-submission.md`：小程序提审、隐私和社区规范。
+17. `docker-compose.yml` / `docker-compose.prod.yml`：理解本地与生产差异。
+18. `app/campusApi/service/internal/service/campusservice.go`：看 HTTP 路由总入口。
+19. `app/campusApi/service/internal/biz/campus.go`：看校园业务主用例。
+20. `sql/campus.sql`：看新库表结构。
+21. `web/admin/src/App.jsx`：看运营后台页面入口。
 
 ## 目录怎么读
 
@@ -483,6 +484,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 | 改文件上传 | `base` 文件服务、COS provider、上传 presign/complete |
 | 改监控告警 | `deploy/observability/*` |
 | 改上线配置 | `.env.production.example`、`docker-compose.prod.yml` |
+| 改发布流程 | `docs/release-strategy.md`、`scripts/release-check.sh`、反向代理配置 |
 
 ## 人类接手 AI 代码时的安全做法
 

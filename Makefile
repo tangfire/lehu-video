@@ -88,6 +88,11 @@ logs-search:
 smoke:
 	bash scripts/smoke.sh
 
+.PHONY: release-check
+# run release preflight checks
+release-check:
+	bash scripts/release-check.sh
+
 .PHONY: build
 # build
 build:
