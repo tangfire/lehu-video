@@ -54,7 +54,7 @@ const AdminAssistant = () => {
             </div>
 
             <div className="admin-tab-panel">
-                {activeTab === 'status' && <AdminAIReplies mode="summary" />}
+                {activeTab === 'status' && <AdminAIReplies mode="tasks" initialStatus="" />}
                 {activeTab === 'persona' && <AdminEzaiPersona />}
                 {activeTab === 'failed' && <AdminAIReplies mode="tasks" initialStatus="failed" />}
                 {activeTab === 'audit' && <AdminAuditSettings />}

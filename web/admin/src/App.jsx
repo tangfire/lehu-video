@@ -10,6 +10,7 @@ import AdminPermissions from './pages/Admin/AdminPermissions.jsx';
 import AdminNotifications from './pages/Admin/AdminNotifications.jsx';
 import AdminModeration from './pages/Admin/AdminModeration.jsx';
 import AdminAssistant from './pages/Admin/AdminAssistant.jsx';
+import AdminAIReplies from './pages/Admin/AdminAIReplies.jsx';
 import AdminAuditSettings from './pages/Admin/AdminAuditSettings.jsx';
 import AdminMoments from './pages/Admin/AdminMoments.jsx';
 import './App.css';
@@ -36,7 +37,7 @@ function App() {
                     <Route path="audit" element={<AdminAuditSettings />} />
                     <Route path="assistant" element={<AdminAssistant />} />
                     <Route path="notifications" element={<AdminNotifications />} />
-                    <Route path="ai-replies" element={<AdminLegacyRedirect to="/admin/assistant" tab="status" />} />
+                    <Route path="ai-replies" element={<AdminAIReplies initialStatus="" />} />
                     <Route path="knowledge" element={<AdminLegacyRedirect to="/admin/assistant" tab="knowledge" />} />
                     <Route path="comments" element={<AdminLegacyRedirect to="/admin/moderation" tab="comments" />} />
                     <Route path="reports" element={<AdminLegacyRedirect to="/admin/moderation" tab="reports" />} />
